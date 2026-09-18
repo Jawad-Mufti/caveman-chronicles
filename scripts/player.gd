@@ -7,6 +7,7 @@ signal hp_changed(hp: int)
 signal died
 signal rock_picked
 signal berries_changed(count: int)
+signal poultice(ok: bool, note: String)
 
 const SPEED := 260.0
 const JUMP := -640.0
@@ -195,12 +196,19 @@ func add_berry() -> bool:
 
 ## Gather -> craft -> ability: berries become a poultice that heals.
 func use_poultice() -> bool:
-	if dead or berries <= 0 or hp >= max_hp:
+	if dead:
+		return false
+	if berries <= 0:
+		poultice.emit(false, "No berries to crush.")
+		return false
+	if hp >= max_hp:
+		poultice.emit(false, "He is not hurt. Save them.")
 		return false
 	berries -= 1
 	hp = mini(hp + 2, max_hp)
 	berries_changed.emit(berries)
 	hp_changed.emit(hp)
+	poultice.emit(true, "He chews the poultice. Two wounds close.")
 	return true
 
 

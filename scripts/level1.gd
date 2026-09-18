@@ -13,15 +13,15 @@ const TRAP_ZONES := [[2900.0, 320.0], [3800.0, 320.0]]
 ## Max jump height at the current player values is ~136 px above the floor.
 const LEDGES := [
 	[700.0, 480.0, 160.0],
-	[1900.0, 480.0, 180.0],   # the refuge during the stampede
+	[1900.0, 480.0, 180.0],
 	[2180.0, 400.0, 120.0],   # only reachable from the ledge before it
 	[3500.0, 480.0, 200.0],
-	[4150.0, 480.0, 160.0],
+	[4150.0, 480.0, 190.0],   # the refuge during the stampede
 ]
 
 const FLYTRAPS := [1150.0, 2350.0, 3060.0, 3760.0, 4400.0]
 const BERRIES := [900.0, 2500.0, 3900.0]
-const STAMPEDE_X := 1660.0
+const STAMPEDE_X := 4020.0
 
 var player: CaveMan
 var cam: Camera2D
@@ -104,6 +104,7 @@ func _build_player() -> void:
 	add_child(player)
 	player.hp_changed.connect(func(v: int) -> void: hud.set_hp(v))
 	player.berries_changed.connect(func(v: int) -> void: hud.set_berries(v))
+	player.poultice.connect(func(_ok: bool, note: String) -> void: hud.say(note, 2.0))
 	player.died.connect(func() -> void: hud.say("He did not make it. Press R.", 999.0))
 
 	cam = Camera2D.new()
@@ -188,9 +189,9 @@ func _stampede() -> void:
 	for i in 9:
 		var r := Bestiary.Runner.new()
 		r.dir = -1
-		r.despawn_x = 1450.0
+		r.despawn_x = 3500.0
 		r.speed = randf_range(390.0, 470.0)
-		r.position = Vector2(2900.0 + i * randf_range(90.0, 190.0), GROUND_Y)
+		r.position = Vector2(5200.0 + i *randf_range(90.0, 190.0), GROUND_Y)
 		add_child(r)
 		await get_tree().create_timer(0.18).timeout
 
