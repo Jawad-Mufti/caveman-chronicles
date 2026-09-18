@@ -14,6 +14,7 @@ var player: CaveMan
 var stompable := true
 var stomp_top := -14.0    ## y offset of this critter's top, relative to its origin
 var stomp_damage := 99    ## a clean landing kills almost anything small
+var _prev_feet := -1000000.0
 
 
 func _ready() -> void:
@@ -63,7 +64,8 @@ func _is_stomp() -> bool:
 		return false
 	if player.velocity.y <= 40.0:
 		return false
-	return player.global_position.y <= global_position.y + stomp_top + 10.0
+	var line := global_position.y + stomp_top + 14.0
+	return player.global_position.y <= line or _prev_feet <= line
 
 
 func _physics_process(delta: float) -> void:
@@ -92,6 +94,8 @@ func _physics_process(delta: float) -> void:
 		elif damage > 0:
 			player.hurt(damage, global_position.x)
 
+	if player != null:
+		_prev_feet = player.global_position.y
 	queue_redraw()
 
 

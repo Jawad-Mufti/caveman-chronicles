@@ -16,12 +16,13 @@ const LEDGES := [
 	[1900.0, 480.0, 180.0],
 	[2180.0, 400.0, 120.0],   # only reachable from the ledge before it
 	[3500.0, 480.0, 200.0],
-	[4150.0, 480.0, 190.0],   # the refuge during the stampede
 ]
 
-const FLYTRAPS := [1150.0, 2350.0, 3060.0, 3760.0, 4400.0]
+const STAMPEDE_PLATFORMS := [[4020.0, 490.0, 120.0], [4200.0, 440.0, 110.0], [4380.0, 480.0, 120.0]]
+
+const FLYTRAPS := [1150.0, 2350.0, 3060.0, 3760.0]
 const BERRIES := [900.0, 2500.0, 3900.0]
-const STAMPEDE_X := 4020.0
+const STAMPEDE_X := 3900.0
 
 var player: CaveMan
 var cam: Camera2D
@@ -72,6 +73,9 @@ func _build_world() -> void:
 	# ledges
 	for l in LEDGES:
 		add_child(World.Slab.new(Rect2(l[0], l[1], l[2], 22)))
+
+	for s in STAMPEDE_PLATFORMS:
+		add_child(World.Slab.new(Rect2(s[0], s[1], s[2], 22)))
 
 	# cave walls at both ends
 	add_child(World.Slab.new(Rect2(-80, -200, 80, 1000)))
@@ -189,9 +193,9 @@ func _stampede() -> void:
 	for i in 9:
 		var r := Bestiary.Runner.new()
 		r.dir = -1
-		r.despawn_x = 3500.0
+		r.despawn_x = 3400.0
 		r.speed = randf_range(390.0, 470.0)
-		r.position = Vector2(5200.0 + i *randf_range(90.0, 190.0), GROUND_Y)
+		r.position = Vector2(5400.0 + i * randf_range(90.0, 190.0), GROUND_Y)
 		add_child(r)
 		await get_tree().create_timer(0.18).timeout
 
