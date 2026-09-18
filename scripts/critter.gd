@@ -14,7 +14,7 @@ var player: CaveMan
 var stompable := true
 var stomp_top := -14.0    ## y offset of this critter's top, relative to its origin
 var stomp_damage := 99    ## a clean landing kills almost anything small
-var _prev_feet := -1000000.0
+var _prev_feet := -1000000.0   ## where his feet were last frame, so fast falls still register
 
 
 func _ready() -> void:
@@ -58,13 +58,18 @@ func take_hit(dmg: int, from_dir: int) -> void:
 		_on_die()
 
 
-## True when the player is falling and his feet are still above this critter's back.
+## True when he is coming down and his feet are above this critter's back.
+## Checks last frame as well as this one: at full fall speed he covers ~10 px
+## per physics step, so a single-frame test misses the landing entirely.
 func _is_stomp() -> bool:
 	if not stompable or dying > 0.0 or player == null:
 		return false
 	if player.velocity.y <= 40.0:
 		return false
-	var line := global_position.y + stomp_top + 14.0
+	# The faster he is falling, the further past the ideal point he will be by
+	# the time this runs, so the allowance grows with fall speed.
+	var slack := 18.0 + maxf(player.velocity.y, 0.0) * 0.035
+	var line := global_position.y + stomp_top + slack
 	return player.global_position.y <= line or _prev_feet <= line
 
 
@@ -96,6 +101,7 @@ func _physics_process(delta: float) -> void:
 
 	if player != null:
 		_prev_feet = player.global_position.y
+
 	queue_redraw()
 
 

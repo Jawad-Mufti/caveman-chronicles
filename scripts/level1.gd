@@ -1,28 +1,83 @@
 extends Node2D
-## Level 1: Raw stone age. A cave, a rock, some things that bite, and Tuskar.
+## Level 1: Raw stone age. Three stretches that step up in difficulty, then Tuskar.
+##   Part 1 (0-3200)     ground work: gaps, ledges, biters, falling stone
+##   Part 2 (3200-4750)  a chasm crossed on moving bamboo
+##   Part 3 (5200-7600)  a sunken chamber, then springs and high ground
+##   Finale (7700+)      the stampede, then the arena
 ## Everything is built in code so the project runs with no art assets.
 
 const GROUND_Y := 600.0
-const LEVEL_W := 5800.0
-const ARENA_L := 4520.0
-const ARENA_R := 5540.0
+const CHAMBER_Y := 900.0
+const LEVEL_W := 9400.0
+const ARENA_L := 8400.0
+const ARENA_R := 9200.0
+const FALL_Y := 1020.0
 
-const TRAP_ZONES := [[2900.0, 320.0], [3800.0, 320.0]]
+## floor runs: [x0, x1]. The holes between them are Part 2's chasm and Part 3's pit.
+const FLOORS := [
+	[0.0, 1350.0], [1520.0, 2650.0], [2820.0, 3200.0], [4750.0, 5200.0], [6450.0, LEVEL_W],
+]
 
-## Ledge heights are capped so every one is actually reachable.
-## Max jump height at the current player values is ~136 px above the floor.
+const TRAP_ZONES := [[2880.0, 300.0], [6550.0, 320.0]]
+
+## Reachability budget: one jump climbs ~136 px and carries ~205 px.
+## Nothing below asks for more than that, so the double jump stays a safety net.
 const LEDGES := [
 	[700.0, 480.0, 160.0],
 	[1900.0, 480.0, 180.0],
-	[2180.0, 400.0, 120.0],   # only reachable from the ledge before it
-	[3500.0, 480.0, 200.0],
+	[2180.0, 400.0, 120.0],
+	[3500.0, 480.0, 100.0],    # Part 2 resting stones between the bamboo
+	[4030.0, 470.0, 100.0],
+	[4560.0, 500.0, 100.0],
+	[6850.0, 400.0, 120.0],    # Part 3 high ground, reached by spring
+	[7060.0, 320.0, 110.0],
+	[7270.0, 400.0, 120.0],
 ]
 
-const STAMPEDE_PLATFORMS := [[4020.0, 490.0, 120.0], [4200.0, 440.0, 110.0], [4380.0, 480.0, 120.0]]
+## [x, y, width, axis_x, axis_y, span, period, phase]
+const BAMBOO := [
+	[3330.0, 520.0, 110.0, 0.0, 1.0, 60.0, 2.6, 0.00],
+	[3680.0, 500.0, 100.0, 1.0, 0.0, 80.0, 3.0, 0.25],
+	[3860.0, 540.0, 110.0, 0.0, 1.0, 70.0, 2.2, 0.50],
+	[4210.0, 510.0, 100.0, 0.0, 1.0, 60.0, 2.8, 0.15],
+	[4390.0, 480.0, 110.0, 1.0, 0.0, 70.0, 2.4, 0.60],
+]
 
-const FLYTRAPS := [1150.0, 2350.0, 3060.0, 3760.0]
-const BERRIES := [900.0, 2500.0, 3900.0]
-const STAMPEDE_X := 3900.0
+## the sunken chamber: descend on these, cross the block, climb out on the spring
+const CHAMBER_PLATFORMS := [
+	[5240.0, 700.0, 120.0],
+	[5420.0, 790.0, 110.0],
+	[5760.0, 760.0, 120.0],
+	[5980.0, 700.0, 120.0],
+]
+const CHAMBER_BLOCK := [5620.0, 780.0, 36.0, 120.0]
+
+const SPRINGS := [[6250.0, CHAMBER_Y], [6620.0, GROUND_Y]]
+
+const STAMPEDE_X := 7700.0
+const STAMPEDE_PLATFORMS := [
+	[7820.0, 490.0, 120.0], [8000.0, 440.0, 110.0], [8180.0, 480.0, 120.0],
+]
+
+## [x, y]
+const FLYTRAPS := [
+	[1150.0, GROUND_Y], [2350.0, GROUND_Y], [3050.0, GROUND_Y], [4900.0, GROUND_Y],
+	[5400.0, CHAMBER_Y], [6050.0, CHAMBER_Y], [6600.0, GROUND_Y], [7350.0, GROUND_Y],
+]
+const BERRIES := [[900.0, GROUND_Y], [5900.0, CHAMBER_Y], [7060.0, 320.0]]
+const INSECTS := [
+	[950.0, 510.0], [2050.0, 505.0], [3500.0, 470.0],
+	[5600.0, 800.0], [6700.0, 505.0], [7450.0, 480.0],
+]
+## [left, right, start_x, y]
+const LIZARDS := [
+	[400.0, 1300.0, 800.0, GROUND_Y],
+	[1650.0, 2600.0, 1800.0, GROUND_Y],
+	[2850.0, 3180.0, 2950.0, GROUND_Y],
+	[4790.0, 5180.0, 4900.0, GROUND_Y],
+	[5250.0, 6380.0, 5700.0, CHAMBER_Y],
+	[6500.0, 7600.0, 6700.0, GROUND_Y],
+]
 
 var player: CaveMan
 var cam: Camera2D
@@ -66,20 +121,39 @@ func _build_world() -> void:
 	ceiling.trap_zones = TRAP_ZONES
 	add_child(ceiling)
 
-	# floor segments with two gaps to jump
-	for seg in [[0.0, 1350.0], [1520.0, 2650.0], [2820.0, LEVEL_W]]:
+	for seg in FLOORS:
 		add_child(World.Slab.new(Rect2(seg[0], GROUND_Y, seg[1] - seg[0], 240)))
 
-	# ledges
+	# Part 3: the floor of the sunken chamber
+	add_child(World.Slab.new(Rect2(5150, CHAMBER_Y, 1250, 220)))
+
 	for l in LEDGES:
 		add_child(World.Slab.new(Rect2(l[0], l[1], l[2], 22)))
-
 	for s in STAMPEDE_PLATFORMS:
 		add_child(World.Slab.new(Rect2(s[0], s[1], s[2], 22)))
+	for c in CHAMBER_PLATFORMS:
+		add_child(World.Slab.new(Rect2(c[0], c[1], c[2], 22)))
+	add_child(World.Slab.new(Rect2(CHAMBER_BLOCK[0], CHAMBER_BLOCK[1], CHAMBER_BLOCK[2], CHAMBER_BLOCK[3])))
 
 	# cave walls at both ends
-	add_child(World.Slab.new(Rect2(-80, -200, 80, 1000)))
-	add_child(World.Slab.new(Rect2(ARENA_R + 20, -200, 300, 1000)))
+	add_child(World.Slab.new(Rect2(-80, -200, 80, 1400)))
+	add_child(World.Slab.new(Rect2(ARENA_R + 20, -200, 300, 1400)))
+
+	# Part 2: the bamboo
+	for b in BAMBOO:
+		var pole := World.Bamboo.new()
+		pole.position = Vector2(b[0], b[1])
+		pole.size = Vector2(b[2], 18)
+		pole.axis = Vector2(b[3], b[4])
+		pole.span = b[5]
+		pole.period = b[6]
+		pole.phase = b[7]
+		add_child(pole)
+
+	for sp in SPRINGS:
+		var spring := World.Spring.new()
+		spring.position = Vector2(sp[0], sp[1])
+		add_child(spring)
 
 	var rock := World.RockPickup.new()
 	rock.position = Vector2(520, GROUND_Y)
@@ -93,9 +167,9 @@ func _build_world() -> void:
 	far_boar.position = Vector2(1320, GROUND_Y - 150)
 	add_child(far_boar)
 
-	for bx in BERRIES:
+	for b in BERRIES:
 		var bush := World.BerryBush.new()
-		bush.position = Vector2(bx, GROUND_Y)
+		bush.position = Vector2(b[0], b[1])
 		bush.taken.connect(func() -> void:
 			hud.say("Berries. Press E to crush them into a poultice.", 4.0)
 		)
@@ -115,7 +189,7 @@ func _build_player() -> void:
 	cam.limit_left = 0
 	cam.limit_right = int(LEVEL_W)
 	cam.limit_top = 0
-	cam.limit_bottom = 720
+	cam.limit_bottom = 1200
 	cam.position_smoothing_enabled = true
 	cam.position_smoothing_speed = 7.0
 	add_child(cam)
@@ -123,22 +197,21 @@ func _build_player() -> void:
 
 
 func _build_critters() -> void:
-	for p in [Vector2(950, 470), Vector2(2020, 450), Vector2(3320, 470), Vector2(4300, 430)]:
+	for p in INSECTS:
 		var bug := Bestiary.Insect.new()
-		bug.position = p
+		bug.position = Vector2(p[0], p[1])
 		add_child(bug)
 
-	for l in [[1650.0, 2420.0, 1800.0], [3000.0, 3650.0, 3100.0], [3900.0, 4400.0, 4000.0]]:
+	for l in LIZARDS:
 		var liz := Bestiary.Lizard.new()
 		liz.left_x = l[0]
 		liz.right_x = l[1]
-		liz.position = Vector2(l[2], GROUND_Y)
+		liz.position = Vector2(l[2], l[3])
 		add_child(liz)
 
-	# deadly plants, rooted to the floor
-	for fx in FLYTRAPS:
+	for f in FLYTRAPS:
 		var trap := Bestiary.Flytrap.new()
-		trap.position = Vector2(fx, GROUND_Y)
+		trap.position = Vector2(f[0], f[1])
 		add_child(trap)
 
 	for z in TRAP_ZONES:
@@ -146,20 +219,17 @@ func _build_critters() -> void:
 		trig.tripped.connect(_drop_stones.bind(z[0], z[1]))
 		add_child(trig)
 
-	# Tuskar sighting line, as he passes the distant silhouette
-	var sight := World.Trigger.new(Rect2(1180, 100, 60, 520))
-	sight.tripped.connect(func() -> void:
-		hud.say("Something big is grazing out there.", 3.0)
-	)
-	add_child(sight)
+	_note(1180, "Something big is grazing out there.")
+	_note(3140, "The floor runs out. The bamboo is the only way over.")
+	_note(5140, "It goes down before it goes up.")
+	_note(6560, "Spring off the sapling to reach the high ground.")
 
-	# the stampede
 	var stamp := World.Trigger.new(Rect2(STAMPEDE_X, 100, 60, 520))
 	stamp.tripped.connect(_stampede)
 	add_child(stamp)
 
 	boar = Bestiary.Boar.new()
-	boar.position = Vector2(5200, GROUND_Y)
+	boar.position = Vector2(8900, GROUND_Y)
 	boar.arena_l = ARENA_L
 	boar.arena_r = ARENA_R
 	boar.defeated.connect(_on_boar_down)
@@ -168,6 +238,12 @@ func _build_critters() -> void:
 	var arena := World.Trigger.new(Rect2(ARENA_L + 120, 100, 200, 500))
 	arena.tripped.connect(_on_arena_enter)
 	add_child(arena)
+
+
+func _note(x: float, text: String) -> void:
+	var t := World.Trigger.new(Rect2(x, 100, 60, 900))
+	t.tripped.connect(func() -> void: hud.say(text, 3.0))
+	add_child(t)
 
 
 func _build_hud() -> void:
@@ -189,13 +265,13 @@ func _drop_stones(x0: float, width: float) -> void:
 
 ## The signature moment: a herd bolts through and the floor stops being safe.
 func _stampede() -> void:
-	hud.say("The ground is shaking. Get up high.", 3.5)
+	hud.say("The ground is shaking. Get off the floor.", 3.5)
 	for i in 9:
 		var r := Bestiary.Runner.new()
 		r.dir = -1
-		r.despawn_x = 3400.0
+		r.despawn_x = 7200.0
 		r.speed = randf_range(390.0, 470.0)
-		r.position = Vector2(5400.0 + i * randf_range(90.0, 190.0), GROUND_Y)
+		r.position = Vector2(9200.0 + i * randf_range(90.0, 190.0), GROUND_Y)
 		add_child(r)
 		await get_tree().create_timer(0.18).timeout
 
@@ -227,7 +303,7 @@ func _process(_delta: float) -> void:
 
 	if player.is_on_floor() and not player.dead:
 		last_safe = player.global_position
-	if player.global_position.y > 960 and not player.dead:
+	if player.global_position.y > FALL_Y and not player.dead:
 		player.global_position = last_safe + Vector2(-30.0 * player.facing, -4.0)
 		player.velocity = Vector2.ZERO
 		player.hurt(1, last_safe.x + 60.0 * player.facing)

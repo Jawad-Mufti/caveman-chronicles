@@ -18,6 +18,8 @@ const JUMP_CUT := 0.45        ## velocity kept when the jump key is released ear
 const COYOTE_TIME := 0.10     ## can still jump this long after walking off a ledge
 const JUMP_BUFFER := 0.12     ## a jump press is remembered this long before landing
 const STOMP_BOUNCE := -430.0  ## pop up after crushing something underfoot
+const MAX_JUMPS := 2
+const AIR_JUMP := -520.0      ## weaker than the ground jump: a recovery, not a free second jump
 const SWING_TIME := 0.18
 
 var hp := 5
@@ -39,6 +41,7 @@ var _attack_prev := false
 var _heal_prev := false
 var _coyote := 0.0
 var _buffer := 0.0
+var _jumps_left := 0
 var _hitbox: Area2D
 var _hit_shape: CollisionShape2D
 
@@ -99,8 +102,12 @@ func _physics_process(delta: float) -> void:
 	# coyote time: full on the ground, draining in the air
 	if is_on_floor():
 		_coyote = COYOTE_TIME
+		_jumps_left = MAX_JUMPS
 	else:
 		_coyote = maxf(_coyote - delta, 0.0)
+		# walking off a ledge without jumping spends the ground jump
+		if _coyote <= 0.0 and _jumps_left == MAX_JUMPS:
+			_jumps_left = MAX_JUMPS - 1
 
 	var jump_now: bool = Input.is_physical_key_pressed(KEY_SPACE) \
 		or Input.is_physical_key_pressed(KEY_W) \
@@ -113,10 +120,16 @@ func _physics_process(delta: float) -> void:
 	else:
 		_buffer = maxf(_buffer - delta, 0.0)
 
-	if _buffer > 0.0 and _coyote > 0.0:
-		velocity.y = JUMP
-		_buffer = 0.0
-		_coyote = 0.0
+	if _buffer > 0.0:
+		if _coyote > 0.0 and _jumps_left == MAX_JUMPS:
+			velocity.y = JUMP
+			_jumps_left -= 1
+			_buffer = 0.0
+			_coyote = 0.0
+		elif _jumps_left > 0:
+			velocity.y = AIR_JUMP
+			_jumps_left -= 1
+			_buffer = 0.0
 
 	# variable height: releasing early cuts the jump short
 	if not jump_now and _jump_prev and velocity.y < 0.0:
@@ -163,6 +176,16 @@ func stomp_bounce() -> void:
 	velocity.y = STOMP_BOUNCE
 	_coyote = 0.0
 	_buffer = 0.0
+	_jumps_left = maxi(_jumps_left, 1)   # a crush refunds an air jump, so stomps chain
+	invuln = maxf(invuln, 0.12)          # brief grace so a neighbour cannot punish a clean stomp
+
+
+## Fired by a spring. Resets the air jumps so he can steer out of the launch.
+func launch(vy: float) -> void:
+	velocity.y = vy
+	_coyote = 0.0
+	_buffer = 0.0
+	_jumps_left = MAX_JUMPS
 
 
 func hurt(amount: int, from_x: float) -> void:
@@ -195,6 +218,7 @@ func add_berry() -> bool:
 
 
 ## Gather -> craft -> ability: berries become a poultice that heals.
+## Always reports back, so pressing E never looks like nothing happened.
 func use_poultice() -> bool:
 	if dead:
 		return false

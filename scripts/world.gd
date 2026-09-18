@@ -245,3 +245,80 @@ class DistantBoar extends Node2D:
 		draw_polygon(PackedVector2Array([
 			Vector2(-22, -62), Vector2(-12, -76), Vector2(0, -62), Vector2(12, -74), Vector2(24, -62)
 		]), PackedColorArray([c]))
+
+
+class Bamboo extends AnimatableBody2D:
+	## A cut bamboo pole that slides or bobs on a loop. AnimatableBody2D with
+	## sync_to_physics is what lets it carry the caveman while it moves.
+	var size := Vector2(110, 18)
+	var axis := Vector2(0, 1)     ## direction of travel: (0,1) bobs, (1,0) slides
+	var span := 60.0              ## how far from home, each way
+	var period := 2.6
+	var phase := 0.0
+	var _home := Vector2.ZERO
+	var _t := 0.0
+
+	func _ready() -> void:
+		collision_layer = 1
+		collision_mask = 0
+		sync_to_physics = true
+		_home = position
+		var cs := CollisionShape2D.new()
+		var s := RectangleShape2D.new()
+		s.size = size
+		cs.shape = s
+		add_child(cs)
+
+	func _physics_process(delta: float) -> void:
+		_t += delta
+		position = _home + axis * span * sin((_t / period + phase) * TAU)
+		queue_redraw()
+
+	func _draw() -> void:
+		var half := size * 0.5
+		draw_rect(Rect2(-half, size), Pal.OCHRE_DARK)
+		draw_rect(Rect2(-half, Vector2(size.x, 5)), Pal.OCHRE)
+		var n := int(size.x / 26.0)
+		for i in range(1, n):
+			var x := -half.x + i * 26.0
+			draw_line(Vector2(x, -half.y), Vector2(x, half.y), Pal.OCHRE_DEEP, 3.0)
+
+
+class Spring extends Area2D:
+	## A springy sapling. Land on it and it throws him far higher than a jump.
+	signal sprung
+	var launch := -1050.0
+	var squash := 0.0
+
+	func _ready() -> void:
+		collision_layer = 0
+		collision_mask = 2
+		monitoring = true
+		var cs := CollisionShape2D.new()
+		var s := RectangleShape2D.new()
+		s.size = Vector2(58, 28)
+		cs.shape = s
+		cs.position = Vector2(0, -14)
+		add_child(cs)
+
+	func _physics_process(delta: float) -> void:
+		squash = maxf(squash - delta * 3.0, 0.0)
+		var p := get_tree().get_first_node_in_group("player")
+		if p != null:
+			var man := p as CaveMan
+			# only fires when he is coming down onto it, never on the way up
+			if not man.dead and man.velocity.y > -50.0 and overlaps_body(man):
+				man.launch(launch)
+				squash = 1.0
+				sprung.emit()
+		queue_redraw()
+
+	func _draw() -> void:
+		var c := 1.0 - squash * 0.65
+		draw_rect(Rect2(-32, -7, 64, 7), Pal.STONE_DARK)
+		for i in 3:
+			var y := -9.0 - i * 8.0 * c
+			draw_line(Vector2(-24, y), Vector2(24, y - 5), Pal.STONE, 4.0)
+		draw_rect(Rect2(-30, -12.0 - 24.0 * c, 60, 9), Pal.EMBER)
+		if squash > 0.0:
+			draw_arc(Vector2(0, -20), 30.0 + (1.0 - squash) * 26.0, 0.0, TAU, 20, Color(Pal.EMBER, squash * 0.5), 3.0)

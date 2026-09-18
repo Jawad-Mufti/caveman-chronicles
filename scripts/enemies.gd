@@ -20,7 +20,10 @@ class Insect extends Critter:
 		t += delta
 		var target := anchor + Vector2(sin(t * 1.3) * 90.0, sin(t * 2.7) * 30.0)
 		if player != null and absf(player.global_position.x - global_position.x) < 380.0:
-			target = player.global_position + Vector2(0, -30)
+			# Follows him SIDEWAYS only. It must never climb to match a jump —
+			# if it tracks his height he can never get above it to land on it.
+			# The bob still dips it into head height, so it stays a real threat.
+			target = Vector2(player.global_position.x, anchor.y + sin(t * 2.4) * 30.0)
 		global_position = global_position.move_toward(target, 120.0 * delta)
 
 	func _draw() -> void:
