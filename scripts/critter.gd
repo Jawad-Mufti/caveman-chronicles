@@ -15,6 +15,7 @@ var stompable := true
 var stomp_top := -14.0    ## y offset of this critter's top, relative to its origin
 var stomp_damage := 99    ## a clean landing kills almost anything small
 var _prev_feet := -1000000.0   ## where his feet were last frame, so fast falls still register
+var _prev_vy := 0.0            ## and how fast he was going, so the landing frame still counts
 
 
 func _ready() -> void:
@@ -64,7 +65,10 @@ func take_hit(dmg: int, from_dir: int) -> void:
 func _is_stomp() -> bool:
 	if not stompable or dying > 0.0 or player == null:
 		return false
-	if player.velocity.y <= 40.0:
+	# Landing on the floor zeroes his fall speed in the SAME frame he touches a
+	# ground-level critter, so testing only the current velocity makes anything
+	# standing on the floor impossible to stomp. Last frame's speed counts too.
+	if player.velocity.y <= 40.0 and _prev_vy <= 40.0:
 		return false
 	# The faster he is falling, the further past the ideal point he will be by
 	# the time this runs, so the allowance grows with fall speed.
@@ -101,6 +105,7 @@ func _physics_process(delta: float) -> void:
 
 	if player != null:
 		_prev_feet = player.global_position.y
+		_prev_vy = player.velocity.y
 
 	queue_redraw()
 

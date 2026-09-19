@@ -107,7 +107,8 @@ class RockPickup extends Area2D:
 
 	func _on_body(body: Node) -> void:
 		if body is CaveMan:
-			(body as CaveMan).pick_up_rock()
+			if not (body as CaveMan).add_rock(2):
+				return
 			taken.emit()
 			set_deferred("monitoring", false)
 			call_deferred("queue_free")
@@ -284,8 +285,9 @@ class Bamboo extends AnimatableBody2D:
 			draw_line(Vector2(x, -half.y), Vector2(x, half.y), Pal.OCHRE_DEEP, 3.0)
 
 
-class Spring extends Area2D:
-	## A springy sapling. Land on it and it throws him far higher than a jump.
+class SpringBush extends Area2D:
+	## A springy bush. Land on it and it throws him far higher than a jump.
+	## Stone age has no metal springs, so the shrub does the work.
 	signal sprung
 	var launch := -1050.0
 	var squash := 0.0
@@ -314,11 +316,90 @@ class Spring extends Area2D:
 		queue_redraw()
 
 	func _draw() -> void:
-		var c := 1.0 - squash * 0.65
-		draw_rect(Rect2(-32, -7, 64, 7), Pal.STONE_DARK)
-		for i in 3:
-			var y := -9.0 - i * 8.0 * c
-			draw_line(Vector2(-24, y), Vector2(24, y - 5), Pal.STONE, 4.0)
-		draw_rect(Rect2(-30, -12.0 - 24.0 * c, 60, 9), Pal.EMBER)
+		var c := 1.0 - squash * 0.6      ## 1 at rest, flattened when it fires
+		var h := 42.0 * c
+		# woody base
+		draw_line(Vector2(-6, 0), Vector2(0, -10), Pal.OCHRE_DEEP, 6.0)
+		# springy foliage, squashing down as it launches
+		draw_circle(Vector2(-18, -h * 0.5), 17.0 * (0.8 + c * 0.2), Pal.OCHRE_DARK)
+		draw_circle(Vector2(18, -h * 0.5), 16.0 * (0.8 + c * 0.2), Pal.OCHRE_DARK)
+		draw_circle(Vector2(0, -h * 0.85), 20.0 * (0.8 + c * 0.2), Pal.OCHRE_DEEP)
+		for i in 5:
+			var a := -2.6 + i * 0.65
+			draw_line(Vector2(0, -h * 0.6), Vector2(cos(a) * 26.0, -h * 0.6 + sin(a) * 18.0), Pal.OCHRE, 2.0)
 		if squash > 0.0:
-			draw_arc(Vector2(0, -20), 30.0 + (1.0 - squash) * 26.0, 0.0, TAU, 20, Color(Pal.EMBER, squash * 0.5), 3.0)
+			draw_arc(Vector2(0, -20), 30.0 + (1.0 - squash) * 28.0, 0.0, TAU, 20, Color(Pal.OCHRE, squash * 0.5), 3.0)
+
+
+class ThrownRock extends Area2D:
+	## A rock in flight. Hits critters only, arcs under gravity, dies on contact.
+	var vel := Vector2.ZERO
+	var life := 2.2
+	var spin := 0.0
+
+	func _ready() -> void:
+		collision_layer = 0
+		collision_mask = 4          ## critters
+		monitoring = true
+		var cs := CollisionShape2D.new()
+		var c := CircleShape2D.new()
+		c.radius = 9.0
+		cs.shape = c
+		add_child(cs)
+
+	func _physics_process(delta: float) -> void:
+		life -= delta
+		vel.y += 900.0 * delta
+		position += vel * delta
+		spin += delta * 14.0
+		for a in get_overlapping_areas():
+			if a.has_method("take_hit"):
+				a.take_hit(3, signi(int(vel.x)))
+				queue_free()
+				return
+		if life <= 0.0:
+			queue_free()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		draw_set_transform(Vector2.ZERO, spin, Vector2.ONE)
+		draw_circle(Vector2.ZERO, 8.0, Pal.STONE)
+		draw_circle(Vector2(-3, -3), 3.0, Pal.STONE_DARK)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+class StickPickup extends Area2D:
+	## The first weapon: a knotted club lying on the ground.
+	signal taken
+	var t := 0.0
+
+	func _ready() -> void:
+		collision_layer = 0
+		collision_mask = 2
+		var cs := CollisionShape2D.new()
+		var c := CircleShape2D.new()
+		c.radius = 26.0
+		cs.shape = c
+		cs.position = Vector2(0, -16)
+		add_child(cs)
+		body_entered.connect(_on_body)
+
+	func _on_body(body: Node) -> void:
+		if body is CaveMan:
+			(body as CaveMan).pick_up_stick()
+			taken.emit()
+			set_deferred("monitoring", false)
+			call_deferred("queue_free")
+
+	func _process(delta: float) -> void:
+		t += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		var pulse := 0.5 + 0.5 * sin(t * 2.6)
+		draw_arc(Vector2(0, -16), 22.0 + pulse * 5.0, 0.0, TAU, 24, Color(Pal.OCHRE, 0.2 + pulse * 0.25), 2.0)
+		var lift := sin(t * 1.8) * 2.0
+		draw_line(Vector2(-20, -10 + lift), Vector2(18, -22 + lift), Pal.OCHRE_DEEP, 7.0)
+		draw_circle(Vector2(20, -23 + lift), 7.0, Pal.OCHRE_DARK)
+		draw_circle(Vector2(18, -26 + lift), 2.5, Pal.OCHRE)

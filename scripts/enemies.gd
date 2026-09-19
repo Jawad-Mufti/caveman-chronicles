@@ -5,8 +5,15 @@ extends RefCounted
 
 
 class Insect extends Critter:
+	## Hovers at its own height and attacks in a STRAIGHT LINE from where it is.
+	## It never climbs to sit on top of him: it winds up, commits to one direction,
+	## and flies through. Committing is what makes it dodgeable and stompable.
 	var anchor := Vector2.ZERO
 	var t := 0.0
+	var state := "hover"     ## hover -> wind -> dash -> rest
+	var timer := 0.0
+	var aim := Vector2.RIGHT
+	var dash_speed := 440.0
 
 	func _setup() -> void:
 		hp = 1
@@ -14,21 +21,47 @@ class Insect extends Critter:
 		stomp_top = -14.0
 		anchor = position
 		t = randf() * 10.0
+		timer = randf() * 1.2
 		add_circle_shape(12.0)
 
 	func _tick(delta: float) -> void:
 		t += delta
-		var target := anchor + Vector2(sin(t * 1.3) * 90.0, sin(t * 2.7) * 30.0)
-		if player != null and absf(player.global_position.x - global_position.x) < 380.0:
-			# Follows him SIDEWAYS only. It must never climb to match a jump —
-			# if it tracks his height he can never get above it to land on it.
-			# The bob still dips it into head height, so it stays a real threat.
-			target = Vector2(player.global_position.x, anchor.y + sin(t * 2.4) * 30.0)
-		global_position = global_position.move_toward(target, 120.0 * delta)
+		timer = maxf(timer - delta, 0.0)
+		match state:
+			"hover":
+				var home := anchor + Vector2(sin(t * 1.3) * 60.0, sin(t * 2.7) * 12.0)
+				if player != null:
+					# drift sideways to line him up, never vertically
+					var dx: float = player.global_position.x - global_position.x
+					home.x = global_position.x + clampf(dx, -70.0, 70.0)
+					if absf(dx) < 300.0 and timer <= 0.0:
+						state = "wind"
+						timer = 0.45
+				global_position = global_position.move_toward(home, 110.0 * delta)
+			"wind":
+				if timer <= 0.0:
+					if player != null:
+						aim = (player.global_position + Vector2(0, -26) - global_position).normalized()
+					state = "dash"
+					timer = 0.5
+			"dash":
+				global_position += aim * dash_speed * delta
+				if timer <= 0.0:
+					state = "rest"
+					timer = 1.3
+			"rest":
+				global_position = global_position.move_toward(anchor, 95.0 * delta)
+				if timer <= 0.0:
+					state = "hover"
+					timer = 0.8
 
 	func _draw() -> void:
 		var c := Pal.CHARCOAL
-		var w := sin(t * 42.0) * 6.0
+		var rate := 78.0 if state == "wind" else 42.0
+		var w := sin(t * rate) * 6.0
+		if state == "wind":
+			# a clear tell before it commits
+			draw_arc(Vector2.ZERO, 20.0 + sin(t * 30.0) * 3.0, 0.0, TAU, 18, Color(Pal.EMBER, 0.55), 2.0)
 		draw_line(Vector2(0, -2), Vector2(-11, -9 - w), Pal.STONE, 2.0)
 		draw_line(Vector2(0, -2), Vector2(11, -9 + w), Pal.STONE, 2.0)
 		draw_circle(Vector2.ZERO, 7.0, c)
@@ -49,8 +82,10 @@ class Lizard extends Critter:
 	func _setup() -> void:
 		hp = 2
 		damage = 1
-		stomp_top = -16.0
-		add_rect_shape(Vector2(46, 16), Vector2(0, -8))
+		# A flat 16 px box sat level with the floor, so he only ever touched it
+		# at the instant he landed. Taller and wider gives a real landing target.
+		stomp_top = -28.0
+		add_rect_shape(Vector2(54, 28), Vector2(0, -14))
 
 	func _tick(delta: float) -> void:
 		t += delta
@@ -73,10 +108,12 @@ class Lizard extends Critter:
 		draw_line(Vector2(-f * 10, -8), Vector2(-f * 14 + wig, 0), c, 3.0)
 		draw_line(Vector2(f * 10, -8), Vector2(f * 14 - wig, 0), c, 3.0)
 		# body
-		draw_polygon(PackedVector2Array([Vector2(-f * 22, -12), Vector2(f * 18, -14), Vector2(f * 22, -6), Vector2(f * 16, -2), Vector2(-f * 20, -3)]), PackedColorArray([c]))
+		draw_polygon(PackedVector2Array([Vector2(-f * 22, -16), Vector2(f * 18, -19), Vector2(f * 23, -8), Vector2(f * 16, -2), Vector2(-f * 20, -3)]), PackedColorArray([c]))
+		# a low ridge along the spine, so the top edge reads clearly
+		draw_line(Vector2(-f * 16, -19), Vector2(f * 14, -22), Pal.STONE, 3.0)
 		# head
-		draw_circle(Vector2(f * 26, -10), 6.0, c)
-		draw_circle(Vector2(f * 28, -12), 1.4, Pal.OCHRE)
+		draw_circle(Vector2(f * 27, -13), 7.0, c)
+		draw_circle(Vector2(f * 29, -15), 1.4, Pal.OCHRE)
 		if flash > 0.0:
 			draw_circle(Vector2(0, -8), 26.0, Color(1, 1, 1, 0.45))
 
@@ -127,6 +164,12 @@ class Boar extends Critter:
 	signal defeated
 	signal woke
 
+	## Hitting him while he is down is worth triple. Hitting a charging boar
+	## barely scratches him, so the fight is about earning the down, not mashing.
+	func take_hit(dmg: int, from_dir: int) -> void:
+		var scaled := dmg * 3 if state == "down" else maxi(1, dmg / 3)
+		super.take_hit(scaled, from_dir)
+
 	var arena_l := 0.0
 	var arena_r := 0.0
 	var state := "sleep"
@@ -135,6 +178,10 @@ class Boar extends Critter:
 	var stun := 0.0
 	var t := 0.0
 	var max_hp := 12
+	var charges := 0          ## charges landed since he last went down
+	var down_timer := 0.0     ## he lies there this long, then goes for the head
+	var lunge_aim := 0.0
+	var head_ready := false
 
 	func _setup() -> void:
 		hp = max_hp
@@ -144,32 +191,70 @@ class Boar extends Critter:
 
 	func wake() -> void:
 		if state == "sleep":
-			state = "stun"
-			stun = 0.6
+			state = "stalk"
+			stun = 0.7
 			woke.emit()
 
+	## Fight loop: he charges from side to side. Two charges into the wall and he
+	## goes DOWN — that is the window to hit him. Two seconds later he comes up
+	## with a head strike aimed where the player stood, so the window has a price.
 	func _tick(delta: float) -> void:
 		t += delta
 		match state:
 			"sleep":
 				pass
+			"stalk":
+				stun -= delta
+				# paces, sizing him up
+				if player != null:
+					dir = 1 if player.global_position.x > position.x else -1
+				vx = move_toward(vx, dir * 90.0, 500.0 * delta)
+				position.x = clampf(position.x + vx * delta, arena_l + 60.0, arena_r - 60.0)
+				if stun <= 0.0:
+					state = "charge"
+					vx = 0.0
 			"charge":
-				vx = move_toward(vx, dir * 560.0, 1100.0 * delta)
+				vx = move_toward(vx, dir * 600.0, 1200.0 * delta)
 				position.x += vx * delta
 				var hit_wall := (dir > 0 and position.x >= arena_r - 60.0) or (dir < 0 and position.x <= arena_l + 60.0)
 				if hit_wall:
 					position.x = clampf(position.x, arena_l + 60.0, arena_r - 60.0)
-					state = "stun"
-					stun = 1.0
 					vx = 0.0
-			"stun":
+					charges += 1
+					if charges >= 2:
+						# knocked down by his own momentum
+						charges = 0
+						state = "down"
+						down_timer = 2.0
+						head_ready = false
+					else:
+						# turn and come straight back the other way
+						dir = -dir
+						state = "stalk"
+						stun = 0.45
+			"down":
+				down_timer -= delta
+				if down_timer <= 1.4 and not head_ready:
+					head_ready = true   # he starts to lift his head: the tell
+				if down_timer <= 0.0 and player != null:
+					lunge_aim = signf(player.global_position.x - position.x)
+					if lunge_aim == 0.0:
+						lunge_aim = float(dir)
+					dir = int(lunge_aim)
+					state = "head"
+					stun = 0.55
+			"head":
+				# a short, fast head strike along the ground
 				stun -= delta
-				if stun <= 0.0 and player != null:
-					dir = 1 if player.global_position.x > position.x else -1
-					state = "charge"
+				vx = move_toward(vx, lunge_aim * 780.0, 2600.0 * delta)
+				position.x = clampf(position.x + vx * delta, arena_l + 60.0, arena_r - 60.0)
+				if stun <= 0.0:
+					vx = 0.0
+					state = "stalk"
+					stun = 0.8
 
 	func _on_hit(_from_dir: int) -> void:
-		if state == "charge":
+		if state == "charge" or state == "head":
 			vx *= 0.6
 
 	func _on_die() -> void:
@@ -178,10 +263,15 @@ class Boar extends Critter:
 	func _draw() -> void:
 		var f := float(dir)
 		var c := Pal.CHARCOAL
-		var running := state == "charge"
+		var running := state == "charge" or state == "head"
 		var bob := sin(t * 18.0) * 3.0 if running else 0.0
 		if state == "sleep":
 			bob = sin(t * 2.0) * 2.0
+		if state == "down":
+			# slumped, and the head lifts as the strike gets close
+			bob = 16.0 if not head_ready else 16.0 - sin(t * 9.0) * 7.0
+		if state == "head":
+			bob = -6.0
 
 		for i in 4:
 			var lx := -34.0 + i * 22.0
@@ -205,10 +295,14 @@ class Boar extends Critter:
 			Vector2(12, -74 + bob), Vector2(24, -62 + bob)
 		]), PackedColorArray([c]))
 
-		if state == "stun":
+		if state == "down":
 			for i in 3:
 				var a := t * 6.0 + i * 2.1
-				draw_circle(Vector2(f * 48 + cos(a) * 22.0, -60 + sin(a) * 6.0), 3.0, Pal.BONE)
+				draw_circle(Vector2(f * 48 + cos(a) * 22.0, -52 + sin(a) * 6.0), 3.0, Pal.BONE)
+			if head_ready:
+				draw_arc(Vector2(f * 52, -32 + bob), 26.0 + sin(t * 12.0) * 4.0, 0.0, TAU, 20, Color(Pal.EMBER, 0.6), 3.0)
+		if state == "head":
+			draw_line(Vector2(f * 66, -26), Vector2(f * 104, -26), Color(Pal.EMBER, 0.7), 5.0)
 		if flash > 0.0:
 			draw_set_transform(Vector2(0, -36), 0.0, Vector2(1.75, 1.0))
 			draw_circle(Vector2.ZERO, 34.0, Color(1, 1, 1, 0.4))

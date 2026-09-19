@@ -53,6 +53,11 @@ const CHAMBER_PLATFORMS := [
 const CHAMBER_BLOCK := [5620.0, 780.0, 36.0, 120.0]
 
 const SPRINGS := [[6250.0, CHAMBER_Y], [6620.0, GROUND_Y]]
+## throwable ammo, spread so he is never dry for long
+const ROCK_PILES := [
+	[860.0, GROUND_Y], [2200.0, GROUND_Y], [3050.0, GROUND_Y], [4820.0, GROUND_Y],
+	[5760.0, 760.0], [6700.0, GROUND_Y], [7500.0, GROUND_Y], [8300.0, 480.0],
+]
 
 const STAMPEDE_X := 7700.0
 const STAMPEDE_PLATFORMS := [
@@ -65,9 +70,10 @@ const FLYTRAPS := [
 	[5400.0, CHAMBER_Y], [6050.0, CHAMBER_Y], [6600.0, GROUND_Y], [7350.0, GROUND_Y],
 ]
 const BERRIES := [[900.0, GROUND_Y], [5900.0, CHAMBER_Y], [7060.0, 320.0]]
+## Kept at chest height: they attack across him, not from above his head.
 const INSECTS := [
-	[950.0, 510.0], [2050.0, 505.0], [3500.0, 470.0],
-	[5600.0, 800.0], [6700.0, 505.0], [7450.0, 480.0],
+	[950.0, 548.0], [2050.0, 545.0], [3500.0, 500.0],
+	[5600.0, 846.0], [6700.0, 545.0], [7450.0, 520.0],
 ]
 ## [left, right, start_x, y]
 const LIZARDS := [
@@ -93,7 +99,7 @@ func _ready() -> void:
 	_build_player()
 	_build_critters()
 	_build_hud()
-	hud.say("A and D to move. Space to jump. J to hit. Drop on small things to crush them.", 6.0)
+	hud.say("A and D to move. Space to jump. J to swing, K to throw. Drop on small things to crush them.", 6.5)
 
 
 func _build_background() -> void:
@@ -151,16 +157,24 @@ func _build_world() -> void:
 		add_child(pole)
 
 	for sp in SPRINGS:
-		var spring := World.Spring.new()
+		var spring := World.SpringBush.new()
 		spring.position = Vector2(sp[0], sp[1])
 		add_child(spring)
 
-	var rock := World.RockPickup.new()
-	rock.position = Vector2(520, GROUND_Y)
-	rock.taken.connect(func() -> void:
-		hud.say("A rock. It hits three times harder than a fist.", 4.0)
+	var stick := World.StickPickup.new()
+	stick.position = Vector2(520, GROUND_Y)
+	stick.taken.connect(func() -> void:
+		hud.say("A club. It hits three times harder than a fist. J to swing.", 4.5)
 	)
-	add_child(rock)
+	add_child(stick)
+
+	for r in ROCK_PILES:
+		var rock := World.RockPickup.new()
+		rock.position = Vector2(r[0], r[1])
+		rock.taken.connect(func() -> void:
+			hud.say("Rocks. Press K to throw one.", 3.5)
+		)
+		add_child(rock)
 
 	# Tuskar, grazing far off. The boss exists long before the fight.
 	var far_boar := World.DistantBoar.new()
@@ -182,6 +196,7 @@ func _build_player() -> void:
 	add_child(player)
 	player.hp_changed.connect(func(v: int) -> void: hud.set_hp(v))
 	player.berries_changed.connect(func(v: int) -> void: hud.set_berries(v))
+	player.rocks_changed.connect(func(v: int) -> void: hud.set_rocks(v))
 	player.poultice.connect(func(_ok: bool, note: String) -> void: hud.say(note, 2.0))
 	player.died.connect(func() -> void: hud.say("He did not make it. Press R.", 999.0))
 
@@ -280,7 +295,7 @@ func _on_arena_enter() -> void:
 	# the gate closes behind him, the boar opens its eyes
 	add_child(World.Slab.new(Rect2(ARENA_L - 40, 60, 40, 540)))
 	boar.wake()
-	hud.say("Tuskar heard you.", 2.5)
+	hud.say("Tuskar heard you. Two charges and he goes down — hit him then.", 4.0)
 
 
 func _on_boar_down() -> void:

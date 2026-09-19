@@ -6,6 +6,7 @@ var hp := 5
 var max_hp := 5
 var berries := 0
 var max_berries := 3
+var rocks := 0
 var boss_ratio := -1.0
 var msg_time := 0.0
 
@@ -78,6 +79,10 @@ func set_berries(value: int) -> void:
 	berries = value
 
 
+func set_rocks(value: int) -> void:
+	rocks = value
+
+
 func set_boss(ratio: float) -> void:
 	boss_ratio = ratio
 
@@ -105,6 +110,11 @@ func _draw_berries() -> void:
 			_berries.draw_circle(p + Vector2(-2, -2), 2.5, Pal.BONE)
 		else:
 			_berries.draw_arc(p, 7.0, 0.0, TAU, 18, Color(Pal.EMBER, 0.4), 2.0)
+	# thrown rocks, to the right of the berries
+	for i in rocks:
+		var q := Vector2(110 + i * 19, 12)
+		_berries.draw_circle(q, 6.5, Pal.STONE)
+		_berries.draw_circle(q + Vector2(-2, -2), 2.2, Pal.STONE_DARK)
 
 
 func _draw_boss() -> void:
@@ -123,6 +133,7 @@ func add_touch_controls(player: CaveMan) -> void:
 		["JUMP", Vector2(1000, 560), "jump"],
 		["HIT", Vector2(1140, 560), "attack"],
 		["EAT", Vector2(1140, 420), "heal"],
+		["THROW", Vector2(1010, 420), "throw"],
 	]
 	for s in specs:
 		var b := Button.new()

@@ -6,10 +6,17 @@ extends CharacterBody2D
 signal hp_changed(hp: int)
 signal died
 signal rock_picked
+signal stick_picked
+signal rocks_changed(count: int)
 signal berries_changed(count: int)
 signal poultice(ok: bool, note: String)
 
-const SPEED := 260.0
+const SPEED := 300.0
+## Ramped instead of snapped, so direction changes read as weight rather than teleporting.
+const ACCEL := 2600.0
+const FRICTION := 2800.0
+const AIR_ACCEL := 1700.0
+const THROW_SPEED := 640.0
 const JUMP := -640.0
 ## Asymmetric gravity: rise gently, fall fast. Removes the floaty feel.
 const GRAVITY_UP := 1500.0
@@ -24,7 +31,10 @@ const SWING_TIME := 0.18
 
 var hp := 5
 var max_hp := 5
-var has_rock := false
+var has_stick := false
+var rocks := 0
+var max_rocks := 6
+var throwing := 0.0
 var berries := 0
 var max_berries := 3
 var facing := 1
@@ -34,11 +44,12 @@ var invuln := 0.0
 var knock := 0.0
 var anim_t := 0.0
 var dead := false
-var touch := {"left": false, "right": false, "jump": false, "attack": false, "heal": false}
+var touch := {"left": false, "right": false, "jump": false, "attack": false, "heal": false, "throw": false}
 
 var _jump_prev := false
 var _attack_prev := false
 var _heal_prev := false
+var _throw_prev := false
 var _coyote := 0.0
 var _buffer := 0.0
 var _jumps_left := 0
@@ -84,6 +95,7 @@ func _physics_process(delta: float) -> void:
 	invuln = maxf(invuln - delta, 0.0)
 	knock = maxf(knock - delta, 0.0)
 	attacking = maxf(attacking - delta, 0.0)
+	throwing = maxf(throwing - delta, 0.0)
 
 	var dir := 0.0
 	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT) or touch["left"]:
@@ -95,7 +107,12 @@ func _physics_process(delta: float) -> void:
 		_hit_shape.position.x = 32.0 * facing
 
 	if knock <= 0.0:
-		velocity.x = dir * SPEED
+		var a := ACCEL if is_on_floor() else AIR_ACCEL
+		if dir != 0.0:
+			velocity.x = move_toward(velocity.x, dir * SPEED, a * delta)
+		else:
+			var f := FRICTION if is_on_floor() else AIR_ACCEL * 0.5
+			velocity.x = move_toward(velocity.x, 0.0, f * delta)
 	if not is_on_floor():
 		velocity.y += (GRAVITY_UP if velocity.y < 0.0 else GRAVITY_DOWN) * delta
 
@@ -137,7 +154,6 @@ func _physics_process(delta: float) -> void:
 	_jump_prev = jump_now
 
 	var attack_now: bool = Input.is_physical_key_pressed(KEY_J) \
-		or Input.is_physical_key_pressed(KEY_K) \
 		or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) \
 		or touch["attack"]
 	if attack_now and not _attack_prev and attack_cd <= 0.0:
@@ -145,6 +161,13 @@ func _physics_process(delta: float) -> void:
 		attacking = SWING_TIME
 		_swing()
 	_attack_prev = attack_now
+
+	var throw_now: bool = Input.is_physical_key_pressed(KEY_K) \
+		or Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) \
+		or touch["throw"]
+	if throw_now and not _throw_prev:
+		throw_rock()
+	_throw_prev = throw_now
 
 	var heal_now: bool = Input.is_physical_key_pressed(KEY_E) \
 		or Input.is_physical_key_pressed(KEY_L) \
@@ -165,7 +188,7 @@ func _process(_delta: float) -> void:
 
 
 func _swing() -> void:
-	var dmg := 3 if has_rock else 1
+	var dmg := 3 if has_stick else 1
 	for area in _hitbox.get_overlapping_areas():
 		if area.has_method("take_hit"):
 			area.take_hit(dmg, facing)
@@ -204,9 +227,32 @@ func hurt(amount: int, from_x: float) -> void:
 		died.emit()
 
 
-func pick_up_rock() -> void:
-	has_rock = true
+func pick_up_stick() -> void:
+	has_stick = true
+	stick_picked.emit()
+
+
+func add_rock(n: int = 1) -> bool:
+	if rocks >= max_rocks:
+		return false
+	rocks = mini(rocks + n, max_rocks)
+	rocks_changed.emit(rocks)
 	rock_picked.emit()
+	return true
+
+
+## Throws a rock in the direction he faces. Ranged answer to things that bite back.
+func throw_rock() -> bool:
+	if dead or rocks <= 0 or throwing > 0.0:
+		return false
+	rocks -= 1
+	rocks_changed.emit(rocks)
+	throwing = 0.28
+	var r := World.ThrownRock.new()
+	r.position = global_position + Vector2(20.0 * facing, -44)
+	r.vel = Vector2(THROW_SPEED * facing, -140.0)
+	get_parent().add_child(r)
+	return true
 
 
 func add_berry() -> bool:
@@ -285,19 +331,30 @@ func _draw() -> void:
 		for i in berries:
 			draw_circle(fx(Vector2(-13.0 + i * 3.5, -31)), 2.0, Pal.EMBER)
 
-	# front arm, swings the rock
+	# a couple of spare rocks tucked at his waist
+	for i in mini(rocks, 3):
+		draw_circle(fx(Vector2(-6.0 + i * 6.0, -24)), 3.4, Pal.STONE)
+
+	# front arm: swings the stick, or cocks back to throw
 	var ang := 0.0
-	if attacking > 0.0:
+	if throwing > 0.0:
+		var q := 1.0 - throwing / 0.28
+		ang = -2.6 + q * 2.2
+	elif attacking > 0.0:
 		var p := 1.0 - attacking / SWING_TIME
 		ang = -2.3 + p * 2.9
-	elif has_rock:
-		ang = -0.7
+	elif has_stick:
+		ang = -0.55
 	else:
 		ang = 0.35 + s * 0.45
 	var shoulder := Vector2(8, -42)
 	var hand := shoulder + Vector2(cos(ang), sin(ang)) * 21.0
 	draw_line(fx(shoulder), fx(hand), c, 6.0)
-	if has_rock:
-		var rock_pos := hand + Vector2(cos(ang), sin(ang)) * 7.0
-		draw_circle(fx(rock_pos), 8.0, Pal.STONE)
-		draw_circle(fx(rock_pos + Vector2(-2, -2)), 3.0, Pal.STONE_DARK)
+	if has_stick:
+		# a knotted club, held along the swing arc
+		var tip := hand + Vector2(cos(ang), sin(ang)) * 30.0
+		draw_line(fx(hand), fx(tip), Pal.OCHRE_DEEP, 7.0)
+		draw_circle(fx(tip), 7.0, Pal.OCHRE_DARK)
+		draw_circle(fx(tip + Vector2(-3, -3)), 2.5, Pal.OCHRE)
+	if throwing > 0.0 and rocks >= 0:
+		draw_circle(fx(hand), 7.0, Pal.STONE)
