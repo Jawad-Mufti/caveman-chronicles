@@ -313,7 +313,12 @@ class Boar extends Critter:
 	func _setup() -> void:
 		hp = max_hp
 		damage = 2
-		stompable = false
+		# He can be ridden. Worth little while he is up — the club and the
+		# knockdown are still the real damage — but landing on a charging boar
+		# is a genuine option rather than a mistake.
+		stompable = true
+		stomp_top = -56.0     ## the line of his back
+		stomp_damage = 2      ## becomes 1 upright, 4 while he is down
 		add_rect_shape(Vector2(104, 56), Vector2(0, -28))
 
 	## Two ground waves, one each way, plus rock shaken off the ceiling.
@@ -432,6 +437,12 @@ class Boar extends Critter:
 	func _on_hit(_from_dir: int) -> void:
 		if state == "charge" or state == "head":
 			vx *= 0.6
+
+	## A boot on the spine takes some of the run out of him, so a well-timed
+	## landing on a charge is rewarded even though the damage is small.
+	func _on_stomped() -> void:
+		if state == "charge" or state == "head":
+			vx *= 0.7
 
 	func _on_die() -> void:
 		defeated.emit()
