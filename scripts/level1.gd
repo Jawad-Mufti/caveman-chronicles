@@ -70,10 +70,13 @@ const FLYTRAPS := [
 	[5400.0, CHAMBER_Y], [6050.0, CHAMBER_Y], [6600.0, GROUND_Y], [7350.0, GROUND_Y],
 ]
 const BERRIES := [[900.0, GROUND_Y], [5900.0, CHAMBER_Y], [7060.0, 320.0]]
-## Kept at chest height: they attack across him, not from above his head.
+## Every insect hovers exactly this far above its own ground, so they all sit
+## at chest height wherever they are instead of drifting high or low.
+const INSECT_HOVER := 54.0
+## [x, the ground surface this insect belongs to]
 const INSECTS := [
-	[950.0, 548.0], [2050.0, 545.0], [3500.0, 500.0],
-	[5600.0, 846.0], [6700.0, 545.0], [7450.0, 520.0],
+	[950.0, GROUND_Y], [2050.0, GROUND_Y], [3620.0, 560.0],
+	[5600.0, CHAMBER_Y], [6700.0, GROUND_Y], [7450.0, GROUND_Y],
 ]
 ## [left, right, start_x, y]
 const LIZARDS := [
@@ -81,7 +84,7 @@ const LIZARDS := [
 	[1650.0, 2600.0, 1800.0, GROUND_Y],
 	[2850.0, 3180.0, 2950.0, GROUND_Y],
 	[4790.0, 5180.0, 4900.0, GROUND_Y],
-	[5250.0, 6380.0, 5700.0, CHAMBER_Y],
+	[5680.0, 6350.0, 5800.0, CHAMBER_Y],   # kept clear of the block at 5620
 	[6500.0, 7600.0, 6700.0, GROUND_Y],
 ]
 
@@ -214,7 +217,8 @@ func _build_player() -> void:
 func _build_critters() -> void:
 	for p in INSECTS:
 		var bug := Bestiary.Insect.new()
-		bug.position = Vector2(p[0], p[1])
+		bug.ground_y = p[1]
+		bug.position = Vector2(p[0], p[1] - INSECT_HOVER)
 		add_child(bug)
 
 	for l in LIZARDS:
