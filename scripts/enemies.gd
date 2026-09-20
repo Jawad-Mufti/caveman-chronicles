@@ -15,7 +15,8 @@ class Insect extends Critter:
 	var aim := Vector2.RIGHT
 	var dash_speed := 440.0
 	var vel := Vector2.ZERO  ## it carries momentum now, so nothing teleports
-	const ROAM_X := 250.0    ## how far either side of home it may wander
+	var origin := Vector2.ZERO  ## where it was born. Its patch of the level, not its perch.
+	const ROAM_X := 330.0    ## how far either side of home it may wander
 	const ROAM_Y := 110.0    ## and how far above or below. Stops the long crawl home.
 	var floor_y := 0.0       ## the one line it may not cross: the ground it lives above
 	var ground_y := 0.0      ## set by the level. Without it the insect has to guess.
@@ -25,6 +26,7 @@ class Insect extends Critter:
 		damage = 1
 		stomp_top = -14.0
 		anchor = position
+		origin = position
 		# The level tells it which surface it belongs to. Deriving the floor from
 		# the anchor was wrong wherever an insect sat higher or lower than usual,
 		# which is why some hovered in the sky and others scraped the dirt.
@@ -32,6 +34,13 @@ class Insect extends Critter:
 		t = randf() * 10.0
 		timer = randf() * 1.2
 		add_circle_shape(12.0)
+
+	## Adopts wherever the lunge left it as its new perch, kept inside its patch.
+	func _settle() -> void:
+		anchor = Vector2(
+			clampf(global_position.x, origin.x - ROAM_X, origin.x + ROAM_X),
+			clampf(global_position.y, origin.y - ROAM_Y, minf(origin.y + ROAM_Y, floor_y))
+		)
 
 	func _tick(delta: float) -> void:
 		t += delta
@@ -44,14 +53,17 @@ class Insect extends Critter:
 					# drift sideways to line him up, never vertically
 					var dx: float = player.global_position.x - global_position.x
 					var dy: float = player.global_position.y - 30.0 - global_position.y
-					home.x = global_position.x + clampf(dx, -70.0, 70.0)
+					home.x = clampf(
+						global_position.x + clampf(dx, -70.0, 70.0),
+						origin.x - ROAM_X, origin.x + ROAM_X
+					)
 					# Only commits when he is roughly level with it. Before this it
 					# would wind up at a player standing far above, dash, fall short,
 					# and then creep back up — which is what looked so wrong.
 					if absf(dx) < 300.0 and absf(dy) < 120.0 and timer <= 0.0:
 						state = "wind"
 						timer = 0.45
-				global_position = global_position.move_toward(home, 165.0 * delta)
+				global_position = global_position.move_toward(home, 105.0 * delta)
 			"wind":
 				# hangs almost still for the beat before it commits
 				vel = vel.move_toward(Vector2.ZERO, 900.0 * delta)
@@ -76,24 +88,27 @@ class Insect extends Critter:
 					state = "rest"
 					timer = 1.5
 			"rest":
-				# Banks back to its post under its own momentum: it keeps drifting
-				# out of the lunge, turns, runs home quickly, then eases in as it
-				# arrives. Speed scales with distance, so there is no snap at
-				# either end — the earlier version drove straight home at a flat
-				# 260 px/s, which is what looked mechanical.
-				var home_v := anchor - global_position
-				var want := home_v.normalized() * minf(home_v.length() * 2.4, 250.0)
-				vel = vel.move_toward(want, 620.0 * delta)
+				# It STAYS where the lunge left it and settles there. Flying back
+				# to the spawn point after every attack was the unnatural part:
+				# a real insect does not reset, it drifts on from where it landed
+				# and comes at you again from the new angle.
+				vel = vel.move_toward(Vector2.ZERO, 380.0 * delta)
 				global_position += vel * delta
 				if timer <= 0.0:
+					_settle()
 					state = "hover"
-					timer = 0.8
+					timer = 1.0
 
-		# It keeps a station and stays near it. Without this a dash could leave it
-		# far below its post, crawling back up for seconds on end.
-		global_position.y = clampf(global_position.y, anchor.y - ROAM_Y, anchor.y + ROAM_Y)
-		if state != "dash":
-			global_position.x = clampf(global_position.x, anchor.x - ROAM_X, anchor.x + ROAM_X)
+		# THE SNAP LIVED HERE. The sideways bound used to be applied to its
+		# position, but only while hovering — so a lunge would carry it 200 px
+		# past the edge unchecked, and the first hover frame yanked all of that
+		# back in one step. A bound must never be enforced by moving something:
+		# it is enforced by ENDING the lunge at the edge, and by capping where it
+		# is allowed to aim. Then it stops at the line under its own power.
+		global_position.y = clampf(global_position.y, origin.y - ROAM_Y, origin.y + ROAM_Y)
+		if state == "dash" and absf(global_position.x - origin.x) > ROAM_X:
+			state = "rest"
+			timer = 1.2
 		if global_position.y > floor_y:
 			global_position.y = floor_y
 			if state == "dash":

@@ -239,6 +239,23 @@ func hurt(amount: int, from_x: float) -> void:
 		died.emit()
 
 
+## Put back on solid ground after a fall. Costs one health point, but applies
+## NO knockback: being flung again while standing at the lip of the same hole
+## is how one fall turns into three.
+func respawn_at(spot: Vector2) -> void:
+	global_position = spot
+	velocity = Vector2.ZERO
+	knock = 0.0
+	if dead:
+		return
+	hp -= 1
+	invuln = 1.3
+	hp_changed.emit(hp)
+	if hp <= 0:
+		dead = true
+		died.emit()
+
+
 func pick_up_stick() -> void:
 	has_stick = true
 	stick_picked.emit()
@@ -337,11 +354,10 @@ func _draw() -> void:
 	# back arm
 	draw_line(fx(Vector2(-4, -42)), fx(Vector2(-12.0 - s * 6.0, -26)), c, 6.0)
 
-	# a pouch of berries on his hip once he has gathered any
-	if berries > 0:
-		draw_circle(fx(Vector2(-10, -28)), 6.0, Pal.OCHRE_DEEP)
-		for i in berries:
-			draw_circle(fx(Vector2(-13.0 + i * 3.5, -31)), 2.0, Pal.EMBER)
+	# berries tucked at the small of his back: red, small, and well clear of the
+	# grey rocks at his waist so the two are never confused
+	for i in berries:
+		draw_circle(fx(Vector2(-14.0 + i * 4.0, -33)), 2.2, Pal.EMBER)
 
 	# a couple of spare rocks tucked at his waist
 	for i in mini(rocks, 3):

@@ -93,6 +93,7 @@ var cam: Camera2D
 var hud: Hud
 var boar: Bestiary.Boar
 var last_safe := Vector2(140, GROUND_Y)
+var last_safe_facing := 1
 var finished := false
 
 
@@ -325,10 +326,13 @@ func _process(_delta: float) -> void:
 
 	if player.is_on_floor() and not player.dead:
 		last_safe = player.global_position
+		last_safe_facing = player.facing
 	if player.global_position.y > FALL_Y and not player.dead:
-		player.global_position = last_safe + Vector2(-30.0 * player.facing, -4.0)
-		player.velocity = Vector2.ZERO
-		player.hurt(1, last_safe.x + 60.0 * player.facing)
+		# Set down well back from the lip he walked off, facing the way he came,
+		# so he is not dropped straight back into the same hole.
+		player.respawn_at(last_safe + Vector2(-58.0 * last_safe_facing, -10.0))
+		player.facing = -last_safe_facing
+		hud.say("He drags himself back up. That cost him.", 2.0)
 
 	if boar != null and is_instance_valid(boar) and boar.state != "sleep" and boar.hp > 0:
 		hud.set_boss(float(boar.hp) / float(boar.max_hp))
