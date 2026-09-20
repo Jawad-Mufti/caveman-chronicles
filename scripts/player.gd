@@ -19,8 +19,8 @@ const AIR_ACCEL := 1700.0
 const THROW_SPEED := 640.0
 const JUMP := -640.0
 ## Asymmetric gravity: rise gently, fall fast. Removes the floaty feel.
-const GRAVITY_UP := 1500.0
-const GRAVITY_DOWN := 2100.0
+const GRAVITY_UP := 1540.0
+const GRAVITY_DOWN := 2280.0
 const JUMP_CUT := 0.45        ## velocity kept when the jump key is released early
 const COYOTE_TIME := 0.10     ## can still jump this long after walking off a ledge
 const JUMP_BUFFER := 0.12     ## a jump press is remembered this long before landing
@@ -207,8 +207,13 @@ func _apply_swing() -> void:
 
 
 ## Called by a critter when he lands on top of it.
-func stomp_bounce() -> void:
+func stomp_bounce(push_x: float = 0.0) -> void:
 	velocity.y = STOMP_BOUNCE
+	if push_x != 0.0:
+		velocity.x = push_x
+		# brief loss of steering so the shove actually carries him off the back,
+		# instead of being cancelled by his own input on the very next frame
+		knock = 0.24
 	_coyote = 0.0
 	_buffer = 0.0
 	_jumps_left = maxi(_jumps_left, 1)   # a crush refunds an air jump, so stomps chain

@@ -284,7 +284,7 @@ class Boar extends Critter:
 	## That makes the fight about earning the window, and stops a couple of
 	## thrown rocks from ending a boss that should take three knockdowns.
 	func take_hit(dmg: int, from_dir: int) -> void:
-		var scaled := dmg * 2 if (state == "down" or state == "pant") else 1
+		var scaled := dmg * 2 if (state == "down" or state == "pant") else maxi(1, dmg / 2)
 		super.take_hit(scaled, from_dir)
 		# Half health flips the fight: he stops running at you and starts
 		# hammering the ground, so the threat moves from sideways to overhead.
@@ -318,7 +318,8 @@ class Boar extends Critter:
 		# is a genuine option rather than a mistake.
 		stompable = true
 		stomp_top = -56.0     ## the line of his back
-		stomp_damage = 2      ## becomes 1 upright, 4 while he is down
+		stomp_damage = 4      ## becomes 2 upright, 8 while he is down
+		stomp_push = 340.0    ## thrown clear of his flank, never straight back up
 		add_rect_shape(Vector2(104, 56), Vector2(0, -28))
 
 	## Two ground waves, one each way, plus rock shaken off the ceiling.

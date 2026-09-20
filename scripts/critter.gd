@@ -14,6 +14,7 @@ var player: CaveMan
 var stompable := true
 var stomp_top := -14.0    ## y offset of this critter's top, relative to its origin
 var stomp_damage := 99    ## a clean landing kills almost anything small
+var stomp_push := 0.0     ## sideways shove handed to the player, so big things throw him clear
 var _prev_feet := -1000000.0   ## where his feet were last frame, so fast falls still register
 var _prev_vy := 0.0            ## and how fast he was going, so the landing frame still counts
 
@@ -99,7 +100,12 @@ func _physics_process(delta: float) -> void:
 		if _is_stomp():
 			_on_stomped()
 			take_hit(stomp_damage, 0)
-			player.stomp_bounce()
+			# bounce him off to whichever side he landed on, so he cannot keep
+			# dropping onto the same back over and over
+			var away := signf(player.global_position.x - global_position.x)
+			if away == 0.0:
+				away = float(player.facing)
+			player.stomp_bounce(stomp_push * away)
 		elif damage > 0:
 			player.hurt(damage, global_position.x)
 
