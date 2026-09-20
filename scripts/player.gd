@@ -17,6 +17,12 @@ const ACCEL := 2600.0
 const FRICTION := 2800.0
 const AIR_ACCEL := 1700.0
 const THROW_SPEED := 640.0
+## Bare hands reach barely past his own shoulder. The club roughly doubles the
+## area he can threaten, which is the real reason to go and fetch it.
+const FIST_BOX := Vector2(34, 56)
+const FIST_REACH := 20.0
+const CLUB_BOX := Vector2(62, 70)
+const CLUB_REACH := 36.0
 const JUMP := -640.0
 ## Asymmetric gravity: rise gently, fall fast. Removes the floaty feel.
 const GRAVITY_UP := 1540.0
@@ -28,6 +34,9 @@ const STOMP_BOUNCE := -430.0  ## pop up after crushing something underfoot
 const MAX_JUMPS := 2
 const AIR_JUMP := -520.0      ## weaker than the ground jump: a recovery, not a free second jump
 const SWING_TIME := 0.26
+## Bare-handed he throws a one-two: a jab off the lead hand, then a cross off
+## the rear. Two separate strikes inside a single press.
+const PUNCH_TIME := 0.36
 
 var hp := 5
 var max_hp := 5
@@ -54,7 +63,9 @@ var _coyote := 0.0
 var _buffer := 0.0
 var _jumps_left := 0
 var _hitbox: Area2D
+var _hit_box: RectangleShape2D
 var _swing_hits: Array = []
+var _punch_beat := 0
 var _hit_shape: CollisionShape2D
 
 
@@ -76,10 +87,10 @@ func _ready() -> void:
 	_hitbox.collision_mask = 4
 	_hitbox.monitorable = false
 	_hit_shape = CollisionShape2D.new()
-	var box := RectangleShape2D.new()
-	box.size = Vector2(62, 70)          ## reaches from the floor to over his head
-	_hit_shape.shape = box
-	_hit_shape.position = Vector2(36, -34)
+	_hit_box = RectangleShape2D.new()
+	_hit_box.size = FIST_BOX            ## starts bare-handed and short
+	_hit_shape.shape = _hit_box
+	_hit_shape.position = Vector2(FIST_REACH, -30)
 	_hitbox.add_child(_hit_shape)
 	add_child(_hitbox)
 
@@ -105,7 +116,11 @@ func _physics_process(delta: float) -> void:
 		dir += 1.0
 	if dir != 0.0:
 		facing = int(signf(dir))
-	_hit_shape.position.x = 36.0 * facing
+	var _reach := CLUB_REACH if has_stick else FIST_REACH
+	if not has_stick and attacking > 0.0 and _punch_beat == 1:
+		_reach = FIST_REACH + 9.0
+	_hit_shape.position.x = _reach * facing
+	_hit_shape.position.y = -34.0 if has_stick else -30.0
 
 	if knock <= 0.0:
 		var a := ACCEL if is_on_floor() else AIR_ACCEL
@@ -158,14 +173,25 @@ func _physics_process(delta: float) -> void:
 		or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) \
 		or touch["attack"]
 	if attack_now and not _attack_prev and attack_cd <= 0.0:
-		attack_cd = 0.38
-		attacking = SWING_TIME
+		if has_stick:
+			attack_cd = 0.38
+			attacking = SWING_TIME
+		else:
+			attack_cd = 0.46
+			attacking = PUNCH_TIME
+		_punch_beat = 0
 		_swing_hits.clear()
 	_attack_prev = attack_now
 
 	# The club connects across the WHOLE swing, not on one frame. Checking only
 	# at the keypress meant anything that was not already touching him was a miss.
 	if attacking > 0.0:
+		if not has_stick:
+			# the cross is a fresh strike, so the same target can be hit by both
+			var beat := 1 if (1.0 - attacking / PUNCH_TIME) >= 0.5 else 0
+			if beat != _punch_beat:
+				_punch_beat = beat
+				_swing_hits.clear()
 		_apply_swing()
 
 	var throw_now: bool = Input.is_physical_key_pressed(KEY_K) \
@@ -263,6 +289,7 @@ func respawn_at(spot: Vector2) -> void:
 
 func pick_up_stick() -> void:
 	has_stick = true
+	_hit_box.size = CLUB_BOX     ## longer and taller the moment he has it
 	stick_picked.emit()
 
 
@@ -356,8 +383,10 @@ func _draw() -> void:
 	# eye
 	draw_circle(fx(Vector2(10, -55)), 1.8, Pal.OCHRE)
 
-	# back arm
-	draw_line(fx(Vector2(-4, -42)), fx(Vector2(-12.0 - s * 6.0, -26)), c, 6.0)
+	# back arm, unless it is busy throwing the cross
+	var boxing := attacking > 0.0 and not has_stick and throwing <= 0.0
+	if not boxing:
+		draw_line(fx(Vector2(-4, -42)), fx(Vector2(-12.0 - s * 6.0, -26)), c, 6.0)
 
 	# berries tucked at the small of his back: red, small, and well clear of the
 	# grey rocks at his waist so the two are never confused
@@ -367,6 +396,32 @@ func _draw() -> void:
 	# a couple of spare rocks tucked at his waist
 	for i in mini(rocks, 3):
 		draw_circle(fx(Vector2(-6.0 + i * 6.0, -24)), 3.4, Pal.STONE)
+
+	# Bare-handed: a one-two. Each punch snaps out and is pulled straight back,
+	# so the two run together as one continuous motion rather than two pokes.
+	if boxing:
+		var prog := 1.0 - attacking / PUNCH_TIME
+		var jab := 0.0
+		var cross := 0.0
+		if prog < 0.5:
+			jab = pow(sin(prog / 0.5 * PI), 0.55)
+		else:
+			cross = pow(sin((prog - 0.5) / 0.5 * PI), 0.55)
+		var lean := cross * 3.0          # he turns his hip into the second one
+		var fsh := Vector2(8 - lean, -42)
+		var fh := fsh + Vector2(13.0 + jab * 27.0, -1.0 + jab * 3.0)
+		var bsh := Vector2(-4 - lean, -43)
+		var bh := bsh + Vector2(7.0 + cross * 42.0, cross * 3.0)
+		# rear hand first so the lead hand reads in front of it
+		draw_line(fx(bsh), fx(bh), c, 6.0)
+		draw_circle(fx(bh), 6.0 + cross * 2.5, c)
+		draw_line(fx(fsh), fx(fh), c, 6.0)
+		draw_circle(fx(fh), 6.0 + jab * 2.0, c)
+		if jab > 0.72:
+			draw_circle(fx(fh + Vector2(8, 0)), 5.0, Color(Pal.BONE, 0.45))
+		if cross > 0.72:
+			draw_circle(fx(bh + Vector2(9, 0)), 6.0, Color(Pal.BONE, 0.5))
+		return
 
 	# front arm. The swing is three beats: cock back, whip through, follow out.
 	# A linear sweep reads as a robot arm; anticipation and easing read as weight.

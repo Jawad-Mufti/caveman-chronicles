@@ -103,7 +103,7 @@ func _ready() -> void:
 	_build_player()
 	_build_critters()
 	_build_hud()
-	hud.say("A and D to move. Space to jump. J to swing, K to throw. Drop on small things to crush them.", 6.5)
+	hud.say("A and D to move. Space to jump. J to swing, K to throw. Drop on small things to crush them.", 6.0)
 
 
 func _build_background() -> void:
@@ -166,9 +166,9 @@ func _build_world() -> void:
 		add_child(spring)
 
 	var stick := World.StickPickup.new()
-	stick.position = Vector2(520, GROUND_Y)
+	stick.position = Vector2(780, 480)
 	stick.taken.connect(func() -> void:
-		hud.say("A club. It hits three times harder than a fist. J to swing.", 4.5)
+		hud.say("A club. Three times the damage of a fist, and far more reach.", 4.5)
 	)
 	add_child(stick)
 
@@ -239,6 +239,7 @@ func _build_critters() -> void:
 		trig.tripped.connect(_drop_stones.bind(z[0], z[1]))
 		add_child(trig)
 
+	_note(300, "His fists barely reach. Something is up on that ledge.")
 	_note(1180, "Something big is grazing out there.")
 	_note(3140, "The floor runs out. The bamboo is the only way over.")
 	_note(5140, "It goes down before it goes up.")

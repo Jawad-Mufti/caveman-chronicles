@@ -370,7 +370,8 @@ class ThrownRock extends Area2D:
 
 
 class StickPickup extends Area2D:
-	## The first weapon: a knotted club lying on the ground.
+	## The first weapon. Deliberately out of the way: it sits up on a ledge,
+	## so the player has to climb for the reach upgrade rather than walk into it.
 	signal taken
 	var t := 0.0
 
