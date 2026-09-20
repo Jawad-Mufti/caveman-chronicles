@@ -248,6 +248,9 @@ func _build_critters() -> void:
 	boar.arena_l = ARENA_L
 	boar.arena_r = ARENA_R
 	boar.defeated.connect(_on_boar_down)
+	boar.enraged_now.connect(func() -> void:
+		hud.say("Tuskar is bleeding. He stops charging and starts slamming — jump the wave.", 4.5)
+	)
 	add_child(boar)
 
 	var arena := World.Trigger.new(Rect2(ARENA_L + 120, 100, 200, 500))

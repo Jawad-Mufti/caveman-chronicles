@@ -27,7 +27,7 @@ const JUMP_BUFFER := 0.12     ## a jump press is remembered this long before lan
 const STOMP_BOUNCE := -430.0  ## pop up after crushing something underfoot
 const MAX_JUMPS := 2
 const AIR_JUMP := -520.0      ## weaker than the ground jump: a recovery, not a free second jump
-const SWING_TIME := 0.18
+const SWING_TIME := 0.26
 
 var hp := 5
 var max_hp := 5
@@ -54,6 +54,7 @@ var _coyote := 0.0
 var _buffer := 0.0
 var _jumps_left := 0
 var _hitbox: Area2D
+var _swing_hits: Array = []
 var _hit_shape: CollisionShape2D
 
 
@@ -76,9 +77,9 @@ func _ready() -> void:
 	_hitbox.monitorable = false
 	_hit_shape = CollisionShape2D.new()
 	var box := RectangleShape2D.new()
-	box.size = Vector2(46, 46)
+	box.size = Vector2(62, 70)          ## reaches from the floor to over his head
 	_hit_shape.shape = box
-	_hit_shape.position = Vector2(32, -32)
+	_hit_shape.position = Vector2(36, -34)
 	_hitbox.add_child(_hit_shape)
 	add_child(_hitbox)
 
@@ -104,7 +105,7 @@ func _physics_process(delta: float) -> void:
 		dir += 1.0
 	if dir != 0.0:
 		facing = int(signf(dir))
-		_hit_shape.position.x = 32.0 * facing
+	_hit_shape.position.x = 36.0 * facing
 
 	if knock <= 0.0:
 		var a := ACCEL if is_on_floor() else AIR_ACCEL
@@ -157,10 +158,15 @@ func _physics_process(delta: float) -> void:
 		or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) \
 		or touch["attack"]
 	if attack_now and not _attack_prev and attack_cd <= 0.0:
-		attack_cd = 0.42
+		attack_cd = 0.38
 		attacking = SWING_TIME
-		_swing()
+		_swing_hits.clear()
 	_attack_prev = attack_now
+
+	# The club connects across the WHOLE swing, not on one frame. Checking only
+	# at the keypress meant anything that was not already touching him was a miss.
+	if attacking > 0.0:
+		_apply_swing()
 
 	var throw_now: bool = Input.is_physical_key_pressed(KEY_K) \
 		or Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) \
@@ -187,11 +193,17 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 
-func _swing() -> void:
+## Runs every frame the swing is live. Each target can only be hit once per swing.
+func _apply_swing() -> void:
 	var dmg := 3 if has_stick else 1
 	for area in _hitbox.get_overlapping_areas():
-		if area.has_method("take_hit"):
-			area.take_hit(dmg, facing)
+		if not area.has_method("take_hit"):
+			continue
+		var id := area.get_instance_id()
+		if _swing_hits.has(id):
+			continue
+		_swing_hits.append(id)
+		area.take_hit(dmg, facing)
 
 
 ## Called by a critter when he lands on top of it.
@@ -335,26 +347,51 @@ func _draw() -> void:
 	for i in mini(rocks, 3):
 		draw_circle(fx(Vector2(-6.0 + i * 6.0, -24)), 3.4, Pal.STONE)
 
-	# front arm: swings the stick, or cocks back to throw
+	# front arm. The swing is three beats: cock back, whip through, follow out.
+	# A linear sweep reads as a robot arm; anticipation and easing read as weight.
 	var ang := 0.0
+	var trail := 0.0        ## how far the club lags behind the hand
+	var reach := 21.0       ## the arm extends as he commits
 	if throwing > 0.0:
 		var q := 1.0 - throwing / 0.28
-		ang = -2.6 + q * 2.2
+		ang = -2.6 + (1.0 - pow(1.0 - q, 3.0)) * 2.4
+		reach = 19.0 + q * 5.0
 	elif attacking > 0.0:
-		var p := 1.0 - attacking / SWING_TIME
-		ang = -2.3 + p * 2.9
+		var sp := 1.0 - attacking / SWING_TIME    # 0 at the start, 1 at the end
+		if sp < 0.24:
+			# anticipation: he pulls it further back before anything moves forward
+			ang = -0.95 - (sp / 0.24) * 0.85
+			trail = 0.55
+			reach = 19.0
+		else:
+			var q2 := (sp - 0.24) / 0.76
+			var eased := 1.0 - pow(1.0 - q2, 2.6)   # fast out of the wind-up, settling late
+			ang = -1.80 + eased * 3.05
+			trail = (1.0 - q2) * 0.85               # the head of the club drags, then whips past
+			reach = 19.0 + sin(q2 * PI) * 7.0       # the arm straightens through the strike
 	elif has_stick:
-		ang = -0.55
+		ang = -0.55 + s * 0.12                       # rests on the shoulder, breathing
 	else:
 		ang = 0.35 + s * 0.45
 	var shoulder := Vector2(8, -42)
-	var hand := shoulder + Vector2(cos(ang), sin(ang)) * 21.0
+	var hand := shoulder + Vector2(cos(ang), sin(ang)) * reach
+
+	# smear of the club head through the arc, so a fast swing still reads
+	if attacking > 0.0:
+		var smear := PackedVector2Array()
+		for i in 7:
+			var a2 := ang - trail - 0.75 + i * (0.75 / 6.0)
+			smear.append(fx(shoulder + Vector2(cos(a2), sin(a2)) * (reach + 32.0)))
+		draw_polyline(smear, Color(Pal.BONE, 0.30), 3.0)
+
 	draw_line(fx(shoulder), fx(hand), c, 6.0)
 	if has_stick:
-		# a knotted club, held along the swing arc
-		var tip := hand + Vector2(cos(ang), sin(ang)) * 30.0
-		draw_line(fx(hand), fx(tip), Pal.OCHRE_DEEP, 7.0)
-		draw_circle(fx(tip), 7.0, Pal.OCHRE_DARK)
+		# knotted club. Drawn on the lagging angle, not the hand angle.
+		var ca := ang - trail
+		var grip := shoulder + Vector2(cos(ca), sin(ca)) * (reach - 6.0)
+		var tip := shoulder + Vector2(cos(ca), sin(ca)) * (reach + 34.0)
+		draw_line(fx(grip), fx(tip), Pal.OCHRE_DEEP, 7.0)
+		draw_circle(fx(tip), 7.5, Pal.OCHRE_DARK)
 		draw_circle(fx(tip + Vector2(-3, -3)), 2.5, Pal.OCHRE)
-	if throwing > 0.0 and rocks >= 0:
+	if throwing > 0.0:
 		draw_circle(fx(hand), 7.0, Pal.STONE)

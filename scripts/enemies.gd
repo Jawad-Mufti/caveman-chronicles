@@ -14,12 +14,16 @@ class Insect extends Critter:
 	var timer := 0.0
 	var aim := Vector2.RIGHT
 	var dash_speed := 440.0
+	var floor_y := 0.0       ## the one line it may not cross: the ground it lives above
 
 	func _setup() -> void:
 		hp = 1
 		damage = 1
 		stomp_top = -14.0
 		anchor = position
+		# Insects are placed a fixed height above their local ground, so the floor
+		# can be derived from the anchor. Works for the chamber insects too.
+		floor_y = anchor.y + 40.0
 		t = randf() * 10.0
 		timer = randf() * 1.2
 		add_circle_shape(12.0)
@@ -42,6 +46,12 @@ class Insect extends Critter:
 				if timer <= 0.0:
 					if player != null:
 						aim = (player.global_position + Vector2(0, -26) - global_position).normalized()
+						# never dive steeply: it strikes ACROSS him, not down at the floor
+						aim.y = minf(aim.y, 0.35)
+						if absf(aim.x) < 0.25:
+							var side := signf(player.global_position.x - global_position.x)
+							aim.x = 0.25 * (side if side != 0.0 else 1.0)
+						aim = aim.normalized()
 					state = "dash"
 					timer = 0.5
 			"dash":
@@ -54,6 +64,14 @@ class Insect extends Critter:
 				if timer <= 0.0:
 					state = "hover"
 					timer = 0.8
+
+		# Free to roam anywhere above its ground line, but never through it.
+		# Only a lower bound, so the drifting and the dash stay untouched.
+		if global_position.y > floor_y:
+			global_position.y = floor_y
+			if state == "dash":
+				state = "rest"      # it clips the dirt and pulls up
+				timer = 1.1
 
 	func _draw() -> void:
 		var c := Pal.CHARCOAL
@@ -160,15 +178,66 @@ class Stone extends Critter:
 		draw_polygon(PackedVector2Array([pts[0], pts[1], Vector2(0, 0)]), PackedColorArray([Pal.STONE_DARK]))
 
 
+class Shockwave extends Critter:
+	## A ridge of broken ground thrown out by Tuskar's slam. It runs along the
+	## floor, so the answer is to JUMP — the one skill the whole level taught.
+	var dir := 1
+	var speed := 360.0
+	var left_x := 0.0
+	var right_x := 0.0
+	var t := 0.0
+	var life := 4.0
+
+	func _setup() -> void:
+		hp = 9999
+		damage = 1
+		stompable = false
+		add_rect_shape(Vector2(44, 32), Vector2(0, -16))
+
+	func take_hit(_dmg: int, _from_dir: int) -> void:
+		pass   ## you cannot club the ground into submission
+
+	func _tick(delta: float) -> void:
+		t += delta
+		life -= delta
+		position.x += dir * speed * delta
+		if life <= 0.0 or position.x < left_x - 40.0 or position.x > right_x + 40.0:
+			queue_free()
+
+	func _draw() -> void:
+		var f := float(dir)
+		draw_polygon(PackedVector2Array([
+			Vector2(-f * 24, 0), Vector2(-f * 6, -30), Vector2(f * 10, -22), Vector2(f * 24, 0),
+		]), PackedColorArray([Pal.STONE_DARK]))
+		for i in 4:
+			var x := -18.0 + i * 12.0
+			var h := 22.0 - absf(x) * 0.4 + sin(t * 26.0 + i) * 3.0
+			draw_line(Vector2(x, 0), Vector2(x, -h), Pal.STONE, 4.0)
+		for i in 5:
+			var a := t * 7.0 + i * 1.3
+			draw_circle(Vector2(cos(a) * 18.0, -24.0 - sin(a) * 7.0), 2.4, Color(Pal.BONE, 0.7))
+
+
 class Boar extends Critter:
 	signal defeated
 	signal woke
+	signal enraged_now
 
-	## Hitting him while he is down is worth triple. Hitting a charging boar
-	## barely scratches him, so the fight is about earning the down, not mashing.
+	## Down he takes double; upright he takes 1 whatever you hit him with.
+	## That makes the fight about earning the window, and stops a couple of
+	## thrown rocks from ending a boss that should take three knockdowns.
 	func take_hit(dmg: int, from_dir: int) -> void:
-		var scaled := dmg * 3 if state == "down" else maxi(1, dmg / 3)
+		var scaled := dmg * 2 if (state == "down" or state == "pant") else 1
 		super.take_hit(scaled, from_dir)
+		# Half health flips the fight: he stops running at you and starts
+		# hammering the ground, so the threat moves from sideways to overhead.
+		if not enraged and hp > 0 and hp <= max_hp / 2:
+			enraged = true
+			enraged_now.emit()
+			charges = 0
+			vx = 0.0
+			state = "rear"
+			stun = 0.7
 
 	var arena_l := 0.0
 	var arena_r := 0.0
@@ -177,17 +246,38 @@ class Boar extends Critter:
 	var vx := 0.0
 	var stun := 0.0
 	var t := 0.0
-	var max_hp := 12
+	var max_hp := 54
 	var charges := 0          ## charges landed since he last went down
 	var down_timer := 0.0     ## he lies there this long, then goes for the head
 	var lunge_aim := 0.0
 	var head_ready := false
+	var enraged := false      ## below half health he abandons the charge entirely
 
 	func _setup() -> void:
 		hp = max_hp
 		damage = 2
 		stompable = false
 		add_rect_shape(Vector2(104, 56), Vector2(0, -28))
+
+	## Two ground waves, one each way, plus rock shaken off the ceiling.
+	## Jump the wave, then step out from under the falling stone.
+	func _slam() -> void:
+		var host := get_parent()
+		if host == null:
+			return
+		for s in [-1, 1]:
+			var w := Bestiary.Shockwave.new()
+			w.position = position
+			w.dir = s
+			w.left_x = arena_l
+			w.right_x = arena_r
+			host.add_child(w)
+		for i in 3:
+			var st := Bestiary.Stone.new()
+			st.position = Vector2(randf_range(arena_l + 90.0, arena_r - 90.0), 90.0)
+			st.floor_y = position.y - 14.0
+			host.add_child(st)
+
 
 	func wake() -> void:
 		if state == "sleep":
@@ -200,6 +290,9 @@ class Boar extends Critter:
 	## with a head strike aimed where the player stood, so the window has a price.
 	func _tick(delta: float) -> void:
 		t += delta
+		# Winded means harmless. Standing on him to club him should not cost
+		# health, or the reward window charges you for using it.
+		damage = 0 if (state == "down" or state == "pant" or state == "sleep") else 2
 		match state:
 			"sleep":
 				pass
@@ -214,18 +307,22 @@ class Boar extends Critter:
 					state = "charge"
 					vx = 0.0
 			"charge":
-				vx = move_toward(vx, dir * 600.0, 1200.0 * delta)
+				vx = move_toward(vx, dir * 520.0, 1000.0 * delta)
 				position.x += vx * delta
 				var hit_wall := (dir > 0 and position.x >= arena_r - 60.0) or (dir < 0 and position.x <= arena_l + 60.0)
 				if hit_wall:
 					position.x = clampf(position.x, arena_l + 60.0, arena_r - 60.0)
 					vx = 0.0
+					if enraged:
+						state = "rear"
+						stun = 0.7
+						return
 					charges += 1
 					if charges >= 2:
 						# knocked down by his own momentum
 						charges = 0
 						state = "down"
-						down_timer = 2.0
+						down_timer = 3.2
 						head_ready = false
 					else:
 						# turn and come straight back the other way
@@ -242,16 +339,38 @@ class Boar extends Critter:
 						lunge_aim = float(dir)
 					dir = int(lunge_aim)
 					state = "head"
-					stun = 0.55
+					stun = 0.7
 			"head":
 				# a short, fast head strike along the ground
 				stun -= delta
-				vx = move_toward(vx, lunge_aim * 780.0, 2600.0 * delta)
+				vx = move_toward(vx, lunge_aim * 680.0, 2200.0 * delta)
 				position.x = clampf(position.x + vx * delta, arena_l + 60.0, arena_r - 60.0)
 				if stun <= 0.0:
 					vx = 0.0
 					state = "stalk"
 					stun = 0.8
+			"rear":
+				# up on his hind legs. Long, obvious, and the cue to move away
+				stun -= delta
+				vx = move_toward(vx, 0.0, 1600.0 * delta)
+				position.x += vx * delta
+				if stun <= 0.0:
+					state = "slam"
+					stun = 0.18
+					_slam()
+			"slam":
+				stun -= delta
+				if stun <= 0.0:
+					state = "pant"
+					stun = 1.2
+			"pant":
+				# winded from his own blow. Shorter than a knockdown, still double damage
+				stun -= delta
+				if stun <= 0.0:
+					if player != null:
+						dir = 1 if player.global_position.x > position.x else -1
+					vx = 0.0
+					state = "charge"
 
 	func _on_hit(_from_dir: int) -> void:
 		if state == "charge" or state == "head":
@@ -272,6 +391,12 @@ class Boar extends Critter:
 			bob = 16.0 if not head_ready else 16.0 - sin(t * 9.0) * 7.0
 		if state == "head":
 			bob = -6.0
+		if state == "rear":
+			bob = -30.0 * (1.0 - stun / 0.7)
+		if state == "slam":
+			bob = 12.0
+		if state == "pant":
+			bob = 9.0 + sin(t * 11.0) * 2.5
 
 		for i in 4:
 			var lx := -34.0 + i * 22.0
@@ -303,6 +428,19 @@ class Boar extends Critter:
 				draw_arc(Vector2(f * 52, -32 + bob), 26.0 + sin(t * 12.0) * 4.0, 0.0, TAU, 20, Color(Pal.EMBER, 0.6), 3.0)
 		if state == "head":
 			draw_line(Vector2(f * 66, -26), Vector2(f * 104, -26), Color(Pal.EMBER, 0.7), 5.0)
+		if state == "rear":
+			# the wind-up: he rises and his shadow gathers under him
+			var lift := 1.0 - stun / 0.7
+			draw_arc(Vector2(0, 4), 40.0 + lift * 30.0, 0.0, TAU, 24, Color(Pal.EMBER, 0.25 + lift * 0.4), 4.0)
+		if state == "pant":
+			for i in 3:
+				var a3 := t * 5.0 + i * 2.1
+				draw_circle(Vector2(f * 50 + cos(a3) * 18.0, -34 + sin(a3) * 5.0), 2.6, Color(Pal.BONE, 0.7))
+		if enraged:
+			# breath steaming out of him once he is bleeding
+			for i in 4:
+				var b := fmod(t * 1.6 + i * 0.25, 1.0)
+				draw_circle(Vector2(f * (58.0 + b * 30.0), -40.0 - b * 16.0), 3.5 * (1.0 - b), Color(Pal.EMBER, 0.5 * (1.0 - b)))
 		if flash > 0.0:
 			draw_set_transform(Vector2(0, -36), 0.0, Vector2(1.75, 1.0))
 			draw_circle(Vector2.ZERO, 34.0, Color(1, 1, 1, 0.4))
