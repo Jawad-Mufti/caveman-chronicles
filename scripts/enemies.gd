@@ -14,6 +14,7 @@ class Insect extends Critter:
 	var timer := 0.0
 	var aim := Vector2.RIGHT
 	var dash_speed := 440.0
+	var vel := Vector2.ZERO  ## it carries momentum now, so nothing teleports
 	const ROAM_X := 250.0    ## how far either side of home it may wander
 	const ROAM_Y := 110.0    ## and how far above or below. Stops the long crawl home.
 	var floor_y := 0.0       ## the one line it may not cross: the ground it lives above
@@ -37,6 +38,7 @@ class Insect extends Critter:
 		timer = maxf(timer - delta, 0.0)
 		match state:
 			"hover":
+				vel = vel.move_toward(Vector2.ZERO, 500.0 * delta)
 				var home := anchor + Vector2(sin(t * 1.3) * 60.0, sin(t * 2.7) * 12.0)
 				if player != null:
 					# drift sideways to line him up, never vertically
@@ -51,6 +53,9 @@ class Insect extends Critter:
 						timer = 0.45
 				global_position = global_position.move_toward(home, 165.0 * delta)
 			"wind":
+				# hangs almost still for the beat before it commits
+				vel = vel.move_toward(Vector2.ZERO, 900.0 * delta)
+				global_position += vel * delta
 				if timer <= 0.0:
 					if player != null:
 						aim = (player.global_position + Vector2(0, -26) - global_position).normalized()
@@ -60,16 +65,26 @@ class Insect extends Critter:
 							var side := signf(player.global_position.x - global_position.x)
 							aim.x = 0.25 * (side if side != 0.0 else 1.0)
 						aim = aim.normalized()
+					vel = aim * dash_speed
 					state = "dash"
-					timer = 0.5
+					timer = 0.45
 			"dash":
-				global_position += aim * dash_speed * delta
+				# the lunge bleeds off speed instead of stopping dead
+				vel = vel.move_toward(aim * dash_speed * 0.5, 430.0 * delta)
+				global_position += vel * delta
 				if timer <= 0.0:
 					state = "rest"
-					timer = 1.3
+					timer = 1.5
 			"rest":
-				# snaps back to station rather than trickling there
-				global_position = global_position.move_toward(anchor, 260.0 * delta)
+				# Banks back to its post under its own momentum: it keeps drifting
+				# out of the lunge, turns, runs home quickly, then eases in as it
+				# arrives. Speed scales with distance, so there is no snap at
+				# either end — the earlier version drove straight home at a flat
+				# 260 px/s, which is what looked mechanical.
+				var home_v := anchor - global_position
+				var want := home_v.normalized() * minf(home_v.length() * 2.4, 250.0)
+				vel = vel.move_toward(want, 620.0 * delta)
+				global_position += vel * delta
 				if timer <= 0.0:
 					state = "hover"
 					timer = 0.8
