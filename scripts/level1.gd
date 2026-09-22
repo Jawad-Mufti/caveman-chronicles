@@ -112,17 +112,64 @@ func _build_background() -> void:
 	add_child(sky_layer)
 	sky_layer.add_child(World.SkyFill.new())
 
+	# Four scrolling bands, far to near. The further away a band is, the slower
+	# it slides past and the paler it is drawn — those two things together are
+	# the whole illusion of depth. Each tile width is the distance after which
+	# the band repeats, and no two match, so the repeat never lines up.
 	var pb := ParallaxBackground.new()
 	pb.layer = -100
 	add_child(pb)
-	for cfg in [[0.25, 0], [0.55, 1]]:
-		var pl := ParallaxLayer.new()
-		pl.motion_scale = Vector2(cfg[0], 1.0)
-		pl.motion_mirroring = Vector2(2560, 0)
-		pb.add_child(pl)
-		var wall := World.CaveWall.new()
-		wall.variant = cfg[1]
-		pl.add_child(wall)
+
+	_band(pb, Vector2(0.08, 0.05), 3200.0, World.Clouds.new())
+
+	var far := World.Ridge.new()
+	far.width = 2600.0
+	far.base_y = 470.0
+	far.col = Pal.MTN_FAR
+	far.rim = Pal.MTN_FAR_RIM
+	far.peaks = [[1.0, 215.0, 0.0, 0.8], [3.0, 80.0, 1.7, 0.9], [7.0, 26.0, 0.4, 1.0]]
+	far.snow_line = 300.0
+	_band(pb, Vector2(0.18, 0.10), far.width, far)
+
+	var mid := World.Ridge.new()
+	mid.width = 2200.0
+	mid.base_y = 545.0
+	mid.col = Pal.MTN_MID
+	mid.rim = Pal.MTN_MID_RIM
+	mid.peaks = [[1.0, 125.0, 2.2, 0.9], [4.0, 44.0, 0.6, 1.0]]
+	mid.tree_count = 24
+	mid.tree_col = Pal.MTN_MID_RIM
+	mid.tree_h = 30.0
+	_band(pb, Vector2(0.38, 0.20), mid.width, mid)
+
+	var near := World.Ridge.new()
+	near.width = 1800.0
+	near.base_y = 560.0
+	near.col = Pal.HILL_NEAR
+	near.rim = Pal.HILL_NEAR_RIM
+	near.peaks = [[1.0, 74.0, 0.9, 1.0], [3.0, 32.0, 2.4, 1.0]]
+	near.tree_count = 13
+	near.tree_col = Pal.TREE_DARK
+	near.tree_h = 62.0
+	_band(pb, Vector2(0.62, 0.34), near.width, near)
+
+	# Tuskar, grazing on that hillside long before the arena. His own band, with
+	# no repeat, so there is exactly one of him: mirrored like the hills he would
+	# turn up again every 1,800 px. He used to hang in mid-air over the level.
+	var far_boar := World.DistantBoar.new()
+	far_boar.position = Vector2(1222, 533)
+	var boar_layer := ParallaxLayer.new()
+	boar_layer.motion_scale = Vector2(0.62, 0.34)
+	pb.add_child(boar_layer)
+	boar_layer.add_child(far_boar)
+
+
+func _band(pb: ParallaxBackground, motion: Vector2, tile: float, art: Node2D) -> void:
+	var pl := ParallaxLayer.new()
+	pl.motion_scale = motion
+	pl.motion_mirroring = Vector2(tile, 0)
+	pb.add_child(pl)
+	pl.add_child(art)
 
 
 func _build_world() -> void:
@@ -179,11 +226,6 @@ func _build_world() -> void:
 			hud.say("Rocks. Press K to throw one.", 3.5)
 		)
 		add_child(rock)
-
-	# Tuskar, grazing far off. The boss exists long before the fight.
-	var far_boar := World.DistantBoar.new()
-	far_boar.position = Vector2(1320, GROUND_Y - 150)
-	add_child(far_boar)
 
 	for b in BERRIES:
 		var bush := World.BerryBush.new()

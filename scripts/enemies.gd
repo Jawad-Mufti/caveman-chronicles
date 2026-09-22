@@ -116,22 +116,31 @@ class Insect extends Critter:
 				timer = 1.1
 
 	func _draw() -> void:
-		var c := Pal.CHARCOAL
+		# a fat prehistoric wasp: striped amber abdomen, blurred wings, one big eye
 		var rate := 78.0 if state == "wind" else 42.0
-		var w := sin(t * rate) * 6.0
+		var flap := sin(t * rate)
 		if state == "wind":
-			# a clear tell before it commits
 			draw_arc(Vector2.ZERO, 20.0 + sin(t * 30.0) * 3.0, 0.0, TAU, 18, Color(Pal.EMBER, 0.55), 2.0)
-		draw_line(Vector2(0, -2), Vector2(-11, -9 - w), Pal.STONE, 2.0)
-		draw_line(Vector2(0, -2), Vector2(11, -9 + w), Pal.STONE, 2.0)
-		draw_circle(Vector2.ZERO, 7.0, c)
-		draw_circle(Vector2(-7, 2), 5.0, c)
-		draw_circle(Vector2(6, -1), 4.0, c)
-		draw_circle(Vector2(8, -3), 1.2, Pal.EMBER)
+		# wings behind the body, squashed by the flap so they read as beating
+		for sgn in [-1.0, 1.0]:
+			_fill(_pts_oval(Vector2(-2, -9 + flap * 2.0), 10.0, 4.0 + absf(flap) * 3.0, sgn * 0.5),
+				Color(Pal.WING, 0.72))
+		# legs
+		for i in 3:
+			draw_line(Vector2(-4.0 + i * 5.0, 3), Vector2(-6.0 + i * 5.0, 9), Pal.OUTLINE, 1.6, true)
+		# stinger
+		_shape(PackedVector2Array([Vector2(-14, -2), Vector2(-22, 1), Vector2(-14, 3)]), Pal.WASP_DARK, 1.6)
+		# abdomen with two dark bands
+		_oval(Vector2(-7, 0), 10.0, 7.5, Pal.WASP, 2.2)
+		for bx in [-10.0, -4.0]:
+			_fill(_pts_oval(Vector2(bx, 0), 1.8, 7.0), Pal.WASP_DARK)
+		# thorax and head
+		_dot(Vector2(4, -1), 6.5, Pal.WASP_DARK, 2.2)
+		_dot(Vector2(12, -2), 4.6, Pal.WASP_DARK, 2.2)
+		_eye(Vector2(14, -3), 2.6, Vector2(0.6, 0), Pal.EYE_YELLOW)
+		draw_line(Vector2(13, -6), Vector2(19, -11), Pal.OUTLINE, 1.5, true)
 		if flash > 0.0:
-			draw_circle(Vector2.ZERO, 14.0, Color(1, 1, 1, 0.5))
-
-
+			draw_circle(Vector2.ZERO, 15.0, Color(1, 1, 1, 0.5))
 class Lizard extends Critter:
 	var left_x := 0.0
 	var right_x := 0.0
@@ -174,25 +183,42 @@ class Lizard extends Critter:
 		position.x += from_dir * 22.0
 
 	func _draw() -> void:
+		# a monitor lizard: olive back, pale belly, spined spine, slit eye
 		var f := float(dir)
-		var c := Pal.CHARCOAL
 		var wig := sin(t * 14.0) * 4.0
-		# tail
-		draw_line(Vector2(-f * 20, -8), Vector2(-f * 40, -6 + wig), c, 4.0)
-		# legs
-		draw_line(Vector2(-f * 10, -8), Vector2(-f * 14 + wig, 0), c, 3.0)
-		draw_line(Vector2(f * 10, -8), Vector2(f * 14 - wig, 0), c, 3.0)
-		# body
-		draw_polygon(PackedVector2Array([Vector2(-f * 22, -16), Vector2(f * 18, -19), Vector2(f * 23, -8), Vector2(f * 16, -2), Vector2(-f * 20, -3)]), PackedColorArray([c]))
-		# a low ridge along the spine, so the top edge reads clearly
-		draw_line(Vector2(-f * 16, -19), Vector2(f * 14, -22), Pal.STONE, 3.0)
+		# tail, tapering away behind it
+		_shape(PackedVector2Array([
+			Vector2(-f * 16, -14), Vector2(-f * 30, -10 + wig * 0.5), Vector2(-f * 44, -5 + wig),
+			Vector2(-f * 30, -5 + wig * 0.5), Vector2(-f * 16, -6)]), Pal.LIZ_DARK, 2.2)
+		# far pair of legs, darker so they sit behind
+		for i in [-1.0, 1.0]:
+			_limb(Vector2(f * i * 13, -11), Vector2(f * i * 17 - wig, -1), 4.0, Pal.LIZ_DARK)
+		# body and belly
+		_shape(PackedVector2Array([
+			Vector2(-f * 22, -13), Vector2(-f * 14, -20), Vector2(f * 6, -21),
+			Vector2(f * 20, -17), Vector2(f * 23, -9), Vector2(f * 14, -3),
+			Vector2(-f * 14, -3), Vector2(-f * 21, -7)]), Pal.LIZ)
+		_fill(_pts_oval(Vector2(0, -6), 15.0, 3.5), Pal.LIZ_BELLY)
+		for i in 3:
+			_fill(_pts_oval(Vector2(-f * 10 + f * i * 10, -15), 3.6, 2.4), Pal.LIZ_DARK)
+		# spines along the back
+		for i in 5:
+			var sx := -f * 16 + f * i * 8.0
+			_fill(PackedVector2Array([Vector2(sx - f * 3, -19), Vector2(sx, -25), Vector2(sx + f * 3, -19)]), Pal.LIZ_DARK)
+		# near pair of legs
+		for i in [-1.0, 1.0]:
+			_limb(Vector2(f * i * 11, -9), Vector2(f * i * 15 + wig, 0), 4.5, Pal.LIZ)
 		# head
-		draw_circle(Vector2(f * 27, -13), 7.0, c)
-		draw_circle(Vector2(f * 29, -15), 1.4, Pal.OCHRE)
+		_shape(PackedVector2Array([
+			Vector2(f * 18, -20), Vector2(f * 31, -16), Vector2(f * 33, -10),
+			Vector2(f * 20, -6), Vector2(f * 17, -12)]), Pal.LIZ, 2.2)
+		draw_line(Vector2(f * 22, -11), Vector2(f * 32, -11), Pal.OUTLINE, 1.8, true)
+		_eye(Vector2(f * 24, -15), 3.2, Vector2(f * 0.6, 0), Pal.EYE_YELLOW, true)
+		# tongue, flicked now and then
+		if fmod(t, 2.2) < 0.22:
+			draw_line(Vector2(f * 32, -11), Vector2(f * 41, -13), Pal.MAW, 1.8, true)
 		if flash > 0.0:
-			draw_circle(Vector2(0, -8), 26.0, Color(1, 1, 1, 0.45))
-
-
+			draw_circle(Vector2(0, -10), 26.0, Color(1, 1, 1, 0.45))
 class Stone extends Critter:
 	var vy := 0.0
 	var floor_y := 0.0
@@ -227,14 +253,15 @@ class Stone extends Critter:
 			set_deferred("monitoring", false)
 
 	func _draw() -> void:
+		# a chunky faceted boulder: lit top, shaded underside
 		var pts := PackedVector2Array([
 			Vector2(-r, -r * 0.3), Vector2(-r * 0.5, -r), Vector2(r * 0.4, -r * 0.9),
-			Vector2(r, -r * 0.2), Vector2(r * 0.7, r * 0.8), Vector2(-r * 0.4, r)
-		])
-		draw_polygon(pts, PackedColorArray([Pal.STONE]))
-		draw_polygon(PackedVector2Array([pts[0], pts[1], Vector2(0, 0)]), PackedColorArray([Pal.STONE_DARK]))
-
-
+			Vector2(r, -r * 0.2), Vector2(r * 0.7, r * 0.8), Vector2(-r * 0.4, r)])
+		_shape(pts, Pal.ROCK, 2.5)
+		_fill(PackedVector2Array([pts[0], pts[1], pts[2], Vector2(0, -r * 0.1)]), Pal.ROCK_LIGHT)
+		_fill(PackedVector2Array([pts[3], pts[4], pts[5], Vector2(0, -r * 0.1)]), Pal.ROCK_DARK)
+		draw_line(pts[1], Vector2(0, -r * 0.1), Pal.OUTLINE, 1.6, true)
+		draw_line(pts[4], Vector2(0, -r * 0.1), Pal.OUTLINE, 1.6, true)
 class Shockwave extends Critter:
 	## A ridge of broken ground thrown out by Tuskar's slam. It runs along the
 	## floor, so the answer is to JUMP — the one skill the whole level taught.
@@ -262,19 +289,17 @@ class Shockwave extends Critter:
 			queue_free()
 
 	func _draw() -> void:
+		# a ridge of broken ground: dust, tumbling rock, grit in the air
 		var f := float(dir)
-		draw_polygon(PackedVector2Array([
-			Vector2(-f * 24, 0), Vector2(-f * 6, -30), Vector2(f * 10, -22), Vector2(f * 24, 0),
-		]), PackedColorArray([Pal.STONE_DARK]))
+		_shape(PackedVector2Array([
+			Vector2(-f * 26, 0), Vector2(-f * 8, -32), Vector2(f * 6, -20), Vector2(f * 26, 0)]), Pal.DUST, 2.5)
 		for i in 4:
-			var x := -18.0 + i * 12.0
-			var h := 22.0 - absf(x) * 0.4 + sin(t * 26.0 + i) * 3.0
-			draw_line(Vector2(x, 0), Vector2(x, -h), Pal.STONE, 4.0)
+			var x := -16.0 + i * 11.0
+			var h := 20.0 - absf(x) * 0.4 + sin(t * 26.0 + i) * 3.0
+			_fill(PackedVector2Array([Vector2(x - 4, 0), Vector2(x, -h), Vector2(x + 4, 0)]), Pal.ROCK_DARK)
 		for i in 5:
 			var a := t * 7.0 + i * 1.3
-			draw_circle(Vector2(cos(a) * 18.0, -24.0 - sin(a) * 7.0), 2.4, Color(Pal.BONE, 0.7))
-
-
+			draw_circle(Vector2(cos(a) * 18.0, -26.0 - sin(a) * 8.0), 2.6, Color(Pal.DUST, 0.8))
 class Boar extends Critter:
 	signal defeated
 	signal woke
@@ -449,14 +474,15 @@ class Boar extends Critter:
 		defeated.emit()
 
 	func _draw() -> void:
+		# Tuskar: heavy brown hide, pale belly, a black bristle ridge down the
+		# spine, ivory tusks, and one small furious eye. Every state pose below
+		# is the same animal, only shifted by bob.
 		var f := float(dir)
-		var c := Pal.CHARCOAL
 		var running := state == "charge" or state == "head"
 		var bob := sin(t * 18.0) * 3.0 if running else 0.0
 		if state == "sleep":
 			bob = sin(t * 2.0) * 2.0
 		if state == "down":
-			# slumped, and the head lifts as the strike gets close
 			bob = 16.0 if not head_ready else 16.0 - sin(t * 9.0) * 7.0
 		if state == "head":
 			bob = -6.0
@@ -467,27 +493,50 @@ class Boar extends Critter:
 		if state == "pant":
 			bob = 9.0 + sin(t * 11.0) * 2.5
 
+		# legs, with hooves
 		for i in 4:
 			var lx := -34.0 + i * 22.0
 			var sw := sin(t * 18.0 + i * 1.5) * 9.0 if running else 0.0
-			draw_line(Vector2(lx, -22), Vector2(lx + sw, 0), c, 8.0)
+			var foot := Vector2(lx + sw, 0)
+			_limb(Vector2(lx, -26 + bob * 0.6), foot, 9.0, Pal.BOAR_DARK)
+			_fill(_pts_oval(foot + Vector2(f * 2, -2), 6.5, 4.5), Pal.HOOF)
 
-		draw_set_transform(Vector2(0, -36 + bob), 0.0, Vector2(1.75, 1.0))
-		draw_circle(Vector2.ZERO, 30.0, c)
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-
-		draw_circle(Vector2(f * 48, -32 + bob), 19.0, c)
-		draw_circle(Vector2(f * 64, -25 + bob), 8.0, Pal.OCHRE_DARK)
-		draw_line(Vector2(f * 58, -20 + bob), Vector2(f * 72, -36 + bob), Pal.BONE, 4.0)
-		var eye := Pal.EMBER if running else Pal.OCHRE
+		var body := Vector2(0, -36 + bob)
+		# tail
+		draw_line(body + Vector2(-f * 48, -4), body + Vector2(-f * 62, -16 + sin(t * 6.0) * 5.0), Pal.BOAR_DARK, 4.5, true)
+		# barrel and belly
+		_oval(body, 52.0, 30.0, Pal.BOAR_HIDE, 3.0)
+		_fill(_pts_oval(body + Vector2(0, 11), 40.0, 16.0), Pal.BOAR_BELLY)
+		# bristles down the spine
+		for i in 7:
+			var bx := -34.0 + i * 11.0
+			var lift := 13.0 + sin(float(i) * 1.7) * 4.0 + (6.0 if enraged else 0.0)
+			_fill(PackedVector2Array([
+				body + Vector2(bx - 3, -26), body + Vector2(bx + f * 2, -26 - lift), body + Vector2(bx + 4, -26)]), Pal.BRISTLE)
+		# head: a heavy wedge running into the snout
+		var head := body + Vector2(f * 44, 4)
+		_shape(PackedVector2Array([
+			head + Vector2(-f * 8, -30), head + Vector2(f * 18, -26), head + Vector2(f * 30, -12),
+			head + Vector2(f * 26, 4), head + Vector2(f * 6, 12), head + Vector2(-f * 10, 4)]), Pal.BOAR_HIDE, 3.0)
+		# ear
+		_shape(PackedVector2Array([
+			head + Vector2(-f * 6, -28), head + Vector2(-f * 14, -44), head + Vector2(f * 6, -32)]), Pal.BOAR_DARK, 2.2)
+		# snout disc and nostrils
+		_dot(head + Vector2(f * 28, -6), 9.0, Pal.BOAR_DARK, 2.5)
+		draw_circle(head + Vector2(f * 30, -9), 1.8, Pal.OUTLINE)
+		draw_circle(head + Vector2(f * 30, -2), 1.8, Pal.OUTLINE)
+		# tusks, curving up out of the jaw
+		for sc in [1.0, 0.7]:
+			_shape(PackedVector2Array([
+				head + Vector2(f * 22, 4 * sc), head + Vector2(f * 34, -6 * sc),
+				head + Vector2(f * 40, -22 * sc), head + Vector2(f * 33, -10 * sc),
+				head + Vector2(f * 22, 0)]), Pal.TUSK, 2.0)
+		# eye, and a heavy brow that drops as he wakes up
 		if state == "sleep":
-			draw_line(Vector2(f * 46, -38 + bob), Vector2(f * 54, -38 + bob), Pal.OCHRE, 2.0)
+			draw_line(head + Vector2(f * 2, -14), head + Vector2(f * 14, -14), Pal.OUTLINE, 2.5, true)
 		else:
-			draw_circle(Vector2(f * 50, -38 + bob), 2.6, eye)
-		draw_polygon(PackedVector2Array([
-			Vector2(-22, -62 + bob), Vector2(-12, -76 + bob), Vector2(0, -62 + bob),
-			Vector2(12, -74 + bob), Vector2(24, -62 + bob)
-		]), PackedColorArray([c]))
+			_eye(head + Vector2(f * 9, -15), 4.2, Vector2(f * 1.0, 0), Pal.EMBER if running else Pal.EYE_YELLOW)
+			draw_line(head + Vector2(f * 1, -22), head + Vector2(f * 17, -17), Pal.BRISTLE, 4.0, true)
 
 		if state == "down":
 			for i in 3:
@@ -498,29 +547,25 @@ class Boar extends Critter:
 		if state == "head":
 			draw_line(Vector2(f * 66, -26), Vector2(f * 104, -26), Color(Pal.EMBER, 0.7), 5.0)
 		if state == "rear":
-			# the wind-up: he rises and his shadow gathers under him
-			var lift := 1.0 - stun / 0.7
-			draw_arc(Vector2(0, 4), 40.0 + lift * 30.0, 0.0, TAU, 24, Color(Pal.EMBER, 0.25 + lift * 0.4), 4.0)
+			var lift2 := 1.0 - stun / 0.7
+			draw_arc(Vector2(0, 4), 40.0 + lift2 * 30.0, 0.0, TAU, 24, Color(Pal.EMBER, 0.25 + lift2 * 0.4), 4.0)
 		if state == "pant":
 			for i in 3:
 				var a3 := t * 5.0 + i * 2.1
 				draw_circle(Vector2(f * 50 + cos(a3) * 18.0, -34 + sin(a3) * 5.0), 2.6, Color(Pal.BONE, 0.7))
 		if enraged:
-			# breath steaming out of him once he is bleeding
 			for i in 4:
 				var b := fmod(t * 1.6 + i * 0.25, 1.0)
-				draw_circle(Vector2(f * (58.0 + b * 30.0), -40.0 - b * 16.0), 3.5 * (1.0 - b), Color(Pal.EMBER, 0.5 * (1.0 - b)))
+				draw_circle(Vector2(f * (74.0 + b * 30.0), -34.0 - b * 16.0), 4.0 * (1.0 - b), Color(Pal.EMBER, 0.5 * (1.0 - b)))
 		if flash > 0.0:
-			draw_set_transform(Vector2(0, -36), 0.0, Vector2(1.75, 1.0))
-			draw_circle(Vector2.ZERO, 34.0, Color(1, 1, 1, 0.4))
-			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-
+			_fill(_pts_oval(body, 56.0, 34.0), Color(1, 1, 1, 0.4))
 
 class Flytrap extends Critter:
 	## A rooted snapping plant. It opens on a cycle and bites what is near it.
 	## Deliberately NOT stompable: it snaps upward, so landing on it is a mistake.
 	var t := 0.0
 	var open := false
+	var open_amt := 0.0    ## 0 shut, 1 gaping. Eased, not switched.
 	var cycle := 2.2
 	var phase := 0.0
 
@@ -534,30 +579,73 @@ class Flytrap extends Critter:
 	func _tick(delta: float) -> void:
 		t += delta
 		open = fmod(t + phase, cycle) < cycle * 0.45
+		# a real trap takes a moment to gape and shuts in a blink
+		open_amt = move_toward(open_amt, 1.0 if open else 0.0, (7.0 if open else 24.0) * delta)
 		# harmless while shut, so the open window is the telegraph
 		damage = 1 if open else 0
 
 	func _draw() -> void:
-		var c := Pal.CHARCOAL
+		# A Venus flytrap. The giveaway is the rim: long spines along the margin
+		# of each lobe that interlock when it shuts, over a red inner surface.
 		var sway := sin(t * 1.7) * 3.0
-		var head := Vector2(sway, -40)
-		# stem
-		draw_line(Vector2(0, 0), head, Pal.OCHRE_DEEP, 7.0)
-		# base leaves
-		draw_polygon(PackedVector2Array([Vector2(-18, 0), Vector2(-5, -12), Vector2(0, 0)]), PackedColorArray([Pal.OCHRE_DARK]))
-		draw_polygon(PackedVector2Array([Vector2(18, 0), Vector2(5, -12), Vector2(0, 0)]), PackedColorArray([Pal.OCHRE_DARK]))
-		if open:
-			# upper and lower jaw, spread apart
-			draw_polygon(PackedVector2Array([head + Vector2(-17, -2), head + Vector2(0, -6), head + Vector2(17, -2), head + Vector2(0, -24)]), PackedColorArray([c]))
-			draw_polygon(PackedVector2Array([head + Vector2(-15, 6), head + Vector2(15, 6), head + Vector2(0, 22)]), PackedColorArray([c]))
-			for i in 5:
-				var x := -13.0 + i * 6.5
-				draw_line(head + Vector2(x, 0), head + Vector2(x + 2, 8), Pal.BONE, 2.0)
-		else:
-			draw_polygon(PackedVector2Array([head + Vector2(-14, 10), head + Vector2(0, -18), head + Vector2(14, 10)]), PackedColorArray([c]))
-		if flash > 0.0:
-			draw_circle(head, 26.0, Color(1, 1, 1, 0.45))
+		var head := Vector2(sway * 0.5 - 4.0, -40)
 
+		# rosette of flat paddle leaves at the base
+		for i in 4:
+			var a := -2.75 + i * 0.5
+			var tip := Vector2(cos(a), sin(a) * 0.55) * 22.0
+			_shape(_pts_oval(tip * 0.55, 12.0, 5.0, a * 0.35), Pal.TRAP_GREEN, 2.0)
+			draw_line(Vector2.ZERO, tip * 0.95, Pal.TRAP_DARK, 1.6, true)
+
+		# stalk, bending with the sway
+		var stalk := PackedVector2Array()
+		for i in 9:
+			var u := i / 8.0
+			stalk.append(Vector2(0, 0).lerp(Vector2(sway * 0.4, -22), u).lerp(Vector2(sway * 0.4, -22).lerp(head, u), u))
+		draw_polyline(stalk, Pal.OUTLINE, 10.0, true)
+		draw_polyline(stalk, Pal.TRAP_DARK, 6.5, true)
+
+		# the throat, seen between the lobes
+		_fill(_pts_oval(head + Vector2(9, 0), 12.0, 3.0 + open_amt * 11.0), Pal.MAW)
+		_jaw(head, -1.0)
+		_jaw(head, 1.0)
+		if flash > 0.0:
+			draw_circle(head + Vector2(8, 0), 26.0, Color(1, 1, 1, 0.45))
+
+	## One lobe, hinged at the back and swinging open. sgn -1 is the upper lobe.
+	func _jaw(hinge: Vector2, sgn: float) -> void:
+		var ang := sgn * (0.06 + open_amt * 0.62)
+		var rx := 24.0
+		var ry := 10.5
+		var pts := PackedVector2Array()
+		for i in 9:
+			var a := PI - PI * i / 8.0
+			pts.append(hinge + Vector2(rx * 0.5 + cos(a) * rx * 0.5, sgn * sin(a) * ry).rotated(ang))
+		_shape(pts, Pal.TRAP_GREEN, 2.2)
+		# red inner face along the margin, and the trigger hairs on it
+		var inner := PackedVector2Array()
+		for i in 6:
+			var u := i / 5.0
+			inner.append(hinge + Vector2(4.0 + u * (rx - 7.0), sgn * (1.0 + sin(u * PI) * 3.4)).rotated(ang))
+		for i in range(5, -1, -1):
+			var u2 := i / 5.0
+			inner.append(hinge + Vector2(4.0 + u2 * (rx - 7.0), sgn * 0.5).rotated(ang))
+		_fill(inner, Pal.MAW)
+		for i in 3:
+			var hx := 9.0 + i * 5.0
+			draw_line(hinge + Vector2(hx, sgn * 2.0).rotated(ang),
+				hinge + Vector2(hx, sgn * 5.5).rotated(ang), Pal.OUTLINE, 1.2, true)
+		# The spines grow off the margin and reach ACROSS the gap, so the two
+		# rows mesh when it shuts. Pointing them the other way (into their own
+		# lobe) is what made them burst out through the back of the head.
+		for i in 6:
+			var bx := 7.0 + i * (rx - 11.0) / 5.0
+			var reach := 5.0 + sin(float(i) / 5.0 * PI) * 4.5   # longest mid-row
+			draw_line(hinge + Vector2(bx, sgn * 1.0).rotated(ang),
+				hinge + Vector2(bx + 1.5, -sgn * reach).rotated(ang), Pal.TOOTH, 2.2, false)
+		# midrib along the lobe
+		draw_line(hinge + Vector2(3, sgn * 4.0).rotated(ang),
+			hinge + Vector2(rx - 3.0, sgn * 3.0).rotated(ang), Pal.TRAP_DARK, 1.8, true)
 
 class Runner extends Critter:
 	## One beast in the stampede. Stompable like any small thing, but they come
@@ -583,17 +671,27 @@ class Runner extends Critter:
 			queue_free()
 
 	func _draw() -> void:
+		# a shaggy little boar, one of the herd
 		var f := float(dir)
-		var c := Pal.CHARCOAL
 		var run := sin(t * 22.0)
 		for i in 4:
-			var lx := -14.0 + i * 10.0
-			draw_line(Vector2(lx, -16), Vector2(lx + sin(t * 22.0 + i * 1.6) * 7.0, 0), c, 4.0)
-		draw_polygon(PackedVector2Array([
-			Vector2(-f * 22, -20), Vector2(f * 16, -24), Vector2(f * 22, -14), Vector2(f * 14, -8), Vector2(-f * 20, -8)
-		]), PackedColorArray([c]))
-		draw_circle(Vector2(f * 26, -24 + run * 2.0), 8.0, c)
-		draw_line(Vector2(f * 24, -30), Vector2(f * 32, -40), Pal.BONE, 3.0)
-		draw_circle(Vector2(f * 29, -26), 1.6, Pal.EMBER)
+			var lx := -12.0 + i * 9.0
+			var sw := sin(t * 22.0 + i * 1.6) * 7.0
+			_limb(Vector2(lx, -16), Vector2(lx + sw, -1), 4.5, Pal.RUNNER_DARK)
+			_fill(_pts_oval(Vector2(lx + sw, -1), 3.4, 2.4), Pal.HOOF)
+		draw_line(Vector2(-f * 20, -20), Vector2(-f * 27, -26 + run * 3.0), Pal.RUNNER_DARK, 3.0, true)
+		_oval(Vector2(0, -19), 22.0, 12.0, Pal.RUNNER_HIDE)
+		_fill(_pts_oval(Vector2(0, -13), 16.0, 5.0), Pal.BOAR_BELLY)
+		for i in 5:
+			var bx := -14.0 + i * 7.0
+			_fill(PackedVector2Array([Vector2(bx - 2, -29), Vector2(bx + 1, -37), Vector2(bx + 3, -29)]), Pal.BRISTLE)
+		# head and snout
+		_shape(PackedVector2Array([
+			Vector2(f * 12, -29), Vector2(f * 26, -26), Vector2(f * 33, -18),
+			Vector2(f * 26, -11), Vector2(f * 12, -12)]), Pal.RUNNER_HIDE, 2.2)
+		_dot(Vector2(f * 32, -18), 3.6, Pal.RUNNER_DARK, 2.0)
+		_fill(PackedVector2Array([Vector2(f * 14, -28), Vector2(f * 12, -36), Vector2(f * 20, -30)]), Pal.RUNNER_DARK)
+		_shape(PackedVector2Array([Vector2(f * 27, -14), Vector2(f * 34, -22), Vector2(f * 30, -12)]), Pal.TUSK, 1.6)
+		_eye(Vector2(f * 22, -23), 2.8, Vector2(f * 0.6, 0), Pal.EMBER)
 		if flash > 0.0:
 			draw_circle(Vector2(0, -18), 26.0, Color(1, 1, 1, 0.45))

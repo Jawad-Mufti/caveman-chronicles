@@ -113,7 +113,68 @@ func _physics_process(delta: float) -> void:
 		_prev_feet = player.global_position.y
 		_prev_vy = player.velocity.y
 
-	queue_redraw()
+	# Redrawing is only needed for ANIMATION. A creature far off screen still
+	# moves (its transform updates without re-running _draw), so re-running the
+	# drawing for it is pure waste — and most of a 9,400 px level is off screen.
+	if player == null or absf(player.global_position.x - global_position.x) < 820.0:
+		queue_redraw()
+
+
+## ---------------------------------------------------------------- drawing
+## Shared by every creature, so they all share one look: flat colour, a dark
+## outline, and a darker tone for shade. Defined here once rather than in each.
+const OLW := 2.5
+
+
+func _pts_oval(c: Vector2, rx: float, ry: float, rot: float = 0.0, n: int = 10) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	var cr := cos(rot)
+	var sr := sin(rot)
+	for i in n:
+		var a := TAU * i / float(n)
+		var v := Vector2(cos(a) * rx, sin(a) * ry)
+		pts.append(c + Vector2(v.x * cr - v.y * sr, v.x * sr + v.y * cr))
+	return pts
+
+
+func _fill(pts: PackedVector2Array, col: Color) -> void:
+	draw_colored_polygon(pts, col)
+
+
+func _shape(pts: PackedVector2Array, col: Color, w: float = OLW) -> void:
+	draw_colored_polygon(pts, col)
+	var ring := PackedVector2Array(pts)
+	ring.append(pts[0])
+	draw_polyline(ring, Pal.OUTLINE, w, false)
+
+
+func _oval(c: Vector2, rx: float, ry: float, col: Color, w: float = OLW, rot: float = 0.0) -> void:
+	_shape(_pts_oval(c, rx, ry, rot), col, w)
+
+
+func _dot(c: Vector2, r: float, col: Color, w: float = OLW) -> void:
+	draw_circle(c, r, col)
+	draw_arc(c, r, 0.0, TAU, 12, Pal.OUTLINE, w, false)
+
+
+## A thick outlined limb: outline pass, then fill, with round joints.
+func _limb(a: Vector2, b: Vector2, width: float, col: Color) -> void:
+	draw_line(a, b, Pal.OUTLINE, width + 4.0, false)
+	draw_circle(a, (width + 4.0) * 0.5, Pal.OUTLINE)
+	draw_circle(b, (width + 4.0) * 0.5, Pal.OUTLINE)
+	draw_line(a, b, col, width, false)
+	draw_circle(a, width * 0.5, col)
+	draw_circle(b, width * 0.5, col)
+
+
+## An eye with a pupil. slit = a reptile's vertical pupil.
+func _eye(c: Vector2, r: float, look: Vector2, white: Color, slit: bool = false) -> void:
+	_dot(c, r, white, 1.8)
+	if slit:
+		_fill(_pts_oval(c + look, r * 0.34, r * 0.82), Pal.OUTLINE)
+	else:
+		draw_circle(c + look, r * 0.46, Pal.OUTLINE)
+	draw_circle(c + look - Vector2(r * 0.3, r * 0.35), r * 0.2, Color(1, 1, 1, 0.9))
 
 
 func add_circle_shape(radius: float, offset: Vector2 = Vector2.ZERO) -> void:
