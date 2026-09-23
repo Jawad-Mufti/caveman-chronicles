@@ -7,6 +7,7 @@ var max_hp := 5
 var berries := 0
 var max_berries := 3
 var rocks := 0
+var gem := false
 var boss_ratio := -1.0
 var msg_time := 0.0
 
@@ -35,7 +36,7 @@ func _ready() -> void:
 
 	_berries = Control.new()
 	_berries.position = Vector2(20, 78)
-	_berries.size = Vector2(200, 26)
+	_berries.size = Vector2(220, 56)
 	_berries.draw.connect(_draw_berries)
 	add_child(_berries)
 
@@ -83,6 +84,10 @@ func set_rocks(value: int) -> void:
 	rocks = value
 
 
+func set_gem(value: bool) -> void:
+	gem = value
+
+
 func set_boss(ratio: float) -> void:
 	boss_ratio = ratio
 
@@ -103,18 +108,21 @@ func _draw_hits() -> void:
 
 
 func _draw_berries() -> void:
-	for i in max_berries:
-		var p := Vector2(14 + i * 24, 12)
-		if i < berries:
-			_berries.draw_circle(p, 7.0, Pal.EMBER)
-			_berries.draw_circle(p + Vector2(-2, -2), 2.5, Pal.BONE)
-		else:
-			_berries.draw_arc(p, 7.0, 0.0, TAU, 18, Color(Pal.EMBER, 0.4), 2.0)
-	# thrown rocks, to the right of the berries
+	# Only what he is actually carrying. Empty slots used to be drawn as faint
+	# outlines, which read as berries he owned but could not spend.
+	for i in berries:
+		var p := Vector2(14 + i * 22, 11)
+		_berries.draw_circle(p, 7.0, Pal.EMBER)
+		_berries.draw_circle(p + Vector2(-2, -2), 2.5, Pal.BONE)
+	# rocks live on their own row, and are drawn as chipped stone, not dots,
+	# so the two counts can never be mistaken for one another
 	for i in rocks:
-		var q := Vector2(110 + i * 19, 12)
-		_berries.draw_circle(q, 6.5, Pal.STONE)
-		_berries.draw_circle(q + Vector2(-2, -2), 2.2, Pal.STONE_DARK)
+		var q := Vector2(14 + i * 20, 36)
+		_berries.draw_polygon(PackedVector2Array([
+			q + Vector2(-7, 2), q + Vector2(-4, -6), q + Vector2(5, -7),
+			q + Vector2(8, 1), q + Vector2(2, 7),
+		]), PackedColorArray([Pal.STONE]))
+		_berries.draw_line(q + Vector2(-3, -3), q + Vector2(3, 1), Pal.STONE_DARK, 2.0)
 
 
 func _draw_boss() -> void:

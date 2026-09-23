@@ -26,6 +26,7 @@ const LEDGES := [
 	[700.0, 480.0, 160.0],
 	[1900.0, 480.0, 180.0],
 	[2180.0, 400.0, 120.0],
+	[2210.0, 246.0, 120.0],    # the secret shelf: only the double jump reaches it
 	[3500.0, 480.0, 100.0],    # Part 2 resting stones between the bamboo
 	[4030.0, 470.0, 100.0],
 	[4560.0, 500.0, 100.0],
@@ -53,6 +54,10 @@ const CHAMBER_PLATFORMS := [
 const CHAMBER_BLOCK := [5620.0, 780.0, 36.0, 120.0]
 
 const SPRINGS := [[6250.0, CHAMBER_Y], [6620.0, GROUND_Y]]
+## One hidden gem per level. This one sits on a shelf above the highest ledge
+## in Part 1 — out of the natural path, and the only thing in the level that
+## needs the double jump, which finally gives that move a purpose.
+const GEM_AT := Vector2(2270.0, 246.0)
 ## throwable ammo, spread so he is never dry for long
 const ROCK_PILES := [
 	[860.0, GROUND_Y], [2200.0, GROUND_Y], [3050.0, GROUND_Y], [4820.0, GROUND_Y],
@@ -95,6 +100,7 @@ var boar: Bestiary.Boar
 var last_safe := Vector2(140, GROUND_Y)
 var last_safe_facing := 1
 var finished := false
+var gem_found := false
 
 
 func _ready() -> void:
@@ -112,52 +118,44 @@ func _build_background() -> void:
 	add_child(sky_layer)
 	sky_layer.add_child(World.SkyFill.new())
 
-	# Four scrolling bands, far to near. The further away a band is, the slower
-	# it slides past and the paler it is drawn — those two things together are
-	# the whole illusion of depth. Each tile width is the distance after which
-	# the band repeats, and no two match, so the repeat never lines up.
+	# Amazon-style rainforest in four bands. Far to near they get darker, denser
+	# and faster — distance in a jungle reads as haze and layering, not as
+	# height, which is why the mountains are gone.
 	var pb := ParallaxBackground.new()
 	pb.layer = -100
 	add_child(pb)
 
-	_band(pb, Vector2(0.08, 0.05), 3200.0, World.Clouds.new())
+	_band(pb, Vector2(0.07, 0.05), 3200.0, World.Clouds.new())
 
-	var far := World.Ridge.new()
-	far.width = 2600.0
-	far.base_y = 470.0
-	far.col = Pal.MTN_FAR
-	far.rim = Pal.MTN_FAR_RIM
-	far.peaks = [[1.0, 215.0, 0.0, 0.8], [3.0, 80.0, 1.7, 0.9], [7.0, 26.0, 0.4, 1.0]]
-	far.snow_line = 300.0
-	_band(pb, Vector2(0.18, 0.10), far.width, far)
+	# hazed-out hills, barely there behind the trees
+	var haze := World.Ridge.new()
+	haze.width = 2600.0
+	haze.base_y = 452.0
+	haze.col = Pal.MIST
+	haze.rim = Pal.MIST
+	haze.peaks = [[1.0, 120.0, 0.0, 0.9], [3.0, 44.0, 1.7, 1.0]]
+	_band(pb, Vector2(0.14, 0.09), haze.width, haze)
 
-	var mid := World.Ridge.new()
-	mid.width = 2200.0
-	mid.base_y = 545.0
-	mid.col = Pal.MTN_MID
-	mid.rim = Pal.MTN_MID_RIM
-	mid.peaks = [[1.0, 125.0, 2.2, 0.9], [4.0, 44.0, 0.6, 1.0]]
-	mid.tree_count = 24
-	mid.tree_col = Pal.MTN_MID_RIM
-	mid.tree_h = 30.0
-	_band(pb, Vector2(0.38, 0.20), mid.width, mid)
+	var canopy := World.Canopy.new()
+	canopy.width = 2400.0
+	canopy.base_y = 478.0
+	_band(pb, Vector2(0.22, 0.13), canopy.width, canopy)
 
-	var near := World.Ridge.new()
-	near.width = 1800.0
-	near.base_y = 560.0
-	near.col = Pal.HILL_NEAR
-	near.rim = Pal.HILL_NEAR_RIM
-	near.peaks = [[1.0, 74.0, 0.9, 1.0], [3.0, 32.0, 2.4, 1.0]]
-	near.tree_count = 13
-	near.tree_col = Pal.TREE_DARK
-	near.tree_h = 62.0
-	_band(pb, Vector2(0.62, 0.34), near.width, near)
+	# the cliff: cave mouths, hand prints, a standing stone on top
+	var cliff := World.JungleCliff.new()
+	cliff.width = 2000.0
+	cliff.top_y = 392.0
+	_band(pb, Vector2(0.38, 0.20), cliff.width, cliff)
 
-	# Tuskar, grazing on that hillside long before the arena. His own band, with
-	# no repeat, so there is exactly one of him: mirrored like the hills he would
-	# turn up again every 1,800 px. He used to hang in mid-air over the level.
+	var jungle := World.JungleWall.new()
+	jungle.width = 1600.0
+	jungle.floor_y = 604.0
+	_band(pb, Vector2(0.62, 0.34), jungle.width, jungle)
+
+	# Tuskar, grazing in a clearing long before the arena. His own band, with no
+	# repeat, so there is exactly one of him.
 	var far_boar := World.DistantBoar.new()
-	far_boar.position = Vector2(1222, 533)
+	far_boar.position = Vector2(1222, 596)
 	var boar_layer := ParallaxLayer.new()
 	boar_layer.motion_scale = Vector2(0.62, 0.34)
 	pb.add_child(boar_layer)
@@ -226,6 +224,15 @@ func _build_world() -> void:
 			hud.say("Rocks. Press K to throw one.", 3.5)
 		)
 		add_child(rock)
+
+	var gem := World.Gem.new()
+	gem.position = GEM_AT
+	gem.found.connect(func() -> void:
+		gem_found = true
+		hud.set_gem(true)
+		hud.say("A blue stone, hidden up here. Nobody was meant to find that.", 4.0)
+	)
+	add_child(gem)
 
 	for b in BERRIES:
 		var bush := World.BerryBush.new()
@@ -359,7 +366,7 @@ func _on_boar_down() -> void:
 			return
 		finished = true
 		player.set_physics_process(false)
-		hud.say("Level 1 complete. Next: fire.", 999.0)
+		hud.say("Level 1 complete. Next: fire." if gem_found else "Level 1 complete — but you missed the hidden gem.", 999.0)
 	)
 	add_child(exit)
 

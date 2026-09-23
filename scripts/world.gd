@@ -548,3 +548,176 @@ class StickPickup extends Area2D:
 		draw_line(Vector2(-20, -10 + lift), Vector2(18, -22 + lift), Pal.OCHRE_DEEP, 7.0)
 		draw_circle(Vector2(20, -23 + lift), 7.0, Pal.OCHRE_DARK)
 		draw_circle(Vector2(18, -26 + lift), 2.5, Pal.OCHRE)
+
+
+class Canopy extends Node2D:
+	## Distant treetops seen over the jungle: rounded crowns on a rolling line,
+	## washed out by the haze between here and there.
+	var width := 2400.0
+	var base_y := 470.0
+	var col := Pal.JUNGLE_FAR
+
+	func _draw() -> void:
+		var crowns := 16
+		for i in crowns:
+			var x := (i + 0.5) * width / float(crowns)
+			var r := absf(fmod(sin(float(i) * 9.71) * 5123.3, 1.0))
+			var top := base_y - 40.0 - r * 46.0 - sin(TAU * x / width) * 22.0
+			var rad := 46.0 + r * 26.0
+			var pts := PackedVector2Array()
+			for k in 13:
+				var a := PI + PI * k / 12.0
+				var rr := rad * (1.0 + 0.16 * sin(a * 6.0 + i))
+				pts.append(Vector2(x + cos(a) * rr, top + sin(a) * rr * 0.7))
+			pts.append(Vector2(x + rad, base_y + 60.0))
+			pts.append(Vector2(x - rad, base_y + 60.0))
+			draw_colored_polygon(pts, col)
+		draw_rect(Rect2(0, base_y + 10.0, width, 200), col)
+		draw_rect(Rect2(0, base_y + 10.0, width, 26), Color(Pal.MIST, 0.5))
+
+
+class JungleCliff extends Node2D:
+	## A weathered rock wall behind the trees, pocked with cave mouths and
+	## marked with hand prints — the stone age lives here, not just the player.
+	var width := 2000.0
+	var top_y := 360.0
+
+	func _draw() -> void:
+		var face := PackedVector2Array()
+		var x := 0.0
+		while x <= width + 0.1:
+			face.append(Vector2(x, top_y - 34.0 * absf(sin(PI * x / width + 0.4))
+				- 16.0 * absf(sin(3.0 * PI * x / width)) ))
+			x += 26.0
+		var body := PackedVector2Array(face)
+		body.append(Vector2(width, 1400))
+		body.append(Vector2(0, 1400))
+		draw_colored_polygon(body, Pal.CLIFF)
+		draw_polyline(face, Pal.CLIFF_DARK, 5.0, false)
+		# strata
+		for i in 4:
+			var y := top_y + 40.0 + i * 34.0
+			draw_line(Vector2(0, y), Vector2(width, y + 6.0), Pal.CLIFF_DARK, 2.5, false)
+		# cave mouths
+		for cx in [width * 0.22, width * 0.68]:
+			var mouth := PackedVector2Array()
+			for k in 15:
+				var a := PI + PI * k / 14.0
+				mouth.append(Vector2(cx + cos(a) * 54.0, top_y + 96.0 + sin(a) * 62.0))
+			mouth.append(Vector2(cx + 54.0, top_y + 96.0))
+			draw_colored_polygon(mouth, Pal.CAVE_MOUTH)
+			draw_polyline(mouth, Pal.CLIFF_DARK, 4.0, false)
+			# hand prints pressed beside the entrance
+			for h in 3:
+				_hand(Vector2(cx + 72.0 + h * 26.0, top_y + 54.0 + (h % 2) * 22.0), 0.8 + (h % 2) * 0.2)
+		# a standing stone on the clifftop
+		var sx := width * 0.45
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(sx - 13, top_y - 46), Vector2(sx - 9, top_y - 104), Vector2(sx + 8, top_y - 110),
+			Vector2(sx + 14, top_y - 44)]), Pal.CLIFF_DARK)
+
+	func _hand(at: Vector2, s: float) -> void:
+		draw_circle(at, 7.0 * s, Pal.PAINT)
+		for i in 5:
+			var a := -2.5 + i * 0.5
+			draw_line(at, at + Vector2(cos(a), sin(a)) * 11.0 * s, Pal.PAINT, 2.6 * s, false)
+
+
+class JungleWall extends Node2D:
+	## The near jungle: trunks, big fronds and hanging vines. Dark and dense, so
+	## the lit playfield in front of it reads clearly.
+	var width := 1600.0
+	var floor_y := 620.0
+
+	func _draw() -> void:
+		draw_rect(Rect2(0, floor_y - 40.0, width, 240), Pal.JUNGLE_NEAR)
+		for i in 5:
+			var x := (i + 0.5) * width / 5.0
+			var r := absf(fmod(sin(float(i) * 3.77) * 2931.1, 1.0))
+			var h := 210.0 + r * 90.0
+			var lean := (r - 0.5) * 16.0
+			# trunk
+			draw_colored_polygon(PackedVector2Array([
+				Vector2(x - 13, floor_y), Vector2(x - 9 + lean, floor_y - h),
+				Vector2(x + 9 + lean, floor_y - h), Vector2(x + 13, floor_y)]), Pal.TRUNK)
+			draw_line(Vector2(x - 4, floor_y - 10), Vector2(x - 2 + lean, floor_y - h + 10), Pal.TRUNK_DARK, 3.0, false)
+			# crown of fronds
+			for k in 7:
+				var a := -2.95 + k * 0.49
+				_frond(Vector2(x + lean, floor_y - h + 8.0), a, 74.0 + r * 26.0,
+					Pal.FROND_LIGHT if k % 2 == 0 else Pal.FROND)
+			# a vine hanging from the crown
+			var vx := x + lean + 22.0
+			var vine := PackedVector2Array()
+			for k in 9:
+				var u := k / 8.0
+				vine.append(Vector2(vx + sin(u * 4.0) * 9.0, floor_y - h + 20.0 + u * (h * 0.72)))
+			draw_polyline(vine, Pal.FROND, 3.0, false)
+		# ferns along the bottom
+		for i in 14:
+			var fx := (i + 0.5) * width / 14.0
+			for k in 5:
+				var a := -2.7 + k * 0.6
+				_frond(Vector2(fx, floor_y + 20.0), a, 34.0, Pal.FROND)
+
+	func _frond(at: Vector2, ang: float, ln: float, col: Color) -> void:
+		var d := Vector2(cos(ang), sin(ang))
+		var n := Vector2(-d.y, d.x)
+		var pts := PackedVector2Array([at])
+		for i in range(1, 7):
+			var u := i / 6.0
+			pts.append(at + d * ln * u + n * sin(u * PI) * ln * 0.19)
+		for i in range(1, 7):
+			var u2 := 1.0 - i / 6.0
+			pts.append(at + d * ln * u2 - n * sin(u2 * PI) * ln * 0.19)
+		draw_colored_polygon(pts, col)
+		draw_line(at, at + d * ln, col.darkened(0.3), 1.6, false)
+
+
+class Gem extends Area2D:
+	## The level's one hidden gem. Tucked somewhere only a player who goes
+	## looking will reach.
+	signal found
+	var t := 0.0
+
+	func _ready() -> void:
+		collision_layer = 0
+		collision_mask = 2
+		var cs := CollisionShape2D.new()
+		var c := CircleShape2D.new()
+		c.radius = 22.0
+		cs.shape = c
+		cs.position = Vector2(0, -16)
+		add_child(cs)
+		body_entered.connect(_on_body)
+
+	func _on_body(body: Node) -> void:
+		if body is CaveMan:
+			found.emit()
+			set_deferred("monitoring", false)
+			call_deferred("queue_free")
+
+	func _process(delta: float) -> void:
+		t += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		var bobv := sin(t * 1.6) * 4.0
+		var at := Vector2(0, -20 + bobv)
+		var pulse := 0.5 + 0.5 * sin(t * 2.4)
+		draw_circle(at, 26.0 + pulse * 7.0, Color(Pal.GEM_LIGHT, 0.14 + pulse * 0.12))
+		# a cut stone: bright top facets, deep sides
+		var w := 11.0
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(at.x - w, at.y - 4), Vector2(at.x, at.y - 15), Vector2(at.x + w, at.y - 4),
+			Vector2(at.x, at.y + 16)]), Pal.GEM)
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(at.x - w, at.y - 4), Vector2(at.x, at.y - 15), Vector2(at.x, at.y + 16)]), Pal.GEM_LIGHT)
+		draw_line(Vector2(at.x - w, at.y - 4), Vector2(at.x + w, at.y - 4), Pal.GEM.darkened(0.4), 1.6, false)
+		# sparkle
+		var s := absf(sin(t * 1.1))
+		if s > 0.82:
+			var k := (s - 0.82) / 0.18
+			for a in [0.0, PI * 0.5, PI, PI * 1.5]:
+				draw_line(at + Vector2(cos(a), sin(a)) * 6.0,
+					at + Vector2(cos(a), sin(a)) * (10.0 + k * 9.0), Pal.GEM_LIGHT, 2.0, false)

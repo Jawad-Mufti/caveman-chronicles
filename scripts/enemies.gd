@@ -149,7 +149,10 @@ class Lizard extends Critter:
 	var t := 0.0
 
 	func _setup() -> void:
-		hp = 2
+		# 6 health: the club and a thrown rock both do 3, so a reptile takes two
+		# clean hits. A stomp still kills outright — that is the reward for the
+		# harder move.
+		hp = 6
 		damage = 1
 		# A flat 16 px box sat level with the floor, so he only ever touched it
 		# at the instant he landed. Taller and wider gives a real landing target.
