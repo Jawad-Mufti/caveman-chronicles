@@ -121,9 +121,13 @@ func _physics_process(delta: float) -> void:
 
 
 ## ---------------------------------------------------------------- drawing
-## Shared by every creature, so they all share one look: flat colour, a dark
-## outline, and a darker tone for shade. Defined here once rather than in each.
+## Shared by every creature, so one change restyles the whole bestiary.
+## Every filled shape is drawn TWICE: once in a shadow tone, then again pulled
+## in toward the light in the base tone. That leaves a shaded rim around each
+## form, which is what makes a shape read as rounded rather than as a sticker.
+## Outlines are kept, but thin and tinted from the fill — never black.
 const OLW := 2.5
+const LIGHT := Vector2(0.55, -0.83)   ## the sun sits high and to the right
 
 
 func _pts_oval(c: Vector2, rx: float, ry: float, rot: float = 0.0, n: int = 10) -> PackedVector2Array:
@@ -141,11 +145,29 @@ func _fill(pts: PackedVector2Array, col: Color) -> void:
 	draw_colored_polygon(pts, col)
 
 
+## The same outline, shrunk toward its own centre and nudged into the light.
+func _lit(pts: PackedVector2Array, amount: float = 0.86) -> PackedVector2Array:
+	var mid := Vector2.ZERO
+	for p in pts:
+		mid += p
+	mid /= float(pts.size())
+	var span := 0.0
+	for p in pts:
+		span = maxf(span, p.distance_to(mid))
+	var push := LIGHT * minf(2.6, span * 0.10)
+	var out := PackedVector2Array()
+	for p in pts:
+		out.append(mid + (p - mid) * amount + push)
+	return out
+
+
 func _shape(pts: PackedVector2Array, col: Color, w: float = OLW) -> void:
-	draw_colored_polygon(pts, col)
-	var ring := PackedVector2Array(pts)
-	ring.append(pts[0])
-	draw_polyline(ring, Pal.OUTLINE, w, false)
+	draw_colored_polygon(pts, col.darkened(0.30))
+	draw_colored_polygon(_lit(pts), col)
+	if w > 0.0:
+		var ring := PackedVector2Array(pts)
+		ring.append(pts[0])
+		draw_polyline(ring, col.darkened(0.62), w * 0.7, false)
 
 
 func _oval(c: Vector2, rx: float, ry: float, col: Color, w: float = OLW, rot: float = 0.0) -> void:
@@ -153,8 +175,10 @@ func _oval(c: Vector2, rx: float, ry: float, col: Color, w: float = OLW, rot: fl
 
 
 func _dot(c: Vector2, r: float, col: Color, w: float = OLW) -> void:
-	draw_circle(c, r, col)
-	draw_arc(c, r, 0.0, TAU, 12, Pal.OUTLINE, w, false)
+	draw_circle(c, r, col.darkened(0.30))
+	draw_circle(c + LIGHT * r * 0.16, r * 0.86, col)
+	if w > 0.0:
+		draw_arc(c, r, 0.0, TAU, 12, col.darkened(0.62), w * 0.7, false)
 
 
 ## A thick outlined limb: outline pass, then fill, with round joints.
@@ -169,7 +193,7 @@ func _limb(a: Vector2, b: Vector2, width: float, col: Color) -> void:
 
 ## An eye with a pupil. slit = a reptile's vertical pupil.
 func _eye(c: Vector2, r: float, look: Vector2, white: Color, slit: bool = false) -> void:
-	_dot(c, r, white, 1.8)
+	_dot(c, r, white, 1.4)
 	if slit:
 		_fill(_pts_oval(c + look, r * 0.34, r * 0.82), Pal.OUTLINE)
 	else:

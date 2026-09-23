@@ -368,19 +368,23 @@ func use_poultice() -> bool:
 ## Facing is folded into the same transform (a negative x scale), so none of
 ## the shapes below need to know which way he is looking.
 const ART := 0.38        ## design units -> game pixels. ~186 tall -> ~71 px
-const OLW := 5.0         ## outline width in design units (~2 px on screen)
+const OLW := 5.0         ## rim width in design units (~2 px on screen)
+## Shapes are drawn twice — a shadow tone, then the base tone pulled toward the
+## light — so each form has a shaded edge instead of a flat colour and a black
+## line. The sun in the sky sits high and right, so the light comes from there.
+const LIGHT := Vector2(0.55, -0.83)
 
-const C_OL := Color("2b1a10")
-const C_SKIN := Color("d99a64")
-const C_SK2 := Color("bf7c48")
-const C_HAIR := Color("3b2414")
-const C_LEAF := Color("4a9b3a")
-const C_LEAF2 := Color("3a7d2c")
-const C_VINE := Color("6b4a22")
-const C_WOOD := Color("8b5a2b")
-const C_WOOD2 := Color("5e3a1c")
-const C_EYE := Color("f4ecd8")
-const C_MOUTH := Color("3a1a0e")
+const C_OL := Color("2a211a")
+const C_SKIN := Color("c89263")
+const C_SK2 := Color("a67148")
+const C_HAIR := Color("3a2a1c")
+const C_LEAF := Color("6a8447")
+const C_LEAF2 := Color("55703a")
+const C_VINE := Color("6a5535")
+const C_WOOD := Color("846141")
+const C_WOOD2 := Color("5a4029")
+const C_EYE := Color("ece3cd")
+const C_MOUTH := Color("33211a")
 
 const MANE := [
 	Vector2(-24, -128), Vector2(-30, -142), Vector2(-28, -158), Vector2(-31, -170),
@@ -740,16 +744,18 @@ func _arm(sh: Vector2, el: Vector2, hd: Vector2, bicep: float, fist: bool) -> vo
 
 ## Outline pass first, then fill, with round joints, so segments merge cleanly.
 func _limb(p: Array, w: Array) -> void:
+	var dark := C_SKIN.darkened(0.34)
 	for i in p.size() - 1:
-		var ow: float = w[i] + 10.0
-		draw_line(p[i], p[i + 1], C_OL, ow, true)
-		draw_circle(p[i], ow * 0.5, C_OL)
-		draw_circle(p[i + 1], ow * 0.5, C_OL)
+		var ow: float = w[i] + 5.0
+		draw_line(p[i], p[i + 1], dark, ow, true)
+		draw_circle(p[i], ow * 0.5, dark)
+		draw_circle(p[i + 1], ow * 0.5, dark)
 	for i in p.size() - 1:
-		var fw: float = w[i]
-		draw_line(p[i], p[i + 1], C_SKIN, fw, true)
-		draw_circle(p[i], fw * 0.5, C_SKIN)
-		draw_circle(p[i + 1], fw * 0.5, C_SKIN)
+		var fw: float = float(w[i]) * 0.88
+		var off: Vector2 = LIGHT * float(w[i]) * 0.13
+		draw_line(p[i] + off, p[i + 1] + off, C_SKIN, fw, true)
+		draw_circle(p[i] + off, fw * 0.5, C_SKIN)
+		draw_circle(p[i + 1] + off, fw * 0.5, C_SKIN)
 
 
 func _ticks(list: Array) -> void:
@@ -763,16 +769,35 @@ func _seg_hair(a: Vector2, b: Vector2, n: int) -> void:
 		draw_line(p + Vector2(-3, -3), p + Vector2(2, 3), C_HAIR, 3.0, true)
 
 
+func _lit(pts: PackedVector2Array, amount: float = 0.87) -> PackedVector2Array:
+	var mid := Vector2.ZERO
+	for p in pts:
+		mid += p
+	mid /= float(pts.size())
+	var span := 0.0
+	for p in pts:
+		span = maxf(span, p.distance_to(mid))
+	var push := LIGHT * minf(5.0, span * 0.10)
+	var out := PackedVector2Array()
+	for p in pts:
+		out.append(mid + (p - mid) * amount + push)
+	return out
+
+
 func _shape(pts: PackedVector2Array, fill: Color, w: float = OLW) -> void:
-	draw_colored_polygon(pts, fill)
-	var ring := PackedVector2Array(pts)
-	ring.append(pts[0])
-	draw_polyline(ring, C_OL, w, true)
+	draw_colored_polygon(pts, fill.darkened(0.30))
+	draw_colored_polygon(_lit(pts), fill)
+	if w > 0.0:
+		var ring := PackedVector2Array(pts)
+		ring.append(pts[0])
+		draw_polyline(ring, fill.darkened(0.60), w * 0.62, true)
 
 
 func _dot(c: Vector2, r: float, fill: Color, w: float = OLW) -> void:
-	draw_circle(c, r, fill)
-	draw_arc(c, r, 0.0, TAU, 24, C_OL, w, true)
+	draw_circle(c, r, fill.darkened(0.30))
+	draw_circle(c + LIGHT * r * 0.16, r * 0.86, fill)
+	if w > 0.0:
+		draw_arc(c, r, 0.0, TAU, 20, fill.darkened(0.60), w * 0.62, true)
 
 
 func _oval(c: Vector2, rx: float, ry: float, fill: Color, w: float = OLW, rot: float = 0.0) -> void:

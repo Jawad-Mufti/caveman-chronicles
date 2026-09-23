@@ -27,9 +27,13 @@ class Slab extends StaticBody2D:
 		var underground := rect.position.y > 700.0
 		var body := Pal.STONE_DARK if underground else Pal.DIRT
 		var cap := Pal.STONE if underground else Pal.GRASS
-		draw_rect(Rect2(Vector2.ZERO, rect.size), body)
+		# earth gets darker with depth, and the sunlit lip of the cap is brighter:
+		# a flat slab of one colour is the most cartoon thing on screen
+		draw_rect(Rect2(Vector2.ZERO, rect.size), body.darkened(0.30))
+		draw_rect(Rect2(Vector2.ZERO, Vector2(rect.size.x, minf(52.0, rect.size.y))), body)
 		var cap_h := minf(12.0, rect.size.y)
-		draw_rect(Rect2(Vector2.ZERO, Vector2(rect.size.x, cap_h)), cap)
+		draw_rect(Rect2(Vector2.ZERO, Vector2(rect.size.x, cap_h)), cap.darkened(0.22))
+		draw_rect(Rect2(Vector2.ZERO, Vector2(rect.size.x, cap_h * 0.45)), cap)
 		if not underground:
 			draw_rect(Rect2(Vector2(0, cap_h - 3.0), Vector2(rect.size.x, 3)), Pal.GRASS_DARK)
 			var x := 6.0
