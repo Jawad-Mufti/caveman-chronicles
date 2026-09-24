@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Cave Man"
-run/main_scene="res://scenes/level1.tscn"
+run/main_scene="res://level2/level2.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [display]

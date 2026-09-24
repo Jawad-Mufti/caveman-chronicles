@@ -1,10 +1,11 @@
-extends Node2D
+extends LevelBase
 ## Level 1: Raw stone age. Three stretches that step up in difficulty, then Tuskar.
 ##   Part 1 (0-3200)     ground work: gaps, ledges, biters, falling stone
 ##   Part 2 (3200-4750)  a chasm crossed on moving bamboo
 ##   Part 3 (5200-7600)  a sunken chamber, then springs and high ground
 ##   Finale (7700+)      the stampede, then the arena
 ## Everything is built in code so the project runs with no art assets.
+## The shared machinery (player, camera, HUD, falls, restart) is in LevelBase.
 
 const GROUND_Y := 600.0
 const CHAMBER_Y := 900.0
@@ -93,20 +94,16 @@ const LIZARDS := [
 	[6500.0, 7600.0, 6700.0, GROUND_Y],
 ]
 
-var player: CaveMan
-var cam: Camera2D
-var hud: Hud
 var boar: Bestiary.Boar
-var last_safe := Vector2(140, GROUND_Y)
-var last_safe_facing := 1
-var finished := false
-var gem_found := false
 
 
 func _ready() -> void:
+	level_w = LEVEL_W
+	fall_y = FALL_Y
+	title = "LEVEL 1   RAW STONE AGE"
 	_build_background()
 	_build_world()
-	_build_player()
+	_build_player(Vector2(140, GROUND_Y))
 	_build_critters()
 	_build_hud()
 	hud.say("A and D to move. Space to jump. J to swing, K to throw. Drop on small things to crush them.", 6.0)
@@ -159,26 +156,6 @@ func _build_background() -> void:
 	_pano(pb, under, Vector2(0.62, 0.34))
 
 	_band(pb, Vector2(0.85, 0.5), 1400.0, World.Motes.new())
-
-
-## A panorama band: no mirroring, and long enough to cover the whole level at
-## this band's speed — a slower band needs less, because it moves less.
-func _pano(pb: ParallaxBackground, art: World.Panorama, motion: Vector2) -> ParallaxLayer:
-	art.s = motion.x
-	art.length = (LEVEL_W - 1280.0) * motion.x + 1500.0
-	var pl := ParallaxLayer.new()
-	pl.motion_scale = motion
-	pb.add_child(pl)
-	pl.add_child(art)
-	return pl
-
-
-func _band(pb: ParallaxBackground, motion: Vector2, tile: float, art: Node2D) -> void:
-	var pl := ParallaxLayer.new()
-	pl.motion_scale = motion
-	pl.motion_mirroring = Vector2(tile, 0)
-	pb.add_child(pl)
-	pl.add_child(art)
 
 
 func _build_world() -> void:
@@ -254,27 +231,6 @@ func _build_world() -> void:
 		add_child(bush)
 
 
-func _build_player() -> void:
-	player = CaveMan.new()
-	player.position = Vector2(140, GROUND_Y)
-	add_child(player)
-	player.hp_changed.connect(func(v: int) -> void: hud.set_hp(v))
-	player.berries_changed.connect(func(v: int) -> void: hud.set_berries(v))
-	player.rocks_changed.connect(func(v: int) -> void: hud.set_rocks(v))
-	player.poultice.connect(func(_ok: bool, note: String) -> void: hud.say(note, 2.0))
-	player.died.connect(func() -> void: hud.say("He did not make it. Press R.", 999.0))
-
-	cam = Camera2D.new()
-	cam.limit_left = 0
-	cam.limit_right = int(LEVEL_W)
-	cam.limit_top = 0
-	cam.limit_bottom = 1200
-	cam.position_smoothing_enabled = true
-	cam.position_smoothing_speed = 7.0
-	add_child(cam)
-	cam.make_current()
-
-
 func _build_critters() -> void:
 	for p in INSECTS:
 		var bug := Bestiary.Insect.new()
@@ -324,19 +280,6 @@ func _build_critters() -> void:
 	add_child(arena)
 
 
-func _note(x: float, text: String) -> void:
-	var t := World.Trigger.new(Rect2(x, 100, 60, 900))
-	t.tripped.connect(func() -> void: hud.say(text, 3.0))
-	add_child(t)
-
-
-func _build_hud() -> void:
-	hud = Hud.new()
-	add_child(hud)
-	if DisplayServer.is_touchscreen_available():
-		hud.add_touch_controls(player)
-
-
 func _drop_stones(x0: float, width: float) -> void:
 	hud.say("The ceiling is loose here.", 2.5)
 	for i in 7:
@@ -372,34 +315,21 @@ func _on_boar_down() -> void:
 	hud.say("Tuskar is down. Walk on.", 4.0)
 	var exit := World.Exit.new()
 	exit.position = Vector2(ARENA_R - 30, GROUND_Y)
-	exit.reached.connect(func() -> void:
-		if finished:
-			return
-		finished = true
-		player.set_physics_process(false)
-		hud.say("Level 1 complete. Next: fire." if gem_found else "Level 1 complete — but you missed the hidden gem.", 999.0)
-	)
+	exit.reached.connect(_on_exit)
 	add_child(exit)
 
 
-func _process(_delta: float) -> void:
-	cam.global_position = player.global_position + Vector2(0, -150)
+func _on_exit() -> void:
+	if finished:
+		return
+	finished = true
+	player.set_physics_process(false)
+	hud.say("Level 1 complete. Next: fire." if gem_found else "Level 1 complete — but you missed the hidden gem.", 999.0)
+	await get_tree().create_timer(3.5).timeout
+	get_tree().change_scene_to_file("res://level2/level2.tscn")
 
-	if player.is_on_floor() and not player.dead:
-		last_safe = player.global_position
-		last_safe_facing = player.facing
-	if player.global_position.y > FALL_Y and not player.dead:
-		# Set down well back from the lip he walked off, facing the way he came,
-		# so he is not dropped straight back into the same hole.
-		player.respawn_at(last_safe + Vector2(-58.0 * last_safe_facing, -10.0))
-		player.facing = -last_safe_facing
-		hud.say("He drags himself back up. That cost him.", 2.0)
 
+func _process(delta: float) -> void:
+	super._process(delta)
 	if boar != null and is_instance_valid(boar) and boar.state != "sleep" and boar.hp > 0:
 		hud.set_boss(float(boar.hp) / float(boar.max_hp))
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if (event as InputEventKey).physical_keycode == KEY_R:
-			get_tree().reload_current_scene()

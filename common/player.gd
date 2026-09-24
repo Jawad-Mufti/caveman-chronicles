@@ -10,6 +10,10 @@ signal stick_picked
 signal rocks_changed(count: int)
 signal berries_changed(count: int)
 signal poultice(ok: bool, note: String)
+signal wood_changed(count: int)
+signal torch_out
+signal fire_released
+signal said(note: String)
 
 const SPEED := 300.0
 ## Ramped instead of snapped, so direction changes read as weight rather than teleporting.
@@ -39,6 +43,21 @@ const SWING_TIME := 0.26
 const PUNCH_TIME := 0.36
 const LAND_TIME := 0.16
 const STRIDE := 40.0      ## how far a foot swings either side of the hip, design units
+## The torch (Level 2 on). Fuel runs 1 -> 0; the light's radius follows it down
+## from TORCH_R_MAX to TORCH_R_MIN, then it is out. Half fuel is the line the
+## wolves respect, so the meter's midpoint is the number that matters.
+const TORCH_BURN := 50.0      ## seconds from full to out
+const TORCH_R_MAX := 300.0
+const TORCH_R_MIN := 120.0
+## An ability is announced by ~1 s of visible anger. He is untouchable and
+## rooted through all of it; the fire leaves at FURY_RELEASE, the rest is snarl.
+const FURY_TIME := 1.0
+const FURY_RELEASE := 0.6
+const FIRE_COST := 2          ## bundles of wood burned by one fire
+## Wind (the mountain). In the air it carries him; on the ground it only
+## drifts him, and holding INTO it braces him to a slow walk.
+const WIND_GROUND := 0.35
+const BRACE_SPEED := 90.0
 
 var hp := 5
 var max_hp := 5
@@ -55,12 +74,21 @@ var invuln := 0.0
 var knock := 0.0
 var anim_t := 0.0
 var dead := false
-var touch := {"left": false, "right": false, "jump": false, "attack": false, "heal": false, "throw": false}
+var has_torch := false
+var torch_fuel := 0.0
+var wood := 0
+var max_wood := 4
+var costume := 1          ## 1 = leaves (Level 1), 2 = first hide loincloth (Level 2)
+var fury := -1.0          ## seconds into the fire's wind-up; -1 when calm
+var wind := 0.0           ## world px/s the air is pushing him; set by the level's Wind
+var touch := {"left": false, "right": false, "jump": false, "attack": false, "heal": false, "throw": false, "fire": false}
 
 var _jump_prev := false
 var _attack_prev := false
 var _heal_prev := false
 var _throw_prev := false
+var _fire_prev := false
+var _torch_tip := Vector2(-22, -80)   ## where the flame is, in his local space; set by drawing
 var _coyote := 0.0
 var _buffer := 0.0
 var _jumps_left := 0
@@ -115,6 +143,31 @@ func _physics_process(delta: float) -> void:
 	knock = maxf(knock - delta, 0.0)
 	attacking = maxf(attacking - delta, 0.0)
 	throwing = maxf(throwing - delta, 0.0)
+
+	if has_torch and torch_fuel > 0.0:
+		torch_fuel = maxf(torch_fuel - delta / TORCH_BURN, 0.0)
+		if torch_fuel <= 0.0:
+			torch_out.emit()
+
+	# The fire: a burst of visible anger, THEN the flame. He cannot be hurt
+	# through it — it is the button you press when swarmed, so a wind-up that
+	# could be punished would be a trap — and he cannot steer, jump or strike:
+	# the rage roots him. Fire leaves at 0.6 s; the rest is the snarl.
+	var fire_now: bool = Input.is_physical_key_pressed(KEY_F) or touch["fire"]
+	if fury >= 0.0:
+		var before := fury
+		fury += delta
+		if before < FURY_RELEASE and fury >= FURY_RELEASE:
+			_release_fire()
+		if fury >= FURY_TIME:
+			fury = -1.0
+		_fire_prev = fire_now
+		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
+		if not is_on_floor():
+			velocity.y += GRAVITY_DOWN * delta
+		move_and_slide()
+		_was_floor = is_on_floor()
+		return
 
 	var dir := 0.0
 	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT) or touch["left"]:
@@ -215,8 +268,27 @@ func _physics_process(delta: float) -> void:
 		use_poultice()
 	_heal_prev = heal_now
 
+	if fire_now and not _fire_prev:
+		start_fire()
+	_fire_prev = fire_now
+
+	# the wind: carried in the air, drifted on the ground, braced against by
+	# walking into it (which slows him to a lean-forward crawl)
+	var push := 0.0
+	if wind != 0.0:
+		var into := dir != 0.0 and signf(dir) != signf(wind)
+		if is_on_floor():
+			# bracing slows his walk to a lean, and the lean just about holds him
+			if into:
+				velocity.x = clampf(velocity.x, -BRACE_SPEED, BRACE_SPEED)
+			push = wind * WIND_GROUND
+		else:
+			push = wind
+
 	var pre_vy := velocity.y
 	move_and_slide()
+	if push != 0.0:
+		move_and_collide(Vector2(push * delta, 0.0))
 	var on_floor := is_on_floor()
 	if on_floor and not _was_floor and pre_vy > 200.0:
 		_land = LAND_TIME
@@ -275,7 +347,7 @@ func launch(vy: float) -> void:
 
 
 func hurt(amount: int, from_x: float) -> void:
-	if invuln > 0.0 or dead:
+	if invuln > 0.0 or dead or fury >= 0.0:
 		return
 	hp -= amount
 	invuln = 1.1
@@ -297,6 +369,7 @@ func respawn_at(spot: Vector2) -> void:
 	global_position = spot
 	velocity = Vector2.ZERO
 	knock = 0.0
+	fury = -1.0
 	if dead:
 		return
 	hp -= 1
@@ -363,6 +436,89 @@ func use_poultice() -> bool:
 	return true
 
 
+## ------------------------------------------------------------------ torch
+## Level 2 on. The torch rides in his back hand, so the club stays in front.
+func give_torch() -> void:
+	has_torch = true
+	torch_fuel = 1.0
+	add_to_group("light")
+
+
+func relight(amount: float = 1.0) -> void:
+	if has_torch:
+		torch_fuel = maxf(torch_fuel, amount)
+
+
+func light_radius() -> float:
+	if not has_torch or torch_fuel <= 0.0 or dead:
+		return 0.0
+	return lerpf(TORCH_R_MIN, TORCH_R_MAX, torch_fuel)
+
+
+## For Night: where the flame is (x, y), how far it reaches (z), how warm (w).
+func light() -> Vector4:
+	var r := light_radius()
+	if r <= 0.0:
+		return Vector4.ZERO
+	var tip := to_global(_torch_tip)
+	r *= 1.0 + sin(anim_t * 13.0) * 0.012 + sin(anim_t * 7.3 + 1.0) * 0.018
+	# his anger feeds the flame: the pool of light swells as the fire builds,
+	# which reads from across the screen and pushes the wolves back
+	if fury >= 0.0:
+		r *= 1.0 + 0.6 * clampf(fury / FURY_RELEASE, 0.0, 1.0)
+	return Vector4(tip.x, tip.y, r, 0.9)
+
+
+## How much the light protects him. The wolves read this, not the radius.
+func light_strength() -> float:
+	return torch_fuel if has_torch and not dead else 0.0
+
+
+func add_wood(n: int = 1) -> bool:
+	if wood >= max_wood:
+		return false
+	wood = mini(wood + n, max_wood)
+	wood_changed.emit(wood)
+	return true
+
+
+## Gather -> craft -> ability: dry wood becomes fire. Always reports back.
+func start_fire() -> bool:
+	if dead or fury >= 0.0:
+		return false
+	if wood < FIRE_COST:
+		said.emit("A fire takes two bundles of wood. Dead trees give it up to the club.")
+		return false
+	wood -= FIRE_COST
+	wood_changed.emit(wood)
+	fury = 0.0
+	attacking = 0.0
+	throwing = 0.0
+	return true
+
+
+func _release_fire() -> void:
+	var fb := NightWoods.FireBurst.new()
+	fb.position = global_position + Vector2(0, -40)
+	get_parent().add_child(fb)
+	relight(0.5)
+	fire_released.emit()
+
+
+## Back on his feet at a checkpoint, whole, torch full.
+func revive(spot: Vector2) -> void:
+	dead = false
+	global_position = spot
+	velocity = Vector2.ZERO
+	knock = 0.0
+	fury = -1.0
+	hp = max_hp
+	invuln = 1.6
+	if has_torch:
+		torch_fuel = 1.0
+	hp_changed.emit(hp)
+
+
 ## ------------------------------------------------------------------ drawing
 ## He is designed at about 2.6x game size and scaled down in one transform.
 ## Facing is folded into the same transform (a negative x scale), so none of
@@ -385,6 +541,7 @@ const C_WOOD := Color("846141")
 const C_WOOD2 := Color("5a4029")
 const C_EYE := Color("ece3cd")
 const C_MOUTH := Color("33211a")
+var _skin := C_SKIN      ## flushes toward ember while he is winding up the fire
 
 const MANE := [
 	Vector2(-24, -128), Vector2(-30, -142), Vector2(-28, -158), Vector2(-31, -170),
@@ -416,6 +573,13 @@ func _draw() -> void:
 	var ph := _run_phase
 	var boxing := attacking > 0.0 and not has_stick and throwing <= 0.0
 	var wince := invuln > 0.8 and not dead
+	# the anger: builds 0 -> 1 through the wind-up, then the snarl
+	var rage := 0.0
+	var roaring := false
+	if fury >= 0.0:
+		rage = clampf(fury / FURY_RELEASE, 0.0, 1.0)
+		roaring = fury >= FURY_RELEASE
+	_skin = C_SKIN.lerp(Pal.EMBER, 0.22 * rage) if rage > 0.0 else C_SKIN
 
 	# ---- whole-body squash and stretch, pivoting on his feet so they stay planted
 	var sx := 1.0
@@ -429,6 +593,16 @@ func _draw() -> void:
 		var st := clampf(-velocity.y / 1600.0, -0.05, 0.09)
 		sx -= st * 0.6
 		sy += st
+	if fury >= 0.0:
+		if not roaring:
+			# hunched and gathering
+			sx += 0.05 * rage
+			sy -= 0.06 * rage
+		else:
+			# and then he rears up as it leaves him
+			var pop := 1.0 - clampf((fury - FURY_RELEASE) / 0.15, 0.0, 1.0)
+			sy += 0.06 * pop
+			sx -= 0.03 * pop
 	var rot := float(facing) * PI * 0.5 if dead else 0.0
 	var base := Transform2D(rot, Vector2(ART * facing * sx, ART * sy), 0.0, Vector2.ZERO)
 
@@ -440,6 +614,11 @@ func _draw() -> void:
 		lean = 0.14 * speed_k
 	elif air:
 		lean = 0.06
+	if fury >= 0.0 and not roaring:
+		bob += 7.0 * rage
+	var shake := Vector2.ZERO
+	if fury >= 0.0 and not roaring:
+		shake = Vector2(sin(anim_t * 71.0) * 2.6, cos(anim_t * 89.0) * 1.8) * rage
 
 	# ---- legs, solved with two-bone IK so the knees always bend the right way
 	draw_set_transform_matrix(base)
@@ -469,22 +648,32 @@ func _draw() -> void:
 		if land_k > 0.0:
 			foot_f.x += 6.0 * land_k
 			foot_b.x -= 6.0 * land_k
+		if fury >= 0.0:
+			# a wide, braced stance while it builds
+			bend = maxf(bend, 0.7 * rage)
+			foot_f.x += 8.0 * rage
+			foot_b.x -= 8.0 * rage
 	_leg(hip_b, foot_b, bend)
 	_leg(hip_f, foot_f, bend)
 
 	# ---- everything above the waist leans and bobs as one piece
-	var upper := base * Transform2D(lean, Vector2(0, -62.0 + bob)) * Transform2D(0.0, Vector2(0, 62))
+	var upper := base * Transform2D(lean, Vector2(shake.x, -62.0 + bob + shake.y)) * Transform2D(0.0, Vector2(0, 62))
 	draw_set_transform_matrix(upper)
 
 	_shape(PackedVector2Array(MANE), C_HAIR)
-	_oval(Vector2(4, -130), 17.0, 10.0, C_SKIN)
+	# spare wood rides tucked in the belt at his back, behind the body
+	for i in wood:
+		var wx := -20.0 - i * 6.0
+		draw_line(Vector2(wx, -60), Vector2(wx - 22, -104), Pal.DEADWOOD_DARK, 9.0, true)
+		draw_line(Vector2(wx, -60), Vector2(wx - 22, -104), Pal.DEADWOOD, 5.0, true)
+	_oval(Vector2(4, -130), 17.0, 10.0, _skin)
 	var torso := PackedVector2Array([Vector2(-46, -122)])
 	torso.append_array(_quad(Vector2(-46, -122), Vector2(4, -138), Vector2(54, -122)))
 	torso.append_array(_quad(Vector2(54, -122), Vector2(44, -94), Vector2(30, -68)))
 	torso.append(Vector2(-22, -68))
 	torso.append_array(_quad(Vector2(-22, -68), Vector2(-36, -94), Vector2(-46, -122)))
 	torso.remove_at(torso.size() - 1)
-	_shape(torso, C_SKIN)
+	_shape(torso, _skin)
 	draw_polyline(_quad(Vector2(-32, -114), Vector2(-14, -100), Vector2(2, -108), 8, true), C_SK2, 3.5, true)
 	draw_polyline(_quad(Vector2(6, -108), Vector2(22, -100), Vector2(40, -114), 8, true), C_SK2, 3.5, true)
 	draw_line(Vector2(4, -100), Vector2(4, -74), C_SK2, 3.0, true)
@@ -496,14 +685,19 @@ func _draw() -> void:
 
 	# far arm: pumps against the legs when running
 	var back_sh := Vector2(-42, -118)
-	if not boxing:
+	if has_torch and not boxing:
+		_torch_arm(back_sh, running, air, ph, speed_k, rage, upper)
+	elif not boxing:
 		var fa := _pose_arm(back_sh, -1.0, running, air, ph, speed_k)
 		_arm(back_sh, fa[0], fa[1], 10.0, true)
 
-	for i in 6:
-		var lx := -21.0 + i * 10.0
-		var ang := (i - 2.5) * 0.11 + sin(anim_t * 2.2 + i) * 0.045 - speed_k * 0.18
-		_leaf(Vector2(lx, -70), 29.0 + (3.0 if i % 2 == 1 else 0.0), 8.0, ang, C_LEAF2 if i % 2 == 1 else C_LEAF)
+	if costume >= 2:
+		_hide_loincloth(speed_k)
+	else:
+		for i in 6:
+			var lx := -21.0 + i * 10.0
+			var ang := (i - 2.5) * 0.11 + sin(anim_t * 2.2 + i) * 0.045 - speed_k * 0.18
+			_leaf(Vector2(lx, -70), 29.0 + (3.0 if i % 2 == 1 else 0.0), 8.0, ang, C_LEAF2 if i % 2 == 1 else C_LEAF)
 	var belt := _quad(Vector2(-25, -71), Vector2(4, -66), Vector2(33, -71), 10, true)
 	draw_polyline(belt, C_OL, 12.0, true)
 	draw_polyline(belt, C_VINE, 7.0, true)
@@ -516,11 +710,14 @@ func _draw() -> void:
 		_dot(Vector2(36.0 + i * 10.0, -62), 6.5, Pal.STONE, 2.5)
 
 	# ---- head: one steady grumpy expression
-	_dot(Vector2(-20, -152), 6.0, C_SKIN, 4.0)
-	_dot(Vector2(28, -152), 6.0, C_SKIN, 4.0)
-	_oval(Vector2(4, -154), 24.0, 27.0, C_SKIN)
+	_dot(Vector2(-20, -152), 6.0, _skin, 4.0)
+	_dot(Vector2(28, -152), 6.0, _skin, 4.0)
+	_oval(Vector2(4, -154), 24.0, 27.0, _skin)
 	_shape(PackedVector2Array(BEARD), C_HAIR, 4.0)
-	_mouth()
+	if roaring:
+		_roar()
+	else:
+		_mouth()
 	_oval(Vector2(4, -146), 8.0, 5.0, C_SK2, 3.0)
 	draw_circle(Vector2(1, -145), 1.4, C_MOUTH)
 	draw_circle(Vector2(7, -145), 1.4, C_MOUTH)
@@ -529,13 +726,25 @@ func _draw() -> void:
 	_eye(Vector2(15, -151), wince, blink)
 	# brows set in a permanent V: grumpy is his resting face
 	var inner := 9.0 if wince else 5.0
+	if fury >= 0.0:
+		inner = 12.0
 	draw_line(Vector2(-18, -160), Vector2(-2, -160.0 + inner), C_HAIR, 8.0, true)
 	draw_line(Vector2(10, -160.0 + inner), Vector2(26, -160), C_HAIR, 8.0, true)
 	_shape(PackedVector2Array(FRINGE), C_HAIR, 4.0)
+	if fury >= 0.0:
+		_rage_marks(rage, roaring)
 
 	# ---- the near arm: fists, throw, club swing, club carry, or pumping
 	var sh := Vector2(50, -118)
-	if boxing:
+	if fury >= 0.0 and has_stick:
+		# the club goes up overhead for the whole rage and is shaken at the
+		# world as the fire leaves: the pose reads from across the screen
+		var ca := -1.85 if not roaring else -1.35
+		var hd := sh + Vector2(8, -58)
+		_arm(sh, sh + Vector2(26, -24), hd, 13.0, false)
+		_club(hd - Vector2.from_angle(ca) * 12.0, hd + Vector2.from_angle(ca) * 112.0, 7.0, 26.0)
+		_dot(hd, 11.0, _skin)
+	elif boxing:
 		var prog := 1.0 - attacking / PUNCH_TIME
 		var jab := 0.0
 		var cross := 0.0
@@ -559,7 +768,7 @@ func _draw() -> void:
 		var el := sh + Vector2.from_angle(ta) * reach * 0.5 + Vector2.from_angle(ta - PI * 0.5) * 9.0
 		_arm(sh, el, hd, 11.0, false)
 		_dot(hd, 15.0, Pal.STONE)
-		_dot(hd + Vector2(-2, 4), 9.0, C_SKIN, 4.0)
+		_dot(hd + Vector2(-2, 4), 9.0, _skin, 4.0)
 	elif has_stick and attacking > 0.0:
 		var sp := 1.0 - attacking / SWING_TIME
 		var ang := 0.0
@@ -582,19 +791,117 @@ func _draw() -> void:
 		draw_polyline(smear, Color(Pal.BONE, 0.32), 7.0, true)
 		_arm(sh, el, hd, 13.0, false)
 		_club(hd - Vector2.from_angle(ca) * 12.0, hd + Vector2.from_angle(ca) * 112.0, 7.0, 26.0)
-		_dot(hd, 11.0, C_SKIN)
+		_dot(hd, 11.0, _skin)
 	elif has_stick:
 		# carries the club on his shoulder; it rides the body's bob and lean
 		var lift := -8.0 if air else 0.0
 		var hd := Vector2(60, -76.0 + lift)
 		_arm(sh, Vector2(68, -96.0 + lift), hd, 10.0, false)
 		_club(Vector2(58, -64.0 + lift), Vector2(84, -184.0 + lift), 7.0, 26.0)
-		_dot(hd, 11.0, C_SKIN)
+		_dot(hd, 11.0, _skin)
 	else:
 		var na := _pose_arm(sh, 1.0, running, air, ph, speed_k)
 		_arm(sh, na[0], na[1], 10.0, true)
 
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## The torch arm. Held up and behind his head so the light falls on both
+## sides of him; it bobs with the stride but never swings wild. Records where
+## the flame is, which is where Night centres his light.
+func _torch_arm(sh: Vector2, running: bool, air: bool, ph: float, k: float, rage: float, xf: Transform2D) -> void:
+	var hd := Vector2(-60, -150)
+	if running:
+		hd += Vector2(cos(ph) * 3.0 * k, -absf(sin(ph)) * 4.0 * k)
+	elif air:
+		hd += Vector2(2, -10)
+	else:
+		hd.y += sin(anim_t * 1.8) * 1.5
+	hd += Vector2(-4, -16) * rage          # thrust up as the anger builds
+	var el := sh.lerp(hd, 0.5) + Vector2(-18, 10)
+	var butt := hd + Vector2(7, 26)
+	var top := hd + Vector2(-9, -60)
+	var u := (top - butt).normalized()
+	var n := Vector2(-u.y, u.x)
+	_shape(PackedVector2Array([butt + n * 4.0, top + n * 6.0, top - n * 6.0, butt - n * 4.0]), C_WOOD, 3.5)
+	_oval(top + u * 2.0, 8.5, 13.0, Pal.DEADWOOD_DARK, 3.0, u.angle() + PI * 0.5)
+	for i in 3:
+		var bp := top - u * (4.0 + i * 5.0)
+		draw_line(bp + n * 8.0, bp - n * 8.0, C_VINE, 2.5, true)
+	_arm(sh, el, hd, 10.0, false)
+	_dot(hd, 10.0, _skin)
+	var base := top + u * 6.0
+	if torch_fuel > 0.0:
+		var h := (30.0 + 36.0 * torch_fuel) * (1.0 + 0.7 * rage)
+		var sway := sin(anim_t * 9.0) * 5.0 + sin(anim_t * 15.0) * 2.5 - k * 14.0 + wind * facing / 10.0
+		_flame(base, 17.0, h, sway, Color(Pal.EMBER_GLOW, 0.85))
+		_flame(base + Vector2(0, 2), 12.0, h * 0.78, sway * 0.8, Pal.FLAME)
+		_flame(base + Vector2(0, 4), 6.5, h * 0.45, sway * 0.5, Pal.FLAME_CORE)
+		_torch_tip = xf * (base + Vector2(sway * 0.3, -h * 0.35))
+	else:
+		# out: a red ember and a thread of smoke
+		var e := 0.5 + 0.5 * sin(anim_t * 3.0)
+		draw_circle(base, 5.0, Color(Pal.EMBER_GLOW, 0.5 + 0.4 * e))
+		for i in 3:
+			var q := fmod(anim_t * 0.6 + i / 3.0, 1.0)
+			draw_circle(base + Vector2(sin(q * 6.0 + i) * 6.0, -10.0 - q * 50.0), 4.0 + q * 7.0, Color(Pal.ASH, 0.35 * (1.0 - q)))
+		_torch_tip = xf * base
+
+
+## A teardrop of flame: round at the base, drawn to a swaying point.
+func _flame(base: Vector2, w: float, h: float, sway: float, col: Color) -> void:
+	var pts := PackedVector2Array()
+	for i in 9:
+		var a := PI * (i / 8.0)
+		pts.append(base + Vector2(cos(a) * w, sin(a) * w * 0.8))
+	pts.append(base + Vector2(-w * 0.8 + sway * 0.3, -h * 0.35))
+	pts.append(base + Vector2(sway, -h))
+	pts.append(base + Vector2(w * 0.7 + sway * 0.4, -h * 0.4))
+	draw_colored_polygon(pts, col)
+
+
+## Level 2: his first hide. A rough wrap cut from a pelt, ragged at the hem.
+func _hide_loincloth(k: float) -> void:
+	var sw := -k * 6.0 + sin(anim_t * 2.0) * 1.2
+	var hem := [Vector2(40, -40), Vector2(31, -34), Vector2(22, -38), Vector2(13, -31),
+		Vector2(3, -36), Vector2(-7, -30), Vector2(-16, -35), Vector2(-24, -32), Vector2(-29, -40)]
+	var pts := PackedVector2Array([Vector2(-27, -74), Vector2(35, -74)])
+	for i in hem.size():
+		var h: Vector2 = hem[i]
+		pts.append(h + Vector2(sw + sin(anim_t * 2.6 + i) * 0.8, 0))
+	_shape(pts, Pal.HIDE, 3.5)
+	_oval(Vector2(-8, -54), 7.0, 4.5, Pal.HIDE_DARK, 0.0, 0.3)
+	_oval(Vector2(20, -48), 5.0, 3.5, Pal.HIDE_DARK, 0.0, -0.2)
+	for i in 8:
+		var fx := -24.0 + i * 8.0 + sw
+		draw_line(Vector2(fx, -37), Vector2(fx - 2, -29), Pal.HIDE_DARK, 2.5, true)
+
+
+## The snarl: jaw dropped, both rows of teeth bared.
+func _roar() -> void:
+	var pts := _oval_pts(Vector2(4, -134), 10.0, 7.5)
+	draw_colored_polygon(pts, C_MOUTH)
+	draw_rect(Rect2(-4, -141, 16, 3.5), C_EYE)
+	draw_rect(Rect2(-3, -130.5, 14, 3.0), C_EYE)
+	var ring := PackedVector2Array(pts)
+	ring.append(pts[0])
+	draw_polyline(ring, C_OL, 2.5, true)
+
+
+## Breath snorting from the nose while it builds, and sparks drawn in toward
+## his chest; at the release they are gone into the burst.
+func _rage_marks(rage: float, roaring: bool) -> void:
+	if roaring:
+		return
+	for i in 3:
+		var q := fmod(anim_t * 2.6 + i / 3.0, 1.0)
+		draw_circle(Vector2(14.0 + q * 30.0, -144.0 - q * 14.0), 5.0 + q * 8.0, Color(Pal.BONE, 0.5 * (1.0 - q) * rage))
+	for i in 10:
+		var q := fmod(anim_t * 1.7 + i / 10.0, 1.0)
+		var a := i * 0.63 + anim_t * 3.0
+		var p := Vector2(4, -100) + Vector2.from_angle(a) * 200.0 * (1.0 - q)
+		draw_circle(p, 5.0 + 4.0 * q, Color(Pal.FLAME, rage * q))
+		draw_circle(p, 2.5 + 2.0 * q, Color(Pal.FLAME_CORE, rage * q))
 
 
 ## Where a foot is at a given point in the stride. It travels BACKWARDS while on
@@ -628,7 +935,7 @@ func _leg(hip: Vector2, foot: Vector2, bend: float) -> void:
 	var straight := hip.lerp(foot, 0.5) + Vector2(1.5, 0)
 	var knee := straight.lerp(_knee(hip, foot, 36.0, 36.0), bend)
 	_limb([hip, knee, foot], [19.0, 16.0])
-	_oval(foot + Vector2(4, 3), 17.0, 8.0, C_SKIN)
+	_oval(foot + Vector2(4, 3), 17.0, 8.0, _skin)
 	_seg_hair(knee, foot, 2)
 
 
@@ -735,16 +1042,16 @@ func _leaf(a: Vector2, length: float, width: float, ang: float, col: Color) -> v
 
 func _arm(sh: Vector2, el: Vector2, hd: Vector2, bicep: float, fist: bool) -> void:
 	_limb([sh, el, hd], [16.0, 16.0])
-	_oval((sh + el) * 0.5, sh.distance_to(el) * 0.46, bicep, C_SKIN, 3.5, (el - sh).angle())
+	_oval((sh + el) * 0.5, sh.distance_to(el) * 0.46, bicep, _skin, 3.5, (el - sh).angle())
 	_seg_hair(el, hd, 3)
-	_dot(sh, 15.0, C_SKIN)
+	_dot(sh, 15.0, _skin)
 	if fist:
-		_dot(hd, 10.0, C_SKIN)
+		_dot(hd, 10.0, _skin)
 
 
 ## Outline pass first, then fill, with round joints, so segments merge cleanly.
 func _limb(p: Array, w: Array) -> void:
-	var dark := C_SKIN.darkened(0.34)
+	var dark := _skin.darkened(0.34)
 	for i in p.size() - 1:
 		var ow: float = w[i] + 5.0
 		draw_line(p[i], p[i + 1], dark, ow, true)
@@ -753,9 +1060,9 @@ func _limb(p: Array, w: Array) -> void:
 	for i in p.size() - 1:
 		var fw: float = float(w[i]) * 0.88
 		var off: Vector2 = LIGHT * float(w[i]) * 0.13
-		draw_line(p[i] + off, p[i + 1] + off, C_SKIN, fw, true)
-		draw_circle(p[i] + off, fw * 0.5, C_SKIN)
-		draw_circle(p[i + 1] + off, fw * 0.5, C_SKIN)
+		draw_line(p[i] + off, p[i + 1] + off, _skin, fw, true)
+		draw_circle(p[i] + off, fw * 0.5, _skin)
+		draw_circle(p[i + 1] + off, fw * 0.5, _skin)
 
 
 func _ticks(list: Array) -> void:

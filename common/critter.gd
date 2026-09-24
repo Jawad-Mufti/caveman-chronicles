@@ -24,6 +24,7 @@ func _ready() -> void:
 	collision_mask = 2
 	monitoring = true
 	monitorable = true
+	add_to_group("critters")
 	_setup()
 
 
@@ -45,6 +46,12 @@ func _on_die() -> void:
 
 func _on_stomped() -> void:
 	pass
+
+
+## Caught in a fire burst. Most things simply take the damage; a few react.
+func burned(dmg: int, from: Vector2) -> void:
+	var d := int(signf(global_position.x - from.x))
+	take_hit(dmg, d if d != 0 else 1)
 
 
 func take_hit(dmg: int, from_dir: int) -> void:
