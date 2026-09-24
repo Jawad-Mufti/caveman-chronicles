@@ -26,13 +26,13 @@ const LEDGES := [
 	[700.0, 480.0, 160.0],
 	[1900.0, 480.0, 180.0],
 	[2180.0, 400.0, 120.0],
-	[2210.0, 246.0, 120.0],    # the secret shelf: only the double jump reaches it
 	[3500.0, 480.0, 100.0],    # Part 2 resting stones between the bamboo
 	[4030.0, 470.0, 100.0],
 	[4560.0, 500.0, 100.0],
 	[6850.0, 400.0, 120.0],    # Part 3 high ground, reached by spring
 	[7060.0, 320.0, 110.0],
 	[7270.0, 400.0, 120.0],
+	[7040.0, 168.0, 110.0],    # the secret shelf: only the double jump reaches it
 ]
 
 ## [x, y, width, axis_x, axis_y, span, period, phase]
@@ -54,10 +54,10 @@ const CHAMBER_PLATFORMS := [
 const CHAMBER_BLOCK := [5620.0, 780.0, 36.0, 120.0]
 
 const SPRINGS := [[6250.0, CHAMBER_Y], [6620.0, GROUND_Y]]
-## One hidden gem per level. This one sits on a shelf above the highest ledge
-## in Part 1 — out of the natural path, and the only thing in the level that
-## needs the double jump, which finally gives that move a purpose.
-const GEM_AT := Vector2(2270.0, 246.0)
+## One hidden gem per level. This one waits late, in Part 3: on a shelf above
+## the highest platform, reached only by double-jumping from it. The only place
+## in the level that needs the double jump, which gives that move a purpose.
+const GEM_AT := Vector2(7095.0, 168.0)
 ## throwable ammo, spread so he is never dry for long
 const ROCK_PILES := [
 	[860.0, GROUND_Y], [2200.0, GROUND_Y], [3050.0, GROUND_Y], [4820.0, GROUND_Y],
@@ -118,48 +118,59 @@ func _build_background() -> void:
 	add_child(sky_layer)
 	sky_layer.add_child(World.SkyFill.new())
 
-	# Amazon-style rainforest in four bands. Far to near they get darker, denser
-	# and faster — distance in a jungle reads as haze and layering, not as
-	# height, which is why the mountains are gone.
+	# A single authored panorama, not tiles: nothing repeats anywhere in the
+	# level, and the scenery changes as he travels — tepuis and waterfalls,
+	# then bamboo, then the painted caves, then Tuskar's stone circle.
 	var pb := ParallaxBackground.new()
 	pb.layer = -100
 	add_child(pb)
 
-	_band(pb, Vector2(0.07, 0.05), 3200.0, World.Clouds.new())
+	_band(pb, Vector2(0.05, 0.03), 3200.0, World.Clouds.new())
 
-	# hazed-out hills, barely there behind the trees
-	var haze := World.Ridge.new()
-	haze.width = 2600.0
-	haze.base_y = 452.0
-	haze.col = Pal.MIST
-	haze.rim = Pal.MIST
-	haze.peaks = [[1.0, 120.0, 0.0, 0.9], [3.0, 44.0, 1.7, 1.0]]
-	_band(pb, Vector2(0.14, 0.09), haze.width, haze)
+	var far := World.FarHighlands.new()
+	far.seedn = 1
+	var far_layer := _pano(pb, far, Vector2(0.10, 0.06))
+	for wf in far.waterfalls():
+		var fall := World.Waterfall.new()
+		fall.position = wf[0]
+		fall.height = wf[1]
+		far_layer.add_child(fall)
 
-	var canopy := World.Canopy.new()
-	canopy.width = 2400.0
-	canopy.base_y = 478.0
-	_band(pb, Vector2(0.22, 0.13), canopy.width, canopy)
+	_band(pb, Vector2(0.08, 0.05), 2400.0, World.Birds.new())
 
-	# the cliff: cave mouths, hand prints, a standing stone on top
-	var cliff := World.JungleCliff.new()
-	cliff.width = 2000.0
-	cliff.top_y = 392.0
-	_band(pb, Vector2(0.38, 0.20), cliff.width, cliff)
+	var canopy := World.CanopyBand.new()
+	canopy.seedn = 2
+	_pano(pb, canopy, Vector2(0.22, 0.12))
 
-	var jungle := World.JungleWall.new()
-	jungle.width = 1600.0
-	jungle.floor_y = 604.0
-	_band(pb, Vector2(0.62, 0.34), jungle.width, jungle)
+	_band(pb, Vector2(0.14, 0.08), 1800.0, World.LightShafts.new())
 
-	# Tuskar, grazing in a clearing long before the arena. His own band, with no
-	# repeat, so there is exactly one of him.
+	var story := World.StoryBand.new()
+	story.seedn = 3
+	var story_layer := _pano(pb, story, Vector2(0.40, 0.20))
+
+	# Tuskar, grazing at the edge of the trees long before the arena
 	var far_boar := World.DistantBoar.new()
-	far_boar.position = Vector2(1222, 596)
-	var boar_layer := ParallaxLayer.new()
-	boar_layer.motion_scale = Vector2(0.62, 0.34)
-	pb.add_child(boar_layer)
-	boar_layer.add_child(far_boar)
+	var bx := story.at(1500.0)
+	far_boar.position = Vector2(bx, story.line(bx, 532.0, 22.0))
+	story_layer.add_child(far_boar)
+
+	var under := World.Undergrowth.new()
+	under.seedn = 4
+	_pano(pb, under, Vector2(0.62, 0.34))
+
+	_band(pb, Vector2(0.85, 0.5), 1400.0, World.Motes.new())
+
+
+## A panorama band: no mirroring, and long enough to cover the whole level at
+## this band's speed — a slower band needs less, because it moves less.
+func _pano(pb: ParallaxBackground, art: World.Panorama, motion: Vector2) -> ParallaxLayer:
+	art.s = motion.x
+	art.length = (LEVEL_W - 1280.0) * motion.x + 1500.0
+	var pl := ParallaxLayer.new()
+	pl.motion_scale = motion
+	pb.add_child(pl)
+	pl.add_child(art)
+	return pl
 
 
 func _band(pb: ParallaxBackground, motion: Vector2, tile: float, art: Node2D) -> void:
@@ -230,7 +241,7 @@ func _build_world() -> void:
 	gem.found.connect(func() -> void:
 		gem_found = true
 		hud.set_gem(true)
-		hud.say("A blue stone, hidden up here. Nobody was meant to find that.", 4.0)
+		hud.say("A red stone, hidden up here. Nobody was meant to find that.", 4.0)
 	)
 	add_child(gem)
 

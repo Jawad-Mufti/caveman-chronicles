@@ -702,22 +702,394 @@ class Gem extends Area2D:
 		queue_redraw()
 
 	func _draw() -> void:
-		var bobv := sin(t * 1.6) * 4.0
-		var at := Vector2(0, -20 + bobv)
+		var at := Vector2(0, -20 + sin(t * 1.6) * 4.0)
 		var pulse := 0.5 + 0.5 * sin(t * 2.4)
 		draw_circle(at, 26.0 + pulse * 7.0, Color(Pal.GEM_LIGHT, 0.14 + pulse * 0.12))
-		# a cut stone: bright top facets, deep sides
-		var w := 11.0
+		# a brilliant cut: flat table, a crown of facets, a deep pavilion to a point
+		var w := 13.0
+		var girdle_l := at + Vector2(-w, -2)
+		var girdle_r := at + Vector2(w, -2)
+		var point := at + Vector2(0, 17)
+		draw_colored_polygon(PackedVector2Array([girdle_l, girdle_r, point]), Pal.GEM)
+		draw_colored_polygon(PackedVector2Array([girdle_l, at + Vector2(-2, -2), point]), Pal.GEM_DEEP)
 		draw_colored_polygon(PackedVector2Array([
-			Vector2(at.x - w, at.y - 4), Vector2(at.x, at.y - 15), Vector2(at.x + w, at.y - 4),
-			Vector2(at.x, at.y + 16)]), Pal.GEM)
+			girdle_l, at + Vector2(-w * 0.55, -11), at + Vector2(w * 0.55, -11), girdle_r]), Pal.GEM_LIGHT)
 		draw_colored_polygon(PackedVector2Array([
-			Vector2(at.x - w, at.y - 4), Vector2(at.x, at.y - 15), Vector2(at.x, at.y + 16)]), Pal.GEM_LIGHT)
-		draw_line(Vector2(at.x - w, at.y - 4), Vector2(at.x + w, at.y - 4), Pal.GEM.darkened(0.4), 1.6, false)
-		# sparkle
+			at + Vector2(-w * 0.55, -11), at + Vector2(-w * 0.2, -11), at + Vector2(-w * 0.35, -2), girdle_l]), Pal.GEM)
+		for fx in [-0.55, 0.0, 0.55]:
+			draw_line(at + Vector2(w * fx, -2), point, Pal.GEM_DEEP, 1.2, false)
+		draw_line(girdle_l, girdle_r, Pal.GEM_DEEP, 1.6, false)
 		var s := absf(sin(t * 1.1))
 		if s > 0.82:
 			var k := (s - 0.82) / 0.18
 			for a in [0.0, PI * 0.5, PI, PI * 1.5]:
 				draw_line(at + Vector2(cos(a), sin(a)) * 6.0,
-					at + Vector2(cos(a), sin(a)) * (10.0 + k * 9.0), Pal.GEM_LIGHT, 2.0, false)
+					at + Vector2(cos(a), sin(a)) * (10.0 + k * 9.0), Color.WHITE, 2.0, false)
+
+## ================================================================ PANORAMA
+## The background is not tiled. Each depth band is one long strip authored for
+## the whole level, so nothing repeats. Set pieces are placed with at(), which
+## converts "where the player is in the world" into "where this band must draw
+## it" — parallax means those two differ, and more so the further back a band is.
+class Panorama extends Node2D:
+	var length := 3000.0
+	var s := 0.4               ## this band's horizontal parallax speed
+	var seedn := 1
+
+	## Band x that sits centre-screen when the player reaches world_x.
+	func at(world_x: float) -> float:
+		return world_x * s + 640.0 * (1.0 - s)
+
+	func rnd(i: int) -> float:
+		return absf(fmod(sin(float(i) * 12.9898 + float(seedn) * 78.233) * 43758.5453, 1.0))
+
+	## A skyline that never comes round again: three waves whose lengths share
+	## no common multiple inside the level.
+	func line(x: float, base: float, a: float) -> float:
+		return base - a * (0.55 * sin(x * 0.0021 + seedn) + 0.3 * sin(x * 0.0057 + seedn * 2.1)
+			+ 0.15 * sin(x * 0.0133 + seedn * 0.7))
+
+	func strip(base: float, a: float, step: float, col: Color) -> void:
+		var pts := PackedVector2Array()
+		var x := -20.0
+		while x <= length + 20.0:
+			pts.append(Vector2(x, line(x, base, a)))
+			x += step
+		pts.append(Vector2(length + 20.0, 1600))
+		pts.append(Vector2(-20.0, 1600))
+		draw_colored_polygon(pts, col)
+
+	func blob(c: Vector2, r: float, flat: float, col: Color, k: int) -> void:
+		var pts := PackedVector2Array()
+		for i in 14:
+			var a := TAU * i / 14.0
+			var rr := r * (1.0 + 0.15 * sin(a * 5.0 + float(k)))
+			pts.append(c + Vector2(cos(a) * rr, sin(a) * rr * flat))
+		draw_colored_polygon(pts, col)
+
+
+class FarHighlands extends Panorama:
+	## Tepuis: sheer table mountains rising out of the forest, the landscape of
+	## the Amazon highlands.
+	## This band moves at a tenth of the player's speed, so across the entire
+	## level it slides only ~800 px: distant things never leave the view. So the
+	## tepuis are composed as one skyline across the band, spaced so they never
+	## touch, rather than placed per stretch like the nearer set pieces.
+	## [band x, base, top, width, seed, has a waterfall]
+	const TEPUIS := [
+		[300.0, 470.0, 186.0, 380.0, 3, true],
+		[1060.0, 474.0, 262.0, 250.0, 7, false],
+		[1760.0, 470.0, 214.0, 330.0, 11, true],
+	]
+
+	## Where the waterfalls go, worked out from the same data the drawing uses.
+	## The level needs these at build time, before anything has been drawn.
+	func waterfalls() -> Array:
+		var out := []
+		for tp in TEPUIS:
+			if tp[5]:
+				var cx := float(tp[0])
+				out.append([Vector2(cx + float(tp[3]) * 0.16, float(tp[2]) + 6.0), float(tp[1]) - float(tp[2]) - 10.0])
+		return out
+
+	func _draw() -> void:
+		strip(478.0, 64.0, 24.0, Pal.MIST)
+		for tp in TEPUIS:
+			_tepui(float(tp[0]), float(tp[1]), float(tp[2]), float(tp[3]), int(tp[4]))
+		strip(498.0, 26.0, 20.0, Pal.TEPUI_SHADE.lerp(Pal.MIST, 0.6))
+
+	func _tepui(cx: float, base: float, top: float, w: float, k: int) -> void:
+		var pts := PackedVector2Array([Vector2(cx - w * 0.64, base), Vector2(cx - w * 0.5, top + 34.0)])
+		for i in 10:
+			pts.append(Vector2(cx - w * 0.5 + w * i / 9.0, top + rnd(i + k * 13) * 12.0))
+		pts.append(Vector2(cx + w * 0.5, top + 28.0))
+		pts.append(Vector2(cx + w * 0.66, base))
+		draw_colored_polygon(pts, Pal.TEPUI)
+		# light comes from the upper right, so the left walls sit in shade
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(cx - w * 0.64, base), Vector2(cx - w * 0.5, top + 34.0),
+			Vector2(cx - w * 0.2, top + 40.0), Vector2(cx - w * 0.3, base)]), Pal.TEPUI_SHADE)
+		for i in 7:
+			var sx := cx - w * 0.42 + w * i / 7.0 + rnd(i + k) * 14.0
+			draw_line(Vector2(sx, top + 20.0), Vector2(sx - 6.0, base - 10.0), Pal.TEPUI_SHADE, 2.0, false)
+		# a crown of forest along the rim
+		for i in 8:
+			blob(Vector2(cx - w * 0.45 + w * i / 7.4, top + 2.0), 16.0 + rnd(i + k * 3) * 8.0, 0.55, Pal.CANOPY_FAR, i)
+
+
+class Waterfall extends Node2D:
+	## Animated: streaks run down the cliff and mist boils at the foot.
+	var height := 260.0
+	var t := 0.0
+
+	func _process(delta: float) -> void:
+		t += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		draw_rect(Rect2(-9, 0, 18, height), Color(Pal.WATER, 0.55))
+		for i in 6:
+			var y := fmod(t * 120.0 + i * height / 6.0, height)
+			draw_line(Vector2(-6 + i * 2.4, y), Vector2(-6 + i * 2.4, minf(height, y + 30.0)), Color(Pal.WATER, 0.9), 2.0, false)
+		for i in 5:
+			var ph := fmod(t * 0.6 + i * 0.2, 1.0)
+			draw_circle(Vector2((i - 2) * 9.0, height - 4.0 - ph * 16.0), 8.0 + ph * 10.0, Color(Pal.WATER, 0.35 * (1.0 - ph)))
+
+
+class CanopyBand extends Panorama:
+	## The forest roof at mid distance, with giant emergent trees punching up
+	## through it — the kapok-like giants that tower over a real rainforest.
+	func _draw() -> void:
+		strip(508.0, 30.0, 20.0, Pal.CANOPY_FAR)
+		var x := 0.0
+		var i := 0
+		while x < length:
+			var r := rnd(i)
+			blob(Vector2(x, line(x, 508.0, 30.0) - 16.0 - r * 26.0), 30.0 + r * 30.0, 0.6, Pal.CANOPY_FAR.darkened(0.06 + r * 0.08), i)
+			x += 44.0 + rnd(i + 50) * 60.0
+			i += 1
+		for wx in [700.0, 2400.0, 3900.0, 5700.0, 8200.0]:
+			_giant(at(wx), int(wx))
+		draw_rect(Rect2(-20, 500, length + 40, 30), Color(Pal.MIST, 0.4))
+
+	func _giant(cx: float, k: int) -> void:
+		var base := line(cx, 508.0, 30.0)
+		var h := 210.0 + rnd(k) * 70.0
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(cx - 9, base), Vector2(cx - 5, base - h), Vector2(cx + 5, base - h), Vector2(cx + 9, base)]), Pal.TRUNK.lerp(Pal.MIST, 0.45))
+		for j in 5:
+			blob(Vector2(cx - 48.0 + j * 24.0, base - h - 6.0 + absf(j - 2.0) * 8.0), 30.0, 0.42, Pal.EMERGENT, j + k)
+
+
+class LightShafts extends Node2D:
+	## Slanting beams through the canopy. Barely there, but they make the air
+	## look thick and warm.
+	var length := 1800.0
+
+	func _draw() -> void:
+		for i in 5:
+			var x := 180.0 + i * 330.0 + sin(float(i) * 2.3) * 60.0
+			var w := 46.0 + (i % 3) * 22.0
+			draw_colored_polygon(PackedVector2Array([
+				Vector2(x, -40), Vector2(x + w, -40), Vector2(x - 170.0 + w * 1.6, 560), Vector2(x - 170.0, 560)]),
+				Color(Pal.RAY, 0.07 + (i % 2) * 0.03))
+
+
+class Birds extends Node2D:
+	## A few birds wheeling far off. Life in the sky costs almost nothing.
+	var t := 0.0
+	var width := 2400.0
+
+	func _process(delta: float) -> void:
+		t += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		for i in 6:
+			var x := fmod(t * (22.0 + i * 3.0) + i * 410.0, width)
+			var y := 120.0 + sin(t * 0.5 + i) * 26.0 + (i % 3) * 34.0
+			var f := sin(t * 7.0 + i) * 4.0
+			draw_polyline(PackedVector2Array([Vector2(x - 8, y - f), Vector2(x, y), Vector2(x + 8, y - f)]),
+				Color(Pal.TREE_DARK, 0.55), 1.8, false)
+
+
+class StoryBand extends Panorama:
+	## The band that changes with the journey: ancient trees, then bamboo, then
+	## the painted caves, then the stone circle where Tuskar lives.
+	func _draw() -> void:
+		strip(532.0, 22.0, 22.0, Pal.JUNGLE_MID)
+		_ancient_tree(at(900.0), 0)
+		_ancient_tree(at(2500.0), 1)
+		_bamboo_grove(at(3200.0), at(4800.0))
+		_painted_cliff(at(5000.0), at(7700.0))
+		_stone_circle(at(8850.0))
+
+	func _ancient_tree(cx: float, k: int) -> void:
+		var base := line(cx, 532.0, 22.0)
+		var h := 250.0 + k * 30.0
+		var col := Pal.TRUNK.lerp(Pal.MIST, 0.28)
+		# buttress roots flaring into the ground
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(cx - 62, base), Vector2(cx - 18, base - 70), Vector2(cx - 15, base - h),
+			Vector2(cx + 15, base - h), Vector2(cx + 18, base - 70), Vector2(cx + 66, base)]), col)
+		draw_line(Vector2(cx - 4, base - 60), Vector2(cx - 2, base - h + 20), col.darkened(0.2), 3.0, false)
+		for j in 6:
+			blob(Vector2(cx - 80.0 + j * 32.0, base - h - 10.0 + absf(j - 2.5) * 12.0), 44.0, 0.55, Pal.JUNGLE_MID.lerp(Pal.MIST, 0.15), j + k * 9)
+		for j in 3:
+			var vx := cx - 40.0 + j * 40.0
+			var vine := PackedVector2Array()
+			for m in 8:
+				vine.append(Vector2(vx + sin(m * 0.8 + j) * 6.0, base - h + 20.0 + m * (h * 0.09)))
+			draw_polyline(vine, Pal.FROND.lerp(Pal.MIST, 0.2), 2.5, false)
+
+	func _bamboo_grove(x0: float, x1: float) -> void:
+		var i := 0
+		var x := x0
+		while x < x1:
+			var h := 190.0 + rnd(i + 300) * 120.0
+			var base := line(x, 532.0, 22.0)
+			var lean := (rnd(i + 400) - 0.5) * 18.0
+			var col := Pal.BAMBOO if i % 2 == 0 else Pal.BAMBOO_DARK
+			draw_line(Vector2(x, base), Vector2(x + lean, base - h), col, 7.0, false)
+			var seg := 34.0
+			var y := seg
+			while y < h:
+				var u := y / h
+				draw_line(Vector2(x + lean * u - 5, base - y), Vector2(x + lean * u + 5, base - y), col.darkened(0.3), 2.0, false)
+				y += seg
+			for j in 3:
+				var a := -1.2 - j * 0.5
+				draw_line(Vector2(x + lean, base - h + j * 16.0),
+					Vector2(x + lean + cos(a) * 26.0, base - h + j * 16.0 + sin(a) * -10.0), Pal.BAMBOO_DARK, 3.0, false)
+			x += 18.0 + rnd(i) * 26.0
+			i += 1
+
+	func _painted_cliff(x0: float, x1: float) -> void:
+		var top := 340.0
+		var pts := PackedVector2Array()
+		var x := x0 - 40.0
+		pts.append(Vector2(x0 - 80.0, 560))
+		while x <= x1 + 40.0:
+			pts.append(Vector2(x, top + 30.0 * sin(x * 0.011) + 12.0 * sin(x * 0.031)))
+			x += 28.0
+		pts.append(Vector2(x1 + 80.0, 560))
+		draw_colored_polygon(pts, Pal.CLIFF)
+		for i in 5:
+			var y := top + 60.0 + i * 30.0
+			draw_line(Vector2(x0, y), Vector2(x1, y + 8.0), Pal.CLIFF_DARK, 2.5, false)
+		var span := x1 - x0
+		# two caves. Someone lives in the second: there is firelight inside
+		_cave(x0 + span * 0.18, top + 120.0, false)
+		_cave(x0 + span * 0.74, top + 118.0, true)
+		# the mural: hunters with spears closing on a giant boar
+		_mural(Vector2(x0 + span * 0.46, top + 92.0))
+
+	func _cave(cx: float, cy: float, lit: bool) -> void:
+		var mouth := PackedVector2Array()
+		for k in 15:
+			var a := PI + PI * k / 14.0
+			mouth.append(Vector2(cx + cos(a) * 50.0, cy + sin(a) * 58.0))
+		mouth.append(Vector2(cx + 50.0, cy + 34.0))
+		mouth.append(Vector2(cx - 50.0, cy + 34.0))
+		draw_colored_polygon(mouth, Pal.CAVE_MOUTH)
+		if lit:
+			for k in 4:
+				draw_circle(Vector2(cx, cy + 18.0), 36.0 - k * 8.0, Color(Pal.FIRE, 0.14 + k * 0.1))
+
+	func _mural(c: Vector2) -> void:
+		var paint := Pal.PAINT
+		# the boar: body, tusks, legs
+		var body := PackedVector2Array()
+		for k in 16:
+			var a := TAU * k / 16.0
+			body.append(c + Vector2(cos(a) * 46.0, sin(a) * 22.0))
+		draw_colored_polygon(body, Color(paint, 0.85))
+		draw_line(c + Vector2(44, -4), c + Vector2(64, -16), paint, 5.0, false)
+		draw_line(c + Vector2(60, -6), c + Vector2(72, -22), Pal.SKULL, 3.0, false)
+		for k in 4:
+			draw_line(c + Vector2(-30.0 + k * 20.0, 18), c + Vector2(-32.0 + k * 20.0, 38), paint, 4.0, false)
+		for k in 5:
+			draw_line(c + Vector2(-34.0 + k * 14.0, -20), c + Vector2(-32.0 + k * 14.0, -32), paint, 2.5, false)
+		# hunters closing in from both sides
+		for side in [-1.0, 1.0]:
+			for k in 2:
+				var hx: float = c.x + float(side) * (78.0 + k * 30.0)
+				var hy: float = c.y + 8.0 - k * 4.0
+				draw_circle(Vector2(hx, hy - 24), 5.0, paint)
+				draw_line(Vector2(hx, hy - 19), Vector2(hx, hy + 2), paint, 3.0, false)
+				draw_line(Vector2(hx, hy + 2), Vector2(hx - 6, hy + 16), paint, 3.0, false)
+				draw_line(Vector2(hx, hy + 2), Vector2(hx + 6, hy + 16), paint, 3.0, false)
+				draw_line(Vector2(hx, hy - 12), Vector2(hx - float(side) * 34.0, hy - 22), paint, 2.2, false)
+		for k in 4:
+			var hp := c + Vector2(-120.0 + k * 22.0, -52.0 + (k % 2) * 10.0)
+			draw_circle(hp, 5.0, paint)
+			for f in 5:
+				var a2 := -2.5 + f * 0.5
+				draw_line(hp, hp + Vector2(cos(a2), sin(a2)) * 8.5, paint, 2.0, false)
+
+	func _stone_circle(cx: float) -> void:
+		var base := line(cx, 532.0, 22.0)
+		for i in 7:
+			var sx := cx - 180.0 + i * 60.0
+			var h := 70.0 + rnd(i + 700) * 50.0
+			var back := i % 2 == 1
+			var col := Pal.CLIFF_DARK if back else Pal.CLIFF
+			var lift := -14.0 if back else 0.0
+			draw_colored_polygon(PackedVector2Array([
+				Vector2(sx - 15, base + lift), Vector2(sx - 11, base + lift - h), Vector2(sx + 10, base + lift - h - 6),
+				Vector2(sx + 15, base + lift)]), col)
+		# a boar skull the size of a boulder, set on a flat rock in the middle
+		var sk := Vector2(cx, base - 30.0)
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(cx - 44, base), Vector2(cx - 40, base - 16), Vector2(cx + 46, base - 16), Vector2(cx + 42, base)]), Pal.CLIFF_DARK)
+		var skull := PackedVector2Array()
+		for k in 14:
+			var a := TAU * k / 14.0
+			skull.append(sk + Vector2(cos(a) * 34.0 * (1.0 + 0.35 * maxf(0.0, cos(a))), sin(a) * 18.0))
+		draw_colored_polygon(skull, Pal.SKULL)
+		draw_circle(sk + Vector2(-6, -4), 6.0, Pal.CAVE_MOUTH)
+		draw_line(sk + Vector2(36, 4), sk + Vector2(58, -22), Pal.SKULL, 5.0, false)
+		draw_line(sk + Vector2(30, 8), sk + Vector2(48, -12), Pal.SKULL, 4.0, false)
+
+
+class Undergrowth extends Panorama:
+	## The near layer: LOW growth only. Ferns, broad leaves and mossy stones,
+	## none taller than a man's waist, so nothing ever stands between the player
+	## and what he is doing.
+	func _draw() -> void:
+		var x := 0.0
+		var i := 0
+		while x < length:
+			var base := line(x, 566.0, 8.0)
+			match int(rnd(i) * 4.0):
+				0:
+					_fern(Vector2(x, base), 40.0 + rnd(i + 5) * 24.0, i)
+				1:
+					_broadleaf(Vector2(x, base), 46.0 + rnd(i + 6) * 20.0, i)
+				2:
+					blob(Vector2(x, base - 10.0), 18.0 + rnd(i + 7) * 16.0, 0.6, Pal.CLIFF_DARK, i)
+					blob(Vector2(x - 4, base - 20.0), 12.0, 0.4, Pal.FROND, i + 1)
+				_:
+					_fern(Vector2(x, base), 30.0, i)
+			x += 70.0 + rnd(i + 99) * 150.0
+			i += 1
+
+	func _fern(at: Vector2, h: float, k: int) -> void:
+		for j in 7:
+			var a := -2.85 + j * 0.45
+			var tip := at + Vector2(cos(a), sin(a)) * h
+			draw_line(at, tip, Pal.FROND if j % 2 == 0 else Pal.FROND_LIGHT, 3.0, false)
+			for m in 4:
+				var u := 0.3 + m * 0.18
+				var p := at.lerp(tip, u)
+				draw_line(p, p + Vector2(cos(a - 0.8), sin(a - 0.8)) * 7.0, Pal.FROND, 1.8, false)
+
+	func _broadleaf(at: Vector2, h: float, k: int) -> void:
+		for j in 4:
+			var a := -2.4 + j * 0.55
+			var d := Vector2(cos(a), sin(a))
+			var n := Vector2(-d.y, d.x)
+			var pts := PackedVector2Array([at])
+			for m in range(1, 6):
+				var u := m / 5.0
+				pts.append(at + d * h * u + n * sin(u * PI) * h * 0.28)
+			for m in range(1, 5):
+				var u2 := 1.0 - m / 5.0
+				pts.append(at + d * h * u2 - n * sin(u2 * PI) * h * 0.28)
+			draw_colored_polygon(pts, Pal.FROND_LIGHT if j % 2 == 0 else Pal.FROND)
+			draw_line(at, at + d * h * 0.9, Pal.FROND.darkened(0.3), 1.6, false)
+
+
+class Motes extends Node2D:
+	## Pollen drifting in the warm air.
+	var t := 0.0
+
+	func _process(delta: float) -> void:
+		t += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		for i in 26:
+			var bx := fmod(float(i) * 173.0 + t * (6.0 + (i % 4) * 3.0), 1400.0)
+			var by := 120.0 + fmod(float(i) * 97.0, 420.0) + sin(t * 0.9 + i) * 14.0
+			draw_circle(Vector2(bx, by), 1.6 + (i % 3) * 0.6, Color(Pal.RAY, 0.45))

@@ -590,6 +590,8 @@ class Flytrap extends Critter:
 	func _draw() -> void:
 		# A Venus flytrap. The giveaway is the rim: long spines along the margin
 		# of each lobe that interlock when it shuts, over a red inner surface.
+		# Mirrored so it faces left, toward the player walking in from that side.
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(-1, 1))
 		var sway := sin(t * 1.7) * 3.0
 		var head := Vector2(sway * 0.5 - 4.0, -40)
 
@@ -614,6 +616,7 @@ class Flytrap extends Critter:
 		_jaw(head, 1.0)
 		if flash > 0.0:
 			draw_circle(head + Vector2(8, 0), 26.0, Color(1, 1, 1, 0.45))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	## One lobe, hinged at the back and swinging open. sgn -1 is the upper lobe.
 	func _jaw(hinge: Vector2, sgn: float) -> void:
