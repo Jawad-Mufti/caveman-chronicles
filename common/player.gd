@@ -81,6 +81,7 @@ var max_wood := 4
 var costume := 1          ## 1 = leaves (Level 1), 2 = first hide loincloth (Level 2)
 var fury := -1.0          ## seconds into the fire's wind-up; -1 when calm
 var wind := 0.0           ## world px/s the air is pushing him; set by the level's Wind
+var talking := false      ## in a conversation: stands still, can't be hurt, torch waits
 var touch := {"left": false, "right": false, "jump": false, "attack": false, "heal": false, "throw": false, "fire": false}
 
 var _jump_prev := false
@@ -143,6 +144,13 @@ func _physics_process(delta: float) -> void:
 	knock = maxf(knock - delta, 0.0)
 	attacking = maxf(attacking - delta, 0.0)
 	throwing = maxf(throwing - delta, 0.0)
+
+	if talking:
+		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
+		if not is_on_floor():
+			velocity.y += GRAVITY_DOWN * delta
+		move_and_slide()
+		return
 
 	if has_torch and torch_fuel > 0.0:
 		torch_fuel = maxf(torch_fuel - delta / TORCH_BURN, 0.0)
@@ -347,7 +355,7 @@ func launch(vy: float) -> void:
 
 
 func hurt(amount: int, from_x: float) -> void:
-	if invuln > 0.0 or dead or fury >= 0.0:
+	if invuln > 0.0 or dead or fury >= 0.0 or talking:
 		return
 	hp -= amount
 	invuln = 1.1

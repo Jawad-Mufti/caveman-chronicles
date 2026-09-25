@@ -29,24 +29,26 @@ class Slab extends StaticBody2D:
 		var cap := Pal.STONE if underground else Pal.GRASS
 		# earth gets darker with depth, and the sunlit lip of the cap is brighter:
 		# a flat slab of one colour is the most cartoon thing on screen
-		draw_rect(Rect2(Vector2.ZERO, rect.size), body.darkened(0.30))
-		draw_rect(Rect2(Vector2.ZERO, Vector2(rect.size.x, minf(52.0, rect.size.y))), body)
+		# one Batch: every tuft and pebble in a single draw call
+		var b := Batch.new()
+		b.rect(Rect2(Vector2.ZERO, rect.size), body.darkened(0.30))
+		b.rect(Rect2(Vector2.ZERO, Vector2(rect.size.x, minf(52.0, rect.size.y))), body)
 		var cap_h := minf(12.0, rect.size.y)
-		draw_rect(Rect2(Vector2.ZERO, Vector2(rect.size.x, cap_h)), cap.darkened(0.22))
-		draw_rect(Rect2(Vector2.ZERO, Vector2(rect.size.x, cap_h * 0.45)), cap)
+		b.rect(Rect2(Vector2.ZERO, Vector2(rect.size.x, cap_h)), cap.darkened(0.22))
+		b.rect(Rect2(Vector2.ZERO, Vector2(rect.size.x, cap_h * 0.45)), cap)
 		if not underground:
-			draw_rect(Rect2(Vector2(0, cap_h - 3.0), Vector2(rect.size.x, 3)), Pal.GRASS_DARK)
+			b.rect(Rect2(Vector2(0, cap_h - 3.0), Vector2(rect.size.x, 3)), Pal.GRASS_DARK)
 			var x := 6.0
 			while x < rect.size.x - 6.0:
 				var h := rng.randf_range(5.0, 11.0)
-				draw_colored_polygon(PackedVector2Array([
-					Vector2(x - 3, 1), Vector2(x + rng.randf_range(-2.0, 2.0), -h), Vector2(x + 3, 1)]), Pal.GRASS_DARK)
+				b.tri(Vector2(x - 3, 1), Vector2(x + rng.randf_range(-2.0, 2.0), -h), Vector2(x + 3, 1), Pal.GRASS_DARK)
 				x += rng.randf_range(14.0, 34.0)
 		var n := int(rect.size.x / 55.0) + 1
 		for i in n:
 			var p := Vector2(rng.randf_range(4.0, maxf(5.0, rect.size.x - 4.0)),
 				rng.randf_range(cap_h + 6.0, maxf(cap_h + 7.0, minf(rect.size.y - 4.0, 140.0))))
-			draw_circle(p, rng.randf_range(2.0, 5.0), Pal.DIRT_DARK if not underground else Pal.STONE_DARK.darkened(0.2))
+			b.circle(p, rng.randf_range(2.0, 5.0), Pal.DIRT_DARK if not underground else Pal.STONE_DARK.darkened(0.2), 10)
+		b.draw(self)
 
 
 class Ceiling extends Node2D:
@@ -750,6 +752,10 @@ class Panorama extends Node2D:
 			+ 0.15 * sin(x * 0.0133 + seedn * 0.7))
 
 	func strip(base: float, a: float, step: float, col: Color) -> void:
+		draw_colored_polygon(strip_pts(base, a, step), col)
+
+	## The strip's outline, for bands that draw through a Batch.
+	func strip_pts(base: float, a: float, step: float) -> PackedVector2Array:
 		var pts := PackedVector2Array()
 		var x := -20.0
 		while x <= length + 20.0:
@@ -757,15 +763,18 @@ class Panorama extends Node2D:
 			x += step
 		pts.append(Vector2(length + 20.0, 1600))
 		pts.append(Vector2(-20.0, 1600))
-		draw_colored_polygon(pts, col)
+		return pts
 
 	func blob(c: Vector2, r: float, flat: float, col: Color, k: int) -> void:
+		draw_colored_polygon(blob_pts(c, r, flat, k), col)
+
+	func blob_pts(c: Vector2, r: float, flat: float, k: int) -> PackedVector2Array:
 		var pts := PackedVector2Array()
 		for i in 14:
 			var a := TAU * i / 14.0
 			var rr := r * (1.0 + 0.15 * sin(a * 5.0 + float(k)))
 			pts.append(c + Vector2(cos(a) * rr, sin(a) * rr * flat))
-		draw_colored_polygon(pts, col)
+		return pts
 
 
 class FarHighlands extends Panorama:
@@ -1036,35 +1045,38 @@ class Undergrowth extends Panorama:
 	## The near layer: LOW growth only. Ferns, broad leaves and mossy stones,
 	## none taller than a man's waist, so nothing ever stands between the player
 	## and what he is doing.
+	## Built as one Batch: the whole band, end to end, is a single draw call.
 	func _draw() -> void:
+		var b := Batch.new()
 		var x := 0.0
 		var i := 0
 		while x < length:
 			var base := line(x, 566.0, 8.0)
 			match int(rnd(i) * 4.0):
 				0:
-					_fern(Vector2(x, base), 40.0 + rnd(i + 5) * 24.0, i)
+					_fern(b, Vector2(x, base), 40.0 + rnd(i + 5) * 24.0, i)
 				1:
-					_broadleaf(Vector2(x, base), 46.0 + rnd(i + 6) * 20.0, i)
+					_broadleaf(b, Vector2(x, base), 46.0 + rnd(i + 6) * 20.0, i)
 				2:
-					blob(Vector2(x, base - 10.0), 18.0 + rnd(i + 7) * 16.0, 0.6, Pal.CLIFF_DARK, i)
-					blob(Vector2(x - 4, base - 20.0), 12.0, 0.4, Pal.FROND, i + 1)
+					b.poly(blob_pts(Vector2(x, base - 10.0), 18.0 + rnd(i + 7) * 16.0, 0.6, i), Pal.CLIFF_DARK)
+					b.poly(blob_pts(Vector2(x - 4, base - 20.0), 12.0, 0.4, i + 1), Pal.FROND)
 				_:
-					_fern(Vector2(x, base), 30.0, i)
+					_fern(b, Vector2(x, base), 30.0, i)
 			x += 70.0 + rnd(i + 99) * 150.0
 			i += 1
+		b.draw(self)
 
-	func _fern(at: Vector2, h: float, k: int) -> void:
+	func _fern(b: Batch, at: Vector2, h: float, _k: int) -> void:
 		for j in 7:
 			var a := -2.85 + j * 0.45
 			var tip := at + Vector2(cos(a), sin(a)) * h
-			draw_line(at, tip, Pal.FROND if j % 2 == 0 else Pal.FROND_LIGHT, 3.0, false)
+			b.line(at, tip, Pal.FROND if j % 2 == 0 else Pal.FROND_LIGHT, 3.0)
 			for m in 4:
 				var u := 0.3 + m * 0.18
 				var p := at.lerp(tip, u)
-				draw_line(p, p + Vector2(cos(a - 0.8), sin(a - 0.8)) * 7.0, Pal.FROND, 1.8, false)
+				b.line(p, p + Vector2(cos(a - 0.8), sin(a - 0.8)) * 7.0, Pal.FROND, 1.8)
 
-	func _broadleaf(at: Vector2, h: float, k: int) -> void:
+	func _broadleaf(b: Batch, at: Vector2, h: float, _k: int) -> void:
 		for j in 4:
 			var a := -2.4 + j * 0.55
 			var d := Vector2(cos(a), sin(a))
@@ -1076,8 +1088,8 @@ class Undergrowth extends Panorama:
 			for m in range(1, 5):
 				var u2 := 1.0 - m / 5.0
 				pts.append(at + d * h * u2 - n * sin(u2 * PI) * h * 0.28)
-			draw_colored_polygon(pts, Pal.FROND_LIGHT if j % 2 == 0 else Pal.FROND)
-			draw_line(at, at + d * h * 0.9, Pal.FROND.darkened(0.3), 1.6, false)
+			b.poly(pts, Pal.FROND_LIGHT if j % 2 == 0 else Pal.FROND)
+			b.line(at, at + d * h * 0.9, Pal.FROND.darkened(0.3), 1.6)
 
 
 class Motes extends Node2D:

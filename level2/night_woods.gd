@@ -5,6 +5,16 @@ class_name NightWoods
 extends RefCounted
 
 
+## Is this node near what the camera can see? Things that animate only need
+## redrawing then; off screen they would be redrawn for nobody.
+static func near_view(n: Node2D, margin: float = 800.0) -> bool:
+	var cam := n.get_viewport().get_camera_2d()
+	if cam == null:
+		return true
+	var c := cam.get_screen_center_position()
+	return absf(n.global_position.x - c.x) < margin + 640.0 and absf(n.global_position.y - c.y) < margin + 360.0
+
+
 ## A teardrop of flame: round at the base, drawn up to a swaying point.
 ## Shared by the bonfire, the burst, and anything else that burns.
 static func flame_pts(base: Vector2, w: float, h: float, sway: float) -> PackedVector2Array:
@@ -79,47 +89,51 @@ class Bonfire extends Area2D:
 
 	func _process(delta: float) -> void:
 		t += delta
-		queue_redraw()
+		if NightWoods.near_view(self):
+			queue_redraw()
 
+	## Rebuilt every frame (it flickers), but as one Batch: one draw call, not ~30.
 	func _draw() -> void:
+		var bt := Batch.new()
 		# logs, crossed, charred where they meet
 		for s in [-1.0, 1.0]:
 			var a := Vector2(-34.0 * s, -4)
 			var b := Vector2(26.0 * s, -24)
-			draw_line(a, b, Pal.TRUNK_DARK, 13.0, true)
-			draw_line(a + Vector2(0, -2), b + Vector2(0, -2), Pal.TRUNK, 6.0, true)
-			draw_circle(a, 6.5, Pal.DEADWOOD)
-			draw_circle(a, 3.0, Pal.DEADWOOD_DARK)
+			bt.line(a, b, Pal.TRUNK_DARK, 13.0)
+			bt.line(a + Vector2(0, -2), b + Vector2(0, -2), Pal.TRUNK, 6.0)
+			bt.circle(a, 6.5, Pal.DEADWOOD, 10)
+			bt.circle(a, 3.0, Pal.DEADWOOD_DARK, 8)
 		# hearth stones ring the fire
 		for i in 7:
 			var sx := -44.0 + i * 14.7
 			var sy := -3.0 + absf(i - 3.0) * -1.2
 			var rr := 8.0 + fmod(i * 2.7, 3.0)
-			draw_circle(Vector2(sx, sy), rr, Pal.HEARTH_STONE.darkened(0.3))
-			draw_circle(Vector2(sx + 1.0, sy - 1.5), rr * 0.8, Pal.HEARTH_STONE)
+			bt.circle(Vector2(sx, sy), rr, Pal.HEARTH_STONE.darkened(0.3), 10)
+			bt.circle(Vector2(sx + 1.0, sy - 1.5), rr * 0.8, Pal.HEARTH_STONE, 10)
 		if lit:
 			for i in 5:
 				var bx := -20.0 + i * 10.0
 				var h := 46.0 + 30.0 * (1.0 - absf(i - 2.0) / 2.0) + sin(t * (7.0 + i) + i) * 8.0
 				var sway := sin(t * 5.0 + i * 1.7) * 6.0
-				draw_colored_polygon(NightWoods.flame_pts(Vector2(bx, -16), 12.0, h, sway), Color(Pal.EMBER_GLOW, 0.9))
+				bt.poly(NightWoods.flame_pts(Vector2(bx, -16), 12.0, h, sway), Color(Pal.EMBER_GLOW, 0.9))
 			for i in 4:
 				var bx := -14.0 + i * 9.5
 				var h := 34.0 + 22.0 * (1.0 - absf(i - 1.5) / 1.5) + sin(t * (9.0 + i)) * 6.0
-				draw_colored_polygon(NightWoods.flame_pts(Vector2(bx, -14), 8.0, h, sin(t * 6.0 + i) * 4.0), Pal.FLAME)
-			draw_colored_polygon(NightWoods.flame_pts(Vector2(0, -12), 7.0, 30.0 + sin(t * 13.0) * 5.0, sin(t * 8.0) * 3.0), Pal.FLAME_CORE)
+				bt.poly(NightWoods.flame_pts(Vector2(bx, -14), 8.0, h, sin(t * 6.0 + i) * 4.0), Pal.FLAME)
+			bt.poly(NightWoods.flame_pts(Vector2(0, -12), 7.0, 30.0 + sin(t * 13.0) * 5.0, sin(t * 8.0) * 3.0), Pal.FLAME_CORE)
 			# sparks going up
 			for i in 8:
 				var q := fmod(t * 0.7 + i * 0.125, 1.0)
 				var p := Vector2(sin(i * 2.1 + q * 5.0) * (10.0 + q * 18.0), -30.0 - q * 130.0)
-				draw_circle(p, 2.2 * (1.0 - q) + 0.6, Color(Pal.FLAME_CORE, 1.0 - q))
+				bt.circle(p, 2.2 * (1.0 - q) + 0.6, Color(Pal.FLAME_CORE, 1.0 - q), 6)
 		else:
 			# cold: an ash heap, charred ends
 			var ash := PackedVector2Array()
 			for i in 13:
 				var a := PI + PI * (i / 12.0)
 				ash.append(Vector2(cos(a) * 30.0, sin(a) * 14.0 - 4.0))
-			draw_colored_polygon(ash, Pal.ASH)
+			bt.poly(ash, Pal.ASH)
+		bt.draw(self)
 
 	## Unlit, the embers show through the dark: a beacon to walk toward.
 	func draw_glow(g: Node2D) -> void:
@@ -170,7 +184,8 @@ class DeadTree extends Area2D:
 	func _process(delta: float) -> void:
 		t += delta
 		shake = maxf(shake - delta, 0.0)
-		queue_redraw()
+		if NightWoods.near_view(self):
+			queue_redraw()
 
 	func _draw() -> void:
 		var sway := sin(shake * 60.0) * 5.0 * (shake / 0.35)
@@ -245,7 +260,8 @@ class WoodPickup extends Area2D:
 			if position.y >= ground_y:
 				position.y = ground_y
 				resting = true
-		queue_redraw()
+		if NightWoods.near_view(self):
+			queue_redraw()
 
 	func _draw() -> void:
 		var pulse := 0.5 + 0.5 * sin(t * 2.6)
@@ -286,8 +302,14 @@ class FireBurst extends Node2D:
 			if (b as Node2D).global_position.distance_to(from) < RADIUS + 40.0:
 				b.kindle()
 		for m in get_tree().get_nodes_in_group("monkeys"):
-			if (m as Node2D).global_position.distance_to(from) < RADIUS * 1.8:
+			var dm := (m as Node2D).global_position.distance_to(from)
+			if dm < RADIUS:
+				m.burn()
+			elif dm < RADIUS * 1.8:
 				m.scare(from)
+		for w in get_tree().get_nodes_in_group("webs"):
+			if absf((w as Node2D).global_position.x - from.x) < RADIUS:
+				w.burn()
 
 	func light() -> Vector4:
 		var grow := clampf(t / 0.18, 0.0, 1.0)
@@ -304,41 +326,42 @@ class FireBurst extends Node2D:
 			return
 		queue_redraw()
 
+	## One Batch a frame: the whole burst in one draw call instead of ~80.
 	func _draw() -> void:
+		var bt := Batch.new()
 		var grow := 1.0 - pow(1.0 - clampf(t / 0.25, 0.0, 1.0), 3.0)
 		var fade := 1.0 - clampf((t - 0.3) / 0.9, 0.0, 1.0)
 		var r := RADIUS * grow
 		# A dome of fire standing on the ground, not a ring through it. The
 		# burst starts at his chest, GROUND px above his feet.
-		_dome(r, Color(Pal.FLAME, 0.22 * fade))
-		_dome(r * 0.55, Color(Pal.FLAME_CORE, 0.25 * fade))
-		# tongues pointing outward (skipped once they have burned down, since
-		# a flat triangle is a polygon the renderer cannot fill)
-		if fade < 0.06:
-			return
-		for i in 22:
-			var a := TAU * i / 22.0 + t * 0.6
-			var d := Vector2.from_angle(a)
-			var base := d * r * 0.9
-			if base.y > GROUND - 6.0:
-				continue
-			var n := Vector2(-d.y, d.x)
-			var len := maxf((34.0 + 18.0 * sin(i * 2.3 + t * 20.0)) * fade, 4.0)
-			draw_colored_polygon(PackedVector2Array([base + n * 11.0, base + d * len, base - n * 11.0]), Color(Pal.EMBER_GLOW, 0.9 * fade))
-			draw_colored_polygon(PackedVector2Array([base + n * 6.0, base + d * len * 0.65, base - n * 6.0]), Color(Pal.FLAME, fade))
-		# and a line of flame racing out along the ground under it
-		for i in 12:
-			var gx := lerpf(-r * 0.95, r * 0.95, i / 11.0)
-			var h := (26.0 + 22.0 * sin(i * 1.9 + t * 18.0)) * fade * (1.0 - absf(gx) / maxf(r, 1.0) * 0.5)
-			draw_colored_polygon(NightWoods.flame_pts(Vector2(gx, GROUND - 4.0), 9.0, maxf(h, 8.0), sin(t * 9.0 + i) * 4.0), Color(Pal.EMBER_GLOW, 0.85 * fade))
-		for i in 18:
-			var a := TAU * i / 18.0 + i * 0.4
-			var p := Vector2.from_angle(a) * (r * 0.5 + t * 160.0) + Vector2(0, -t * t * 80.0)
-			if p.y < GROUND:
-				draw_circle(p, 3.0 * fade + 0.5, Color(Pal.FLAME_CORE, fade))
+		_dome(bt, r, Color(Pal.FLAME, 0.22 * fade))
+		_dome(bt, r * 0.55, Color(Pal.FLAME_CORE, 0.25 * fade))
+		if fade >= 0.06:
+			# tongues pointing outward
+			for i in 22:
+				var a := TAU * i / 22.0 + t * 0.6
+				var d := Vector2.from_angle(a)
+				var base := d * r * 0.9
+				if base.y > GROUND - 6.0:
+					continue
+				var n := Vector2(-d.y, d.x)
+				var len := maxf((34.0 + 18.0 * sin(i * 2.3 + t * 20.0)) * fade, 4.0)
+				bt.tri(base + n * 11.0, base + d * len, base - n * 11.0, Color(Pal.EMBER_GLOW, 0.9 * fade))
+				bt.tri(base + n * 6.0, base + d * len * 0.65, base - n * 6.0, Color(Pal.FLAME, fade))
+			# and a line of flame racing out along the ground under it
+			for i in 12:
+				var gx := lerpf(-r * 0.95, r * 0.95, i / 11.0)
+				var h := (26.0 + 22.0 * sin(i * 1.9 + t * 18.0)) * fade * (1.0 - absf(gx) / maxf(r, 1.0) * 0.5)
+				bt.poly(NightWoods.flame_pts(Vector2(gx, GROUND - 4.0), 9.0, maxf(h, 8.0), sin(t * 9.0 + i) * 4.0), Color(Pal.EMBER_GLOW, 0.85 * fade))
+			for i in 18:
+				var a := TAU * i / 18.0 + i * 0.4
+				var p := Vector2.from_angle(a) * (r * 0.5 + t * 160.0) + Vector2(0, -t * t * 80.0)
+				if p.y < GROUND:
+					bt.circle(p, 3.0 * fade + 0.5, Color(Pal.FLAME_CORE, fade), 6)
+		bt.draw(self)
 
 	## The part of a circle above the ground line: an arc and its chord.
-	func _dome(r: float, col: Color) -> void:
+	func _dome(bt: Batch, r: float, col: Color) -> void:
 		if r < 2.0:
 			return
 		var pts := PackedVector2Array()
@@ -353,7 +376,7 @@ class FireBurst extends Node2D:
 			pts.append(Vector2.from_angle(lerpf(a0, a1, float(i) / n)) * r)
 		if r <= GROUND:
 			pts.remove_at(pts.size() - 1)
-		draw_colored_polygon(pts, col)
+		bt.poly(pts, col)
 
 
 ## ================================================================ MOUNTAIN
@@ -376,7 +399,10 @@ class Crag extends StaticBody2D:
 		cs.position = rect.size * 0.5
 		add_child(cs)
 
+	var _bt: Batch
+
 	func _draw() -> void:
+		_bt = Batch.new()
 		var rng := RandomNumberGenerator.new()
 		rng.seed = int(rect.position.x) * 13 + int(rect.position.y)
 		var w := rect.size.x
@@ -390,21 +416,22 @@ class Crag extends StaticBody2D:
 				x -= rng.randf_range(12.0, 22.0)
 				under.append(Vector2(maxf(x, 0.0), h + rng.randf_range(4.0, 20.0) * (1.0 - absf(x / w - 0.5))))
 			under.append(Vector2(0, h))
-			draw_colored_polygon(under, Pal.CRAG_DARK)
+			_bt.poly(under, Pal.CRAG_DARK)
 		else:
-			draw_rect(Rect2(0, 0, w, h), Pal.CRAG_DARK.darkened(0.35))
-			draw_rect(Rect2(0, 0, w, minf(h, 150.0)), Pal.CRAG_DARK)
-		draw_rect(Rect2(0, 0, w, minf(h, 26.0 if thin else 60.0)), Pal.CRAG)
-		draw_rect(Rect2(0, 0, w, 5), Pal.CRAG_LIGHT)
+			_bt.rect(Rect2(0, 0, w, h), Pal.CRAG_DARK.darkened(0.35))
+			_bt.rect(Rect2(0, 0, w, minf(h, 150.0)), Pal.CRAG_DARK)
+		_bt.rect(Rect2(0, 0, w, minf(h, 26.0 if thin else 60.0)), Pal.CRAG)
+		_bt.rect(Rect2(0, 0, w, 5), Pal.CRAG_LIGHT)
 		# strata and cracks
 		var n := int(w / 45.0) + 1
 		for i in n:
 			var cx := rng.randf_range(6.0, maxf(7.0, w - 6.0))
 			var cy := rng.randf_range(10.0, minf(h, 120.0))
-			draw_line(Vector2(cx, cy), Vector2(cx + rng.randf_range(-10.0, 10.0), cy + rng.randf_range(10.0, 30.0)), Pal.CRAG_DARK.darkened(0.2), 2.0, true)
+			_bt.line(Vector2(cx, cy), Vector2(cx + rng.randf_range(-10.0, 10.0), cy + rng.randf_range(10.0, 30.0)), Pal.CRAG_DARK.darkened(0.2), 2.0)
 		# loose stones on the lip
 		for i in int(w / 60.0):
-			draw_circle(Vector2(rng.randf_range(8.0, w - 8.0), -2.0), rng.randf_range(2.0, 4.0), Pal.CRAG_LIGHT.darkened(0.15))
+			_bt.circle(Vector2(rng.randf_range(8.0, w - 8.0), -2.0), rng.randf_range(2.0, 4.0), Pal.CRAG_LIGHT.darkened(0.15))
+		_bt.draw(self)
 
 
 class Boulder extends StaticBody2D:
@@ -423,16 +450,20 @@ class Boulder extends StaticBody2D:
 		cs.position = Vector2(0, -H * 0.5)
 		add_child(cs)
 
+	var _bt: Batch
+
 	func _draw() -> void:
+		_bt = Batch.new()
 		var pts := PackedVector2Array([Vector2(-W * 0.5, 0), Vector2(-W * 0.52, -H * 0.5), Vector2(-W * 0.3, -H * 0.92),
 			Vector2(0, -H), Vector2(W * 0.35, -H * 0.88), Vector2(W * 0.52, -H * 0.45), Vector2(W * 0.5, 0)])
-		draw_colored_polygon(pts, Pal.CRAG_DARK)
+		_bt.poly(pts, Pal.CRAG_DARK)
 		var hi := PackedVector2Array()
 		for p in pts:
 			hi.append(Vector2(p.x * 0.82 - 3.0, p.y * 0.9 - 2.0))
-		draw_colored_polygon(hi, Pal.CRAG)
-		draw_polyline(PackedVector2Array([pts[2], pts[3], pts[4]]), Pal.CRAG_LIGHT, 3.0, true)
-		draw_line(Vector2(-6, -H * 0.6), Vector2(4, -H * 0.3), Pal.CRAG_DARK, 2.0, true)
+		_bt.poly(hi, Pal.CRAG)
+		_bt.polyline(PackedVector2Array([pts[2], pts[3], pts[4]]), Pal.CRAG_LIGHT, 3.0)
+		_bt.line(Vector2(-6, -H * 0.6), Vector2(4, -H * 0.3), Pal.CRAG_DARK, 2.0)
+		_bt.draw(self)
 
 
 class MountainFace extends Node2D:
@@ -440,12 +471,15 @@ class MountainFace extends Node2D:
 	## (cooler and darker than the rock you can stand on).
 	var outline := PackedVector2Array()
 
+	var _bt: Batch
+
 	func _draw() -> void:
-		draw_colored_polygon(outline, Pal.MOUNTAIN_FACE)
+		_bt = Batch.new()
+		_bt.poly(outline, Pal.MOUNTAIN_FACE)
 		var rim := PackedVector2Array()
 		for i in range(1, outline.size() - 1):
 			rim.append(outline[i])
-		draw_polyline(rim, Color(Pal.MOONLIT, 0.35), 3.0, true)
+		_bt.polyline(rim, Color(Pal.MOONLIT, 0.35), 3.0)
 		# gullies down the face, so it never reads as a slope you could walk
 		var x0 := outline[0].x
 		var x1 := outline[outline.size() - 1].x
@@ -453,7 +487,7 @@ class MountainFace extends Node2D:
 		var gi := 0
 		while gx < x1 - 60.0:
 			var y := _surface(gx) + 30.0
-			draw_line(Vector2(gx, y), Vector2(gx + sin(gi * 1.7) * 20.0, y + 260.0 + fmod(gi * 53.0, 200.0)), Color(Pal.CHARCOAL, 0.35), 5.0, true)
+			_bt.line(Vector2(gx, y), Vector2(gx + sin(gi * 1.7) * 20.0, y + 260.0 + fmod(gi * 53.0, 200.0)), Color(Pal.CHARCOAL, 0.35), 5.0)
 			gx += 70.0 + fmod(gi * 37.0, 60.0)
 			gi += 1
 		# strata running across the face
@@ -463,8 +497,8 @@ class MountainFace extends Node2D:
 			for i in 12:
 				var x := outline[0].x + (outline[outline.size() - 1].x - outline[0].x) * i / 11.0
 				line.append(Vector2(x, y + sin(x * 0.004 + k) * 26.0))
-			draw_polyline(line, Color(Pal.NIGHT_NEAR, 0.45), 2.0, true)
-
+			_bt.polyline(line, Color(Pal.NIGHT_NEAR, 0.45), 2.0)
+		_bt.draw(self)
 
 	func _surface(x: float) -> float:
 		for i in range(1, outline.size()):
@@ -580,16 +614,19 @@ class Branch extends StaticBody2D:
 		cs.one_way_collision = true
 		add_child(cs)
 
+	var _bt: Batch
+
 	func _draw() -> void:
+		_bt = Batch.new()
 		var w := rect.size.x
 		var root := 0.0 if root_left else w
 		var tip := w - root
 		var d := 1.0 if root_left else -1.0
 		var body := PackedVector2Array([Vector2(root - d * 12.0, -3), Vector2(tip, 0), Vector2(tip + d * 14.0, 4),
 			Vector2(tip, 9), Vector2(root + (tip - root) * 0.5, 14), Vector2(root - d * 12.0, 24)])
-		draw_colored_polygon(body, Pal.BARK_DARK)
-		draw_colored_polygon(PackedVector2Array([Vector2(root - d * 12.0, -3), Vector2(tip, 0), Vector2(tip, 5), Vector2(root - d * 12.0, 8)]), Pal.BARK)
-		draw_line(Vector2(root, -2), Vector2(tip, 0), Color(Pal.MOONLIT, 0.35), 2.0, true)
+		_bt.poly(body, Pal.BARK_DARK)
+		_bt.poly(PackedVector2Array([Vector2(root - d * 12.0, -3), Vector2(tip, 0), Vector2(tip, 5), Vector2(root - d * 12.0, 8)]), Pal.BARK)
+		_bt.line(Vector2(root, -2), Vector2(tip, 0), Color(Pal.MOONLIT, 0.35), 2.0)
 		# twigs and leaf clusters, mostly toward the tip
 		var rng := RandomNumberGenerator.new()
 		rng.seed = int(rect.position.x) * 3 + int(rect.position.y)
@@ -598,14 +635,38 @@ class Branch extends StaticBody2D:
 			var x := root + (tip - root) * (0.35 + 0.65 * (i + 1.0) / n)
 			var up := rng.randf() < 0.4
 			var end := Vector2(x + d * rng.randf_range(10.0, 30.0), -28.0 if up else 30.0)
-			draw_line(Vector2(x, 4), end, Pal.BARK_DARK, 3.0, true)
+			_bt.line(Vector2(x, 4), end, Pal.BARK_DARK, 3.0)
 			_leaves(end, rng.randf_range(12.0, 20.0), rng)
 		_leaves(Vector2(tip + d * 18.0, 2), 22.0, rng)
+		_bt.draw(self)
 
 	func _leaves(c: Vector2, r: float, rng: RandomNumberGenerator) -> void:
 		for k in 5:
 			var o := Vector2(rng.randf_range(-r, r), rng.randf_range(-r * 0.6, r * 0.6))
-			draw_circle(c + o, r * rng.randf_range(0.45, 0.7), Pal.CANOPY_DARK if k % 2 == 0 else Pal.CANOPY)
+			_bt.circle(c + o, r * rng.randf_range(0.45, 0.7), Pal.CANOPY_DARK if k % 2 == 0 else Pal.CANOPY)
+
+
+class Snag extends Node2D:
+	## A tall dead tree on the far side of the chasm. Its branches (Branch
+	## platforms placed over it) are the way back up to the bough.
+	var height := 640.0
+
+	var _bt: Batch
+
+	func _draw() -> void:
+		_bt = Batch.new()
+		var h := height
+		var body := PackedVector2Array([Vector2(-34, 4), Vector2(-16, -30), Vector2(-12, -h * 0.6), Vector2(-7, -h),
+			Vector2(-1, -h - 22.0), Vector2(5, -h + 6.0), Vector2(10, -h * 0.6), Vector2(15, -30), Vector2(36, 4)])
+		_bt.poly(body, Pal.DEADWOOD_DARK)
+		var lit := PackedVector2Array()
+		for p in body:
+			lit.append(Vector2(p.x * 0.7 + 3.0, p.y))
+		_bt.poly(lit, Pal.DEADWOOD)
+		for k in 4:
+			var x := -5.0 + k * 4.0
+			_bt.line(Vector2(x, -20), Vector2(x * 0.6, -h * (0.5 + k * 0.1)), Pal.DEADWOOD_DARK, 2.0)
+		_bt.draw(self)
 
 
 class GreatTree extends Node2D:
@@ -615,7 +676,10 @@ class GreatTree extends Node2D:
 	var top := -1360.0         ## local y of the top of the trunk
 	var half := 72.0           ## half the trunk's width at the base
 
+	var _bt: Batch
+
 	func _draw() -> void:
+		_bt = Batch.new()
 		var rng := RandomNumberGenerator.new()
 		rng.seed = 42
 		# the crown, behind everything: masses of leaf up the trunk and out over the bough
@@ -626,14 +690,14 @@ class GreatTree extends Node2D:
 			_blob((c[0] as Vector2) + Vector2(24, -30), float(c[1]) * 0.7, Pal.CANOPY, rng)
 		# roots, flaring out like walls
 		for s in [-1.0, 1.0]:
-			draw_colored_polygon(PackedVector2Array([Vector2(s * half * 0.6, -150), Vector2(s * (half + 150.0), 4),
+			_bt.poly(PackedVector2Array([Vector2(s * half * 0.6, -150), Vector2(s * (half + 150.0), 4),
 				Vector2(s * (half + 60.0), 6), Vector2(s * half * 0.4, -40)]), Pal.BARK_DARK)
 		var trunk := PackedVector2Array([Vector2(-half, 4), Vector2(-half * 0.92, -300), Vector2(-half * 0.8, -700),
 			Vector2(-half * 0.62, top), Vector2(half * 0.62, top), Vector2(half * 0.8, -700), Vector2(half * 0.92, -300), Vector2(half, 4)])
-		draw_colored_polygon(trunk, Pal.BARK_DARK)
-		draw_colored_polygon(PackedVector2Array([Vector2(-half * 0.55, 4), Vector2(-half * 0.5, -700), Vector2(-half * 0.3, top),
+		_bt.poly(trunk, Pal.BARK_DARK)
+		_bt.poly(PackedVector2Array([Vector2(-half * 0.55, 4), Vector2(-half * 0.5, -700), Vector2(-half * 0.3, top),
 			Vector2(half * 0.45, top), Vector2(half * 0.62, -700), Vector2(half * 0.7, 4)]), Pal.BARK)
-		draw_line(Vector2(half * 0.9, -20), Vector2(half * 0.6, top), Color(Pal.MOONLIT, 0.3), 3.0, true)
+		_bt.line(Vector2(half * 0.9, -20), Vector2(half * 0.6, top), Color(Pal.MOONLIT, 0.3), 3.0)
 		# bark grooves
 		for i in 9:
 			var x := -half * 0.7 + i * half * 0.17
@@ -641,13 +705,14 @@ class GreatTree extends Node2D:
 			for k in 14:
 				var y := -k * (-top / 13.0)
 				pts.append(Vector2(x * (1.0 - k * 0.025) + sin(k * 1.3 + i) * 4.0, y))
-			draw_polyline(pts, Pal.BARK_DARK, 2.5, true)
+			_bt.polyline(pts, Pal.BARK_DARK, 2.5)
 		# a knot-hole, dark as a cave
-		draw_circle(Vector2(-12, -820), 22.0, Pal.BARK_DARK.darkened(0.4))
-		draw_circle(Vector2(-12, -822), 15.0, Pal.CHARCOAL)
+		_bt.circle(Vector2(-12, -820), 22.0, Pal.BARK_DARK.darkened(0.4))
+		_bt.circle(Vector2(-12, -822), 15.0, Pal.CHARCOAL)
 		# the top of the crown closes over the trunk
 		_blob(Vector2(10, top + 20.0), 150.0, Pal.CANOPY_DARK, rng)
 		_blob(Vector2(-20, top - 10.0), 110.0, Pal.CANOPY, rng)
+		_bt.draw(self)
 
 	func _blob(c: Vector2, r: float, col: Color, rng: RandomNumberGenerator) -> void:
 		var pts := PackedVector2Array()
@@ -655,7 +720,7 @@ class GreatTree extends Node2D:
 			var a := TAU * i / 16.0
 			var rr := r * (0.85 + 0.2 * sin(a * 5.0 + c.x * 0.01) + rng.randf_range(-0.05, 0.05))
 			pts.append(c + Vector2(cos(a) * rr, sin(a) * rr * 0.62))
-		draw_colored_polygon(pts, col)
+		_bt.poly(pts, col)
 
 
 ## ================================================================ BACKGROUND
@@ -665,52 +730,66 @@ class NightSky extends Node2D:
 	var dusk := 1.0
 	var t := 0.0
 
+	var _redraw_in := 0.0
+
 	func _process(delta: float) -> void:
 		t += delta
-		queue_redraw()
+		_redraw_in -= delta
+		if _redraw_in <= 0.0:
+			_redraw_in = 1.0 / 15.0
+			queue_redraw()
+
+	var _bt: Batch
 
 	func _draw() -> void:
+		_bt = Batch.new()
 		var hi := Pal.NIGHT_SKY_HIGH.lerp(Pal.DUSK_HIGH, dusk)
 		var lo := Pal.NIGHT_SKY_LOW.lerp(Pal.DUSK_LOW, dusk)
-		draw_polygon(
-			PackedVector2Array([Vector2(-60, -60), Vector2(1400, -60), Vector2(1400, 840), Vector2(-60, 840)]),
-			PackedColorArray([hi, hi, lo, lo]))
+		_bt.quad(Vector2(-60, -60), Vector2(1400, -60), Vector2(1400, 840), Vector2(-60, 840), hi, PackedColorArray([hi, hi, lo, lo]))
 		var starlight := 1.0 - dusk
 		if starlight > 0.02:
 			for i in 110:
 				var p := Vector2(fmod(i * 197.3, 1340.0) - 30.0, fmod(i * 83.7 + i * i * 0.37, 470.0))
 				var tw := 0.55 + 0.45 * sin(t * (0.8 + fmod(i * 0.37, 1.3)) + i)
-				draw_circle(p, 0.9 + fmod(i * 0.61, 1.1), Color(Pal.STAR, starlight * tw * (0.35 + fmod(i * 0.29, 0.5))))
+				_bt.circle(p, 0.9 + fmod(i * 0.61, 1.1), Color(Pal.STAR, starlight * tw * (0.35 + fmod(i * 0.29, 0.5))), 6)
 		var m := Vector2(1010, 104)
 		for i in 4:
-			draw_circle(m, 58.0 + i * 24.0, Color(Pal.MOON, 0.07 - i * 0.015))
-		draw_circle(m, 42.0, Pal.MOON)
+			_bt.circle(m, 58.0 + i * 24.0, Color(Pal.MOON, 0.07 - i * 0.015))
+		_bt.circle(m, 42.0, Pal.MOON)
 		for c in [[Vector2(-12, -8), 9.0], [Vector2(10, 6), 7.0], [Vector2(4, -16), 4.5], [Vector2(-8, 16), 5.0]]:
-			draw_circle(m + (c[0] as Vector2), float(c[1]), Pal.MOON_SHADE)
+			_bt.circle(m + (c[0] as Vector2), float(c[1]), Pal.MOON_SHADE)
+		_bt.draw(self)
 
 
 class NightRidges extends World.Panorama:
 	## Far mountains, their crests picked out by the moon.
+	var _bt: Batch
+
 	func _draw() -> void:
+		_bt = Batch.new()
 		var keep := seedn
 		_crest(372.0, 92.0, 20.0, Pal.NIGHT_FAR, Pal.NIGHT_FAR_RIM)
 		seedn = keep + 4
 		_crest(452.0, 58.0, 18.0, Pal.NIGHT_MID, Pal.NIGHT_FAR)
 		seedn = keep
+		_bt.draw(self)
 
 	func _crest(base: float, a: float, step: float, body: Color, rim: Color) -> void:
-		strip(base, a, step, body)
+		_bt.poly(strip_pts(base, a, step), body)
 		var top := PackedVector2Array()
 		var x := -20.0
 		while x <= length + 20.0:
 			top.append(Vector2(x, line(x, base, a)))
 			x += step
-		draw_polyline(top, rim, 2.5, true)
+		_bt.polyline(top, rim, 2.5)
 
 
 class PineBand extends World.Panorama:
 	## A far wall of pines. Each tier catches a line of moonlight on the right.
+	var _bt: Batch
+
 	func _draw() -> void:
+		_bt = Batch.new()
 		var x := -40.0
 		var i := 0
 		while x < length + 40.0:
@@ -719,23 +798,27 @@ class PineBand extends World.Panorama:
 			_pine(Vector2(x, base), h, 20.0 + rnd(i + 3) * 16.0, Pal.PINE_DARK if i % 3 == 0 else Pal.PINE)
 			x += 24.0 + rnd(i + 7) * 46.0
 			i += 1
-		strip(552.0, 16.0, 30.0, Pal.PINE_DARK)
+		_bt.poly(strip_pts(552.0, 16.0, 30.0), Pal.PINE_DARK)
+		_bt.draw(self)
 
 	func _pine(at: Vector2, h: float, w: float, col: Color) -> void:
-		draw_line(at, at + Vector2(0, -h * 0.3), Pal.TRUNK_DARK, 4.0)
+		_bt.line(at, at + Vector2(0, -h * 0.3), Pal.TRUNK_DARK, 4.0)
 		for k in 4:
 			var y0 := at.y - h * (0.16 + k * 0.2)
 			var ww := w * (1.0 - k * 0.2)
 			var tip := Vector2(at.x, y0 - h * 0.34)
-			draw_colored_polygon(PackedVector2Array([
+			_bt.poly(PackedVector2Array([
 				Vector2(at.x - ww, y0), tip, Vector2(at.x + ww, y0), Vector2(at.x, y0 - h * 0.05)]), col)
-			draw_line(tip, Vector2(at.x + ww, y0), Color(Pal.MOONLIT, 0.28), 1.5, true)
+			_bt.line(tip, Vector2(at.x + ww, y0), Color(Pal.MOONLIT, 0.28), 1.5)
 
 
 class WoodsBand extends World.Panorama:
 	## The near forest: tall trunks that run up out of the frame, and the odd
 	## dead snag. Nothing here is lit but the moon's edge down their right sides.
+	var _bt: Batch
+
 	func _draw() -> void:
+		_bt = Batch.new()
 		var x := 60.0
 		var i := 0
 		while x < length:
@@ -746,7 +829,8 @@ class WoodsBand extends World.Panorama:
 				_trunk(Vector2(x, base), 26.0 + rnd(i + 2) * 24.0, i)
 			x += 190.0 + rnd(i + 5) * 260.0
 			i += 1
-		strip(578.0, 8.0, 30.0, Pal.NIGHT_NEAR)
+		_bt.poly(strip_pts(578.0, 8.0, 30.0), Pal.NIGHT_NEAR)
+		_bt.draw(self)
 
 	func _trunk(at: Vector2, w: float, k: int) -> void:
 		var lean := (rnd(k + 20) - 0.5) * 40.0
@@ -754,13 +838,13 @@ class WoodsBand extends World.Panorama:
 		var pts := PackedVector2Array([
 			at + Vector2(-w * 1.5, 4), at + Vector2(-w * 0.6, -30), top + Vector2(-w * 0.35, 0),
 			top + Vector2(w * 0.35, 0), at + Vector2(w * 0.6, -30), at + Vector2(w * 1.5, 4)])
-		draw_colored_polygon(pts, Pal.NIGHT_NEAR)
-		draw_line(at + Vector2(w * 0.55, -30), top + Vector2(w * 0.33, 0), Color(Pal.MOONLIT, 0.30), 2.0, true)
+		_bt.poly(pts, Pal.NIGHT_NEAR)
+		_bt.line(at + Vector2(w * 0.55, -30), top + Vector2(w * 0.33, 0), Color(Pal.MOONLIT, 0.30), 2.0)
 		for b in 2:
 			var y := -260.0 - rnd(k + b * 7) * 260.0
 			var s := -1.0 if (k + b) % 2 == 0 else 1.0
 			var root := at + Vector2(lean * (-y / 1100.0), y)
-			draw_line(root, root + Vector2(s * (60.0 + rnd(k + b) * 50.0), -50.0 - rnd(k + 3 + b) * 40.0), Pal.NIGHT_NEAR, 6.0, true)
+			_bt.line(root, root + Vector2(s * (60.0 + rnd(k + b) * 50.0), -50.0 - rnd(k + 3 + b) * 40.0), Pal.NIGHT_NEAR, 6.0)
 
 	func _snag(at: Vector2, h: float, k: int) -> void:
 		var w := 20.0 + rnd(k + 4) * 10.0
@@ -768,5 +852,5 @@ class WoodsBand extends World.Panorama:
 			at + Vector2(-w, 4), at + Vector2(-w * 0.5, -h * 0.9), at + Vector2(-w * 0.2, -h),
 			at + Vector2(w * 0.1, -h * 0.86), at + Vector2(w * 0.4, -h * 0.97), at + Vector2(w * 0.55, -h * 0.8),
 			at + Vector2(w, 4)])
-		draw_colored_polygon(pts, Pal.NIGHT_NEAR)
-		draw_line(at + Vector2(w * 0.55, -h * 0.8), at + Vector2(w, 4), Color(Pal.MOONLIT, 0.30), 2.0, true)
+		_bt.poly(pts, Pal.NIGHT_NEAR)
+		_bt.line(at + Vector2(w * 0.55, -h * 0.8), at + Vector2(w, 4), Color(Pal.MOONLIT, 0.30), 2.0)

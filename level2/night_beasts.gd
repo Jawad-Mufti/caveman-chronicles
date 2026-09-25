@@ -417,15 +417,16 @@ class Monkey extends Area2D:
 	## Walk past and it gives you a look. Crowd it, bump it, hit it, or light
 	## a fire near it and it shrieks, the troop shrieks with it, and they pelt
 	## him with bananas. A banana that hits hurts; one that misses is food.
+	## Three hits kill one (a fire burst, all at once); it drops its banana.
 	signal shrieked
-	signal gem_dropped(gem: World.Gem)
+	signal died
 	const ANNOY_AT := 1.2
 	const THROWS := 2          ## per outburst; it keeps having outbursts while he stays close
 	var perch_y := 0.0
-	var has_gem := false       ## the one at the top: turning the level's gem over in its hands
 	var hanging := false       ## hangs by its tail under the branch instead of sitting on it
 	var habit := 0             ## 0 eats; 1 scratches between bites
-	var state := "calm"        ## calm shriek throw sulk
+	var state := "calm"        ## calm shriek throw sulk dead
+	var hits := 3
 	var t := 0.0
 	var timer := 0.0
 	var annoy := 0.0
@@ -433,11 +434,13 @@ class Monkey extends Area2D:
 	var throws := 0
 	var dir := 1
 	var vy := 0.0
+	var vx := 0.0
 	var hop_at := -1.0
 	var eat := 0.0             ## 0..1 through a banana
 	var stare := 0.0
 	var wave := 0.0
 	var flash := 0.0
+	var dying := 0.0
 	var player: CaveMan
 	var _touching := false
 	var _p_floor := true
@@ -452,23 +455,39 @@ class Monkey extends Area2D:
 		cs.shape = c
 		cs.position = Vector2(0, 20 if hanging else -18)
 		add_child(cs)
-		body_entered.connect(func(b: Node) -> void:
-			if b is CaveMan:
-				_touching = true)
-		body_exited.connect(func(b: Node) -> void:
-			if b is CaveMan:
-				_touching = false)
+		body_entered.connect(_on_enter)
+		body_exited.connect(_on_leave)
 		perch_y = position.y
 		t = randf() * 10.0
 		eat = randf()
 		add_to_group("monkeys")
-		add_to_group("glow")
 
-	func take_hit(_dmg: int, _from_dir: int) -> void:
+	func _on_enter(b: Node) -> void:
+		if b is CaveMan:
+			_touching = true
+
+	func _on_leave(b: Node) -> void:
+		if b is CaveMan:
+			_touching = false
+
+	func take_hit(_dmg: int, from_dir: int) -> void:
+		if dying > 0.0:
+			return
+		hits -= 1
 		flash = 0.12
+		if hits <= 0:
+			_die(from_dir)
+			return
 		if not hanging and vy == 0.0:
 			vy = -260.0
 		bother()
+
+	## Caught inside a fire burst.
+	func burn() -> void:
+		if dying > 0.0:
+			return
+		hits = 0
+		_die(1 if player == null or player.global_position.x < global_position.x else -1)
 
 	func scare(_from: Vector2) -> void:
 		bother()
@@ -486,11 +505,38 @@ class Monkey extends Area2D:
 			if m != self and m.state == "calm" and (m as Node2D).global_position.distance_to(global_position) < 280.0:
 				get_tree().create_timer(randf_range(0.15, 0.4)).timeout.connect(m.bother)
 
+	func _die(from_dir: int) -> void:
+		state = "dead"
+		dying = 1.2
+		vy = -240.0
+		vx = from_dir * 80.0
+		hanging = false
+		set_deferred("monitoring", false)
+		set_deferred("monitorable", false)
+		remove_from_group("monkeys")
+		# its banana stays on the branch
+		if bananas > 0:
+			var b := BananaPickup.new()
+			b.position = Vector2(position.x, perch_y)
+			get_parent().call_deferred("add_child", b)
+		died.emit()
+
 	func _physics_process(delta: float) -> void:
 		t += delta
 		timer = maxf(timer - delta, 0.0)
 		flash = maxf(flash - delta, 0.0)
 		wave = maxf(wave - delta, 0.0)
+		if dying > 0.0:
+			# off the branch, tumbling
+			dying -= delta
+			vy += 1500.0 * delta
+			position += Vector2(vx, vy) * delta
+			rotation += 6.0 * delta * signf(vx if vx != 0.0 else 1.0)
+			modulate.a = clampf(dying / 0.6, 0.0, 1.0)
+			queue_redraw()
+			if dying <= 0.0:
+				queue_free()
+			return
 		if not hanging and (vy != 0.0 or position.y < perch_y):
 			vy += 1500.0 * delta
 			position.y += vy * delta
@@ -521,7 +567,7 @@ class Monkey extends Area2D:
 					timer = 0.1
 			"throw":
 				if timer <= 0.0:
-					if throws < THROWS and (has_gem or bananas > 0) and dist < 700.0:
+					if throws < THROWS and bananas > 0 and dist < 700.0:
 						_throw()
 						throws += 1
 						timer = 0.9
@@ -548,7 +594,7 @@ class Monkey extends Area2D:
 		# his torch is the most interesting thing that has ever been in this tree
 		var near_torch := player.has_torch and player.torch_fuel > 0.0 and dist < 170.0
 		stare = move_toward(stare, 1.0 if near_torch else 0.0, delta * 3.0)
-		if stare < 0.5 and not has_gem:
+		if stare < 0.5:
 			eat = fmod(eat + delta / (6.0 if habit == 0 else 9.0), 1.0)
 		if dist < 420.0:
 			if _p_floor and not player.is_on_floor() and player.velocity.y < -300.0:
@@ -563,62 +609,78 @@ class Monkey extends Area2D:
 	func _throw() -> void:
 		var from := global_position + Vector2(dir * 8.0, 12.0 if hanging else -30.0)
 		wave = 0.3
-		if has_gem:
-			has_gem = false
-			var g := GemThrow.new()
-			g.setup(from, player.global_position)
-			g.monkey = self
-			get_parent().add_child(g)
-		else:
-			bananas -= 1
-			var b := BananaThrow.new()
-			b.setup(from, player.global_position)
-			get_parent().add_child(b)
+		bananas -= 1
+		var b := BananaThrow.new()
+		b.setup(from, player.global_position)
+		get_parent().add_child(b)
 
 	## ------------------------------------------------------------ drawing
 	## Designed sitting, facing right, origin where it sits on the branch.
 	## Hanging is the same monkey turned upside down under the branch.
 	func _draw() -> void:
-		var f := float(dir)
+		MonkeyArt.draw_monkey(self, {
+			"dir": dir, "t": t, "state": state, "hanging": hanging, "habit": habit,
+			"eat": eat, "stare": stare, "wave": wave, "flash": flash,
+			"fur": Pal.MONKEY, "dark": Pal.MONKEY_DARK, "face": Pal.MONKEY_FACE})
+
+
+class MonkeyArt extends RefCounted:
+	## The monkey drawing, shared by the troop and by Old Bongo (who adds a
+	## beard, a crown and a gem to it). Draws into `c` in the monkey's own space.
+	static func draw_monkey(c: CanvasItem, o: Dictionary) -> void:
+		var f := float(o["dir"])
+		var t: float = o["t"]
+		var state: String = o["state"]
+		var hanging: bool = o["hanging"]
+		var eat: float = o["eat"]
+		var stare: float = o["stare"]
+		var wave: float = o["wave"]
+		var fur: Color = o["fur"]
+		var dark: Color = o["dark"]
+		var face: Color = o["face"]
+		var sc: float = o.get("scale", 1.0)
+		var holding: String = o.get("holding", "banana")    # banana, gem, none
+		var talking: bool = o.get("talking", false)
 		var shake := Vector2(sin(t * 55.0) * 1.5, 0) if state == "shriek" else Vector2.ZERO
 		if hanging:
-			draw_set_transform(shake + Vector2(sin(t * 1.3) * 3.0, 0), PI + sin(t * 1.3) * 0.08, Vector2(-f, 1))
+			c.draw_set_transform(shake + Vector2(sin(t * 1.3) * 3.0, 0), PI + sin(t * 1.3) * 0.08, Vector2(-f, 1) * sc)
 		else:
-			draw_set_transform(shake, 0.0, Vector2(f, 1))
-		var dark := Pal.MONKEY_DARK
+			c.draw_set_transform(shake, 0.0, Vector2(f, 1) * sc)
 		# tail: hangs below the branch and curls
 		var sw := sin(t * 1.7) * 3.0
-		draw_polyline(PackedVector2Array([Vector2(-7, -6), Vector2(-14, -1), Vector2(-17, 9 + sw), Vector2(-14, 20 + sw),
+		c.draw_polyline(PackedVector2Array([Vector2(-7, -6), Vector2(-14, -1), Vector2(-17, 9 + sw), Vector2(-14, 20 + sw),
 			Vector2(-8, 25 + sw), Vector2(-4, 21 + sw), Vector2(-7, 16 + sw)]), dark, 3.5, true)
 		# legs folded, feet over the edge
-		draw_circle(Vector2(-4, -4), 6.5, dark)
-		draw_circle(Vector2(7, -4), 6.0, dark)
-		draw_circle(Vector2(10, 0), 3.0, Pal.MONKEY_FACE)
+		c.draw_circle(Vector2(-4, -4), 6.5, dark)
+		c.draw_circle(Vector2(7, -4), 6.0, dark)
+		c.draw_circle(Vector2(10, 0), 3.0, face)
 		# body
 		var bob := sin(t * 2.0) * 0.8
-		_oval(Vector2(0, -15 + bob), 10.0, 13.0, Pal.MONKEY)
-		_oval(Vector2(2.5, -13 + bob), 5.5, 8.0, Pal.MONKEY_FACE.darkened(0.15))
+		_oval(c, Vector2(0, -15 + bob), 10.0, 13.0, fur)
+		_oval(c, Vector2(2.5, -13 + bob), 5.5, 8.0, face.darkened(0.15))
 		# head
 		var head := Vector2(3, -32 + bob)
 		if stare > 0.0:
 			head += Vector2(2, -1) * stare
-		draw_circle(head + Vector2(-9, -1), 4.0, dark)
-		draw_circle(head + Vector2(10, -2), 4.0, dark)
-		draw_circle(head + Vector2(-9, -1), 2.0, Pal.MONKEY_FACE)
-		draw_circle(head, 9.5, Pal.MONKEY)
-		_oval(head + Vector2(1.5, 2), 6.5, 6.0, Pal.MONKEY_FACE)
+		c.draw_circle(head + Vector2(-9, -1), 4.0, dark)
+		c.draw_circle(head + Vector2(10, -2), 4.0, dark)
+		c.draw_circle(head + Vector2(-9, -1), 2.0, face)
+		c.draw_circle(head, 9.5, fur)
+		_oval(c, head + Vector2(1.5, 2), 6.5, 6.0, face)
 		var er := 1.6 + stare * 0.8
-		draw_circle(head + Vector2(-1, -0.5), er, Pal.OUTLINE)
-		draw_circle(head + Vector2(4, -0.5), er, Pal.OUTLINE)
-		# mouth: shrieking, chewing, or shut
-		var chewing := state == "calm" and eat > 0.35 and eat < 0.95 and stare < 0.5 and not has_gem
+		c.draw_circle(head + Vector2(-1, -0.5), er, Pal.OUTLINE)
+		c.draw_circle(head + Vector2(4, -0.5), er, Pal.OUTLINE)
+		# mouth: shrieking, talking, chewing, or shut
+		var chewing := state == "calm" and holding == "banana" and eat > 0.35 and eat < 0.95 and stare < 0.5
 		if state == "shriek" or state == "throw":
-			_oval(head + Vector2(2, 5.5), 3.8, 3.5, Pal.MAW)
-			draw_line(head + Vector2(-0.5, 3), head + Vector2(4.5, 3), Pal.TOOTH, 1.5)
+			_oval(c, head + Vector2(2, 5.5), 3.8, 3.5, Pal.MAW)
+			c.draw_line(head + Vector2(-0.5, 3), head + Vector2(4.5, 3), Pal.TOOTH, 1.5)
+		elif talking:
+			_oval(c, head + Vector2(2, 5.5), 2.8, 1.0 + absf(sin(t * 16.0)) * 2.2, Pal.MAW)
 		elif chewing:
-			draw_line(head + Vector2(0, 5 + sin(t * 14.0)), head + Vector2(4, 5), Pal.OUTLINE, 1.5, true)
+			c.draw_line(head + Vector2(0, 5 + sin(t * 14.0)), head + Vector2(4, 5), Pal.OUTLINE, 1.5, true)
 		else:
-			draw_line(head + Vector2(0, 5), head + Vector2(4, 5), Pal.OUTLINE, 1.2, true)
+			c.draw_line(head + Vector2(0, 5), head + Vector2(4, 5), Pal.OUTLINE, 1.2, true)
 		# arms, by what it is doing
 		var sh_b := Vector2(-5, -22 + bob)
 		var sh_f := Vector2(7, -22 + bob)
@@ -636,51 +698,61 @@ class Monkey extends Area2D:
 				hb = Vector2(4, -17)
 				hf = Vector2(0, -16)
 			_:
-				if has_gem:
+				if holding == "gem":
 					var turn := sin(t * 1.2) * 3.0
-					hb = Vector2(0 + turn, -50)
-					hf = Vector2(9 + turn, -50)
+					hf = Vector2(14 + turn, -40)
 				elif wave > 0.0:
 					hf = Vector2(12, -46)
 				elif stare > 0.3:
 					hf = Vector2(12, -22).lerp(Vector2(20, -28), stare)
-				elif habit == 1 and fmod(t, 7.0) < 1.6:
+				elif int(o["habit"]) == 1 and fmod(t, 7.0) < 1.6:
 					hb = Vector2(-7, -42 + sin(t * 16.0) * 2.0)
-				if eat < 0.95 and not has_gem and stare < 0.3:
+				if holding == "banana" and eat < 0.95 and stare < 0.3:
 					if eat > 0.3:
 						hf = head + Vector2(6, 6)
 					banana_at = hf
 		for a in [[sh_b, hb], [sh_f, hf]]:
 			var s0: Vector2 = a[0]
 			var s1: Vector2 = a[1]
-			draw_line(s0, s1, dark, 3.5, true)
-			draw_circle(s1, 2.6, Pal.MONKEY_FACE)
+			c.draw_line(s0, s1, dark, 3.5, true)
+			c.draw_circle(s1, 2.6, face)
 		if banana_at != Vector2.INF:
 			var left := 1.0 if eat < 0.3 else clampf(1.0 - (eat - 0.3) / 0.65, 0.15, 1.0)
-			_banana(banana_at + Vector2(1, -4), left, eat > 0.15)
-		if has_gem and state == "calm":
-			var g := (hb + hf) * 0.5 + Vector2(0, -6)
-			draw_colored_polygon(PackedVector2Array([g + Vector2(-5, 0), g + Vector2(0, -6), g + Vector2(5, 0), g + Vector2(0, 7)]), Pal.GEM)
-			draw_colored_polygon(PackedVector2Array([g + Vector2(-5, 0), g + Vector2(0, -6), g + Vector2(0, 0)]), Pal.GEM_LIGHT)
-		if flash > 0.0:
-			draw_circle(Vector2(0, -20), 20.0, Color(1, 1, 1, 0.5))
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			banana(c, banana_at + Vector2(1, -4), left, eat > 0.15)
+		if holding == "gem" and state == "calm":
+			var g := hf + Vector2(1, -6)
+			c.draw_colored_polygon(PackedVector2Array([g + Vector2(-5, 0), g + Vector2(0, -6), g + Vector2(5, 0), g + Vector2(0, 7)]), Pal.GEM)
+			c.draw_colored_polygon(PackedVector2Array([g + Vector2(-5, 0), g + Vector2(0, -6), g + Vector2(0, 0)]), Pal.GEM_LIGHT)
+		if o.get("elder", false):
+			# white beard and brows, and a crown of leaves
+			c.draw_colored_polygon(PackedVector2Array([head + Vector2(-5, 5), head + Vector2(8, 5), head + Vector2(5, 17),
+				head + Vector2(1.5, 20), head + Vector2(-2, 16)]), Pal.BONE)
+			c.draw_line(head + Vector2(-4, -4), head + Vector2(1, -3), Pal.BONE, 2.2, true)
+			c.draw_line(head + Vector2(3, -3), head + Vector2(7, -4), Pal.BONE, 2.2, true)
+			for k in 5:
+				var a := -2.6 + k * 0.42
+				var lp := head + Vector2.from_angle(a) * 9.5
+				c.draw_colored_polygon(PackedVector2Array([lp + Vector2.from_angle(a + 1.2) * 2.5, lp + Vector2.from_angle(a) * 7.0,
+					lp - Vector2.from_angle(a + 1.2) * 2.5]), Pal.CANOPY.lightened(0.25) if k % 2 == 0 else Pal.FROND_LIGHT)
+		if float(o["flash"]) > 0.0:
+			c.draw_circle(Vector2(0, -20), 20.0, Color(1, 1, 1, 0.5))
+		c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		# what it screams, the right way round whatever way it faces
 		if state == "shriek" or (state == "throw" and wave > 0.0):
 			var font := ThemeDB.fallback_font
 			var word := "EEK! EEK!" if state == "shriek" else "OOK!"
 			var at := Vector2(-26, 58 if hanging else -58) + Vector2(0, sin(t * 20.0) * 2.0)
-			draw_string(font, at, word, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Pal.BONE)
+			c.draw_string(font, at, word, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Pal.BONE)
 
-	func _oval(c: Vector2, rx: float, ry: float, col: Color) -> void:
+	static func _oval(c: CanvasItem, at: Vector2, rx: float, ry: float, col: Color) -> void:
 		var pts := PackedVector2Array()
 		for i in 14:
 			var a := TAU * i / 14.0
-			pts.append(c + Vector2(cos(a) * rx, sin(a) * ry))
-		draw_colored_polygon(pts, col)
+			pts.append(at + Vector2(cos(a) * rx, sin(a) * ry))
+		c.draw_colored_polygon(pts, col)
 
 	## A banana in the hand: `left` is how much is still uneaten.
-	func _banana(at: Vector2, left: float, peeled: bool) -> void:
+	static func banana(c: CanvasItem, at: Vector2, left: float, peeled: bool) -> void:
 		var pts := PackedVector2Array()
 		var span := 1.1 * left
 		for i in 7:
@@ -689,18 +761,85 @@ class Monkey extends Area2D:
 		for i in 7:
 			var a := -PI * 0.5 + span * 0.5 - span * i / 6.0
 			pts.append(at + Vector2(10, 12) + Vector2.from_angle(a) * 10.0)
-		draw_colored_polygon(pts, Pal.BANANA_DARK if peeled else Pal.BANANA)
+		c.draw_colored_polygon(pts, Pal.BANANA_DARK if peeled else Pal.BANANA)
 		if peeled:
-			# the pale fruit on top, the peel flaps hanging down
-			draw_circle(pts[6], 3.0, Pal.BONE)
+			c.draw_circle(pts[6], 3.0, Pal.BONE)
 			for k in 3:
-				draw_line(pts[0] + Vector2(0, 2), pts[0] + Vector2(-4 + k * 4, 9), Pal.BANANA, 2.0, true)
+				c.draw_line(pts[0] + Vector2(0, 2), pts[0] + Vector2(-4 + k * 4, 9), Pal.BANANA, 2.0, true)
 
-	## The gem glints through the dark, so it can be spotted from the bough below.
+
+class Elder extends Area2D:
+	## Old Bongo, king of the great tree. Bigger, greyer, bearded, crowned with
+	## leaves — and the only animal in the woods that talks. He sits by his
+	## locked banana box turning the shiny stone over in his fingers.
+	## He cannot be hurt. Only offended.
+	signal poked
+	const SIZE := 1.6
+	var t := 0.0
+	var dir := -1
+	var has_gem := true
+	var box_open := false
+	var speaking := false
+	var flash := 0.0
+	var player: CaveMan
+
+	func _ready() -> void:
+		collision_layer = 4    # so a club or a rock finds him (and he can complain)
+		collision_mask = 0
+		monitoring = false
+		var cs := CollisionShape2D.new()
+		var c := CircleShape2D.new()
+		c.radius = 30.0
+		cs.shape = c
+		cs.position = Vector2(0, -34)
+		add_child(cs)
+		add_to_group("glow")
+
+	func take_hit(_dmg: int, _from_dir: int) -> void:
+		flash = 0.12
+		poked.emit()
+
+	func open_box() -> void:
+		box_open = true
+
+	func _process(delta: float) -> void:
+		t += delta
+		flash = maxf(flash - delta, 0.0)
+		if player != null and absf(player.global_position.x - global_position.x) < 500.0:
+			dir = 1 if player.global_position.x > global_position.x else -1
+		if NightWoods.near_view(self):
+			queue_redraw()
+
+	func _draw() -> void:
+		# the banana box beside him: a crate bound with vine, a stone lock
+		var bx := Vector2(-58, 0)
+		var lid := 0.0 if not box_open else -0.9
+		draw_rect(Rect2(bx + Vector2(-26, -34), Vector2(52, 34)), Pal.BARK_DARK)
+		draw_rect(Rect2(bx + Vector2(-23, -31), Vector2(46, 28)), Pal.BARK)
+		for k in 3:
+			draw_line(bx + Vector2(-23 + k * 23, -31), bx + Vector2(-23 + k * 23, -3), Pal.BARK_DARK, 2.0)
+		if box_open:
+			for k in 4:
+				MonkeyArt.banana(self, bx + Vector2(-20 + k * 9, -44 + (k % 2) * 3), 1.0, false)
+		draw_set_transform(bx + Vector2(-26, -34), lid, Vector2.ONE)
+		draw_rect(Rect2(Vector2(0, -7), Vector2(54, 8)), Pal.BARK_DARK)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		if not box_open:
+			draw_line(bx + Vector2(-26, -20), bx + Vector2(26, -20), Pal.VINE, 3.0)
+			draw_circle(bx + Vector2(0, -20), 7.0, Pal.CRAG_DARK)
+			draw_circle(bx + Vector2(0, -20), 5.0, Pal.CRAG)
+			draw_rect(Rect2(bx + Vector2(-1, -22), Vector2(2, 5)), Pal.CHARCOAL)
+		MonkeyArt.draw_monkey(self, {
+			"dir": dir, "t": t, "state": "calm", "hanging": false, "habit": 0,
+			"eat": 1.0, "stare": 0.0, "wave": 0.0, "flash": flash, "scale": SIZE, "elder": true,
+			"holding": "gem" if has_gem else "none", "talking": speaking,
+			"fur": Pal.ELDER, "dark": Pal.ELDER_DARK, "face": Pal.ELDER_FACE})
+
+	## The gem shows through the dark, so it can be spotted from below.
 	func draw_glow(g: Node2D) -> void:
 		if not has_gem:
 			return
-		var c := global_position + Vector2(dir * 5.0, -58.0)
+		var c := global_position + Vector2(dir * 24.0, -76.0)
 		var s := absf(sin(t * 1.3))
 		g.draw_circle(c, 10.0 + s * 6.0, Color(Pal.GEM_LIGHT, 0.12 + 0.12 * s))
 		if s > 0.7:
@@ -734,10 +873,12 @@ class Thrown extends Area2D:
 		c.radius = 11.0
 		cs.shape = c
 		add_child(cs)
-		body_entered.connect(func(b: Node) -> void:
-			if not done and b is CaveMan:
-				done = true
-				_hit(b as CaveMan))
+		body_entered.connect(_on_body)
+
+	func _on_body(b: Node) -> void:
+		if not done and b is CaveMan:
+			done = true
+			_hit(b as CaveMan)
 
 	func _physics_process(delta: float) -> void:
 		if done:
@@ -750,6 +891,7 @@ class Thrown extends Area2D:
 			return
 		position = p0 + v0 * t + Vector2(0, 0.5 * G * t * t)
 		rotation += 11.0 * delta
+		queue_redraw()
 
 	func _hit(_man: CaveMan) -> void:
 		call_deferred("queue_free")
@@ -769,9 +911,6 @@ class BananaThrow extends Thrown:
 		get_parent().call_deferred("add_child", b)
 		call_deferred("queue_free")
 
-	func _process(_delta: float) -> void:
-		queue_redraw()
-
 	func _draw() -> void:
 		var pts := PackedVector2Array()
 		for i in 7:
@@ -781,41 +920,8 @@ class BananaThrow extends Thrown:
 		draw_colored_polygon(pts, Pal.BANANA)
 
 
-class GemThrow extends Thrown:
-	var monkey: Monkey
-
-	func _hit(man: CaveMan) -> void:
-		_drop(man.global_position)
-
-	func _land() -> void:
-		_drop(p1 + Vector2(0, 6))
-
-	## It comes to rest on whatever is below where it arrived — never in mid-air,
-	## never lost down the chasm (then it bounces back to the monkey's branch).
-	func _drop(at: Vector2) -> void:
-		var q := PhysicsRayQueryParameters2D.create(at + Vector2(0, -12), at + Vector2(0, 700), 1)
-		var hit := get_world_2d().direct_space_state.intersect_ray(q)
-		if hit.is_empty() and monkey != null:
-			at = monkey.global_position + Vector2(-30.0 * monkey.dir, 0)
-		elif not hit.is_empty():
-			at = hit["position"]
-		var g := World.Gem.new()
-		g.position = at
-		if monkey != null:
-			monkey.gem_dropped.emit(g)
-		get_parent().call_deferred("add_child", g)
-		call_deferred("queue_free")
-
-	func _process(_delta: float) -> void:
-		queue_redraw()
-
-	func _draw() -> void:
-		draw_colored_polygon(PackedVector2Array([Vector2(-7, 0), Vector2(0, -8), Vector2(7, 0), Vector2(0, 10)]), Pal.GEM)
-		draw_colored_polygon(PackedVector2Array([Vector2(-7, 0), Vector2(0, -8), Vector2(0, 0)]), Pal.GEM_LIGHT)
-
-
 class BananaPickup extends Area2D:
-	## A banana that missed him. Food: it counts as a berry.
+	## A banana that missed him, or that a monkey dropped. Food: counts as a berry.
 	var t := 0.0
 
 	func _ready() -> void:
@@ -827,14 +933,17 @@ class BananaPickup extends Area2D:
 		cs.shape = c
 		cs.position = Vector2(0, -8)
 		add_child(cs)
-		body_entered.connect(func(b: Node) -> void:
-			if b is CaveMan and (b as CaveMan).add_berry():
-				set_deferred("monitoring", false)
-				call_deferred("queue_free"))
+		body_entered.connect(_on_body)
+
+	func _on_body(b: Node) -> void:
+		if b is CaveMan and (b as CaveMan).add_berry():
+			set_deferred("monitoring", false)
+			call_deferred("queue_free")
 
 	func _process(delta: float) -> void:
 		t += delta
-		queue_redraw()
+		if NightWoods.near_view(self):
+			queue_redraw()
 
 	func _draw() -> void:
 		var pulse := 0.5 + 0.5 * sin(t * 2.4)

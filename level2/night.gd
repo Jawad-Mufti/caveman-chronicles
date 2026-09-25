@@ -16,6 +16,11 @@ extends Node
 ## light is still mostly light, not where its fade finally reaches the dark.
 const EDGE := 0.85
 const MAX_LIGHTS := 12
+## The dark is soft gradients all the way through, so it is worked out on a
+## small image and smoothed up to the screen: the shader runs for 57,600
+## pixels instead of one per screen pixel (0.9 million at 720p, 3.7 million at
+## 1440p), and its cost no longer grows with the window.
+const DARK_RES := Vector2i(320, 180)
 
 const SHADER := """
 shader_type canvas_item;
@@ -23,6 +28,7 @@ render_mode blend_premul_alpha, unshaded;
 
 uniform vec2 view_size = vec2(1280.0, 720.0);
 uniform float ambient = 0.7;
+uniform float sky_lift = 1.0;
 uniform vec4 dark_col : source_color = vec4(0.043, 0.067, 0.133, 1.0);
 uniform vec4 warm_col : source_color = vec4(0.95, 0.56, 0.24, 1.0);
 uniform int count = 0;
@@ -45,7 +51,7 @@ void fragment() {
 		warm += l.w * (1.0 - smoothstep(0.0, l.z, d));
 	}
 	// moonlight from above: the top of the screen is never quite as dark
-	float sky = mix(0.72, 1.0, smoothstep(0.0, 0.62, UV.y));
+	float sky = mix(1.0 - 0.28 * sky_lift, 1.0, smoothstep(0.0, 0.62, UV.y));
 	float a = ambient * sky * (1.0 - lit);
 	float w = min(warm, 1.0) * 0.16;
 	COLOR = vec4(dark_col.rgb * a + warm_col.rgb * w, a);
@@ -62,6 +68,8 @@ var player: CaveMan
 ## The moon is a light too: a small hole in the dark at a fixed spot on screen.
 var moon := Vector2(1010, 104)
 var moon_r := 70.0
+## Moonlight from above: 1 outdoors, 0 underground.
+var sky_lift := 1.0
 
 var _mat: ShaderMaterial
 var _rect: ColorRect
@@ -74,18 +82,38 @@ func _ready() -> void:
 	add_to_group("night")
 	process_physics_priority = -100
 
-	var dark := CanvasLayer.new()
-	dark.layer = 3
-	add_child(dark)
+	# the dark is drawn small, off screen...
+	var small := SubViewport.new()
+	small.size = DARK_RES
+	small.transparent_bg = true
+	small.disable_3d = true
+	small.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(small)
 	_rect = ColorRect.new()
-	_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_rect.size = Vector2(DARK_RES)
 	_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sh := Shader.new()
 	sh.code = SHADER
 	_mat = ShaderMaterial.new()
 	_mat.shader = sh
 	_rect.material = _mat
-	dark.add_child(_rect)
+	small.add_child(_rect)
+	# ...and laid over the whole screen, smoothed. It holds premultiplied
+	# colour, so it is blended that way.
+	var dark := CanvasLayer.new()
+	dark.layer = 3
+	add_child(dark)
+	var shown := TextureRect.new()
+	shown.texture = small.get_texture()
+	shown.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shown.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	shown.stretch_mode = TextureRect.STRETCH_SCALE
+	shown.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	shown.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var blend := CanvasItemMaterial.new()
+	blend.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
+	shown.material = blend
+	dark.add_child(shown)
 
 	# Above the dark, but moving with the world: eyes, embers, fireflies.
 	var glow := CanvasLayer.new()
@@ -146,7 +174,7 @@ func _process(_delta: float) -> void:
 		ambient = clampf(darkness_at(player.global_position.x) + extra, 0.0, 0.97)
 	var xf := get_viewport().get_canvas_transform()
 	var zoom := xf.get_scale().x
-	var view := _rect.size
+	var view := get_viewport().get_visible_rect().size
 	var packed: Array[Vector4] = []
 	packed.append(Vector4(moon.x, moon.y, moon_r, 0.0))
 	for l in _l:
@@ -162,6 +190,7 @@ func _process(_delta: float) -> void:
 		packed.append(Vector4.ZERO)
 	_mat.set_shader_parameter("view_size", view)
 	_mat.set_shader_parameter("ambient", ambient)
+	_mat.set_shader_parameter("sky_lift", sky_lift)
 	_mat.set_shader_parameter("count", used)
 	_mat.set_shader_parameter("lights", packed)
 

@@ -21,6 +21,8 @@ var _hits: Control
 var _berries: Control
 var _boss: Control
 var _torch: Control
+var _quest: Label
+var _fade: ColorRect
 
 
 func _ready() -> void:
@@ -67,6 +69,21 @@ func _ready() -> void:
 	_msg.add_theme_color_override("font_color", Pal.BONE)
 	add_child(_msg)
 
+	# what he is trying to do right now, top right
+	_quest = Label.new()
+	_quest.position = Vector2(760, 14)
+	_quest.size = Vector2(500, 30)
+	_quest.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_quest.add_theme_font_size_override("font_size", 17)
+	_quest.add_theme_color_override("font_color", Pal.BONE)
+	add_child(_quest)
+
+	_fade = ColorRect.new()
+	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fade.color = Color(0, 0, 0, 0)
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_fade)
+
 
 func _process(delta: float) -> void:
 	if msg_time > 0.0:
@@ -82,6 +99,20 @@ func _process(delta: float) -> void:
 func say(text: String, seconds: float = 4.0) -> void:
 	_msg.text = text
 	msg_time = seconds
+
+
+func set_quest(text: String) -> void:
+	_quest.text = text
+
+
+## Fade to black, run `between` while the screen is black, fade back in.
+## For doorways: whatever jumps in between is never seen.
+func through_black(between: Callable, time: float = 0.25) -> void:
+	var tw := create_tween()
+	tw.tween_property(_fade, "color:a", 1.0, time)
+	tw.tween_callback(between)
+	tw.tween_interval(0.1)
+	tw.tween_property(_fade, "color:a", 0.0, time)
 
 
 func set_hp(value: int) -> void:
