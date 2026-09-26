@@ -22,11 +22,22 @@ var has_checkpoint := false
 var checkpoint := Vector2.ZERO
 
 
+## Is this node near what the camera can see? Things that animate only need
+## redrawing (or moving) then.
+static func near_view(n: Node2D, margin: float = 800.0) -> bool:
+	var cam := n.get_viewport().get_camera_2d()
+	if cam == null:
+		return true
+	var c := cam.get_screen_center_position()
+	return absf(n.global_position.x - c.x) < margin + 640.0 and absf(n.global_position.y - c.y) < margin + 360.0
+
+
 func _build_player(start: Vector2) -> void:
 	player = CaveMan.new()
 	player.position = start
 	last_safe = start
 	add_child(player)
+	GameState.apply_to(player)
 
 	cam = Camera2D.new()
 	cam.limit_left = 0
@@ -51,6 +62,9 @@ func _build_hud(with_fire: bool = false) -> void:
 	player.poultice.connect(func(_ok: bool, note: String) -> void: hud.say(note, 2.0))
 	player.said.connect(func(note: String) -> void: hud.say(note, 2.5))
 	player.died.connect(_on_died)
+	hud.max_hp = player.max_hp
+	hud.set_hp(player.hp)
+	hud.set_shells(GameState.shells)
 	if DisplayServer.is_touchscreen_available():
 		hud.add_touch_controls(player, with_fire)
 

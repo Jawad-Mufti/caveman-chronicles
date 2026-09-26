@@ -39,6 +39,8 @@ class Wolf extends Critter:
 	var vel := Vector2.ZERO
 	var t := 0.0
 	var lunge_cd := 2.0
+	var panic := false       ## running for its life from something bigger: ignores him entirely
+	var panic_end := 0.0     ## and is gone once it passes this x
 	var slot := 50.0         ## how far past the light's edge it waits; its own, so the pack spreads out
 	var slot_t := 0.0
 	var pause := 0.0         ## sniffing at the end of a patrol leg
@@ -114,6 +116,15 @@ class Wolf extends Critter:
 		if night == null or player == null:
 			return
 		damage = 0
+		if panic:
+			dir = -1
+			position.x -= 430.0 * delta
+			_stride += 430.0 * delta
+			_moving = 430.0
+			state = "flee"
+			if position.x < panic_end:
+				queue_free()
+			return
 		var dx := player.global_position.x - position.x
 		match state:
 			"patrol":
@@ -779,6 +790,7 @@ class Elder extends Area2D:
 	var dir := -1
 	var has_gem := true
 	var box_open := false
+	var show_box := true
 	var speaking := false
 	var flash := 0.0
 	var player: CaveMan
@@ -811,6 +823,9 @@ class Elder extends Area2D:
 			queue_redraw()
 
 	func _draw() -> void:
+		if not show_box:
+			_draw_self()
+			return
 		# the banana box beside him: a crate bound with vine, a stone lock
 		var bx := Vector2(-58, 0)
 		var lid := 0.0 if not box_open else -0.9
@@ -829,6 +844,9 @@ class Elder extends Area2D:
 			draw_circle(bx + Vector2(0, -20), 7.0, Pal.CRAG_DARK)
 			draw_circle(bx + Vector2(0, -20), 5.0, Pal.CRAG)
 			draw_rect(Rect2(bx + Vector2(-1, -22), Vector2(2, 5)), Pal.CHARCOAL)
+		_draw_self()
+
+	func _draw_self() -> void:
 		MonkeyArt.draw_monkey(self, {
 			"dir": dir, "t": t, "state": "calm", "hanging": false, "habit": 0,
 			"eat": 1.0, "stare": 0.0, "wave": 0.0, "flash": flash, "scale": SIZE, "elder": true,
@@ -900,6 +918,29 @@ class Thrown extends Area2D:
 		call_deferred("queue_free")
 
 
+class GiftBanana extends Thrown:
+	## Old Bongo's help in the fight: a banana lobbed to him that heals as he
+	## catches it (or lands as food if he doesn't).
+	func _hit(man: CaveMan) -> void:
+		man.hp = mini(man.hp + 2, man.max_hp)
+		man.hp_changed.emit(man.hp)
+		call_deferred("queue_free")
+
+	func _land() -> void:
+		var b := BananaPickup.new()
+		b.position = p1 + Vector2(0, 6)
+		get_parent().call_deferred("add_child", b)
+		call_deferred("queue_free")
+
+	func _draw() -> void:
+		var pts := PackedVector2Array()
+		for i in 7:
+			pts.append(Vector2.from_angle(-PI * 0.5 - 0.55 + 1.1 * i / 6.0) * 14.0 + Vector2(0, 10))
+		for i in 7:
+			pts.append(Vector2.from_angle(-PI * 0.5 + 0.55 - 1.1 * i / 6.0) * 9.0 + Vector2(0, 10))
+		draw_colored_polygon(pts, Pal.BANANA)
+
+
 class BananaThrow extends Thrown:
 	func _hit(man: CaveMan) -> void:
 		man.hurt(1, global_position.x)
@@ -954,3 +995,76 @@ class BananaPickup extends Area2D:
 		for i in 7:
 			pts.append(Vector2.from_angle(PI * 0.8 - 0.6 * PI * i / 6.0) * 9.0 + Vector2(0, -18))
 		draw_colored_polygon(pts, Pal.BANANA)
+
+
+## ================================================================ PEOPLE
+class Toolmaker extends Node2D:
+	## The Toolmaker: an old hermit living at the edge of the Long Dark, by his
+	## fire and his forge stone. Old Scar took his arm forty winters ago. He
+	## knows the beast, trades in shells, and can forge a Firestone into a
+	## club that burns.
+	var t := 0.0
+	var dir := -1
+	var forging := 0.0           ## > 0 while hammering: sparks fly
+	var speaking := false
+	var player: CaveMan
+
+	func _process(delta: float) -> void:
+		t += delta
+		forging = maxf(forging - delta, 0.0)
+		if player != null and absf(player.global_position.x - global_position.x) < 500.0:
+			dir = 1 if player.global_position.x > global_position.x else -1
+		if NightWoods.near_view(self):
+			queue_redraw()
+
+	func _draw() -> void:
+		# the forge stone beside him, a flat anvil rock
+		var bt := Batch.new()
+		var fx := float(dir) * 56.0
+		bt.poly(PackedVector2Array([Vector2(fx - 26, 0), Vector2(fx - 22, -22), Vector2(fx + 24, -24), Vector2(fx + 28, 0)]), Pal.CRAG_DARK)
+		bt.rect(Rect2(fx - 22, -26, 46, 5), Pal.CRAG_LIGHT)
+		bt.draw(self)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(float(dir) * 0.38, 0.38))
+		var skin := Color("b98a62")
+		var hair := Color("c9c3b6")
+		var bob := sin(t * 1.4) * 1.5
+		# legs, bent with age
+		for lx in [-12.0, 14.0]:
+			draw_line(Vector2(lx, -70), Vector2(lx + 4, -34), skin.darkened(0.2), 14.0, true)
+			draw_line(Vector2(lx + 4, -34), Vector2(lx, -2), skin.darkened(0.2), 12.0, true)
+			draw_circle(Vector2(lx + 4, -2), 8.0, skin.darkened(0.3))
+		# hunched body in an old hide
+		var body := PackedVector2Array([Vector2(-26, -70), Vector2(-30, -120 + bob), Vector2(-10, -150 + bob), Vector2(24, -146 + bob),
+			Vector2(34, -116 + bob), Vector2(28, -70)])
+		draw_colored_polygon(body, skin)
+		draw_colored_polygon(PackedVector2Array([Vector2(-28, -96), Vector2(30, -96), Vector2(32, -58), Vector2(-30, -58)]), Pal.HIDE_DARK)
+		# the stump where his left arm was
+		draw_circle(Vector2(-24, -128 + bob), 11.0, skin.darkened(0.1))
+		draw_line(Vector2(-30, -128 + bob), Vector2(-20, -122 + bob), skin.darkened(0.35), 2.0, true)
+		# his one arm, with a stone hammer — raised and falling while he forges
+		var swing := sin(t * 14.0) if forging > 0.0 else 0.0
+		var hand := Vector2(56, -112 - 40.0 * maxf(swing, 0.0) + bob)
+		draw_line(Vector2(26, -136 + bob), Vector2(46, -110 + bob), skin, 13.0, true)
+		draw_line(Vector2(46, -110 + bob), hand, skin, 12.0, true)
+		draw_line(hand, hand + Vector2(10, -34), Pal.TRUNK_DARK, 6.0, true)
+		draw_colored_polygon(PackedVector2Array([hand + Vector2(0, -34), hand + Vector2(26, -44), hand + Vector2(28, -30), hand + Vector2(4, -24)]), Pal.STONE)
+		draw_circle(hand, 9.0, skin)
+		# head: bald on top, a ring of grey, a long grey beard
+		var head := Vector2(10, -168 + bob)
+		draw_circle(head, 24.0, skin)
+		draw_colored_polygon(PackedVector2Array([head + Vector2(-24, 0), head + Vector2(-20, -16), head + Vector2(-8, -8), head + Vector2(-16, 12)]), hair)
+		draw_colored_polygon(PackedVector2Array([head + Vector2(-14, 8), head + Vector2(20, 8), head + Vector2(22, 40), head + Vector2(6, 58),
+			head + Vector2(-8, 44)]), hair)
+		draw_line(head + Vector2(-6, -8), head + Vector2(4, -6), hair, 4.0, true)
+		draw_line(head + Vector2(10, -6), head + Vector2(20, -8), hair, 4.0, true)
+		draw_circle(head + Vector2(0, -1), 2.6, Pal.OUTLINE)
+		draw_circle(head + Vector2(15, -1), 2.6, Pal.OUTLINE)
+		if speaking:
+			draw_rect(Rect2(head + Vector2(2, 14 + absf(sin(t * 16.0)) * 2.0), Vector2(10, 3)), Pal.MAW)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		if forging > 0.0:
+			for i in 10:
+				var q := fmod(t * 2.5 + i * 0.1, 1.0)
+				var a := -PI * 0.5 + (i - 4.5) * 0.3
+				var p := Vector2(fx, -26) + Vector2.from_angle(a) * q * 60.0 + Vector2(0, q * q * 30.0)
+				draw_circle(p, 2.5 * (1.0 - q) + 0.5, Color(Pal.FLAME_CORE, 1.0 - q))

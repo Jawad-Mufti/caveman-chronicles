@@ -379,6 +379,283 @@ class FireBurst extends Node2D:
 		bt.poly(pts, col)
 
 
+## ================================================================ THE LONG DARK
+class Vine extends Node2D:
+	## A vine hanging over a pit. Fly into its end and he grabs on (see
+	## CaveMan.grab_vine); left/right pumps the swing; jump lets go and carries
+	## the swing's speed. Captain Claw's ropes, in the Stone Age.
+	var length := 200.0
+	var angle := 0.0
+	var held := false
+	var t := 0.0
+	var _grab: Area2D
+
+	func _ready() -> void:
+		_grab = Area2D.new()
+		_grab.collision_layer = 0
+		_grab.collision_mask = 2
+		var cs := CollisionShape2D.new()
+		# generous: anywhere around the lower end of the vine catches him
+		var c := CircleShape2D.new()
+		c.radius = 50.0
+		cs.shape = c
+		cs.position = Vector2(0, -20)
+		_grab.add_child(cs)
+		add_child(_grab)
+		t = randf() * 5.0
+
+	func let_go() -> void:
+		held = false
+
+	func _physics_process(delta: float) -> void:
+		t += delta
+		if not held:
+			# settle back to a gentle sway after he lets go
+			angle = move_toward(angle, sin(t * 1.1) * 0.05, delta * 1.2)
+			for b in _grab.get_overlapping_bodies():
+				if b is CaveMan and (b as CaveMan).grab_vine(self):
+					held = true
+		_grab.position = Vector2(sin(angle), cos(angle)) * length
+		if NightWoods.near_view(self):
+			queue_redraw()
+
+	func _draw() -> void:
+		var bt := Batch.new()
+		# the bough it hangs from
+		bt.quad(Vector2(-70, -14), Vector2(60, -18), Vector2(64, -4), Vector2(-66, 4), Pal.BARK_DARK)
+		bt.line(Vector2(-60, -14), Vector2(56, -16), Color(Pal.MOONLIT, 0.25), 2.0)
+		var end := Vector2(sin(angle), cos(angle)) * length
+		var pts := PackedVector2Array()
+		for i in 13:
+			var k := i / 12.0
+			var sag := sin(k * PI) * 6.0 * (1.0 - absf(angle))
+			pts.append(end * k + Vector2(sag, 0))
+		bt.polyline(pts, Pal.VINE.darkened(0.2), 5.0)
+		bt.polyline(pts, Pal.VINE, 3.0)
+		for i in range(2, 12, 3):
+			var p: Vector2 = pts[i]
+			bt.poly(PackedVector2Array([p, p + Vector2(10, -4), p + Vector2(14, 2), p + Vector2(4, 4)]), Pal.CANOPY.lightened(0.15))
+		bt.circle(end, 6.0, Pal.VINE.darkened(0.3), 10)
+		bt.draw(self)
+
+
+class CrumbleRock extends StaticBody2D:
+	## A slab of rotten rock across a pit: it holds for a moment after he steps
+	## on, shakes, and drops. It grows back a few seconds later.
+	var w := 80.0
+	var player: CaveMan
+	var state := "solid"         ## solid shaking falling
+	var timer := 0.0
+	var drop := 0.0
+	var _cs: CollisionShape2D
+
+	func _ready() -> void:
+		collision_layer = 1
+		collision_mask = 0
+		_cs = CollisionShape2D.new()
+		var sh := RectangleShape2D.new()
+		sh.size = Vector2(w, 18)
+		_cs.shape = sh
+		_cs.position = Vector2(w * 0.5, 9)
+		add_child(_cs)
+
+	func _physics_process(delta: float) -> void:
+		match state:
+			"solid":
+				if player != null and player.is_on_floor() and absf(player.global_position.y - global_position.y) < 6.0 \
+						and player.global_position.x > global_position.x - 10.0 and player.global_position.x < global_position.x + w + 10.0:
+					state = "shaking"
+					timer = 0.55
+			"shaking":
+				timer -= delta
+				if timer <= 0.0:
+					state = "falling"
+					timer = 3.5
+					drop = 0.0
+					_cs.set_deferred("disabled", true)
+			"falling":
+				timer -= delta
+				drop += (200.0 + drop * 3.0) * delta
+				if timer <= 0.0:
+					state = "solid"
+					drop = 0.0
+					_cs.set_deferred("disabled", false)
+		if state != "solid" or NightWoods.near_view(self):
+			queue_redraw()
+
+	func _draw() -> void:
+		var o := Vector2(0, drop)
+		if state == "shaking":
+			o.x = sin(timer * 80.0) * 2.5
+		var a := 1.0 if state != "falling" else clampf(1.0 - drop / 400.0, 0.0, 1.0)
+		if a <= 0.0:
+			return
+		var bt := Batch.new()
+		bt.poly(PackedVector2Array([o + Vector2(0, 0), o + Vector2(w, 0), o + Vector2(w - 6, 16), o + Vector2(w * 0.6, 24),
+			o + Vector2(w * 0.3, 20), o + Vector2(6, 16)]), Color(Pal.CRAG_DARK, a))
+		bt.rect(Rect2(o, Vector2(w, 5)), Color(Pal.CRAG, a))
+		bt.line(o + Vector2(w * 0.3, 2), o + Vector2(w * 0.45, 14), Color(Pal.CHARCOAL, a), 2.0)
+		bt.line(o + Vector2(w * 0.65, 2), o + Vector2(w * 0.55, 12), Color(Pal.CHARCOAL, a), 2.0)
+		bt.draw(self)
+
+
+class FireflySwarm extends Node2D:
+	## A drift of fireflies in the Long Dark: a small, moving, cool light to go
+	## by when the torch is out. It lights the way but protects nothing.
+	var t := 0.0
+
+	func _ready() -> void:
+		t = randf() * 10.0
+		add_to_group("light")
+		add_to_group("glow")
+
+	func _process(delta: float) -> void:
+		t += delta
+
+	func light() -> Vector4:
+		var c := global_position + Vector2(sin(t * 0.7) * 24.0, cos(t * 0.9) * 12.0)
+		return Vector4(c.x, c.y, 95.0 + 25.0 * sin(t * 1.3), 0.0)
+
+	func light_strength() -> float:
+		return 0.0
+
+	func draw_glow(g: Node2D) -> void:
+		var c := global_position + Vector2(sin(t * 0.7) * 24.0, cos(t * 0.9) * 12.0)
+		for i in 9:
+			var a := t * (0.8 + i * 0.07) + i * 0.7
+			var p := c + Vector2(cos(a) * (14.0 + i * 3.0), sin(a * 1.3) * (8.0 + i * 2.0))
+			var on := 0.5 + 0.5 * sin(t * 3.0 + i * 1.9)
+			g.draw_circle(p, 4.0, Color("d9f07a", 0.15 * on))
+			g.draw_circle(p, 1.6, Color("eefaa8", 0.4 + 0.6 * on))
+
+
+class Watcher extends Node2D:
+	## A pair of big eyes in the dark, watching him. They sink back into the
+	## trees as he comes near. Old Scar, following.
+	var player: CaveMan
+	var t := 0.0
+	var seen := 1.0
+
+	func _ready() -> void:
+		t = randf() * 10.0
+		add_to_group("glow")
+
+	func _process(delta: float) -> void:
+		t += delta
+		if player != null:
+			var near := player.global_position.distance_to(global_position) < 360.0
+			seen = move_toward(seen, 0.0 if near else 1.0, delta * (2.5 if near else 0.3))
+
+	func draw_glow(g: Node2D) -> void:
+		if seen <= 0.02:
+			return
+		var blink := 0.15 if fmod(t, 5.0) < 0.15 else 1.0
+		var c := global_position + Vector2(sin(t * 0.3) * 10.0, 0)
+		for sx in [-18.0, 18.0]:
+			var e := c + Vector2(sx, 0)
+			g.draw_circle(e, 14.0, Color(Pal.WOLF_EYE, 0.10 * seen))
+			g.draw_colored_polygon(PackedVector2Array([e + Vector2(-7, 0), e + Vector2(0, -4 * blink), e + Vector2(7, 0), e + Vector2(0, 4 * blink)]),
+				Color(Pal.WOLF_EYE, 0.9 * seen))
+
+
+class ClawMarks extends Node2D:
+	## Three deep gouges in a tree, higher than a man can reach.
+	func _draw() -> void:
+		var bt := Batch.new()
+		for i in 3:
+			var x := i * 12.0
+			bt.poly(PackedVector2Array([Vector2(x, 0), Vector2(x + 5, -2), Vector2(x + 18, 70), Vector2(x + 13, 72)]), Pal.DEADWOOD)
+			bt.line(Vector2(x + 2, 2), Vector2(x + 14, 68), Pal.DEADWOOD_DARK, 1.5)
+		bt.draw(self)
+
+
+class Brazier extends Bonfire:
+	## An ancient stone bowl on a pillar in Old Scar's clearing. A touch of
+	## the torch lights it for good; standing by it relights his torch; and a
+	## lit bowl pushes the dark (and the beast) back.
+	func _ready() -> void:
+		super._ready()
+		radius = 280.0
+
+	func light() -> Vector4:
+		if not lit:
+			return Vector4.ZERO
+		var r := radius * (1.0 + sin(t * 9.0) * 0.015)
+		return Vector4(global_position.x, global_position.y - 110.0, r, 1.0)
+
+	func _draw() -> void:
+		var bt := Batch.new()
+		bt.quad(Vector2(-18, 0), Vector2(-14, -86), Vector2(14, -86), Vector2(18, 0), Pal.HEARTH_STONE.darkened(0.25))
+		bt.line(Vector2(-8, -80), Vector2(-8, -6), Pal.HEARTH_STONE.darkened(0.45), 2.0)
+		bt.poly(PackedVector2Array([Vector2(-40, -92), Vector2(40, -92), Vector2(28, -76), Vector2(-28, -76)]), Pal.HEARTH_STONE)
+		bt.rect(Rect2(-42, -96, 84, 6), Pal.HEARTH_STONE.lightened(0.1))
+		if lit:
+			for i in 4:
+				var bx := -18.0 + i * 12.0
+				var h := 40.0 + 20.0 * (1.0 - absf(i - 1.5) / 1.5) + sin(t * (8.0 + i)) * 7.0
+				bt.poly(NightWoods.flame_pts(Vector2(bx, -98), 11.0, h, sin(t * 5.0 + i) * 5.0), Color(Pal.EMBER_GLOW, 0.9))
+			bt.poly(NightWoods.flame_pts(Vector2(0, -98), 9.0, 34.0 + sin(t * 12.0) * 5.0, sin(t * 7.0) * 3.0), Pal.FLAME)
+			bt.poly(NightWoods.flame_pts(Vector2(0, -97), 5.0, 18.0, 0.0), Pal.FLAME_CORE)
+		else:
+			bt.poly(PackedVector2Array([Vector2(-24, -96), Vector2(0, -104), Vector2(24, -96)]), Pal.ASH)
+		bt.draw(self)
+
+
+class FallingRock extends Area2D:
+	## Shaken loose from the trees by Old Scar's roar: a shadow on the ground
+	## first (the tell), then the rock. It lands as a rock he can throw back.
+	var floor_y := 600.0
+	var delay := 0.8
+	var t := 0.0
+	var vy := 0.0
+	var falling := false
+
+	func _ready() -> void:
+		collision_layer = 0
+		collision_mask = 2
+		var cs := CollisionShape2D.new()
+		var c := CircleShape2D.new()
+		c.radius = 16.0
+		cs.shape = c
+		add_child(cs)
+		position.y = floor_y - 560.0
+		body_entered.connect(_on_body)
+
+	func _on_body(b: Node) -> void:
+		if falling and b is CaveMan:
+			(b as CaveMan).hurt(1, global_position.x)
+
+	func _physics_process(delta: float) -> void:
+		t += delta
+		if not falling:
+			if t >= delay:
+				falling = true
+		else:
+			vy += 2600.0 * delta
+			position.y += vy * delta
+			if position.y >= floor_y - 14.0:
+				var r := World.RockPickup.new()
+				r.position = Vector2(position.x, floor_y)
+				get_parent().call_deferred("add_child", r)
+				call_deferred("queue_free")
+		queue_redraw()
+
+	func _draw() -> void:
+		var shadow_y := floor_y - position.y
+		var k := clampf(t / delay, 0.0, 1.0)
+		var bt := Batch.new()
+		var pts := PackedVector2Array()
+		for i in 12:
+			var a := TAU * i / 12.0
+			pts.append(Vector2(cos(a) * 20.0 * k, shadow_y - 2.0 + sin(a) * 5.0 * k))
+		if k > 0.05:
+			bt.poly(pts, Color(0, 0, 0, 0.45 * k))
+		if falling or t > delay * 0.5:
+			bt.poly(PackedVector2Array([Vector2(-14, -4), Vector2(-8, -14), Vector2(6, -15), Vector2(15, -3), Vector2(8, 11), Vector2(-9, 10)]), Pal.STONE)
+			bt.line(Vector2(-8, -8), Vector2(6, -10), Pal.STONE_DARK, 2.0)
+		bt.draw(self)
+
+
 ## ================================================================ MOUNTAIN
 class Crag extends StaticBody2D:
 	## Mountain rock. Solid like World.Slab, but drawn as stone with a pale

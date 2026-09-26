@@ -23,6 +23,11 @@ var _boss: Control
 var _torch: Control
 var _quest: Label
 var _fade: ColorRect
+var _shells: Control
+var _card: Label
+var _card_sub: Label
+var shells := 0
+var _shell_bump := 0.0
 
 
 func _ready() -> void:
@@ -78,6 +83,31 @@ func _ready() -> void:
 	_quest.add_theme_color_override("font_color", Pal.BONE)
 	add_child(_quest)
 
+	# shells, top right under the quest line
+	_shells = Control.new()
+	_shells.position = Vector2(1130, 44)
+	_shells.size = Vector2(130, 30)
+	_shells.draw.connect(_draw_shells)
+	add_child(_shells)
+
+	# a boss's name, big, across the middle of the screen
+	_card = Label.new()
+	_card.position = Vector2(0, 250)
+	_card.size = Vector2(1280, 60)
+	_card.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_card.add_theme_font_size_override("font_size", 48)
+	_card.add_theme_color_override("font_color", Pal.OCHRE)
+	_card.modulate.a = 0.0
+	add_child(_card)
+	_card_sub = Label.new()
+	_card_sub.position = Vector2(0, 312)
+	_card_sub.size = Vector2(1280, 30)
+	_card_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_card_sub.add_theme_font_size_override("font_size", 20)
+	_card_sub.add_theme_color_override("font_color", Pal.BONE)
+	_card_sub.modulate.a = 0.0
+	add_child(_card_sub)
+
 	_fade = ColorRect.new()
 	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_fade.color = Color(0, 0, 0, 0)
@@ -94,11 +124,45 @@ func _process(delta: float) -> void:
 	_berries.queue_redraw()
 	_boss.queue_redraw()
 	_torch.queue_redraw()
+	# extra hearts push the torch meter along
+	_torch.position.x = 186.0 + maxf(0.0, max_hp - 5) * 30.0
+	_shell_bump = maxf(_shell_bump - delta, 0.0)
+	_shells.queue_redraw()
 
 
 func say(text: String, seconds: float = 4.0) -> void:
 	_msg.text = text
 	msg_time = seconds
+
+
+func set_shells(value: int) -> void:
+	if value > shells:
+		_shell_bump = 0.25
+	shells = value
+
+
+## A name across the middle of the screen, in and out again: a boss arriving.
+func title_card(title_text: String, sub: String) -> void:
+	_card.text = title_text
+	_card_sub.text = sub
+	var tw := create_tween()
+	tw.tween_property(_card, "modulate:a", 1.0, 0.4)
+	tw.parallel().tween_property(_card_sub, "modulate:a", 1.0, 0.4)
+	tw.tween_interval(2.4)
+	tw.tween_property(_card, "modulate:a", 0.0, 0.6)
+	tw.parallel().tween_property(_card_sub, "modulate:a", 0.0, 0.6)
+
+
+func _draw_shells() -> void:
+	var k := 1.0 + _shell_bump * 1.2
+	var c := Vector2(14, 14)
+	var pts := PackedVector2Array()
+	for i in 12:
+		var a := TAU * i / 12.0
+		pts.append(c + Vector2(cos(a) * 10.0, sin(a) * 7.0) * k)
+	_shells.draw_colored_polygon(pts, Color("e9dcc0"))
+	_shells.draw_line(c + Vector2(-7, 0) * k, c + Vector2(7, 0) * k, Color("b79b72"), 2.0)
+	_shells.draw_string(ThemeDB.fallback_font, Vector2(32, 22), str(shells), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Pal.BONE)
 
 
 func set_quest(text: String) -> void:

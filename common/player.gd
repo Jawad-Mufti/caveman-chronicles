@@ -82,6 +82,18 @@ var costume := 1          ## 1 = leaves (Level 1), 2 = first hide loincloth (Lev
 var fury := -1.0          ## seconds into the fire's wind-up; -1 when calm
 var wind := 0.0           ## world px/s the air is pushing him; set by the level's Wind
 var talking := false      ## in a conversation: stands still, can't be hurt, torch waits
+## From upgrades and the gem forge (GameState puts these on him at level start).
+var torch_burn := TORCH_BURN
+var club_bonus := 0
+var fire_club := false    ## the forged Firestone: flames on the club, harder hits
+var skin := "plain"       ## plain, wolf_pelt, war_paint, bone_necklace
+## Vine swinging. While on one he is placed by the swing, not by physics.
+const HANG := 80.0        ## px from the grip down to his feet
+var vine: Node2D = null
+var _vine_a := 0.0        ## angle from straight down
+var _vine_w := 0.0        ## angular speed
+var _vine_cd := 0.0       ## brief no-regrab of the vine he just let go of
+var _last_vine: Node2D = null
 var touch := {"left": false, "right": false, "jump": false, "attack": false, "heal": false, "throw": false, "fire": false}
 
 var _jump_prev := false
@@ -153,7 +165,10 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if has_torch and torch_fuel > 0.0:
-		torch_fuel = maxf(torch_fuel - delta / TORCH_BURN, 0.0)
+		torch_fuel = maxf(torch_fuel - delta / torch_burn, 0.0)
+		if fire_club:
+			# the Firestone feeds the flame: it never sinks below half
+			torch_fuel = maxf(torch_fuel, 0.5)
 		if torch_fuel <= 0.0:
 			torch_out.emit()
 
@@ -184,6 +199,10 @@ func _physics_process(delta: float) -> void:
 		dir += 1.0
 	if dir != 0.0:
 		facing = int(signf(dir))
+	_vine_cd = maxf(_vine_cd - delta, 0.0)
+	if vine != null:
+		_swing(delta, dir)
+		return
 	var _reach := CLUB_REACH if has_stick else FIST_REACH
 	if not has_stick and attacking > 0.0 and _punch_beat == 1:
 		_reach = FIST_REACH + 9.0
@@ -321,7 +340,7 @@ func _process(delta: float) -> void:
 
 ## Runs every frame the swing is live. Each target can only be hit once per swing.
 func _apply_swing() -> void:
-	var dmg := 3 if has_stick else 1
+	var dmg := (3 + club_bonus + (3 if fire_club else 0)) if has_stick else 1
 	for area in _hitbox.get_overlapping_areas():
 		if not area.has_method("take_hit"):
 			continue
@@ -330,6 +349,51 @@ func _apply_swing() -> void:
 			continue
 		_swing_hits.append(id)
 		area.take_hit(dmg, facing)
+
+
+## ------------------------------------------------------------------ vines
+## A vine hands itself to him when he flies into its end. He keeps the speed he
+## arrived with, can pump with left/right, and jumps to let go — carrying the
+## swing's speed with him, plus a little hop.
+func grab_vine(v: Node2D) -> bool:
+	if vine != null or dead or talking or fury >= 0.0 or is_on_floor():
+		return false
+	if v == _last_vine and _vine_cd > 0.0:
+		return false
+	vine = v
+	var rel: Vector2 = (global_position - Vector2(0, HANG)) - v.global_position
+	_vine_a = atan2(rel.x, rel.y)
+	var length: float = v.length
+	_vine_w = clampf((velocity.x * cos(_vine_a) - velocity.y * sin(_vine_a)) / length, -3.0, 3.0)
+	velocity = Vector2.ZERO
+	_jumps_left = MAX_JUMPS
+	return true
+
+
+func _swing(delta: float, dir: float) -> void:
+	var length: float = vine.length
+	var acc := -(1800.0 / length) * sin(_vine_a) + dir * 2.6 * cos(_vine_a)
+	_vine_w = clampf((_vine_w + acc * delta) * (1.0 - 0.12 * delta), -3.4, 3.4)
+	_vine_a = clampf(_vine_a + _vine_w * delta, -1.3, 1.3)
+	var grip: Vector2 = vine.global_position + Vector2(sin(_vine_a), cos(_vine_a)) * length
+	global_position = grip + Vector2(0, HANG)
+	vine.angle = _vine_a
+	var jump_now: bool = Input.is_physical_key_pressed(KEY_SPACE) or Input.is_physical_key_pressed(KEY_W) \
+		or Input.is_physical_key_pressed(KEY_UP) or touch["jump"]
+	if jump_now and not _jump_prev:
+		var tangent := Vector2(cos(_vine_a), -sin(_vine_a)) * _vine_w * length
+		_let_go(tangent + Vector2(0, -320))
+	_jump_prev = jump_now
+
+
+func _let_go(vel: Vector2) -> void:
+	if vine != null and vine.has_method("let_go"):
+		vine.let_go()
+	_last_vine = vine
+	vine = null
+	velocity = vel
+	_vine_cd = 0.45
+	_jumps_left = MAX_JUMPS - 1
 
 
 ## Called by a critter when he lands on top of it.
@@ -360,6 +424,8 @@ func hurt(amount: int, from_x: float) -> void:
 	hp -= amount
 	invuln = 1.1
 	knock = 0.25
+	if vine != null:
+		_let_go(Vector2.ZERO)
 	var away := signf(global_position.x - from_x)
 	if away == 0.0:
 		away = -float(facing)
@@ -378,6 +444,8 @@ func respawn_at(spot: Vector2) -> void:
 	velocity = Vector2.ZERO
 	knock = 0.0
 	fury = -1.0
+	if vine != null:
+		_let_go(Vector2.ZERO)
 	if dead:
 		return
 	hp -= 1
@@ -515,6 +583,8 @@ func _release_fire() -> void:
 
 ## Back on his feet at a checkpoint, whole, torch full.
 func revive(spot: Vector2) -> void:
+	if vine != null:
+		_let_go(Vector2.ZERO)
 	dead = false
 	global_position = spot
 	velocity = Vector2.ZERO
@@ -722,6 +792,18 @@ func _draw() -> void:
 	_dot(Vector2(28, -152), 6.0, _skin, 4.0)
 	_oval(Vector2(4, -154), 24.0, 27.0, _skin)
 	_shape(PackedVector2Array(BEARD), C_HAIR, 4.0)
+	if skin == "war_paint":
+		for k in 3:
+			draw_line(Vector2(-14 + k * 12, -104), Vector2(-4 + k * 12, -86), Pal.EMBER, 4.0, true)
+	elif skin == "bone_necklace":
+		var cord := PackedVector2Array()
+		for k in 9:
+			var x := -16.0 + k * 5.2
+			cord.append(Vector2(x, -114.0 + sin(k / 8.0 * PI) * 12.0))
+		draw_polyline(cord, C_VINE, 2.5, true)
+		for k in [1, 3, 5, 7]:
+			var bp: Vector2 = cord[k]
+			_oval(bp + Vector2(0, 4), 2.6, 5.5, Pal.KEY_BONE, 1.5)
 	if roaring:
 		_roar()
 	else:
@@ -739,12 +821,19 @@ func _draw() -> void:
 	draw_line(Vector2(-18, -160), Vector2(-2, -160.0 + inner), C_HAIR, 8.0, true)
 	draw_line(Vector2(10, -160.0 + inner), Vector2(26, -160), C_HAIR, 8.0, true)
 	_shape(PackedVector2Array(FRINGE), C_HAIR, 4.0)
+	if skin == "war_paint":
+		draw_rect(Rect2(-12, -161, 36, 3.5), Pal.EMBER)
 	if fury >= 0.0:
 		_rage_marks(rage, roaring)
 
 	# ---- the near arm: fists, throw, club swing, club carry, or pumping
 	var sh := Vector2(50, -118)
-	if fury >= 0.0 and has_stick:
+	if vine != null:
+		# hanging on: the near hand up on the vine, the club tucked under the arm
+		var hd := Vector2(0, -HANG / ART)
+		_arm(sh, sh + Vector2(-8, -48), hd, 13.0, false)
+		_dot(hd, 11.0, _skin)
+	elif fury >= 0.0 and has_stick:
 		# the club goes up overhead for the whole rage and is shaken at the
 		# world as the fire leaves: the pose reads from across the screen
 		var ca := -1.85 if not roaring else -1.35
@@ -877,12 +966,17 @@ func _hide_loincloth(k: float) -> void:
 	for i in hem.size():
 		var h: Vector2 = hem[i]
 		pts.append(h + Vector2(sw + sin(anim_t * 2.6 + i) * 0.8, 0))
-	_shape(pts, Pal.HIDE, 3.5)
-	_oval(Vector2(-8, -54), 7.0, 4.5, Pal.HIDE_DARK, 0.0, 0.3)
-	_oval(Vector2(20, -48), 5.0, 3.5, Pal.HIDE_DARK, 0.0, -0.2)
+	var hide := Pal.HIDE
+	var spots := Pal.HIDE_DARK
+	if skin == "wolf_pelt":
+		hide = Pal.WOLF
+		spots = Pal.WOLF_DARK
+	_shape(pts, hide, 3.5)
+	_oval(Vector2(-8, -54), 7.0, 4.5, spots, 0.0, 0.3)
+	_oval(Vector2(20, -48), 5.0, 3.5, spots, 0.0, -0.2)
 	for i in 8:
 		var fx := -24.0 + i * 8.0 + sw
-		draw_line(Vector2(fx, -37), Vector2(fx - 2, -29), Pal.HIDE_DARK, 2.5, true)
+		draw_line(Vector2(fx, -37), Vector2(fx - 2, -29), Pal.WOLF_BELLY if skin == "wolf_pelt" else spots, 2.5, true)
 
 
 ## The snarl: jaw dropped, both rows of teeth bared.
@@ -1033,6 +1127,14 @@ func _club(p0: Vector2, p1: Vector2, w0: float, w1: float) -> void:
 		var sf: float = q[0]
 		var k: Vector2 = p0 + d * sf + nrm * ((w0 + (w1 - w0) * pow(sf, 1.4)) * 0.5 * float(q[1]) * 0.85)
 		_dot(k, 4.5, C_WOOD2, 2.5)
+	if fire_club:
+		# the Firestone's fire, licking up from the club head whichever way it points
+		var up := Vector2(0, -1)
+		var sway := sin(anim_t * 11.0) * 6.0
+		var head := p1 - u * 10.0
+		_flame(head, 20.0, 58.0, sway, Color(Pal.EMBER_GLOW, 0.85))
+		_flame(head + up * 2.0, 13.0, 44.0, sway * 0.8, Pal.FLAME)
+		_flame(head + up * 4.0, 7.0, 26.0, sway * 0.5, Pal.FLAME_CORE)
 
 
 func _leaf(a: Vector2, length: float, width: float, ang: float, col: Color) -> void:
