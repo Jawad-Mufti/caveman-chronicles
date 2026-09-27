@@ -67,6 +67,9 @@ func _build_hud(with_fire: bool = false) -> void:
 	hud.max_hp = player.max_hp
 	hud.set_hp(player.hp)
 	hud.set_shells(GameState.shells)
+	hud.set_figs(GameState.figs)
+	hud.fig_tapped.connect(func() -> void: player.eat_fig())
+	player.ate_fig.connect(func() -> void: hud.set_figs(GameState.figs))
 	if DisplayServer.is_touchscreen_available():
 		hud.add_touch_controls(player, with_fire)
 

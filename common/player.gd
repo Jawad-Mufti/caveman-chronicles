@@ -96,7 +96,13 @@ var slam_t := 0.0               ## > 0 just after a slam: the hammer down on the
 var slam_cd := 0.0
 var showing_off := 0.0          ## > 0: holding a new treasure up high (set by the level)
 var _attack_held := 0.0
-var skin := "plain"       ## plain, wolf_pelt, war_paint, bone_necklace
+## His costume. The fire-discovery set: wolf_hood, ember_paint, bear_cloak,
+## firekeeper (and the older wolf_pelt, war_paint, bone_necklace, plain).
+var skin := "plain"
+var axe := false           ## the Flint Axe: a knapped flint blade, harder blows
+var preview := false       ## a mannequin in the shop: stands, breathes, never moves
+signal ate_fig
+var _fig_prev := false
 ## Vine swinging. While on one he is placed by the swing, not by physics.
 const HANG := 80.0        ## px from the grip down to his feet
 var vine: Node2D = null
@@ -128,6 +134,14 @@ var _hit_shape: CollisionShape2D
 
 
 func _ready() -> void:
+	if preview:
+		# just for show: no body, no hit box, not "the player"
+		set_physics_process(false)
+		collision_layer = 0
+		collision_mask = 0
+		has_stick = true
+		costume = 2
+		return
 	add_to_group("player")
 	collision_layer = 2
 	collision_mask = 1
@@ -153,7 +167,47 @@ func _ready() -> void:
 	add_child(_hitbox)
 
 
+## A roast fig: two hearts back.
+func eat_fig() -> bool:
+	if GameState.figs <= 0 or hp >= max_hp or dead:
+		return false
+	GameState.figs -= 1
+	hp = mini(hp + 2, max_hp)
+	GameState.save()
+	var pop := HeartPop.new()
+	pop.position = global_position + Vector2(0, -120)
+	get_parent().add_child(pop)
+	ate_fig.emit()
+	return true
+
+
+## Two little hearts rising and fading where he ate a fig.
+class HeartPop extends Node2D:
+	var t := 0.0
+
+	func _process(delta: float) -> void:
+		t += delta
+		if t > 0.9:
+			queue_free()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		var a := 1.0 - t / 0.9
+		for k in 2:
+			var c := Vector2(-14.0 + k * 28.0, -t * 60.0 - k * 8.0)
+			var r := 7.0
+			draw_circle(c + Vector2(-r * 0.5, 0), r * 0.6, Color(0.95, 0.35, 0.4, a))
+			draw_circle(c + Vector2(r * 0.5, 0), r * 0.6, Color(0.95, 0.35, 0.4, a))
+			draw_colored_polygon(PackedVector2Array([c + Vector2(-r * 1.05, 2), c + Vector2(r * 1.05, 2), c + Vector2(0, r * 1.3)]), Color(0.95, 0.35, 0.4, a))
+		draw_string(ThemeDB.fallback_font, Vector2(-14, -t * 60.0 + 26.0), "+2", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 0.9, 0.9, a))
+
+
 func _physics_process(delta: float) -> void:
+	var fig_now: bool = Input.is_physical_key_pressed(KEY_H) or touch.get("fig", false)
+	if fig_now and not _fig_prev:
+		eat_fig()
+	_fig_prev = fig_now
 	if dead:
 		if not is_on_floor():
 			velocity.y += GRAVITY_DOWN * delta
@@ -359,6 +413,11 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	if preview:
+		# the shop's mannequin: just breathes
+		anim_t += delta
+		queue_redraw()
+		return
 	if invuln > 0.0 and fmod(invuln * 12.0, 1.0) < 0.5:
 		modulate.a = 0.35
 	else:
@@ -375,7 +434,7 @@ func _process(delta: float) -> void:
 
 ## Runs every frame the swing is live. Each target can only be hit once per swing.
 func _apply_swing() -> void:
-	var dmg := (3 + club_bonus + (2 if hammer else 0)) if has_stick else 1
+	var dmg := (3 + club_bonus + (2 if hammer else 0) + (2 if axe else 0)) if has_stick else 1
 	for area in _hitbox.get_overlapping_areas():
 		if not area.has_method("take_hit"):
 			continue
@@ -692,8 +751,94 @@ const FRINGE := [
 ]
 
 
+
+## ------------------------------------------------------------ one draw call
+## Everything drawn here is collected into one Batch and handed to the GPU as
+## a SINGLE draw call. Drawn shape by shape, a wolf was ~30 draw calls and the
+## caveman ~200 — every frame — which is what made busy scenes stutter. The
+## _ln / _pl / _cc / _pg / _rc / _ac / _st / _stm helpers stand in for
+## draw_line / draw_polyline / draw_circle / draw_colored_polygon / draw_rect /
+## draw_arc / draw_set_transform / draw_set_transform_matrix.
+var _bb: Batch = null
+
+
 func _draw() -> void:
-	var on_floor := is_on_floor()
+	_bb = Batch.new()
+	_paint()
+	_bb.draw(self)
+	_bb = null
+
+
+func _segs(r: float) -> int:
+	return clampi(int(r * 0.7) + 8, 8, 28)
+
+
+func _ln(a: Vector2, b: Vector2, col: Color, w: float = -1.0, _aa: bool = false) -> void:
+	if _bb == null:
+		draw_line(a, b, col, w, _aa)
+		return
+	_bb.line(a, b, col, maxf(w, 1.0))
+
+
+func _pl(pts: PackedVector2Array, col: Color, w: float = -1.0, _aa: bool = false) -> void:
+	if _bb == null:
+		draw_polyline(pts, col, w, _aa)
+		return
+	_bb.polyline(pts, col, maxf(w, 1.0))
+
+
+func _cc(c: Vector2, r: float, col: Color, filled: bool = true, w: float = -1.0, _aa: bool = false) -> void:
+	if _bb == null:
+		draw_circle(c, r, col, filled, w, _aa)
+		return
+	if r <= 0.05:
+		return
+	if filled:
+		_bb.circle(c, r, col, _segs(r))
+	else:
+		_bb.arc(c, r, 0.0, TAU, _segs(r), col, maxf(w, 1.0))
+
+
+func _pg(pts: PackedVector2Array, col: Color) -> void:
+	if _bb == null:
+		draw_colored_polygon(pts, col)
+		return
+	_bb.poly(pts, col)
+
+
+func _rc(r: Rect2, col: Color, filled: bool = true, w: float = -1.0, _aa: bool = false) -> void:
+	if _bb == null:
+		draw_rect(r, col, filled, w, _aa)
+		return
+	if filled:
+		_bb.rect(r, col)
+	else:
+		_bb.polyline(PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y), r.position]), col, maxf(w, 1.0))
+
+
+func _ac(c: Vector2, r: float, a0: float, a1: float, n: int, col: Color, w: float = -1.0, _aa: bool = false) -> void:
+	if _bb == null:
+		draw_arc(c, r, a0, a1, n, col, w, _aa)
+		return
+	_bb.arc(c, r, a0, a1, maxi(n, 2), col, maxf(w, 1.0))
+
+
+func _st(pos: Vector2 = Vector2.ZERO, rot: float = 0.0, sc: Vector2 = Vector2.ONE) -> void:
+	if _bb == null:
+		draw_set_transform(pos, rot, sc)
+		return
+	_bb.set_xf(Transform2D(rot, sc, 0.0, pos))
+
+
+func _stm(m: Transform2D) -> void:
+	if _bb == null:
+		draw_set_transform_matrix(m)
+		return
+	_bb.set_xf(m)
+
+
+func _paint() -> void:
+	var on_floor := is_on_floor() or preview
 	var air := not on_floor and not dead
 	var speed_k := clampf(absf(velocity.x) / SPEED, 0.0, 1.0) if on_floor else 0.0
 	var running := speed_k > 0.08 and not dead
@@ -748,7 +893,7 @@ func _draw() -> void:
 		shake = Vector2(sin(anim_t * 71.0) * 2.6, cos(anim_t * 89.0) * 1.8) * rage
 
 	# ---- legs, solved with two-bone IK so the knees always bend the right way
-	draw_set_transform_matrix(base)
+	_stm(base)
 	var hip_b := Vector2(-14, -62.0 + bob)
 	var hip_f := Vector2(22, -62.0 + bob)
 	# standing: feet planted straight under the hips
@@ -785,14 +930,15 @@ func _draw() -> void:
 
 	# ---- everything above the waist leans and bobs as one piece
 	var upper := base * Transform2D(lean, Vector2(shake.x, -62.0 + bob + shake.y)) * Transform2D(0.0, Vector2(0, 62))
-	draw_set_transform_matrix(upper)
+	_stm(upper)
 
 	_shape(PackedVector2Array(MANE), C_HAIR)
+	_costume_back()
 	# spare wood rides tucked in the belt at his back, behind the body
 	for i in wood:
 		var wx := -20.0 - i * 6.0
-		draw_line(Vector2(wx, -60), Vector2(wx - 22, -104), Pal.DEADWOOD_DARK, 9.0, true)
-		draw_line(Vector2(wx, -60), Vector2(wx - 22, -104), Pal.DEADWOOD, 5.0, true)
+		_ln(Vector2(wx, -60), Vector2(wx - 22, -104), Pal.DEADWOOD_DARK, 9.0, true)
+		_ln(Vector2(wx, -60), Vector2(wx - 22, -104), Pal.DEADWOOD, 5.0, true)
 	_oval(Vector2(4, -130), 17.0, 10.0, _skin)
 	var torso := PackedVector2Array([Vector2(-46, -122)])
 	torso.append_array(_quad(Vector2(-46, -122), Vector2(4, -138), Vector2(54, -122)))
@@ -801,14 +947,15 @@ func _draw() -> void:
 	torso.append_array(_quad(Vector2(-22, -68), Vector2(-36, -94), Vector2(-46, -122)))
 	torso.remove_at(torso.size() - 1)
 	_shape(torso, _skin)
-	draw_polyline(_quad(Vector2(-32, -114), Vector2(-14, -100), Vector2(2, -108), 8, true), C_SK2, 3.5, true)
-	draw_polyline(_quad(Vector2(6, -108), Vector2(22, -100), Vector2(40, -114), 8, true), C_SK2, 3.5, true)
-	draw_line(Vector2(4, -100), Vector2(4, -74), C_SK2, 3.0, true)
+	_pl(_quad(Vector2(-32, -114), Vector2(-14, -100), Vector2(2, -108), 8, true), C_SK2, 3.5, true)
+	_pl(_quad(Vector2(6, -108), Vector2(22, -100), Vector2(40, -114), 8, true), C_SK2, 3.5, true)
+	_ln(Vector2(4, -100), Vector2(4, -74), C_SK2, 3.0, true)
 	for yy in [-94.0, -86.0, -78.0]:
-		draw_line(Vector2(-6, yy), Vector2(2, yy + 1.0), C_SK2, 3.0, true)
-		draw_line(Vector2(6, yy + 1.0), Vector2(14, yy), C_SK2, 3.0, true)
+		_ln(Vector2(-6, yy), Vector2(2, yy + 1.0), C_SK2, 3.0, true)
+		_ln(Vector2(6, yy + 1.0), Vector2(14, yy), C_SK2, 3.0, true)
 	_ticks([[-4, -114, -6, -108], [3, -116, 2, -109], [10, -113, 12, -107], [-1, -106, -3, -100],
 		[6, -106, 7, -100], [2, -100, 3, -94], [-10, -110, -12, -104], [16, -110, 18, -104]])
+	_costume_chest()
 
 	# far arm: pumps against the legs when running
 	var back_sh := Vector2(-42, -118)
@@ -826,13 +973,14 @@ func _draw() -> void:
 			var ang := (i - 2.5) * 0.11 + sin(anim_t * 2.2 + i) * 0.045 - speed_k * 0.18
 			_leaf(Vector2(lx, -70), 29.0 + (3.0 if i % 2 == 1 else 0.0), 8.0, ang, C_LEAF2 if i % 2 == 1 else C_LEAF)
 	var belt := _quad(Vector2(-25, -71), Vector2(4, -66), Vector2(33, -71), 10, true)
-	draw_polyline(belt, C_OL, 12.0, true)
-	draw_polyline(belt, C_VINE, 7.0, true)
+	_pl(belt, C_OL, 12.0, true)
+	_pl(belt, C_VINE, 7.0, true)
 	for i in 7:
 		var bx := -20.0 + i * 8.0
-		draw_line(Vector2(bx - 2, -73), Vector2(bx + 2, -68), C_WOOD2, 2.0, true)
+		_ln(Vector2(bx - 2, -73), Vector2(bx + 2, -68), C_WOOD2, 2.0, true)
 	for i in berries:
 		_dot(Vector2(-30.0 + i * 8.0, -79), 5.0, Pal.EMBER, 2.5)
+	_costume_belt()
 	for i in mini(rocks, 3):
 		_dot(Vector2(36.0 + i * 10.0, -62), 6.5, Pal.STONE, 2.5)
 
@@ -841,15 +989,16 @@ func _draw() -> void:
 	_dot(Vector2(28, -152), 6.0, _skin, 4.0)
 	_oval(Vector2(4, -154), 24.0, 27.0, _skin)
 	_shape(PackedVector2Array(BEARD), C_HAIR, 4.0)
+	_costume_face()
 	if skin == "war_paint":
 		for k in 3:
-			draw_line(Vector2(-14 + k * 12, -104), Vector2(-4 + k * 12, -86), Pal.EMBER, 4.0, true)
+			_ln(Vector2(-14 + k * 12, -104), Vector2(-4 + k * 12, -86), Pal.EMBER, 4.0, true)
 	elif skin == "bone_necklace":
 		var cord := PackedVector2Array()
 		for k in 9:
 			var x := -16.0 + k * 5.2
 			cord.append(Vector2(x, -114.0 + sin(k / 8.0 * PI) * 12.0))
-		draw_polyline(cord, C_VINE, 2.5, true)
+		_pl(cord, C_VINE, 2.5, true)
 		for k in [1, 3, 5, 7]:
 			var bp: Vector2 = cord[k]
 			_oval(bp + Vector2(0, 4), 2.6, 5.5, Pal.KEY_BONE, 1.5)
@@ -858,8 +1007,8 @@ func _draw() -> void:
 	else:
 		_mouth()
 	_oval(Vector2(4, -146), 8.0, 5.0, C_SK2, 3.0)
-	draw_circle(Vector2(1, -145), 1.4, C_MOUTH)
-	draw_circle(Vector2(7, -145), 1.4, C_MOUTH)
+	_cc(Vector2(1, -145), 1.4, C_MOUTH)
+	_cc(Vector2(7, -145), 1.4, C_MOUTH)
 	var blink := fmod(anim_t, 3.7) < 0.12
 	_eye(Vector2(-7, -151), wince, blink)
 	_eye(Vector2(15, -151), wince, blink)
@@ -867,11 +1016,12 @@ func _draw() -> void:
 	var inner := 9.0 if wince else 5.0
 	if fury >= 0.0:
 		inner = 12.0
-	draw_line(Vector2(-18, -160), Vector2(-2, -160.0 + inner), C_HAIR, 8.0, true)
-	draw_line(Vector2(10, -160.0 + inner), Vector2(26, -160), C_HAIR, 8.0, true)
+	_ln(Vector2(-18, -160), Vector2(-2, -160.0 + inner), C_HAIR, 8.0, true)
+	_ln(Vector2(10, -160.0 + inner), Vector2(26, -160), C_HAIR, 8.0, true)
 	_shape(PackedVector2Array(FRINGE), C_HAIR, 4.0)
 	if skin == "war_paint":
-		draw_rect(Rect2(-12, -161, 36, 3.5), Pal.EMBER)
+		_rc(Rect2(-12, -161, 36, 3.5), Pal.EMBER)
+	_costume_head()
 	if fury >= 0.0:
 		_rage_marks(rage, roaring)
 
@@ -924,9 +1074,9 @@ func _draw() -> void:
 		var fh := Vector2(64.0 + jab * 52.0, -110.0 + jab * 4.0)
 		_arm(sh, sh.lerp(fh, 0.5) + Vector2(0, 10), fh, 11.0, true)
 		if jab > 0.72:
-			draw_circle(fh + Vector2(16, 0), 9.0, Color(Pal.BONE, 0.45))
+			_cc(fh + Vector2(16, 0), 9.0, Color(Pal.BONE, 0.45))
 		if cross > 0.72:
-			draw_circle(bh + Vector2(16, 0), 11.0, Color(Pal.BONE, 0.5))
+			_cc(bh + Vector2(16, 0), 11.0, Color(Pal.BONE, 0.5))
 	elif throwing > 0.0:
 		var q := 1.0 - throwing / 0.28
 		var ta := -2.6 + (1.0 - pow(1.0 - q, 3.0)) * 2.4
@@ -955,7 +1105,7 @@ func _draw() -> void:
 		var smear := PackedVector2Array()
 		for i in 7:
 			smear.append(sh + Vector2.from_angle(ca - 0.75 + i * (0.75 / 6.0)) * (reach + 100.0))
-		draw_polyline(smear, Color(Pal.BONE, 0.32), 7.0, true)
+		_pl(smear, Color(Pal.BONE, 0.32), 7.0, true)
 		_arm(sh, el, hd, 13.0, false)
 		_club(hd - Vector2.from_angle(ca) * 12.0, hd + Vector2.from_angle(ca) * 112.0, 7.0, 26.0)
 		_dot(hd, 11.0, _skin)
@@ -970,7 +1120,7 @@ func _draw() -> void:
 		var na := _pose_arm(sh, 1.0, running, air, ph, speed_k)
 		_arm(sh, na[0], na[1], 10.0, true)
 
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	_st(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## The torch arm. Held up and behind his head so the light falls on both
@@ -994,7 +1144,7 @@ func _torch_arm(sh: Vector2, running: bool, air: bool, ph: float, k: float, rage
 	_oval(top + u * 2.0, 8.5, 13.0, Pal.DEADWOOD_DARK, 3.0, u.angle() + PI * 0.5)
 	for i in 3:
 		var bp := top - u * (4.0 + i * 5.0)
-		draw_line(bp + n * 8.0, bp - n * 8.0, C_VINE, 2.5, true)
+		_ln(bp + n * 8.0, bp - n * 8.0, C_VINE, 2.5, true)
 	_arm(sh, el, hd, 10.0, false)
 	_dot(hd, 10.0, _skin)
 	var base := top + u * 6.0
@@ -1008,10 +1158,10 @@ func _torch_arm(sh: Vector2, running: bool, air: bool, ph: float, k: float, rage
 	else:
 		# out: a red ember and a thread of smoke
 		var e := 0.5 + 0.5 * sin(anim_t * 3.0)
-		draw_circle(base, 5.0, Color(Pal.EMBER_GLOW, 0.5 + 0.4 * e))
+		_cc(base, 5.0, Color(Pal.EMBER_GLOW, 0.5 + 0.4 * e))
 		for i in 3:
 			var q := fmod(anim_t * 0.6 + i / 3.0, 1.0)
-			draw_circle(base + Vector2(sin(q * 6.0 + i) * 6.0, -10.0 - q * 50.0), 4.0 + q * 7.0, Color(Pal.ASH, 0.35 * (1.0 - q)))
+			_cc(base + Vector2(sin(q * 6.0 + i) * 6.0, -10.0 - q * 50.0), 4.0 + q * 7.0, Color(Pal.ASH, 0.35 * (1.0 - q)))
 		_torch_tip = xf * base
 
 
@@ -1024,7 +1174,7 @@ func _flame(base: Vector2, w: float, h: float, sway: float, col: Color) -> void:
 	pts.append(base + Vector2(-w * 0.8 + sway * 0.3, -h * 0.35))
 	pts.append(base + Vector2(sway, -h))
 	pts.append(base + Vector2(w * 0.7 + sway * 0.4, -h * 0.4))
-	draw_colored_polygon(pts, col)
+	_pg(pts, col)
 
 
 ## Level 2: his first hide. A rough wrap cut from a pelt, ragged at the hem.
@@ -1038,26 +1188,148 @@ func _hide_loincloth(k: float) -> void:
 		pts.append(h + Vector2(sw + sin(anim_t * 2.6 + i) * 0.8, 0))
 	var hide := Pal.HIDE
 	var spots := Pal.HIDE_DARK
-	if skin == "wolf_pelt":
+	if skin in ["wolf_pelt", "wolf_hood"]:
 		hide = Pal.WOLF
 		spots = Pal.WOLF_DARK
+	elif skin == "ember_paint":
+		hide = Color("9a4a22")
+		spots = Color("4a2414")
+	elif skin == "bear_cloak":
+		hide = Color("6b4a2e")
+		spots = Color("45301c")
+	elif skin == "firekeeper":
+		hide = Color("c49a64")
+		spots = Color("8a6a3c")
 	_shape(pts, hide, 3.5)
 	_oval(Vector2(-8, -54), 7.0, 4.5, spots, 0.0, 0.3)
 	_oval(Vector2(20, -48), 5.0, 3.5, spots, 0.0, -0.2)
 	for i in 8:
 		var fx := -24.0 + i * 8.0 + sw
-		draw_line(Vector2(fx, -37), Vector2(fx - 2, -29), Pal.WOLF_BELLY if skin == "wolf_pelt" else spots, 2.5, true)
+		_ln(Vector2(fx, -37), Vector2(fx - 2, -29), Pal.WOLF_BELLY if skin in ["wolf_pelt", "wolf_hood"] else spots, 2.5, true)
+
+
+## ------------------------------------------------------------------ costumes
+## The fire-discovery costumes, drawn in layers: what hangs behind him, what
+## is painted or worn on his chest and face, what sits on his head, and what
+## hangs at his belt.
+func _costume_back() -> void:
+	match skin:
+		"wolf_hood":
+			# the wolf's pelt hanging down his back from the hood
+			_shape(PackedVector2Array([Vector2(-20, -176), Vector2(-40, -150), Vector2(-54, -110), Vector2(-56, -74), Vector2(-40, -80),
+				Vector2(-30, -120), Vector2(-8, -160)]), Pal.WOLF, 3.5)
+			for k in 4:
+				_ln(Vector2(-46 + k * 3, -120 + k * 10), Vector2(-52 + k * 2, -112 + k * 10), Pal.WOLF_DARK, 2.5, true)
+		"bear_cloak":
+			# a heavy bear-fur cloak over the shoulders, down to the knees
+			# the cloak hangs down his back to the knees, swaying a little
+			var fl := sin(anim_t * 2.0) * 2.0
+			_shape(PackedVector2Array([Vector2(-46, -134), Vector2(-16, -138), Vector2(-14, -100), Vector2(-26, -64), Vector2(-36, -30 + fl),
+				Vector2(-70, -26 + fl), Vector2(-64, -70 + fl), Vector2(-58, -112)]), Color("6b4a2e"), 3.5)
+			for k in 6:
+				var x := -66.0 + k * 5.0
+				_ln(Vector2(x, -36 + fl), Vector2(x - 3.0, -24 + fl), Color("45301c"), 2.5, true)
+
+
+func _costume_chest() -> void:
+	match skin:
+		"ember_paint":
+			# charcoal-edged ochre flames rising from the belt up the chest
+			for f in [[-24.0, 34.0], [4.0, 44.0], [30.0, 32.0]]:
+				var x: float = f[0]
+				var h: float = f[1]
+				var flick := sin(anim_t * 3.0 + x) * 1.5
+				var pts := PackedVector2Array([Vector2(x - 9, -72), Vector2(x - 6, -72 - h * 0.5), Vector2(x - 2 + flick, -72 - h),
+					Vector2(x + 2, -72 - h * 0.6), Vector2(x + 5, -72 - h * 0.75), Vector2(x + 9, -72)])
+				_shape(pts, Color("d9822b"), 2.5)
+				_pg(PackedVector2Array([Vector2(x - 4, -72), Vector2(x - 1 + flick, -72 - h * 0.6), Vector2(x + 4, -72)]), Color("f3c14f"))
+		"bear_cloak":
+			# a fur mantle over both shoulders, scalloped where the fur ends,
+			# fastened at the front with two bear claws
+			var mantle := PackedVector2Array([Vector2(-50, -126), Vector2(-32, -142), Vector2(4, -146), Vector2(42, -142), Vector2(60, -126)])
+			for k in 10:
+				var x := 54.0 - k * 11.0
+				mantle.append(Vector2(x, -114.0 if k % 2 == 0 else -120.0))
+			_shape(mantle, Color("6b4a2e"), 3.5)
+			for k in 7:
+				var x := -36.0 + k * 13.0
+				_ln(Vector2(x, -136), Vector2(x - 3.0, -126), Color("8a6440"), 2.5, true)
+			for cx in [-2.0, 10.0]:
+				_shape(PackedVector2Array([Vector2(cx - 3, -118), Vector2(cx + 3, -118), Vector2(cx + 1, -102)]), Color("efe6d2"), 2.0)
+		"firekeeper":
+			# ash smeared in two broad stripes across the chest
+			_ln(Vector2(-30, -112), Vector2(30, -104), Color(0.8, 0.8, 0.78, 0.55), 6.0, true)
+			_ln(Vector2(-26, -100), Vector2(28, -92), Color(0.8, 0.8, 0.78, 0.45), 5.0, true)
+
+
+func _costume_face() -> void:
+	match skin:
+		"ember_paint":
+			# a band of charcoal across the eyes, ochre dots below it
+			_rc(Rect2(-20, -158, 48, 13), Color(0.12, 0.08, 0.06, 0.8))
+			for k in 4:
+				_cc(Vector2(-12 + k * 10, -141), 2.2, Color("d9822b"))
+		"firekeeper":
+			# ash stripes on the cheeks
+			for sx in [-16.0, 20.0]:
+				_ln(Vector2(sx - 4, -146), Vector2(sx + 4, -144), Color(0.85, 0.85, 0.82, 0.8), 2.5, true)
+				_ln(Vector2(sx - 4, -140), Vector2(sx + 4, -138), Color(0.85, 0.85, 0.82, 0.8), 2.5, true)
+
+
+func _costume_head() -> void:
+	match skin:
+		"wolf_hood":
+			# a wolf's head worn over his own: skull cap, snout over the brow,
+			# teeth at the fringe, pointed ears, and its eyes above his
+			_shape(PackedVector2Array([Vector2(-24, -168), Vector2(-20, -184), Vector2(0, -192), Vector2(26, -188), Vector2(40, -176),
+				Vector2(52, -170), Vector2(50, -162), Vector2(30, -164), Vector2(-10, -164)]), Pal.WOLF, 3.5)
+			_shape(PackedVector2Array([Vector2(28, -172), Vector2(52, -170), Vector2(50, -162), Vector2(30, -164)]), Pal.WOLF_BELLY, 2.0)
+			_cc(Vector2(52, -168), 3.0, Pal.OUTLINE)
+			for k in 3:
+				var tx := 34.0 + k * 5.0
+				_pg(PackedVector2Array([Vector2(tx, -163), Vector2(tx + 3, -163), Vector2(tx + 1.5, -157)]), Color("f4efe2"))
+			for e in [[-8.0, -186.0], [14.0, -190.0]]:
+				_shape(PackedVector2Array([Vector2(e[0] - 7, e[1] + 2), Vector2(e[0] - 1, e[1] - 18), Vector2(e[0] + 6, e[1] + 1)]), Pal.WOLF_DARK, 2.5)
+			_cc(Vector2(30, -178), 2.4, Pal.WOLF_EYE)
+		"bear_cloak":
+			# the bear's hood: a brown fur cap with round ears
+			_shape(PackedVector2Array([Vector2(-26, -164), Vector2(-24, -182), Vector2(-6, -194), Vector2(18, -194), Vector2(34, -182),
+				Vector2(34, -166), Vector2(18, -170), Vector2(-8, -170)]), Color("6b4a2e"), 3.5)
+			for e in [Vector2(-14, -190), Vector2(24, -192)]:
+				_dot(e, 7.5, Color("6b4a2e"), 3.0)
+				_cc(e, 3.5, Color("45301c"))
+		"firekeeper":
+			# a leather headband with a glowing ember charm at the front
+			_ln(Vector2(-24, -168), Vector2(32, -170), C_OL, 9.0, true)
+			_ln(Vector2(-24, -168), Vector2(32, -170), Color("a0703c"), 6.0, true)
+			var glow := 0.6 + 0.4 * sin(anim_t * 4.0)
+			_cc(Vector2(28, -170), 11.0, Color(Pal.EMBER_GLOW, 0.3 * glow))
+			_dot(Vector2(28, -170), 5.0, Color("f08a24").lerp(Color("ffd36b"), glow), 2.0)
+			# two feathers tucked in at the back
+			for k in 2:
+				var fx := -20.0 - k * 6.0
+				_shape(PackedVector2Array([Vector2(fx, -168), Vector2(fx - 8, -196 + k * 6), Vector2(fx - 2, -194 + k * 6), Vector2(fx + 3, -170)]),
+					Color("e8e0cc") if k == 0 else Color("c0392b"), 2.0)
+
+
+func _costume_belt() -> void:
+	if skin == "firekeeper":
+		# a little leather pouch of live embers, glowing through the seams
+		var glow := 0.6 + 0.4 * sin(anim_t * 3.3 + 1.0)
+		_shape(PackedVector2Array([Vector2(26, -70), Vector2(40, -70), Vector2(42, -54), Vector2(24, -54)]), Color("8a5a2c"), 2.5)
+		_ln(Vector2(28, -62), Vector2(38, -62), Color("ffb347", glow), 2.5, true)
+		_cc(Vector2(33, -58), 7.0, Color(Pal.EMBER_GLOW, 0.25 * glow))
 
 
 ## The snarl: jaw dropped, both rows of teeth bared.
 func _roar() -> void:
 	var pts := _oval_pts(Vector2(4, -134), 10.0, 7.5)
-	draw_colored_polygon(pts, C_MOUTH)
-	draw_rect(Rect2(-4, -141, 16, 3.5), C_EYE)
-	draw_rect(Rect2(-3, -130.5, 14, 3.0), C_EYE)
+	_pg(pts, C_MOUTH)
+	_rc(Rect2(-4, -141, 16, 3.5), C_EYE)
+	_rc(Rect2(-3, -130.5, 14, 3.0), C_EYE)
 	var ring := PackedVector2Array(pts)
 	ring.append(pts[0])
-	draw_polyline(ring, C_OL, 2.5, true)
+	_pl(ring, C_OL, 2.5, true)
 
 
 ## Breath snorting from the nose while it builds, and sparks drawn in toward
@@ -1067,13 +1339,13 @@ func _rage_marks(rage: float, roaring: bool) -> void:
 		return
 	for i in 3:
 		var q := fmod(anim_t * 2.6 + i / 3.0, 1.0)
-		draw_circle(Vector2(14.0 + q * 30.0, -144.0 - q * 14.0), 5.0 + q * 8.0, Color(Pal.BONE, 0.5 * (1.0 - q) * rage))
+		_cc(Vector2(14.0 + q * 30.0, -144.0 - q * 14.0), 5.0 + q * 8.0, Color(Pal.BONE, 0.5 * (1.0 - q) * rage))
 	for i in 10:
 		var q := fmod(anim_t * 1.7 + i / 10.0, 1.0)
 		var a := i * 0.63 + anim_t * 3.0
 		var p := Vector2(4, -100) + Vector2.from_angle(a) * 200.0 * (1.0 - q)
-		draw_circle(p, 5.0 + 4.0 * q, Color(Pal.FLAME, rage * q))
-		draw_circle(p, 2.5 + 2.0 * q, Color(Pal.FLAME_CORE, rage * q))
+		_cc(p, 5.0 + 4.0 * q, Color(Pal.FLAME, rage * q))
+		_cc(p, 2.5 + 2.0 * q, Color(Pal.FLAME_CORE, rage * q))
 
 
 ## Where a foot is at a given point in the stride. It travels BACKWARDS while on
@@ -1133,13 +1405,13 @@ func _pose_arm(sh: Vector2, side: float, running: bool, air: bool, phase: float,
 
 func _eye(c: Vector2, wince: bool, blink: bool) -> void:
 	if wince:
-		draw_line(c + Vector2(-6, -2), c + Vector2(6, 1), C_OL, 3.0, true)
+		_ln(c + Vector2(-6, -2), c + Vector2(6, 1), C_OL, 3.0, true)
 		return
 	var ry := 0.6 if blink else 3.4
 	_oval(c, 6.0, ry, C_EYE, 3.0)
 	if not blink:
-		draw_circle(c + Vector2(1.6, 0.4), 2.6, Color("1a0f08"))
-		draw_circle(c + Vector2(0.8, -0.4), 0.9, Color.WHITE)
+		_cc(c + Vector2(1.6, 0.4), 2.6, Color("1a0f08"))
+		_cc(c + Vector2(0.8, -0.4), 0.9, Color.WHITE)
 
 
 ## Clenched teeth with the corners pulled down.
@@ -1147,13 +1419,13 @@ func _mouth() -> void:
 	var w := 16.0
 	var h := 5.0
 	var x0 := 4.0 - w * 0.5
-	draw_rect(Rect2(x0, -139, w, h), C_EYE, true)
-	draw_rect(Rect2(x0, -139, w, h), C_OL, false, 2.5)
+	_rc(Rect2(x0, -139, w, h), C_EYE, true)
+	_rc(Rect2(x0, -139, w, h), C_OL, false, 2.5)
 	for i in range(1, 4):
 		var tx := x0 + i * w / 4.0
-		draw_line(Vector2(tx, -139), Vector2(tx, -139.0 + h), C_OL, 1.5, true)
-	draw_line(Vector2(x0 - 4, -133), Vector2(x0, -138), C_OL, 3.0, true)
-	draw_line(Vector2(x0 + w + 4, -133), Vector2(x0 + w, -138), C_OL, 3.0, true)
+		_ln(Vector2(tx, -139), Vector2(tx, -139.0 + h), C_OL, 1.5, true)
+	_ln(Vector2(x0 - 4, -133), Vector2(x0, -138), C_OL, 3.0, true)
+	_ln(Vector2(x0 + w + 4, -133), Vector2(x0 + w, -138), C_OL, 3.0, true)
 
 
 func _oval_pts(c: Vector2, rx: float, ry: float, rot: float = 0.0) -> PackedVector2Array:
@@ -1170,6 +1442,9 @@ func _oval_pts(c: Vector2, rx: float, ry: float, rot: float = 0.0) -> PackedVect
 func _club(p0: Vector2, p1: Vector2, w0: float, w1: float) -> void:
 	if hammer:
 		_hammer(p0, p1)
+		return
+	if axe:
+		_axe(p0, p1)
 		return
 	## Thin at the grip, thickening all the way up: cut from a branch with the
 	## root end kept, so most of the weight sits in the head.
@@ -1195,12 +1470,33 @@ func _club(p0: Vector2, p1: Vector2, w0: float, w1: float) -> void:
 	for i in range(2, n + 1):
 		var sf := float(i) / n
 		grain.append(p0 + d * sf + nrm * ((w0 + (w1 - w0) * pow(sf, 1.4)) * 0.5 * -0.3))
-	draw_polyline(grain, C_WOOD2, 3.0, true)
+	_pl(grain, C_WOOD2, 3.0, true)
 	for q in [[0.62, 1.0], [0.83, -1.0]]:
 		var sf: float = q[0]
 		var k: Vector2 = p0 + d * sf + nrm * ((w0 + (w1 - w0) * pow(sf, 1.4)) * 0.5 * float(q[1]) * 0.85)
 		_dot(k, 4.5, C_WOOD2, 2.5)
 
+
+
+## The Flint Axe: a straight haft, and a blade of knapped flint — blue-grey,
+## flaked to an edge — lashed into it with sinew.
+func _axe(p0: Vector2, p1: Vector2) -> void:
+	var d := (p1 - p0).normalized()
+	var n := Vector2(-d.y, d.x)
+	_shape(PackedVector2Array([p0 + n * 4.5, p1 + n * 5.0, p1 - n * 5.0, p0 - n * 4.5]), C_WOOD, 3.0)
+	var hc := p1 - d * 14.0
+	var blade := PackedVector2Array([hc + n * 4.0 - d * 12.0, hc + n * 30.0 - d * 20.0, hc + n * 40.0 - d * 2.0, hc + n * 34.0 + d * 18.0,
+		hc + n * 4.0 + d * 12.0])
+	_shape(blade, Color("6f7f8f"), 3.0)
+	# the flake scars, and the pale fresh edge
+	_pg(PackedVector2Array([hc + n * 10.0 - d * 8.0, hc + n * 26.0 - d * 14.0, hc + n * 22.0 + d * 2.0]), Color("8c9cab"))
+	_pg(PackedVector2Array([hc + n * 12.0 + d * 8.0, hc + n * 24.0 + d * 4.0, hc + n * 28.0 + d * 14.0]), Color("5c6b7a"))
+	_ln(hc + n * 30.0 - d * 20.0, hc + n * 40.0 - d * 2.0, Color("c9d6e2"), 2.5, true)
+	_ln(hc + n * 40.0 - d * 2.0, hc + n * 34.0 + d * 18.0, Color("c9d6e2"), 2.5, true)
+	# lashed on with sinew
+	for k in 3:
+		var q := hc + d * (-8.0 + k * 7.0)
+		_ln(q + n * 7.0 - d * 3.0, q - n * 7.0 + d * 3.0, C_VINE, 3.0, true)
 
 
 ## The Firestone Hammer: a long haft bound with sinew, a heavy stone head,
@@ -1213,31 +1509,31 @@ func _hammer(p0: Vector2, p1: Vector2) -> void:
 	_shape(PackedVector2Array([p0 + n * 4.5, p1 - d * 20.0 + n * 5.5, p1 - d * 20.0 - n * 5.5, p0 - n * 4.5]), C_WOOD, 3.0)
 	for k in 3:
 		var q := p0 + d * (10.0 + k * 7.0)
-		draw_line(q + n * 6.0, q - n * 6.0, C_VINE, 3.0, true)
+		_ln(q + n * 6.0, q - n * 6.0, C_VINE, 3.0, true)
 	# the head: a heavy block of stone across the end of the haft
 	var hc := p1 - d * 6.0
 	var head := PackedVector2Array([hc + n * 32.0 - d * 20.0, hc + n * 36.0 + d * 14.0, hc - n * 30.0 + d * 18.0, hc - n * 34.0 - d * 16.0])
 	if charge_k > 0.0:
-		draw_circle(hc, 40.0 + 30.0 * charge_k, Color(Pal.FLAME, 0.25 * charge_k))
+		_cc(hc, 40.0 + 30.0 * charge_k, Color(Pal.FLAME, 0.25 * charge_k))
 	_shape(head, Color("7b7469"), 3.5)
 	_shape(PackedVector2Array([hc + n * 30.0 - d * 16.0, hc + n * 32.0 + d * 4.0, hc - n * 26.0 + d * 8.0, hc - n * 28.0 - d * 12.0]), Color("948c80"), 0.0)
-	draw_line(hc + n * 10.0 - d * 12.0, hc - n * 4.0 + d * 10.0, Color("5b554c"), 2.5, true)
+	_ln(hc + n * 10.0 - d * 12.0, hc - n * 4.0 + d * 10.0, Color("5b554c"), 2.5, true)
 	# the Firestone, set in the head
 	var g := hc + n * 2.0
 	var pulse := 0.5 + 0.5 * sin(anim_t * 5.0)
-	draw_circle(g, 14.0 + charge_k * 8.0, Color(Pal.EMBER_GLOW, 0.35 + 0.3 * pulse + 0.3 * charge_k))
+	_cc(g, 14.0 + charge_k * 8.0, Color(Pal.EMBER_GLOW, 0.35 + 0.3 * pulse + 0.3 * charge_k))
 	_shape(PackedVector2Array([g + n * 11.0, g + d * 9.0, g - n * 11.0, g - d * 9.0]), Pal.GEM, 2.5)
-	draw_colored_polygon(PackedVector2Array([g + n * 6.0, g + d * 4.0, g - n * 2.0]), Pal.GEM_LIGHT)
+	_pg(PackedVector2Array([g + n * 6.0, g + d * 4.0, g - n * 2.0]), Pal.GEM_LIGHT)
 	# embers drifting off it
 	for i in 4:
 		var q := fmod(anim_t * 0.9 + i * 0.25, 1.0)
-		draw_circle(hc + Vector2(sin(i * 2.1 + anim_t * 2.0) * 16.0, -q * 70.0), 3.5 * (1.0 - q) + 0.8, Color(Pal.FLAME_CORE, 1.0 - q))
+		_cc(hc + Vector2(sin(i * 2.1 + anim_t * 2.0) * 16.0, -q * 70.0), 3.5 * (1.0 - q) + 0.8, Color(Pal.FLAME_CORE, 1.0 - q))
 	if charge_k > 0.0:
 		# sparks drawn in toward the gem as the charge builds
 		for i in 8:
 			var q := fmod(anim_t * 2.2 + i / 8.0, 1.0)
 			var p := g + Vector2.from_angle(i * 0.79 + anim_t * 4.0) * 90.0 * (1.0 - q)
-			draw_circle(p, 3.5 + 3.0 * q, Color(Pal.FLAME_CORE, q * charge_k))
+			_cc(p, 3.5 + 3.0 * q, Color(Pal.FLAME_CORE, q * charge_k))
 
 
 func _leaf(a: Vector2, length: float, width: float, ang: float, col: Color) -> void:
@@ -1250,7 +1546,7 @@ func _leaf(a: Vector2, length: float, width: float, ang: float, col: Color) -> v
 	pts.append_array(_quad(tip, mid - nrm * width, a, 6))
 	pts.remove_at(pts.size() - 1)
 	_shape(pts, col, 3.5)
-	draw_line(a, a + dirv * length * 0.85, Color(0.08, 0.2, 0.06, 0.55), 2.5, true)
+	_ln(a, a + dirv * length * 0.85, Color(0.08, 0.2, 0.06, 0.55), 2.5, true)
 
 
 func _arm(sh: Vector2, el: Vector2, hd: Vector2, bicep: float, fist: bool) -> void:
@@ -1267,26 +1563,26 @@ func _limb(p: Array, w: Array) -> void:
 	var dark := _skin.darkened(0.34)
 	for i in p.size() - 1:
 		var ow: float = w[i] + 5.0
-		draw_line(p[i], p[i + 1], dark, ow, true)
-		draw_circle(p[i], ow * 0.5, dark)
-		draw_circle(p[i + 1], ow * 0.5, dark)
+		_ln(p[i], p[i + 1], dark, ow, true)
+		_cc(p[i], ow * 0.5, dark)
+		_cc(p[i + 1], ow * 0.5, dark)
 	for i in p.size() - 1:
 		var fw: float = float(w[i]) * 0.88
 		var off: Vector2 = LIGHT * float(w[i]) * 0.13
-		draw_line(p[i] + off, p[i + 1] + off, _skin, fw, true)
-		draw_circle(p[i] + off, fw * 0.5, _skin)
-		draw_circle(p[i + 1] + off, fw * 0.5, _skin)
+		_ln(p[i] + off, p[i + 1] + off, _skin, fw, true)
+		_cc(p[i] + off, fw * 0.5, _skin)
+		_cc(p[i + 1] + off, fw * 0.5, _skin)
 
 
 func _ticks(list: Array) -> void:
 	for q in list:
-		draw_line(Vector2(q[0], q[1]), Vector2(q[2], q[3]), C_HAIR, 3.0, true)
+		_ln(Vector2(q[0], q[1]), Vector2(q[2], q[3]), C_HAIR, 3.0, true)
 
 
 func _seg_hair(a: Vector2, b: Vector2, n: int) -> void:
 	for i in range(1, n + 1):
 		var p := a.lerp(b, float(i) / (n + 1))
-		draw_line(p + Vector2(-3, -3), p + Vector2(2, 3), C_HAIR, 3.0, true)
+		_ln(p + Vector2(-3, -3), p + Vector2(2, 3), C_HAIR, 3.0, true)
 
 
 func _lit(pts: PackedVector2Array, amount: float = 0.87) -> PackedVector2Array:
@@ -1305,19 +1601,22 @@ func _lit(pts: PackedVector2Array, amount: float = 0.87) -> PackedVector2Array:
 
 
 func _shape(pts: PackedVector2Array, fill: Color, w: float = OLW) -> void:
-	draw_colored_polygon(pts, fill.darkened(0.30))
-	draw_colored_polygon(_lit(pts), fill)
+	if _bb != null:
+		_bb.poly_pair(pts, fill.darkened(0.30), _lit(pts), fill)
+	else:
+		_pg(pts, fill.darkened(0.30))
+		_pg(_lit(pts), fill)
 	if w > 0.0:
 		var ring := PackedVector2Array(pts)
 		ring.append(pts[0])
-		draw_polyline(ring, fill.darkened(0.60), w * 0.62, true)
+		_pl(ring, fill.darkened(0.60), w * 0.62, true)
 
 
 func _dot(c: Vector2, r: float, fill: Color, w: float = OLW) -> void:
-	draw_circle(c, r, fill.darkened(0.30))
-	draw_circle(c + LIGHT * r * 0.16, r * 0.86, fill)
+	_cc(c, r, fill.darkened(0.30))
+	_cc(c + LIGHT * r * 0.16, r * 0.86, fill)
 	if w > 0.0:
-		draw_arc(c, r, 0.0, TAU, 20, fill.darkened(0.60), w * 0.62, true)
+		_ac(c, r, 0.0, TAU, 20, fill.darkened(0.60), w * 0.62, true)
 
 
 func _oval(c: Vector2, rx: float, ry: float, fill: Color, w: float = OLW, rot: float = 0.0) -> void:

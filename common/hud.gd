@@ -24,6 +24,9 @@ var _torch: Control
 var _quest: Label
 var _fade: ColorRect
 var _shells: Control
+var _figs: Control
+var figs := 0
+signal fig_tapped
 var _card: Label
 var _card_sub: Label
 var shells := 0
@@ -89,6 +92,15 @@ func _ready() -> void:
 	_shells.size = Vector2(130, 30)
 	_shells.draw.connect(_draw_shells)
 	add_child(_shells)
+	# roast figs: tap to eat one (or press H)
+	_figs = Control.new()
+	_figs.position = Vector2(1130, 80)
+	_figs.size = Vector2(130, 34)
+	_figs.draw.connect(_draw_figs)
+	_figs.gui_input.connect(func(e: InputEvent) -> void:
+		if (e is InputEventMouseButton or e is InputEventScreenTouch) and e.pressed:
+			fig_tapped.emit())
+	add_child(_figs)
 
 	# a boss's name, big, across the middle of the screen
 	_card = Label.new()
@@ -133,6 +145,34 @@ func _process(delta: float) -> void:
 func say(text: String, seconds: float = 4.0) -> void:
 	_msg.text = text
 	msg_time = seconds
+
+
+func set_figs(value: int) -> void:
+	figs = value
+	_figs.visible = value > 0
+	_figs.queue_redraw()
+
+
+## A roast fig: purple-brown, split open and charred at the edges.
+static func draw_fig(c: CanvasItem, at: Vector2, k: float) -> void:
+	var body := PackedVector2Array()
+	for i in 16:
+		var a := TAU * i / 16.0
+		# a little narrower at the top, like a fig
+		var w := 11.0 - maxf(0.0, -sin(a)) * 3.0
+		body.append(at + Vector2(cos(a) * w, sin(a) * 11.0) * k)
+	c.draw_colored_polygon(body, Color("6b3450"))
+	c.draw_colored_polygon(PackedVector2Array([at + Vector2(-4, -10) * k, at + Vector2(4, -10) * k, at + Vector2(2, -17) * k, at + Vector2(-2, -17) * k]), Color("5a6b2a"))
+	c.draw_colored_polygon(PackedVector2Array([at + Vector2(-5, -2) * k, at + Vector2(0, -8) * k, at + Vector2(6, -2) * k, at + Vector2(0, 7) * k]), Color("e07a5f"))
+	for i in 5:
+		c.draw_circle(at + Vector2(-2 + (i % 3) * 2.0, -2 + (i / 3) * 4.0) * k, 1.0 * k, Color("f2d6a0"))
+	c.draw_arc(at, 11.0 * k, PI * 0.2, PI * 0.8, 10, Color("2a1420", 0.6), 2.5 * k)
+
+
+func _draw_figs() -> void:
+	for i in figs:
+		Hud.draw_fig(_figs, Vector2(14 + i * 22, 16), 0.9)
+	_figs.draw_string(ThemeDB.fallback_font, Vector2(14 + figs * 22, 22), "H", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(Pal.BONE, 0.6))
 
 
 func set_shells(value: int) -> void:

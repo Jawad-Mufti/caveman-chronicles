@@ -109,17 +109,24 @@ class CollectPop extends Node2D:
 
 
 class Pickup extends Area2D:
-	## One piece of treasure. Bobs gently where it lies; one popped out of a
-	## log falls to the ground first.
+	## One piece of treasure. Bobs gently where it lies. One popped out of
+	## something flies with real collisions: it bounces off walls, is knocked
+	## down by ceilings, passes up through thin ledges and branches but lands
+	## on them from above, and settles on the first solid ground it meets —
+	## always somewhere he can reach. If it ever drops out of reach, it pops
+	## back up beside the spot it came from.
 	signal collected(value: int)
 	var kind := "shell"
 	var level_id := ""
 	var id := ""
 	var vel := Vector2.ZERO        ## for pieces popped out of something
-	var floor_y := INF
+	var floor_y := INF             ## the ground where it came from (its safety net)
 	var t := 0.0
 	var _base_y := 0.0
 	var _gone := false
+	var _home := Vector2.ZERO      ## where it came from
+	var _flight := 0.0
+	var _bounced := false
 
 	func _ready() -> void:
 		if GameState.is_taken(level_id, id):
@@ -135,6 +142,7 @@ class Pickup extends Area2D:
 		body_entered.connect(_on_body)
 		t = randf() * TAU
 		_base_y = position.y
+		_home = position
 		add_to_group("glow")
 
 	func _on_body(b: Node) -> void:
@@ -158,20 +166,70 @@ class Pickup extends Area2D:
 	func _process(delta: float) -> void:
 		t += delta
 		if vel != Vector2.ZERO:
-			vel.y += 1300.0 * delta
-			position += vel * delta
-			if position.y >= floor_y - 10.0 and vel.y > 0.0:
-				position.y = floor_y - 10.0
-				vel = Vector2.ZERO
-				_base_y = position.y
-				for body in get_overlapping_bodies():
-					_on_body(body)
+			_fly(delta)
 			return
 		if LevelBase.near_view(self):
 			# moved and turned, not redrawn: the shape itself is drawn once.
 			# It turns like a spinning coin, and bobs.
 			position.y = _base_y + sin(t * 2.2) * 3.0
 			scale.x = maxf(0.2, absf(cos(t * 2.0)))
+
+	## One step of flight, checked against the world (layer 1: ground, rock,
+	## walls, ledges, branches) with a ray from where it was to where it's going.
+	func _fly(delta: float) -> void:
+		_flight += delta
+		vel.y = minf(vel.y + 1400.0 * delta, 1100.0)
+		var from := global_position
+		var to := from + vel * delta
+		var q := PhysicsRayQueryParameters2D.create(from, to, 1)
+		q.hit_from_inside = false
+		var hit := get_world_2d().direct_space_state.intersect_ray(q)
+		if hit.is_empty():
+			global_position = to
+		else:
+			var n: Vector2 = hit["normal"]
+			var one_way := _is_one_way(hit)
+			if n.y < -0.5 and vel.y > 0.0:
+				# ground (or a ledge, or a branch) from above: settle on it
+				global_position = (hit["position"] as Vector2) + Vector2(0, -12)
+				if not _bounced and vel.y > 260.0:
+					# one little hop first
+					_bounced = true
+					vel = Vector2(vel.x * 0.35, -vel.y * 0.28)
+				else:
+					_land()
+				return
+			elif one_way:
+				# thin ledges and branches: it passes up (or sideways) through them
+				global_position = to
+			elif absf(n.x) > 0.5:
+				# a wall: bounce back off it
+				global_position = (hit["position"] as Vector2) + n * 8.0
+				vel.x = -vel.x * 0.45
+			else:
+				# a ceiling: knocked back down
+				global_position = (hit["position"] as Vector2) + n * 6.0
+				vel.y = absf(vel.y) * 0.2
+		# the safety net: fallen out of reach, or flying far too long
+		if global_position.y > floor_y + 420.0 or _flight > 3.0:
+			global_position = _home + Vector2(0, -40)
+			vel = Vector2(randf_range(-60, 60), -320.0)
+			_flight = 0.0
+			_bounced = true
+
+	func _is_one_way(hit: Dictionary) -> bool:
+		var col = hit.get("collider")
+		if col is CollisionObject2D:
+			var co := col as CollisionObject2D
+			var owner_id := co.shape_find_owner(int(hit.get("shape", 0)))
+			return co.is_shape_owner_one_way_collision_enabled(owner_id)
+		return false
+
+	func _land() -> void:
+		vel = Vector2.ZERO
+		_base_y = position.y
+		for body in get_overlapping_bodies():
+			_on_body(body)
 
 	func _draw() -> void:
 		var b := Batch.new()
@@ -284,9 +342,9 @@ class Breakable extends Area2D:
 		p.position = global_position + Vector2(0, -30)
 		if fountain:
 			# a fountain: high, and spreading out both ways
-			p.vel = Vector2(randf_range(-230, 230), randf_range(-760, -520))
+			p.vel = Vector2(randf_range(-150, 150), randf_range(-700, -520))
 		else:
-			p.vel = Vector2(randf_range(-160, 160) - from_dir * 40.0, randf_range(-460, -300))
+			p.vel = Vector2(randf_range(-110, 110) - from_dir * 30.0, randf_range(-440, -320))
 		p.floor_y = global_position.y
 		var level := get_parent()
 		if level.has_method("_on_treasure_popped"):
@@ -390,7 +448,7 @@ class ShellTotem extends Area2D:
 			p.level_id = level_id
 			p.id = tid
 			p.position = global_position + Vector2(0, -44)
-			p.vel = Vector2(randf_range(-200, 200), randf_range(-520, -380))
+			p.vel = Vector2(randf_range(-120, 120), randf_range(-500, -380))
 			p.floor_y = global_position.y
 			var level := get_parent()
 			if level.has_method("_on_treasure_popped"):
@@ -478,7 +536,7 @@ class GoldenHare extends Critter:
 			p.level_id = level_id
 			p.id = tid
 			p.position = global_position + Vector2(0, -20)
-			p.vel = Vector2(randf_range(-260, 260), randf_range(-640, -420))
+			p.vel = Vector2(randf_range(-150, 150), randf_range(-560, -420))
 			p.floor_y = global_position.y
 			var level := get_parent()
 			if level.has_method("_on_treasure_popped"):
@@ -511,20 +569,20 @@ class GoldenHare extends Critter:
 			_stride += _moving * delta
 		hop = absf(sin(_stride / 26.0)) * (14.0 if _moving > 10.0 else 0.0)
 
-	func _draw() -> void:
-		draw_set_transform(Vector2(0, -hop), 0.0, Vector2(dir, 1))
+	func _paint() -> void:
+		_st(Vector2(0, -hop), 0.0, Vector2(dir, 1))
 		var gold := Color("e0b64a")
 		var dark := Color("a67c22")
 		_oval(Vector2(-2, -12), 15.0, 10.0, gold, 2.0)
 		_oval(Vector2(12, -20), 8.0, 7.0, gold, 2.0)
 		_fill(PackedVector2Array([Vector2(8, -26), Vector2(4, -46), Vector2(10, -44), Vector2(13, -26)]), dark)
 		_fill(PackedVector2Array([Vector2(13, -26), Vector2(12, -46), Vector2(18, -42), Vector2(17, -25)]), gold)
-		draw_circle(Vector2(16, -21), 1.8, Pal.OUTLINE)
-		draw_circle(Vector2(-16, -14), 4.5, Color("fff3c4"))
+		_cc(Vector2(16, -21), 1.8, Pal.OUTLINE)
+		_cc(Vector2(-16, -14), 4.5, Color("fff3c4"))
 		var k := sin(_stride / 13.0)
 		_limb(Vector2(-8, -6), Vector2(-14 - k * 6.0, 0), 5.0, dark)
 		_limb(Vector2(8, -6), Vector2(12 + k * 5.0, 0), 4.0, dark)
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		_st(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	func draw_glow(g: Node2D) -> void:
 		if not visible or dying > 0.0:

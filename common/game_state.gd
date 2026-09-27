@@ -5,8 +5,10 @@ extends RefCounted
 ## the game runs — changing scene or restarting a level doesn't touch it — and
 ## it is written to user://caveman_save.json whenever something is earned.
 ##
-## Shells are remembered one by one (each has an id in its level), so a shell
-## picked up stays picked up: restarting a level can't be used to farm them.
+## What he has picked up is remembered one by one while he is in a level (each
+## piece has an id), so nothing is counted twice; each new visit to a level
+## is a fresh treasure hunt. Weapons: the club always, plus whatever he has
+## bought or forged; he carries one. Roast figs: eaten to heal.
 
 const PATH := "user://caveman_save.json"
 const UPGRADE_MAX := {"heart": 2, "torch": 1, "pouch": 1, "club": 1}
@@ -18,6 +20,9 @@ static var skin := "plain"
 static var gems := {}          ## level id -> "found" | "forged"
 static var taken := {}         ## level id -> { treasure id: true }
 static var trophies: Array = []
+static var weapons: Array = ["club"]   ## owned: club, axe, hammer
+static var weapon := "club"            ## the one he carries
+static var figs := 0                   ## roast figs in his pouch
 static var _loaded := false
 
 
@@ -42,6 +47,13 @@ static func ensure_loaded() -> void:
 	gems = d.get("gems", {})
 	taken = d.get("taken", {})
 	trophies = d.get("trophies", [])
+	weapons = d.get("weapons", ["club"])
+	weapon = str(d.get("weapon", "club"))
+	figs = int(d.get("figs", 0))
+	# an older save that forged the Firestone before weapons were kept
+	if str(gems.get("level2", "")) == "forged" and not weapons.has("hammer"):
+		weapons.append("hammer")
+		weapon = "hammer"
 
 
 static func save() -> void:
@@ -49,7 +61,7 @@ static func save() -> void:
 	if f == null:
 		return
 	f.store_string(JSON.stringify({"shells": shells, "upgrades": upgrades, "skins": skins, "skin": skin,
-		"gems": gems, "taken": taken, "trophies": trophies}))
+		"gems": gems, "taken": taken, "trophies": trophies, "weapons": weapons, "weapon": weapon, "figs": figs}))
 
 
 ## A fresh start: everything back to nothing, on disk too.
@@ -61,8 +73,16 @@ static func reset() -> void:
 	gems = {}
 	taken = {}
 	trophies = []
+	weapons = ["club"]
+	weapon = "club"
+	figs = 0
 	_loaded = true
 	save()
+
+
+## How many roast figs he can carry.
+static func fig_max() -> int:
+	return 3 + int(upgrades["pouch"])
 
 
 static func is_taken(level: String, id: String) -> bool:
@@ -92,3 +112,5 @@ static func apply_to(p: CaveMan) -> void:
 	p.max_berries = 3 + pouch
 	p.club_bonus = int(upgrades["club"])
 	p.skin = skin
+	p.axe = weapon == "axe"
+	p.hammer = weapon == "hammer"

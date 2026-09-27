@@ -611,11 +611,11 @@ class Spider extends Critter:
 					state = "crawl"
 					cd = 1.6
 
-	func _draw() -> void:
+	func _paint() -> void:
 		var f := float(dir)
 		var tuck := 1.0 if state == "hang" else 0.0
 		if state == "hang" or state == "drop":
-			draw_line(Vector2(0, -26), Vector2(0, roof_y - position.y), Color(Pal.SILK, 0.7), 1.5)
+			_ln(Vector2(0, -26), Vector2(0, roof_y - position.y), Color(Pal.SILK, 0.7), 1.5)
 		var body := Vector2(0, -14)
 		for side in [-1.0, 1.0]:
 			var sd: float = side
@@ -625,13 +625,13 @@ class Spider extends Critter:
 				var step := sin(_walk * 0.25 + k * 1.3 + sd) * 4.0
 				var foot := Vector2(sd * reach + step, 0.0).lerp(Vector2(sd * 8.0, -8.0), tuck)
 				var knee := Vector2((hip.x + foot.x) * 0.5 + sd * 4.0, -24.0 - k * 1.5)
-				draw_polyline(PackedVector2Array([hip, knee, foot]), Pal.SPIDER.darkened(0.2 if sd < 0.0 else 0.0), 2.4, true)
+				_pl(PackedVector2Array([hip, knee, foot]), Pal.SPIDER.darkened(0.2 if sd < 0.0 else 0.0), 2.4, true)
 		_oval(Vector2(-f * 7.0, -16), 13.0, 11.0, Pal.SPIDER)
 		_fill(PackedVector2Array([Vector2(-f * 7.0, -22), Vector2(-f * 4.0, -16), Vector2(-f * 7.0, -10), Vector2(-f * 10.0, -16)]), Pal.SPIDER_MARK)
 		_oval(Vector2(f * 8.0, -13), 7.5, 6.5, Pal.SPIDER)
-		draw_line(Vector2(f * 13.0, -10), Vector2(f * 15.0, -5), Pal.BONE, 1.5, true)
+		_ln(Vector2(f * 13.0, -10), Vector2(f * 15.0, -5), Pal.BONE, 1.5, true)
 		if flash > 0.0:
-			draw_circle(Vector2(0, -14), 20.0, Color(1, 1, 1, 0.5))
+			_cc(Vector2(0, -14), 20.0, Color(1, 1, 1, 0.5))
 
 	func draw_glow(g: Node2D) -> void:
 		if dying > 0.0:
@@ -693,20 +693,20 @@ class Rat extends Critter:
 		elif not chasing and randf() < 0.006:
 			pause = randf_range(0.3, 0.9)
 
-	func _draw() -> void:
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2(dir, 1))
+	func _paint() -> void:
+		_st(Vector2.ZERO, 0.0, Vector2(dir, 1))
 		var bob := absf(sin(_run * 0.2)) * 2.0
-		draw_polyline(PackedVector2Array([Vector2(-12, -6), Vector2(-24, -4), Vector2(-32, -8 + sin(t * 6.0) * 2.0), Vector2(-38, -6)]), Pal.RAT_TAIL, 2.0, true)
+		_pl(PackedVector2Array([Vector2(-12, -6), Vector2(-24, -4), Vector2(-32, -8 + sin(t * 6.0) * 2.0), Vector2(-38, -6)]), Pal.RAT_TAIL, 2.0, true)
 		_oval(Vector2(-2, -8 - bob), 13.0, 7.0, Pal.RAT)
 		_fill(PackedVector2Array([Vector2(8, -13 - bob), Vector2(19, -7 - bob), Vector2(8, -4 - bob)]), Pal.RAT)
-		draw_circle(Vector2(19, -7 - bob), 1.6, Pal.RAT_TAIL)
-		draw_circle(Vector2(6, -14 - bob), 3.2, Pal.RAT_TAIL)
+		_cc(Vector2(19, -7 - bob), 1.6, Pal.RAT_TAIL)
+		_cc(Vector2(6, -14 - bob), 3.2, Pal.RAT_TAIL)
 		for k in 2:
 			var fx := -6.0 + k * 12.0 + sin(_run * 0.3 + k * PI) * 3.0
-			draw_line(Vector2(fx, -4 - bob), Vector2(fx, 0), Pal.RAT.darkened(0.3), 2.0)
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			_ln(Vector2(fx, -4 - bob), Vector2(fx, 0), Pal.RAT.darkened(0.3), 2.0)
+		_st(Vector2.ZERO, 0.0, Vector2.ONE)
 		if flash > 0.0:
-			draw_circle(Vector2(0, -8), 14.0, Color(1, 1, 1, 0.5))
+			_cc(Vector2(0, -8), 14.0, Color(1, 1, 1, 0.5))
 
 	func draw_glow(g: Node2D) -> void:
 		if dying > 0.0:
@@ -784,7 +784,7 @@ class Snake extends Critter:
 		if _cs.disabled == out:
 			_cs.set_deferred("disabled", not out)
 
-	func _draw() -> void:
+	func _paint() -> void:
 		var d := float(dir)
 		_oval(Vector2(d * 2.0, 0), 11.0, 13.0, Pal.CAVE_DARK)
 		if ext > 0.02:
@@ -793,18 +793,18 @@ class Snake extends Critter:
 			for i in 10:
 				var k := i / 9.0
 				pts.append(Vector2(head.x * k, sin(k * 9.0 + t * 8.0) * 5.0 * (1.0 - k) * ext))
-			draw_polyline(pts, Pal.SNAKE_DARK, 11.0, true)
-			draw_polyline(pts, Pal.SNAKE, 7.0, true)
+			_pl(pts, Pal.SNAKE_DARK, 11.0, true)
+			_pl(pts, Pal.SNAKE, 7.0, true)
 			var open := 1.0 if state == "rear" or state == "strike" else 0.2
 			_fill(PackedVector2Array([head + Vector2(-d * 4, -6), head + Vector2(d * 14, -4 - open * 4.0), head + Vector2(d * 10, 0)]), Pal.SNAKE)
 			_fill(PackedVector2Array([head + Vector2(-d * 4, 5), head + Vector2(d * 14, 3 + open * 4.0), head + Vector2(d * 10, 0)]), Pal.SNAKE_BELLY)
 			if open > 0.5:
-				draw_line(head + Vector2(d * 12, -3), head + Vector2(d * 12, 1), Pal.TOOTH, 1.5)
-				draw_line(head + Vector2(d * 10, 0), head + Vector2(d * (18.0 + sin(t * 30.0) * 3.0), 0), Pal.MAW.lightened(0.3), 1.2)
+				_ln(head + Vector2(d * 12, -3), head + Vector2(d * 12, 1), Pal.TOOTH, 1.5)
+				_ln(head + Vector2(d * 10, 0), head + Vector2(d * (18.0 + sin(t * 30.0) * 3.0), 0), Pal.MAW.lightened(0.3), 1.2)
 		if state == "rear":
 			draw_string(ThemeDB.fallback_font, Vector2(d * 8.0 - 12.0, -24), "sss", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Pal.BONE)
 		if flash > 0.0:
-			draw_circle(Vector2(d * ext * REACH, 0), 16.0, Color(1, 1, 1, 0.5))
+			_cc(Vector2(d * ext * REACH, 0), 16.0, Color(1, 1, 1, 0.5))
 
 	func draw_glow(g: Node2D) -> void:
 		if dying > 0.0:

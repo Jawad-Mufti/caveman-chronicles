@@ -249,7 +249,7 @@ const BREAKABLES := [
 ## Clay pots, in little groups: one smack each, a few shells. [x, surface y, how many]
 const POTS := [
 	[330.0, 600.0, 2], [2170.0, 490.0, 2], [3640.0, 600.0, 3], [5790.0, -278.0, 2], [7470.0, 600.0, 2],
-	[8480.0, 600.0, 2], [11060.0, 600.0, 2], [12920.0, 600.0, 3], [20500.0, 600.0, 2], [23000.0, 600.0, 2],
+	[8480.0, 600.0, 2], [10820.0, 600.0, 2], [12920.0, 600.0, 3], [20500.0, 600.0, 2], [23000.0, 600.0, 2],
 ]
 ## Shell Totems: carved faces that spit two shells per hit, six hits.
 const TOTEMS := [[2470.0, 600.0], [6300.0, -30.0], [11370.0, 600.0], [24180.0, 600.0]]
@@ -973,22 +973,43 @@ func _update_toolmaker() -> void:
 
 
 ## ---------------------------------------------------------------- the shop
+## ---------------------------------------------------------------- the shop
+## The economy. Prices are worked out from how much treasure the level holds
+## (_treasure_total), so that a player who finds about 60% of it can buy
+## exactly one new weapon, one new costume and three roast figs:
+##     axe 26%  +  a costume ~19%  +  3 figs x 5%   =  60%
+## The upgrades are extra, for the ones who search every corner. Move or add
+## treasure and the prices follow on their own.
+const ECONOMY := {"axe": 0.26, "wolf_hood": 0.16, "ember_paint": 0.18, "bear_cloak": 0.21, "firekeeper": 0.20,
+	"fig": 0.05, "heart": 0.18, "torch": 0.11, "pouch": 0.11}
+## [id, tab, name, what it is]
 const WARES := [
-	["forge", "Forge the FIRESTONE HAMMER", "His old hammer — the one that broke Old Scar's fang — with the Firestone set in it. Hold attack, let go: SLAM! A wave of fire.", 0],
-	["heart", "An extra heart", "Toughened by the Toolmaker's bitter roots: one more heart, for good.", 60],
-	["torch", "A long-burning torch", "Resin-soaked wrappings: his torch burns 40% longer.", 40],
-	["pouch", "A bigger pouch", "Carry one more bundle of wood, two more rocks and one more berry.", 40],
-	["club", "A heavier club", "A stone knot bound into the head: every club hit does one more damage.", 80],
-	["wolf_pelt", "Skin: Wolf Pelt", "A grey wolf-fur loincloth. Looks wonderful. Does nothing.", 30],
-	["war_paint", "Skin: War Paint", "Red stripes across the brow and chest. Fearsome.", 20],
-	["bone_necklace", "Skin: Bone Necklace", "A cord of small bones. Every hunter wants one.", 25],
-	["plain", "Skin: Plain", "His ordinary look.", 0],
+	["club", "weapons", "Wooden Club", "His old club. Honest wood, heavy enough."],
+	["axe", "weapons", "Flint Axe", "A blade of knapped flint, lashed to a haft with sinew. Every blow lands far harder than the club."],
+	["hammer", "weapons", "Firestone Hammer", "The Toolmaker's own hammer — the one that broke Old Scar's fang — with the Firestone set in it. Hold attack, let go: SLAM! A wave of fire."],
+	["plain", "costumes", "Plain Hide", "His everyday hide. Nothing wrong with it."],
+	["wolf_hood", "costumes", "Wolf Hood", "A wolf's head worn as a hood, its grey pelt down his back. Let the pack wonder whose side he's on."],
+	["ember_paint", "costumes", "Ember Paint", "Charcoal and ochre painted like flames rising up his chest, and a black band across the eyes: the mark of those who tamed fire."],
+	["bear_cloak", "costumes", "Bear Cloak", "A heavy cloak of bear fur, round ears on the hood, fastened with two bear claws. Warm on the longest night."],
+	["firekeeper", "costumes", "Firekeeper", "A leather headband with a glowing ember charm, feathers, ash stripes — and a pouch of live embers at his belt."],
+	["fig", "supplies", "Roast Fig", "Figs roasted in the embers. Eat one (press H, or tap it) for two hearts back."],
+	["heart", "supplies", "Extra Heart", "Bitter roots, chewed long: one more heart, for good. (Up to two.)"],
+	["torch", "supplies", "Long-burning Torch", "Resin-soaked wrappings: his torch burns 40% longer."],
+	["pouch", "supplies", "Bigger Pouch", "More room: wood, rocks, berries — and one more roast fig."],
 ]
+const LEGACY_SKINS := {"wolf_pelt": "Wolf Pelt", "war_paint": "War Paint", "bone_necklace": "Bone Necklace"}
+
+
+## What something costs here, from the level's treasure.
+func price_of(id: String) -> int:
+	var f: float = ECONOMY.get(id, 0.0)
+	if id == "heart" and int(GameState.upgrades["heart"]) >= 1:
+		f *= 1.5
+	return int(round(_treasure_total * f / 5.0)) * 5
 
 
 func _open_shop() -> void:
 	var shop := Shop.new()
-	shop.title = "THE TOOLMAKER"
 	shop.player = player
 	shop.list_items = _shop_items
 	shop.buy = _shop_buy
@@ -997,74 +1018,123 @@ func _open_shop() -> void:
 
 func _shop_items() -> Array:
 	var out: Array = []
-	for w in WARES:
+	var wares: Array = WARES.duplicate()
+	for id in LEGACY_SKINS:
+		if GameState.skins.has(id):
+			wares.append([id, "costumes", LEGACY_SKINS[id], "One of his older looks."])
+	for w in wares:
 		var id: String = w[0]
-		var price: int = w[3]
-		var text := "%d shells" % price
-		var enabled := GameState.shells >= price
-		if id == "forge":
-			var gem_state: String = GameState.gems.get("level2", "")
-			if gem_state == "forged":
-				text = "forged"
-				enabled = false
-			elif gem_state == "found":
-				text = "costs the Firestone"
-				enabled = true
-			else:
-				text = "needs a Firestone"
-				enabled = false
-		elif id in GameState.upgrades:
-			var have: int = GameState.upgrades[id]
-			if have >= int(GameState.UPGRADE_MAX[id]):
-				text = "owned"
-				enabled = false
-			elif id == "heart" and have == 1:
-				price = 120
-				text = "120 shells"
-				enabled = GameState.shells >= price
-		else:
-			if GameState.skin == id:
-				text = "wearing"
-				enabled = false
-			elif id in GameState.skins or id == "plain":
-				text = "wear"
-				enabled = true
-		out.append({"id": id, "name": w[1], "desc": w[2], "price_text": text, "enabled": enabled})
+		var tab: String = w[1]
+		var item := {"id": id, "tab": tab, "name": w[2], "desc": w[3], "icon": id, "price": price_of(id),
+			"status": "buy", "can": false, "note": "", "skin": "", "weapon": ""}
+		match tab:
+			"weapons":
+				item["weapon"] = id
+				if GameState.weapons.has(id):
+					item["status"] = "on" if GameState.weapon == id else "equip"
+					item["note"] = "CARRYING"
+					item["can"] = true
+				elif id == "hammer":
+					item["price"] = 0
+					var gem: String = GameState.gems.get("level2", "")
+					if gem == "found":
+						item["note"] = "COSTS THE FIRESTONE"
+						item["can"] = true
+					else:
+						item["status"] = "locked"
+						item["note"] = "NEEDS A FIRESTONE"
+				else:
+					item["can"] = GameState.shells >= item["price"]
+			"costumes":
+				item["skin"] = id
+				if id in LEGACY_SKINS:
+					item["icon"] = "plain"
+				if GameState.skins.has(id) or id == "plain":
+					item["status"] = "on" if GameState.skin == id else "equip"
+					item["note"] = "WEARING"
+					item["can"] = true
+				else:
+					item["can"] = GameState.shells >= item["price"]
+			"supplies":
+				if id == "fig":
+					if GameState.figs >= GameState.fig_max():
+						item["status"] = "maxed"
+						item["note"] = "POUCH FULL (%d)" % GameState.figs
+					else:
+						item["name"] = "Roast Fig  (%d/%d)" % [GameState.figs, GameState.fig_max()]
+						item["can"] = GameState.shells >= item["price"]
+				else:
+					var have: int = GameState.upgrades[id]
+					if have >= int(GameState.UPGRADE_MAX[id]):
+						item["status"] = "maxed"
+						item["note"] = "HAVE IT"
+					else:
+						item["can"] = GameState.shells >= item["price"]
+		out.append(item)
 	return out
 
 
+## Buying, or putting on something he already has. Everything is saved at once.
 func _shop_buy(id: String) -> String:
-	var price := 0
-	for w in WARES:
-		if w[0] == id:
-			price = w[3]
-	if id == "forge":
-		GameState.gems["level2"] = "forged"
-		GameState.save()
-		call_deferred("_forge_ceremony")
-		return "The Toolmaker takes the Firestone..."
-	if id in GameState.upgrades:
-		if id == "heart" and int(GameState.upgrades["heart"]) == 1:
-			price = 120
+	var said := ""
+	if id in ["club", "axe", "hammer"]:
+		if GameState.weapons.has(id):
+			GameState.weapon = id
+			said = "He takes up the %s." % _ware_name(id)
+		elif id == "hammer":
+			GameState.gems["level2"] = "forged"
+			GameState.weapons.append("hammer")
+			GameState.weapon = "hammer"
+			GameState.save()
+			call_deferred("_forge_ceremony")
+			return "The Toolmaker takes the Firestone..."
+		else:
+			var price := price_of(id)
+			if GameState.shells < price:
+				return "Not enough shells."
+			GameState.shells -= price
+			GameState.weapons.append(id)
+			GameState.weapon = id
+			said = "The %s! He swings it once. It whistles." % _ware_name(id)
+		player.axe = GameState.weapon == "axe"
+		player.hammer = GameState.weapon == "hammer"
+	elif id == "fig":
+		var price := price_of(id)
+		if GameState.shells < price:
+			return "Not enough shells."
+		GameState.shells -= price
+		GameState.figs += 1
+		hud.set_figs(GameState.figs)
+		said = "A roast fig, wrapped in a leaf. (Press H to eat one.)"
+	elif id in GameState.upgrades:
+		var price := price_of(id)
 		if GameState.shells < price:
 			return "Not enough shells."
 		GameState.shells -= price
 		GameState.upgrades[id] = int(GameState.upgrades[id]) + 1
 		_apply_upgrade(id)
-		GameState.save()
-		hud.set_shells(GameState.shells)
-		return "Done. The Toolmaker grunts, pleased."
-	# skins: buy once, then wear any time
-	if not (id in GameState.skins) and id != "plain":
-		if GameState.shells < price:
-			return "Not enough shells."
-		GameState.shells -= price
-		GameState.skins.append(id)
-	GameState.skin = id
-	player.skin = id
+		said = "Done. The Toolmaker grunts, pleased."
+	else:
+		# a costume: bought once, then worn any time
+		if not GameState.skins.has(id) and id != "plain":
+			var price := price_of(id)
+			if GameState.shells < price:
+				return "Not enough shells."
+			GameState.shells -= price
+			GameState.skins.append(id)
+		GameState.skin = id
+		player.skin = id
+		said = "He puts on the %s. Very fine." % _ware_name(id)
 	GameState.save()
 	hud.set_shells(GameState.shells)
-	return "He tries it on. Very fine."
+	return said
+
+
+func _ware_name(id: String) -> String:
+	for w in WARES:
+		if w[0] == id:
+			return w[2]
+	return LEGACY_SKINS.get(id, id)
 
 
 ## The forging: the story of the hammer, the hammering, and then the moment he
@@ -1083,6 +1153,7 @@ func _forge_ceremony() -> void:
 
 func _hammer_reveal() -> void:
 	player.hammer = true
+	player.axe = false
 	shake(6.0, 0.4)
 	var card := ItemGet.new()
 	card.title = "FIRESTONE HAMMER"
@@ -1126,6 +1197,7 @@ func _apply_upgrade(id: String) -> void:
 			player.max_wood += 1
 			player.max_rocks += 2
 			player.max_berries += 1
+			hud.set_figs(GameState.figs)
 		"club":
 			player.club_bonus = int(GameState.upgrades["club"])
 

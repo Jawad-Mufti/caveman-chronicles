@@ -347,9 +347,9 @@ class Wolf extends Critter:
 
 	## ------------------------------------------------------------- drawing
 	## Designed facing right at 1/0.8 size; flipped and scaled in one transform.
-	func _draw() -> void:
+	func _paint() -> void:
 		var f := float(dir)
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2(SIZE * f, SIZE))
+		_st(Vector2.ZERO, 0.0, Vector2(SIZE * f, SIZE))
 		var low := 0.25
 		var stretch := 0.0
 		var tuck := 0.0
@@ -418,22 +418,22 @@ class Wolf extends Critter:
 			Vector2(hx + 29, hy + 1), Vector2(hx + 26, hy + 4 + snarl), Vector2(hx + 12, hy + 7 + snarl), Vector2(hx - 2, hy + 8)])
 		_shape(head, Pal.WOLF)
 		_fill(_pts_oval(Vector2(hx + 16, hy + 4 + snarl * 0.5), 9.0, 2.2), Pal.WOLF_BELLY)
-		draw_circle(Vector2(hx + 28, hy), 2.4, Pal.OUTLINE)
+		_cc(Vector2(hx + 28, hy), 2.4, Pal.OUTLINE)
 		if snarl > 0.0:
-			draw_line(Vector2(hx + 14, hy + 3), Vector2(hx + 26, hy + 2), Pal.MAW, 2.0, true)
+			_ln(Vector2(hx + 14, hy + 3), Vector2(hx + 26, hy + 2), Pal.MAW, 2.0, true)
 			for k in 3:
 				var tx := hx + 16.0 + k * 3.5
 				_fill(PackedVector2Array([Vector2(tx, hy + 2), Vector2(tx + 1.2, hy + 5), Vector2(tx + 2.4, hy + 2)]), Pal.TOOTH)
 		if state in ["ko", "tumble"]:
 			# X for eyes, and the tongue lolling out
-			draw_line(Vector2(hx + 7, hy - 6), Vector2(hx + 13, hy), Pal.OUTLINE, 2.0, true)
-			draw_line(Vector2(hx + 13, hy - 6), Vector2(hx + 7, hy), Pal.OUTLINE, 2.0, true)
+			_ln(Vector2(hx + 7, hy - 6), Vector2(hx + 13, hy), Pal.OUTLINE, 2.0, true)
+			_ln(Vector2(hx + 13, hy - 6), Vector2(hx + 7, hy), Pal.OUTLINE, 2.0, true)
 			_fill(PackedVector2Array([Vector2(hx + 20, hy + 4), Vector2(hx + 26, hy + 5), Vector2(hx + 27, hy + 16), Vector2(hx + 22, hy + 17)]), Color("d96b7a"))
 		else:
-			draw_circle(Vector2(hx + 10, hy - 3), 2.2, Pal.OUTLINE)
+			_cc(Vector2(hx + 10, hy - 3), 2.2, Pal.OUTLINE)
 		if flash > 0.0:
-			draw_circle(Vector2(0, -28), 32.0, Color(1, 1, 1, 0.45))
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			_cc(Vector2(0, -28), 32.0, Color(1, 1, 1, 0.45))
+		_st(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	func _legs(side: float, ph: float, gait: float, sink: float, stretch: float, col: Color) -> void:
 		var s := side * 3.0
@@ -480,12 +480,12 @@ class Bat extends Bestiary.Insect:
 			return 1.0 if player.global_position.x > global_position.x else -1.0
 		return 1.0
 
-	func _draw() -> void:
+	func _paint() -> void:
 		var rate := 34.0 if state == "wind" else 15.0
 		var flap := sin(t * rate)
 		if state == "wind":
 			flap = -0.8 + sin(t * rate) * 0.25     # wings held high, trembling
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2(_facing(), 1.0))
+		_st(Vector2.ZERO, 0.0, Vector2(_facing(), 1.0))
 		for side in [-1.0, 1.0]:
 			var s: float = side
 			var wing := PackedVector2Array([
@@ -493,8 +493,8 @@ class Bat extends Bestiary.Insect:
 				Vector2(s * 25, 2 + flap * 7.0), Vector2(s * 18, -1 + flap * 5.0), Vector2(s * 12, 5 + flap * 2.0),
 				Vector2(s * 3, 5)])
 			_shape(wing, Pal.BAT_WING if s > 0.0 else Pal.BAT_WING.darkened(0.15), 1.6)
-			draw_line(Vector2(s * 4, -4), Vector2(s * 16, -12 + flap * 9.0), Pal.BAT.darkened(0.3), 1.6, true)
-			draw_line(Vector2(s * 16, -12 + flap * 9.0), Vector2(s * 25, 2 + flap * 7.0), Pal.BAT.darkened(0.3), 1.2, true)
+			_ln(Vector2(s * 4, -4), Vector2(s * 16, -12 + flap * 9.0), Pal.BAT.darkened(0.3), 1.6, true)
+			_ln(Vector2(s * 16, -12 + flap * 9.0), Vector2(s * 25, 2 + flap * 7.0), Pal.BAT.darkened(0.3), 1.2, true)
 		_oval(Vector2(0, 1), 7.0, 9.0, Pal.BAT, 1.8)
 		_dot(Vector2(1, -9), 5.5, Pal.BAT, 1.6)
 		for s2 in [-1.0, 1.0]:
@@ -502,8 +502,8 @@ class Bat extends Bestiary.Insect:
 			_fill(PackedVector2Array([Vector2(1 + e * 2, -12), Vector2(1 + e * 5, -20), Vector2(1 + e * 5.5, -11)]), Pal.BAT.darkened(0.2))
 		_fill(PackedVector2Array([Vector2(3, -7), Vector2(5, -4), Vector2(7, -7)]), Pal.TOOTH)
 		if flash > 0.0:
-			draw_circle(Vector2.ZERO, 16.0, Color(1, 1, 1, 0.5))
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			_cc(Vector2.ZERO, 16.0, Color(1, 1, 1, 0.5))
+		_st(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	func draw_glow(g: Node2D) -> void:
 		if dying > 0.0:
@@ -518,6 +518,7 @@ class Bat extends Bestiary.Insect:
 
 ## ================================================================ MONKEYS
 class Monkey extends Area2D:
+	var _pen: Batch             ## its picture, collected into one draw call
 	## Lives in the great tree and minds its own business: eats bananas,
 	## scratches, stares at his torch like it has never seen fire (it has not),
 	## and copies him — he jumps, it hops; he swings, it swings.
@@ -729,7 +730,12 @@ class Monkey extends Area2D:
 	## Designed sitting, facing right, origin where it sits on the branch.
 	## Hanging is the same monkey turned upside down under the branch.
 	func _draw() -> void:
-		MonkeyArt.draw_monkey(self, {
+		_pen = Batch.new()
+		_paint()
+		_pen.draw(self)
+
+	func _paint() -> void:
+		MonkeyArt.draw_monkey(_pen, {
 			"dir": dir, "t": t, "state": state, "hanging": hanging, "habit": habit,
 			"eat": eat, "stare": stare, "wave": wave, "flash": flash,
 			"fur": Pal.MONKEY, "dark": Pal.MONKEY_DARK, "face": Pal.MONKEY_FACE})
@@ -738,7 +744,7 @@ class Monkey extends Area2D:
 class MonkeyArt extends RefCounted:
 	## The monkey drawing, shared by the troop and by Old Bongo (who adds a
 	## beard, a crown and a gem to it). Draws into `c` in the monkey's own space.
-	static func draw_monkey(c: CanvasItem, o: Dictionary) -> void:
+	static func draw_monkey(c, o: Dictionary) -> void:
 		var f := float(o["dir"])
 		var t: float = o["t"]
 		var state: String = o["state"]
@@ -855,7 +861,7 @@ class MonkeyArt extends RefCounted:
 			var at := Vector2(-26, 58 if hanging else -58) + Vector2(0, sin(t * 20.0) * 2.0)
 			c.draw_string(font, at, word, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Pal.BONE)
 
-	static func _oval(c: CanvasItem, at: Vector2, rx: float, ry: float, col: Color) -> void:
+	static func _oval(c, at: Vector2, rx: float, ry: float, col: Color) -> void:
 		var pts := PackedVector2Array()
 		for i in 14:
 			var a := TAU * i / 14.0
@@ -863,7 +869,7 @@ class MonkeyArt extends RefCounted:
 		c.draw_colored_polygon(pts, col)
 
 	## A banana in the hand: `left` is how much is still uneaten.
-	static func banana(c: CanvasItem, at: Vector2, left: float, peeled: bool) -> void:
+	static func banana(c, at: Vector2, left: float, peeled: bool) -> void:
 		var pts := PackedVector2Array()
 		var span := 1.1 * left
 		for i in 7:
@@ -880,6 +886,7 @@ class MonkeyArt extends RefCounted:
 
 
 class Elder extends Area2D:
+	var _pen: Batch             ## its picture, collected into one draw call
 	## Old Bongo, king of the great tree. Bigger, greyer, bearded, crowned with
 	## leaves — and the only animal in the woods that talks. He sits by his
 	## locked banana box turning the shiny stone over in his fingers.
@@ -923,31 +930,36 @@ class Elder extends Area2D:
 			queue_redraw()
 
 	func _draw() -> void:
+		_pen = Batch.new()
+		_paint()
+		_pen.draw(self)
+
+	func _paint() -> void:
 		if not show_box:
 			_draw_self()
 			return
 		# the banana box beside him: a crate bound with vine, a stone lock
 		var bx := Vector2(-58, 0)
 		var lid := 0.0 if not box_open else -0.9
-		draw_rect(Rect2(bx + Vector2(-26, -34), Vector2(52, 34)), Pal.BARK_DARK)
-		draw_rect(Rect2(bx + Vector2(-23, -31), Vector2(46, 28)), Pal.BARK)
+		_pen.draw_rect(Rect2(bx + Vector2(-26, -34), Vector2(52, 34)), Pal.BARK_DARK)
+		_pen.draw_rect(Rect2(bx + Vector2(-23, -31), Vector2(46, 28)), Pal.BARK)
 		for k in 3:
-			draw_line(bx + Vector2(-23 + k * 23, -31), bx + Vector2(-23 + k * 23, -3), Pal.BARK_DARK, 2.0)
+			_pen.draw_line(bx + Vector2(-23 + k * 23, -31), bx + Vector2(-23 + k * 23, -3), Pal.BARK_DARK, 2.0)
 		if box_open:
 			for k in 4:
-				MonkeyArt.banana(self, bx + Vector2(-20 + k * 9, -44 + (k % 2) * 3), 1.0, false)
-		draw_set_transform(bx + Vector2(-26, -34), lid, Vector2.ONE)
-		draw_rect(Rect2(Vector2(0, -7), Vector2(54, 8)), Pal.BARK_DARK)
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+				MonkeyArt.banana(_pen, bx + Vector2(-20 + k * 9, -44 + (k % 2) * 3), 1.0, false)
+		_pen.draw_set_transform(bx + Vector2(-26, -34), lid, Vector2.ONE)
+		_pen.draw_rect(Rect2(Vector2(0, -7), Vector2(54, 8)), Pal.BARK_DARK)
+		_pen.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		if not box_open:
-			draw_line(bx + Vector2(-26, -20), bx + Vector2(26, -20), Pal.VINE, 3.0)
-			draw_circle(bx + Vector2(0, -20), 7.0, Pal.CRAG_DARK)
-			draw_circle(bx + Vector2(0, -20), 5.0, Pal.CRAG)
-			draw_rect(Rect2(bx + Vector2(-1, -22), Vector2(2, 5)), Pal.CHARCOAL)
+			_pen.draw_line(bx + Vector2(-26, -20), bx + Vector2(26, -20), Pal.VINE, 3.0)
+			_pen.draw_circle(bx + Vector2(0, -20), 7.0, Pal.CRAG_DARK)
+			_pen.draw_circle(bx + Vector2(0, -20), 5.0, Pal.CRAG)
+			_pen.draw_rect(Rect2(bx + Vector2(-1, -22), Vector2(2, 5)), Pal.CHARCOAL)
 		_draw_self()
 
 	func _draw_self() -> void:
-		MonkeyArt.draw_monkey(self, {
+		MonkeyArt.draw_monkey(_pen, {
 			"dir": dir, "t": t, "state": "calm", "hanging": false, "habit": 0,
 			"eat": 1.0, "stare": 0.0, "wave": 0.0, "flash": flash, "scale": SIZE, "elder": true,
 			"holding": "gem" if has_gem else "none", "talking": speaking,
@@ -1099,6 +1111,7 @@ class BananaPickup extends Area2D:
 
 ## ================================================================ PEOPLE
 class Toolmaker extends Node2D:
+	var _pen: Batch             ## its picture, collected into one draw call
 	## The Toolmaker: an old hermit living at the edge of the Long Dark, by his
 	## fire and his forge stone. Old Scar took his arm forty winters ago. He
 	## knows the beast, trades in shells, and can forge a Firestone into a
@@ -1118,53 +1131,58 @@ class Toolmaker extends Node2D:
 			queue_redraw()
 
 	func _draw() -> void:
+		_pen = Batch.new()
+		_paint()
+		_pen.draw(self)
+
+	func _paint() -> void:
 		# the forge stone beside him, a flat anvil rock
 		var bt := Batch.new()
 		var fx := float(dir) * 56.0
 		bt.poly(PackedVector2Array([Vector2(fx - 26, 0), Vector2(fx - 22, -22), Vector2(fx + 24, -24), Vector2(fx + 28, 0)]), Pal.CRAG_DARK)
 		bt.rect(Rect2(fx - 22, -26, 46, 5), Pal.CRAG_LIGHT)
 		bt.draw(self)
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2(float(dir) * 0.38, 0.38))
+		_pen.draw_set_transform(Vector2.ZERO, 0.0, Vector2(float(dir) * 0.38, 0.38))
 		var skin := Color("b98a62")
 		var hair := Color("c9c3b6")
 		var bob := sin(t * 1.4) * 1.5
 		# legs, bent with age
 		for lx in [-12.0, 14.0]:
-			draw_line(Vector2(lx, -70), Vector2(lx + 4, -34), skin.darkened(0.2), 14.0, true)
-			draw_line(Vector2(lx + 4, -34), Vector2(lx, -2), skin.darkened(0.2), 12.0, true)
-			draw_circle(Vector2(lx + 4, -2), 8.0, skin.darkened(0.3))
+			_pen.draw_line(Vector2(lx, -70), Vector2(lx + 4, -34), skin.darkened(0.2), 14.0, true)
+			_pen.draw_line(Vector2(lx + 4, -34), Vector2(lx, -2), skin.darkened(0.2), 12.0, true)
+			_pen.draw_circle(Vector2(lx + 4, -2), 8.0, skin.darkened(0.3))
 		# hunched body in an old hide
 		var body := PackedVector2Array([Vector2(-26, -70), Vector2(-30, -120 + bob), Vector2(-10, -150 + bob), Vector2(24, -146 + bob),
 			Vector2(34, -116 + bob), Vector2(28, -70)])
-		draw_colored_polygon(body, skin)
-		draw_colored_polygon(PackedVector2Array([Vector2(-28, -96), Vector2(30, -96), Vector2(32, -58), Vector2(-30, -58)]), Pal.HIDE_DARK)
+		_pen.draw_colored_polygon(body, skin)
+		_pen.draw_colored_polygon(PackedVector2Array([Vector2(-28, -96), Vector2(30, -96), Vector2(32, -58), Vector2(-30, -58)]), Pal.HIDE_DARK)
 		# the stump where his left arm was
-		draw_circle(Vector2(-24, -128 + bob), 11.0, skin.darkened(0.1))
-		draw_line(Vector2(-30, -128 + bob), Vector2(-20, -122 + bob), skin.darkened(0.35), 2.0, true)
+		_pen.draw_circle(Vector2(-24, -128 + bob), 11.0, skin.darkened(0.1))
+		_pen.draw_line(Vector2(-30, -128 + bob), Vector2(-20, -122 + bob), skin.darkened(0.35), 2.0, true)
 		# his one arm, with a stone hammer — raised and falling while he forges
 		var swing := sin(t * 14.0) if forging > 0.0 else 0.0
 		var hand := Vector2(56, -112 - 40.0 * maxf(swing, 0.0) + bob)
-		draw_line(Vector2(26, -136 + bob), Vector2(46, -110 + bob), skin, 13.0, true)
-		draw_line(Vector2(46, -110 + bob), hand, skin, 12.0, true)
-		draw_line(hand, hand + Vector2(10, -34), Pal.TRUNK_DARK, 6.0, true)
-		draw_colored_polygon(PackedVector2Array([hand + Vector2(0, -34), hand + Vector2(26, -44), hand + Vector2(28, -30), hand + Vector2(4, -24)]), Pal.STONE)
-		draw_circle(hand, 9.0, skin)
+		_pen.draw_line(Vector2(26, -136 + bob), Vector2(46, -110 + bob), skin, 13.0, true)
+		_pen.draw_line(Vector2(46, -110 + bob), hand, skin, 12.0, true)
+		_pen.draw_line(hand, hand + Vector2(10, -34), Pal.TRUNK_DARK, 6.0, true)
+		_pen.draw_colored_polygon(PackedVector2Array([hand + Vector2(0, -34), hand + Vector2(26, -44), hand + Vector2(28, -30), hand + Vector2(4, -24)]), Pal.STONE)
+		_pen.draw_circle(hand, 9.0, skin)
 		# head: bald on top, a ring of grey, a long grey beard
 		var head := Vector2(10, -168 + bob)
-		draw_circle(head, 24.0, skin)
-		draw_colored_polygon(PackedVector2Array([head + Vector2(-24, 0), head + Vector2(-20, -16), head + Vector2(-8, -8), head + Vector2(-16, 12)]), hair)
-		draw_colored_polygon(PackedVector2Array([head + Vector2(-14, 8), head + Vector2(20, 8), head + Vector2(22, 40), head + Vector2(6, 58),
+		_pen.draw_circle(head, 24.0, skin)
+		_pen.draw_colored_polygon(PackedVector2Array([head + Vector2(-24, 0), head + Vector2(-20, -16), head + Vector2(-8, -8), head + Vector2(-16, 12)]), hair)
+		_pen.draw_colored_polygon(PackedVector2Array([head + Vector2(-14, 8), head + Vector2(20, 8), head + Vector2(22, 40), head + Vector2(6, 58),
 			head + Vector2(-8, 44)]), hair)
-		draw_line(head + Vector2(-6, -8), head + Vector2(4, -6), hair, 4.0, true)
-		draw_line(head + Vector2(10, -6), head + Vector2(20, -8), hair, 4.0, true)
-		draw_circle(head + Vector2(0, -1), 2.6, Pal.OUTLINE)
-		draw_circle(head + Vector2(15, -1), 2.6, Pal.OUTLINE)
+		_pen.draw_line(head + Vector2(-6, -8), head + Vector2(4, -6), hair, 4.0, true)
+		_pen.draw_line(head + Vector2(10, -6), head + Vector2(20, -8), hair, 4.0, true)
+		_pen.draw_circle(head + Vector2(0, -1), 2.6, Pal.OUTLINE)
+		_pen.draw_circle(head + Vector2(15, -1), 2.6, Pal.OUTLINE)
 		if speaking:
-			draw_rect(Rect2(head + Vector2(2, 14 + absf(sin(t * 16.0)) * 2.0), Vector2(10, 3)), Pal.MAW)
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			_pen.draw_rect(Rect2(head + Vector2(2, 14 + absf(sin(t * 16.0)) * 2.0), Vector2(10, 3)), Pal.MAW)
+		_pen.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		if forging > 0.0:
 			for i in 10:
 				var q := fmod(t * 2.5 + i * 0.1, 1.0)
 				var a := -PI * 0.5 + (i - 4.5) * 0.3
 				var p := Vector2(fx, -26) + Vector2.from_angle(a) * q * 60.0 + Vector2(0, q * q * 30.0)
-				draw_circle(p, 2.5 * (1.0 - q) + 0.5, Color(Pal.FLAME_CORE, 1.0 - q))
+				_pen.draw_circle(p, 2.5 * (1.0 - q) + 0.5, Color(Pal.FLAME_CORE, 1.0 - q))

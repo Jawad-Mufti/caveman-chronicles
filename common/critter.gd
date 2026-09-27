@@ -109,6 +109,97 @@ class SlowKeeper extends Node:
 			queue_free()
 
 
+
+## ------------------------------------------------------------ one draw call
+## Everything drawn here is collected into one Batch and handed to the GPU as
+## a SINGLE draw call. Drawn shape by shape, a wolf was ~30 draw calls and the
+## caveman ~200 — every frame — which is what made busy scenes stutter. The
+## _ln / _pl / _cc / _pg / _rc / _ac / _st / _stm helpers stand in for
+## draw_line / draw_polyline / draw_circle / draw_colored_polygon / draw_rect /
+## draw_arc / draw_set_transform / draw_set_transform_matrix.
+var _bb: Batch = null
+
+
+func _draw() -> void:
+	_bb = Batch.new()
+	_paint()
+	_bb.draw(self)
+	_bb = null
+
+
+func _segs(r: float) -> int:
+	return clampi(int(r * 0.7) + 8, 8, 28)
+
+
+func _ln(a: Vector2, b: Vector2, col: Color, w: float = -1.0, _aa: bool = false) -> void:
+	if _bb == null:
+		draw_line(a, b, col, w, _aa)
+		return
+	_bb.line(a, b, col, maxf(w, 1.0))
+
+
+func _pl(pts: PackedVector2Array, col: Color, w: float = -1.0, _aa: bool = false) -> void:
+	if _bb == null:
+		draw_polyline(pts, col, w, _aa)
+		return
+	_bb.polyline(pts, col, maxf(w, 1.0))
+
+
+func _cc(c: Vector2, r: float, col: Color, filled: bool = true, w: float = -1.0, _aa: bool = false) -> void:
+	if _bb == null:
+		draw_circle(c, r, col, filled, w, _aa)
+		return
+	if r <= 0.05:
+		return
+	if filled:
+		_bb.circle(c, r, col, _segs(r))
+	else:
+		_bb.arc(c, r, 0.0, TAU, _segs(r), col, maxf(w, 1.0))
+
+
+func _pg(pts: PackedVector2Array, col: Color) -> void:
+	if _bb == null:
+		draw_colored_polygon(pts, col)
+		return
+	_bb.poly(pts, col)
+
+
+func _rc(r: Rect2, col: Color, filled: bool = true, w: float = -1.0, _aa: bool = false) -> void:
+	if _bb == null:
+		draw_rect(r, col, filled, w, _aa)
+		return
+	if filled:
+		_bb.rect(r, col)
+	else:
+		_bb.polyline(PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y), r.position]), col, maxf(w, 1.0))
+
+
+func _ac(c: Vector2, r: float, a0: float, a1: float, n: int, col: Color, w: float = -1.0, _aa: bool = false) -> void:
+	if _bb == null:
+		draw_arc(c, r, a0, a1, n, col, w, _aa)
+		return
+	_bb.arc(c, r, a0, a1, maxi(n, 2), col, maxf(w, 1.0))
+
+
+func _st(pos: Vector2 = Vector2.ZERO, rot: float = 0.0, sc: Vector2 = Vector2.ONE) -> void:
+	if _bb == null:
+		draw_set_transform(pos, rot, sc)
+		return
+	_bb.set_xf(Transform2D(rot, sc, 0.0, pos))
+
+
+func _stm(m: Transform2D) -> void:
+	if _bb == null:
+		draw_set_transform_matrix(m)
+		return
+	_bb.set_xf(m)
+
+
+## What the creature looks like. Each kind of creature draws itself here.
+func _paint() -> void:
+	pass
+
+
 ## Caught in a fire burst. Most things simply take the damage; a few react.
 func burned(dmg: int, from: Vector2) -> void:
 	var d := int(signf(global_position.x - from.x))
@@ -364,7 +455,7 @@ func _pts_oval(c: Vector2, rx: float, ry: float, rot: float = 0.0, n: int = 10) 
 
 
 func _fill(pts: PackedVector2Array, col: Color) -> void:
-	draw_colored_polygon(pts, col)
+	_pg(pts, col)
 
 
 ## The same outline, shrunk toward its own centre and nudged into the light.
@@ -384,12 +475,15 @@ func _lit(pts: PackedVector2Array, amount: float = 0.86) -> PackedVector2Array:
 
 
 func _shape(pts: PackedVector2Array, col: Color, w: float = OLW) -> void:
-	draw_colored_polygon(pts, col.darkened(0.30))
-	draw_colored_polygon(_lit(pts), col)
+	if _bb != null:
+		_bb.poly_pair(pts, col.darkened(0.30), _lit(pts), col)
+	else:
+		_pg(pts, col.darkened(0.30))
+		_pg(_lit(pts), col)
 	if w > 0.0:
 		var ring := PackedVector2Array(pts)
 		ring.append(pts[0])
-		draw_polyline(ring, col.darkened(0.62), w * 0.7, false)
+		_pl(ring, col.darkened(0.62), w * 0.7, false)
 
 
 func _oval(c: Vector2, rx: float, ry: float, col: Color, w: float = OLW, rot: float = 0.0) -> void:
@@ -397,20 +491,20 @@ func _oval(c: Vector2, rx: float, ry: float, col: Color, w: float = OLW, rot: fl
 
 
 func _dot(c: Vector2, r: float, col: Color, w: float = OLW) -> void:
-	draw_circle(c, r, col.darkened(0.30))
-	draw_circle(c + LIGHT * r * 0.16, r * 0.86, col)
+	_cc(c, r, col.darkened(0.30))
+	_cc(c + LIGHT * r * 0.16, r * 0.86, col)
 	if w > 0.0:
-		draw_arc(c, r, 0.0, TAU, 12, col.darkened(0.62), w * 0.7, false)
+		_ac(c, r, 0.0, TAU, 12, col.darkened(0.62), w * 0.7, false)
 
 
 ## A thick outlined limb: outline pass, then fill, with round joints.
 func _limb(a: Vector2, b: Vector2, width: float, col: Color) -> void:
-	draw_line(a, b, Pal.OUTLINE, width + 4.0, false)
-	draw_circle(a, (width + 4.0) * 0.5, Pal.OUTLINE)
-	draw_circle(b, (width + 4.0) * 0.5, Pal.OUTLINE)
-	draw_line(a, b, col, width, false)
-	draw_circle(a, width * 0.5, col)
-	draw_circle(b, width * 0.5, col)
+	_ln(a, b, Pal.OUTLINE, width + 4.0, false)
+	_cc(a, (width + 4.0) * 0.5, Pal.OUTLINE)
+	_cc(b, (width + 4.0) * 0.5, Pal.OUTLINE)
+	_ln(a, b, col, width, false)
+	_cc(a, width * 0.5, col)
+	_cc(b, width * 0.5, col)
 
 
 ## An eye with a pupil. slit = a reptile's vertical pupil.
@@ -419,8 +513,8 @@ func _eye(c: Vector2, r: float, look: Vector2, white: Color, slit: bool = false)
 	if slit:
 		_fill(_pts_oval(c + look, r * 0.34, r * 0.82), Pal.OUTLINE)
 	else:
-		draw_circle(c + look, r * 0.46, Pal.OUTLINE)
-	draw_circle(c + look - Vector2(r * 0.3, r * 0.35), r * 0.2, Color(1, 1, 1, 0.9))
+		_cc(c + look, r * 0.46, Pal.OUTLINE)
+	_cc(c + look - Vector2(r * 0.3, r * 0.35), r * 0.2, Color(1, 1, 1, 0.9))
 
 
 func add_circle_shape(radius: float, offset: Vector2 = Vector2.ZERO) -> void:
