@@ -154,15 +154,14 @@ func title_card(title_text: String, sub: String) -> void:
 
 
 func _draw_shells() -> void:
-	var k := 1.0 + _shell_bump * 1.2
-	var c := Vector2(14, 14)
-	var pts := PackedVector2Array()
-	for i in 12:
-		var a := TAU * i / 12.0
-		pts.append(c + Vector2(cos(a) * 10.0, sin(a) * 7.0) * k)
-	_shells.draw_colored_polygon(pts, Color("e9dcc0"))
-	_shells.draw_line(c + Vector2(-7, 0) * k, c + Vector2(7, 0) * k, Color("b79b72"), 2.0)
-	_shells.draw_string(ThemeDB.fallback_font, Vector2(32, 22), str(shells), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Pal.BONE)
+	# the same scallop as the ones he picks up, a little bigger when one comes in
+	var b := Batch.new()
+	Treasure.shape_into(b, "shell", Vector2.ZERO)
+	var k := 1.0 + _shell_bump * 1.6
+	_shells.draw_set_transform(Vector2(14, 15), 0.0, Vector2(k, k) * 0.85)
+	b.draw(_shells)
+	_shells.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	_shells.draw_string(ThemeDB.fallback_font, Vector2(34, 22), str(shells), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Pal.BONE)
 
 
 func set_quest(text: String) -> void:

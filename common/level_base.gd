@@ -19,6 +19,8 @@ var gem_found := false
 ## Set by bonfires and the like. While there is one, death puts him back
 ## there after a beat instead of asking for a full restart.
 var has_checkpoint := false
+var _shake_power := 0.0
+var _shake_time := 0.0
 var checkpoint := Vector2.ZERO
 
 
@@ -108,6 +110,12 @@ func _band(pb: ParallaxBackground, motion: Vector2, tile: float, art: Node2D) ->
 	pl.add_child(art)
 
 
+## Shake the view: a boss hitting the ground, a big blow landing.
+func shake(power: float, secs: float) -> void:
+	_shake_power = power
+	_shake_time = secs
+
+
 ## A line of text the first time he walks past x.
 func _note(x: float, text: String, seconds: float = 3.0) -> void:
 	var t := World.Trigger.new(Rect2(x, 100, 60, 900))
@@ -119,6 +127,9 @@ func _process(_delta: float) -> void:
 	cam.global_position = player.global_position + Vector2(0, -150)
 	# the fire's wind-up trembles the view, and the release jolts it
 	var shake := 0.0
+	if _shake_time > 0.0:
+		_shake_time -= get_process_delta_time() / maxf(Engine.time_scale, 0.05)
+		shake = _shake_power
 	if player.fury >= 0.0:
 		if player.fury < CaveMan.FURY_RELEASE:
 			shake = 3.0 * player.fury / CaveMan.FURY_RELEASE

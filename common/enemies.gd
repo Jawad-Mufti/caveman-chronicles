@@ -5,6 +5,13 @@ extends RefCounted
 
 
 class Insect extends Critter:
+	## Shot out of the air: it spins down to the ground in a wobbling spiral.
+	func death_style() -> String:
+		return "spiral"
+
+	func death_floor() -> float:
+		return (ground_y if ground_y != 0.0 else floor_y) - 10.0
+
 	## Hovers at its own height and attacks in a STRAIGHT LINE from where it is.
 	## It never climbs to sit on top of him: it winds up, commits to one direction,
 	## and flies through. Committing is what makes it dodgeable and stompable.
@@ -142,6 +149,9 @@ class Insect extends Critter:
 		if flash > 0.0:
 			draw_circle(Vector2.ZERO, 15.0, Color(1, 1, 1, 0.5))
 class Lizard extends Critter:
+	func death_style() -> String:
+		return "flip"
+
 	var left_x := 0.0
 	var right_x := 0.0
 	var dir := 1
@@ -476,6 +486,56 @@ class Boar extends Critter:
 	func _on_die() -> void:
 		defeated.emit()
 
+	## Tuskar goes down like a landslide: his charge carries him on, skidding,
+	## as he rolls over onto his back, legs kicking at the sky, stars going
+	## round — and the whole world slows to watch.
+	var _skid := 0.0
+	var _dust_in := 0.0
+
+	func death_style() -> String:
+		return "boss"
+
+	func _begin_death(from_dir: int) -> void:
+		super._begin_death(from_dir)
+		dying = 4.2
+		_skid = vx if absf(vx) > 60.0 else float(from_dir if from_dir != 0 else -dir) * 260.0
+		_dlift = 46.0
+		if is_inside_tree():
+			Critter.slow_time(get_tree(), 1.0, 0.3)
+			var level := get_parent()
+			if level.has_method("shake"):
+				level.shake(9.0, 0.8)
+			var stars := Critter.Dizzy.new()
+			stars.life = 3.6
+			stars.radius = 40.0
+			stars.position = Vector2(0, -90)
+			add_child(stars)
+
+	func _death_step(delta: float) -> void:
+		death_t += delta
+		dying = maxf(4.2 - death_t, 0.001)
+		_skid = move_toward(_skid, 0.0, 420.0 * delta)
+		position.x = clampf(position.x + _skid * delta, arena_l + 60.0, arena_r - 60.0)
+		var k := clampf(death_t / 0.7, 0.0, 1.0)
+		rotation = lerpf(0.0, PI * signf(_skid if _skid != 0.0 else 1.0), k * k)
+		position.y = lerpf(_dstart.y, _dstart.y - _dlift, k)
+		# legs kicking once he's over
+		if k >= 1.0:
+			rotation = PI + sin(death_t * 18.0) * 0.04 * clampf(3.0 - death_t, 0.0, 1.0)
+		_dust_in -= delta
+		if absf(_skid) > 40.0 and _dust_in <= 0.0:
+			_dust_in = 0.08
+			var dust := Critter.DeathPop.new()
+			dust.dust = true
+			dust.big = true
+			dust.position = Vector2(position.x, _dstart.y)
+			get_parent().add_child(dust)
+		modulate.a = clampf((4.2 - death_t) / 0.6, 0.0, 1.0)
+		if death_t >= 4.2:
+			queue_free()
+			return
+		queue_redraw()
+
 	func _draw() -> void:
 		# Tuskar: heavy brown hide, pale belly, a black bristle ridge down the
 		# spine, ivory tusks, and one small furious eye. Every state pose below
@@ -564,6 +624,9 @@ class Boar extends Critter:
 			_fill(_pts_oval(body, 56.0, 34.0), Color(1, 1, 1, 0.4))
 
 class Flytrap extends Critter:
+	func death_style() -> String:
+		return "wilt"
+
 	## A rooted snapping plant. It opens on a cycle and bites what is near it.
 	## Deliberately NOT stompable: it snaps upward, so landing on it is a mistake.
 	var t := 0.0

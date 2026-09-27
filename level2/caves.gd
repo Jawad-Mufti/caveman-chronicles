@@ -134,8 +134,9 @@ class CaveMouth extends Area2D:
 			_noticed = true
 			noticed.emit()
 			return
-		if overlaps_body(player) and player.is_on_floor() and player.facing == side:
-			_hold += delta
+		if overlaps_body(player) and player.facing == side and not player.dead:
+			if player.is_on_floor() or _hold > 0.0:
+				_hold += delta
 			if _hold > 0.4:
 				_hold = 0.0
 				entered.emit()
@@ -212,8 +213,9 @@ class CaveExit extends Area2D:
 	func _physics_process(delta: float) -> void:
 		if player == null or player.talking:
 			return
-		if overlaps_body(player) and player.is_on_floor() and player.facing == side:
-			_hold += delta
+		if overlaps_body(player) and player.facing == side and not player.dead:
+			if player.is_on_floor() or _hold > 0.0:
+				_hold += delta
 			if _hold > 0.25:
 				_hold = 0.0
 				left.emit()
@@ -531,6 +533,13 @@ class KeyItem extends Area2D:
 
 ## ================================================================ CAVE ANIMALS
 class Spider extends Critter:
+	## Dies curling up, legs to the sky — dropping off its thread first if it was hanging.
+	func death_style() -> String:
+		return "curl"
+
+	func death_floor() -> float:
+		return floor_y
+
 	## Hangs from the roof on a thread, eyes glowing, until he walks beneath.
 	## Then it drops. On the floor it scuttles at him and pounces.
 	var roof_y := 0.0
@@ -635,6 +644,9 @@ class Spider extends Critter:
 
 
 class Rat extends Critter:
+	func death_style() -> String:
+		return "flip"
+
 	## Quick, twitchy, and never alone. Scurries its stretch of floor, rushes
 	## him when he comes close, and one hit is the end of it.
 	var left_x := 0.0
@@ -703,6 +715,13 @@ class Rat extends Critter:
 
 
 class Snake extends Critter:
+	## Goes limp and slides out of its hole onto the floor.
+	func death_style() -> String:
+		return "limp"
+
+	func death_floor() -> float:
+		return position.y + 18.0
+
 	## Lives in a hole in the rock. Only its eyes show until he comes close;
 	## then it rears in its hole with a hiss (the tell) and strikes out along
 	## the floor. The strike is low: jump it. It can only be hit while it is out.

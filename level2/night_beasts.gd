@@ -67,6 +67,88 @@ class Wolf extends Critter:
 		state = "flee"
 		timer = 1.6
 
+	## Beaten, a wolf doesn't just die — it's a cartoon: "YIP!", a pinwheel
+	## tumble through the air, a landing flat on its back with X-eyes and its
+	## tongue out, legs twitching... then it springs up and bolts for the
+	## trees, tail tucked, crying "KAI! KAI!" (A stomp still squashes it flat.)
+	var _ko_t := 0.0
+	var _kai_in := 0.0
+
+	func death_style() -> String:
+		return "wolf"
+
+	func _begin_death(from_dir: int) -> void:
+		super._begin_death(from_dir)
+		if _style != "wolf":
+			return
+		var d := float(from_dir) if from_dir != 0 else 1.0
+		_dv = Vector2(d * 240.0, -560.0)
+		_dspin = d * 15.0
+		_dlift = _body_height()
+		dying = 2.8
+		state = "tumble"
+		_say("YIP!")
+
+	func _say(word: String) -> void:
+		var pop := Treasure.FloatText.new()
+		pop.text = word
+		pop.position = global_position + Vector2(-14, -60)
+		get_parent().add_child.call_deferred(pop)
+
+	func _death_step(delta: float) -> void:
+		if _style != "wolf":
+			super._death_step(delta)
+			return
+		death_t += delta
+		dying = maxf(2.8 - death_t, 0.001)
+		match state:
+			"tumble":
+				_dv.y += 1500.0 * delta
+				position += _dv * delta
+				rotation += _dspin * delta
+				if position.y >= _dfloor and _dv.y > 0.0:
+					# flat on its back, legs in the air
+					position.y = _dfloor - _dlift
+					rotation = PI
+					state = "ko"
+					_ko_t = 0.0
+					var stars := Critter.Dizzy.new()
+					stars.life = 0.75
+					stars.radius = 22.0
+					stars.position = Vector2(0, 40)
+					add_child(stars)
+					var dust := Critter.DeathPop.new()
+					dust.dust = true
+					dust.position = Vector2(position.x, _dfloor)
+					get_parent().add_child(dust)
+			"ko":
+				_ko_t += delta
+				rotation = PI + sin(death_t * 34.0) * 0.03
+				if _ko_t > 0.75:
+					# up on its feet, and away from him as fast as it can go
+					state = "bolt"
+					rotation = 0.0
+					position.y = _dfloor
+					dir = -1 if player == null or player.global_position.x > position.x else 1
+					_say("KAI!")
+			"bolt":
+				position.x += dir * 640.0 * delta
+				_stride += 640.0 * delta
+				_moving = 640.0
+				_kai_in -= delta
+				if _kai_in <= 0.0:
+					_kai_in = 0.32
+					_say("KAI!")
+					var dust := Critter.DeathPop.new()
+					dust.dust = true
+					dust.position = Vector2(position.x - dir * 20.0, _dfloor)
+					get_parent().add_child(dust)
+				modulate.a = clampf((2.8 - death_t) / 0.5, 0.0, 1.0)
+		if death_t >= 2.8:
+			queue_free()
+			return
+		queue_redraw()
+
 	func _on_hit(from_dir: int) -> void:
 		position.x = clampf(position.x + from_dir * 16.0, left_x, right_x)
 		if hp > 0 and state != "recoil":
@@ -280,12 +362,20 @@ class Wolf extends Critter:
 			"cower", "recoil":
 				low = 0.8
 				tuck = 1.0
+			"bolt":
+				low = 0.35
+				tuck = 1.0
+			"ko", "tumble":
+				low = 0.0
 			"patrol":
 				low = 0.7 if pause > 0.0 else 0.1
 			"hunt":
 				low = 0.5
 		var ph := _stride / 22.0
 		var gait := clampf(_moving / 160.0, 0.0, 1.0)
+		if state == "ko":
+			ph = death_t * 30.0
+			gait = 0.5
 		var sink := low * 8.0
 		var shiver := sin(t * 60.0) * 1.2 if state == "cower" else 0.0
 
@@ -334,7 +424,13 @@ class Wolf extends Critter:
 			for k in 3:
 				var tx := hx + 16.0 + k * 3.5
 				_fill(PackedVector2Array([Vector2(tx, hy + 2), Vector2(tx + 1.2, hy + 5), Vector2(tx + 2.4, hy + 2)]), Pal.TOOTH)
-		draw_circle(Vector2(hx + 10, hy - 3), 2.2, Pal.OUTLINE)
+		if state in ["ko", "tumble"]:
+			# X for eyes, and the tongue lolling out
+			draw_line(Vector2(hx + 7, hy - 6), Vector2(hx + 13, hy), Pal.OUTLINE, 2.0, true)
+			draw_line(Vector2(hx + 13, hy - 6), Vector2(hx + 7, hy), Pal.OUTLINE, 2.0, true)
+			_fill(PackedVector2Array([Vector2(hx + 20, hy + 4), Vector2(hx + 26, hy + 5), Vector2(hx + 27, hy + 16), Vector2(hx + 22, hy + 17)]), Color("d96b7a"))
+		else:
+			draw_circle(Vector2(hx + 10, hy - 3), 2.2, Pal.OUTLINE)
 		if flash > 0.0:
 			draw_circle(Vector2(0, -28), 32.0, Color(1, 1, 1, 0.45))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -518,9 +614,13 @@ class Monkey extends Area2D:
 
 	func _die(from_dir: int) -> void:
 		state = "dead"
-		dying = 1.2
-		vy = -240.0
-		vx = from_dir * 80.0
+		dying = 1.3
+		vy = -380.0
+		vx = from_dir * 160.0
+		Critter.slow_time(get_tree(), 0.07, 0.08)
+		var pop := Critter.DeathPop.new()
+		pop.position = global_position + Vector2(0, -20)
+		get_parent().call_deferred("add_child", pop)
 		hanging = false
 		set_deferred("monitoring", false)
 		set_deferred("monitorable", false)
@@ -542,7 +642,7 @@ class Monkey extends Area2D:
 			dying -= delta
 			vy += 1500.0 * delta
 			position += Vector2(vx, vy) * delta
-			rotation += 6.0 * delta * signf(vx if vx != 0.0 else 1.0)
+			rotation += 12.0 * delta * signf(vx if vx != 0.0 else 1.0)
 			modulate.a = clampf(dying / 0.6, 0.0, 1.0)
 			queue_redraw()
 			if dying <= 0.0:

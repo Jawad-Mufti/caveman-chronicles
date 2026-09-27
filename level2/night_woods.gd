@@ -380,6 +380,294 @@ class FireBurst extends Node2D:
 
 
 ## ================================================================ THE LONG DARK
+class FireWave extends Node2D:
+	## The Firestone Hammer's slam: two walls of flame roll out along the ground
+	## from where it struck. Everything on that ground they pass through burns
+	## (once); cold bonfires and stone bowls they reach catch; webs go up; a
+	## charging sabre-tooth is tripped flat.
+	const SPEED := 760.0
+	const REACH := 400.0
+	const DAMAGE := 6
+	var player: CaveMan
+	var t := 0.0
+	var _hit := {}
+
+	func _ready() -> void:
+		z_index = 5
+		add_to_group("light")
+		# the strike itself: a flash and a burst where the hammer hit
+		var pop := Critter.DeathPop.new()
+		pop.big = true
+		pop.position = global_position + Vector2(0, -10)
+		get_parent().add_child.call_deferred(pop)
+
+	func light() -> Vector4:
+		var fade := 1.0 - clampf((t - REACH / SPEED) / 0.5, 0.0, 1.0)
+		return Vector4(global_position.x, global_position.y - 40.0, (180.0 + minf(t * SPEED, REACH) * 0.8) * fade, 1.0)
+
+	func light_strength() -> float:
+		return 1.0 if t < REACH / SPEED else 0.0
+
+	func _process(delta: float) -> void:
+		t += delta
+		var reach := minf(t * SPEED, REACH)
+		if t * SPEED <= REACH + 20.0:
+			for side in [-1.0, 1.0]:
+				_burn_at(global_position.x + float(side) * reach)
+		if t > REACH / SPEED + 0.6:
+			queue_free()
+			return
+		queue_redraw()
+
+	func _burn_at(fx: float) -> void:
+		var y := global_position.y
+		for c in get_tree().get_nodes_in_group("critters"):
+			var cr := c as Critter
+			if cr == null or cr.dying > 0.0 or _hit.has(cr.get_instance_id()):
+				continue
+			if absf(cr.global_position.x - fx) < 46.0 and absf(cr.global_position.y - y) < 80.0:
+				_hit[cr.get_instance_id()] = true
+				if cr.has_method("fire_wave"):
+					cr.fire_wave(DAMAGE, global_position)
+				else:
+					cr.burned(DAMAGE, global_position)
+		for m in get_tree().get_nodes_in_group("monkeys"):
+			if absf((m as Node2D).global_position.x - fx) < 46.0 and absf((m as Node2D).global_position.y - y) < 80.0:
+				m.burn()
+		for b in get_tree().get_nodes_in_group("bonfire"):
+			if absf((b as Node2D).global_position.x - fx) < 50.0 and absf((b as Node2D).global_position.y - y) < 90.0:
+				b.kindle()
+		for w in get_tree().get_nodes_in_group("webs"):
+			if absf((w as Node2D).global_position.x - fx) < 40.0 and absf((w as Node2D).global_position.y - y) < 60.0:
+				w.burn()
+		for r in get_tree().get_nodes_in_group("cracked"):
+			if absf((r as Node2D).global_position.x - fx) < 60.0 and absf((r as Node2D).global_position.y - y) < 60.0 and not _hit.has(r.get_instance_id()):
+				_hit[r.get_instance_id()] = true
+				r.take_hit(DAMAGE, 1 if (r as Node2D).global_position.x > global_position.x else -1)
+
+	func _draw() -> void:
+		var reach := minf(t * SPEED, REACH)
+		var fade := 1.0 - clampf((t - REACH / SPEED) / 0.6, 0.0, 1.0)
+		var b := Batch.new()
+		# a scorch along the ground it has passed over
+		b.rect(Rect2(-reach, -4, reach * 2.0, 5), Color(Pal.EMBER_GLOW, 0.35 * fade))
+		for side in [-1.0, 1.0]:
+			var s: float = side
+			var fx := s * reach
+			# the wall at the front, tall and bright
+			for k in 5:
+				var x := fx - s * k * 9.0
+				var h := (70.0 - k * 10.0 + sin(t * 30.0 + k) * 8.0) * fade
+				if h > 8.0:
+					b.poly(NightWoods.flame_pts(Vector2(x, -2), 12.0, h, s * 6.0), Color(Pal.EMBER_GLOW, 0.9 * fade))
+					b.poly(NightWoods.flame_pts(Vector2(x, -2), 7.0, h * 0.7, s * 4.0), Color(Pal.FLAME, fade))
+			# and a trail of low flames dying down behind it
+			var n := int(reach / 32.0)
+			for i in n:
+				var x := s * (i * 32.0 + 16.0)
+				var age := (reach - absf(x)) / REACH
+				var h := (34.0 * (1.0 - age) + sin(t * 20.0 + i) * 5.0) * fade
+				if h > 6.0:
+					b.poly(NightWoods.flame_pts(Vector2(x, -2), 8.0, h, sin(t * 9.0 + i) * 3.0), Color(Pal.EMBER_GLOW, 0.75 * fade * (1.0 - age)))
+		b.draw(self)
+
+
+class CrackedRock extends StaticBody2D:
+	## A boulder split through with old cracks, blocking the way. Hit it hard
+	## enough and it bursts: the hammer takes two blows (or one slam), the club
+	## three. The cracks glow a little more with every hit.
+	signal broken
+	var hp := 9
+	var _shake := 0.0
+	var _gone := 0.0
+	var _cs: CollisionShape2D
+	var _hitbox: Area2D
+
+	func _ready() -> void:
+		collision_layer = 1
+		collision_mask = 0
+		add_to_group("cracked")
+		_cs = CollisionShape2D.new()
+		var sh := RectangleShape2D.new()
+		sh.size = Vector2(90, 150)
+		_cs.shape = sh
+		_cs.position = Vector2(0, -75)
+		add_child(_cs)
+		# his swing looks for areas on the creature layer: give it one
+		_hitbox = RockHitbox.new()
+		(_hitbox as RockHitbox).rock = self
+		_hitbox.collision_layer = 4
+		_hitbox.collision_mask = 0
+		_hitbox.monitoring = false
+		var hcs := CollisionShape2D.new()
+		var hsh := RectangleShape2D.new()
+		hsh.size = Vector2(110, 150)
+		hcs.shape = hsh
+		hcs.position = Vector2(0, -75)
+		_hitbox.add_child(hcs)
+		add_child(_hitbox)
+
+	func take_hit(dmg: int, _from_dir: int) -> void:
+		if hp <= 0:
+			return
+		hp -= dmg
+		_shake = 0.25
+		var spark := Critter.DeathPop.new()
+		spark.dust = true
+		spark.position = global_position + Vector2(0, -60)
+		get_parent().add_child(spark)
+		if hp <= 0:
+			_gone = 0.001
+			_cs.set_deferred("disabled", true)
+			_hitbox.set_deferred("monitorable", false)
+			var burst := Critter.DeathPop.new()
+			burst.big = true
+			burst.position = global_position + Vector2(0, -70)
+			get_parent().add_child(burst)
+			broken.emit()
+
+	func _process(delta: float) -> void:
+		_shake = maxf(_shake - delta, 0.0)
+		if _gone > 0.0:
+			_gone += delta
+			if _gone > 0.8:
+				queue_free()
+		queue_redraw()
+
+	func _draw() -> void:
+		var b := Batch.new()
+		if _gone > 0.0:
+			# flying chunks
+			for i in 8:
+				var a := -PI * 0.5 + (i - 3.5) * 0.35
+				var p := Vector2(0, -70) + Vector2.from_angle(a) * _gone * 420.0 + Vector2(0, _gone * _gone * 900.0)
+				b.poly(PackedVector2Array([p + Vector2(-10, -6), p + Vector2(8, -9), p + Vector2(11, 6), p + Vector2(-7, 9)]), Color(Pal.CRAG, 1.0 - _gone))
+			b.draw(self)
+			return
+		var o := Vector2(sin(_shake * 90.0) * 4.0 * (_shake / 0.25), 0)
+		var body := PackedVector2Array([o + Vector2(-48, 0), o + Vector2(-52, -70), o + Vector2(-34, -140), o + Vector2(6, -154),
+			o + Vector2(42, -132), o + Vector2(50, -60), o + Vector2(46, 0)])
+		b.poly(body, Pal.CRAG_DARK)
+		var lit := PackedVector2Array()
+		for p in body:
+			lit.append(Vector2(p.x * 0.85 - 4.0, p.y * 0.95))
+		b.poly(lit, Pal.CRAG)
+		# the cracks, glowing hotter the closer it is to bursting
+		var heat := clampf(1.0 - hp / 9.0, 0.0, 1.0)
+		var crack := Color(Pal.CHARCOAL).lerp(Pal.EMBER_GLOW, heat)
+		b.polyline(PackedVector2Array([o + Vector2(-6, -150), o + Vector2(4, -110), o + Vector2(-10, -70), o + Vector2(6, -30), o + Vector2(0, 0)]), crack, 3.0)
+		b.polyline(PackedVector2Array([o + Vector2(4, -110), o + Vector2(30, -96), o + Vector2(44, -70)]), crack, 2.5)
+		b.polyline(PackedVector2Array([o + Vector2(-10, -70), o + Vector2(-36, -52)]), crack, 2.5)
+		b.draw(self)
+
+
+## The part of a cracked rock his swing (and his thrown rocks) can find.
+class RockHitbox extends Area2D:
+	var rock: Node
+
+	func take_hit(dmg: int, from_dir: int) -> void:
+		rock.take_hit(dmg, from_dir)
+
+
+class PalisadeGate extends StaticBody2D:
+	## A wall of old sharpened stakes across the path to Old Scar's clearing,
+	## put up long ago to keep him in. It burns when the Three Fires are lit.
+	var burning := -1.0
+	var _cs: CollisionShape2D
+
+	func _ready() -> void:
+		collision_layer = 1
+		collision_mask = 0
+		_cs = CollisionShape2D.new()
+		var sh := RectangleShape2D.new()
+		sh.size = Vector2(40, 260)
+		_cs.shape = sh
+		_cs.position = Vector2(0, -130)
+		add_child(_cs)
+
+	func burn() -> void:
+		if burning >= 0.0:
+			return
+		burning = 0.0
+		add_to_group("light")
+
+	func light() -> Vector4:
+		if burning < 0.0 or burning > 2.2:
+			return Vector4.ZERO
+		return Vector4(global_position.x, global_position.y - 100.0, 260.0 * (1.0 - clampf((burning - 1.4) / 0.8, 0.0, 1.0)), 1.0)
+
+	func light_strength() -> float:
+		return 0.0
+
+	func _process(delta: float) -> void:
+		if burning >= 0.0:
+			burning += delta
+			if burning > 1.2 and not _cs.disabled:
+				_cs.set_deferred("disabled", true)
+			queue_redraw()
+
+	func _draw() -> void:
+		var b := Batch.new()
+		var char_k := clampf(burning / 1.2, 0.0, 1.0) if burning >= 0.0 else 0.0
+		for i in 5:
+			var x := -24.0 + i * 12.0
+			var h := 240.0 - (i % 2) * 22.0
+			if burning > 1.2:
+				h = 30.0 + (i % 3) * 12.0          # burnt down to stumps
+			var wood := Pal.TRUNK.lerp(Pal.CHARCOAL, char_k)
+			b.poly(PackedVector2Array([Vector2(x - 6, 0), Vector2(x - 6, -h), Vector2(x, -h - 16.0), Vector2(x + 6, -h), Vector2(x + 6, 0)]), wood)
+		if burning < 0.0:
+			for y in [-60.0, -170.0]:
+				b.line(Vector2(-32, y), Vector2(32, y + 6.0), Pal.VINE, 5.0)
+		if burning >= 0.0 and burning < 2.0:
+			for i in 6:
+				var x := -26.0 + i * 11.0
+				var fh := (60.0 + sin(burning * 20.0 + i) * 16.0) * (1.0 - clampf((burning - 1.4) / 0.6, 0.0, 1.0))
+				if fh > 8.0:
+					b.poly(NightWoods.flame_pts(Vector2(x, -40.0 - (i % 3) * 60.0), 12.0, fh, sin(burning * 8.0 + i) * 6.0), Color(Pal.EMBER_GLOW, 0.9))
+					b.poly(NightWoods.flame_pts(Vector2(x, -40.0 - (i % 3) * 60.0), 7.0, fh * 0.65, 0.0), Pal.FLAME)
+		b.draw(self)
+
+
+class ToolmakerCamp extends Node2D:
+	## The Toolmaker's home: a hollow under an overhang of rock at the edge of
+	## the Long Dark. His forge hearth and anvil stone, his tools hung on the
+	## rock wall, hides drying on a line, and his heap of trade shells.
+	func _ready() -> void:
+		z_index = -1
+
+	func _draw() -> void:
+		var b := Batch.new()
+		# the back wall of the hollow, and the overhang above
+		b.poly(PackedVector2Array([Vector2(-220, 0), Vector2(-230, -210), Vector2(-150, -300), Vector2(260, -320), Vector2(330, -250),
+			Vector2(320, 0)]), Pal.CAVE_BACK.lightened(0.1))
+		b.poly(PackedVector2Array([Vector2(-250, -230), Vector2(-120, -300), Vector2(280, -330), Vector2(360, -260), Vector2(300, -236),
+			Vector2(80, -250), Vector2(-160, -222)]), Pal.CRAG_DARK)
+		b.polyline(PackedVector2Array([Vector2(-250, -230), Vector2(-120, -300), Vector2(280, -330), Vector2(360, -260)]), Color(Pal.MOONLIT, 0.35), 3.0)
+		# tools on the wall: a spear, an axe, a stone hammer, a digging stick
+		b.line(Vector2(-120, -60), Vector2(-100, -210), Pal.TRUNK, 5.0)
+		b.poly(PackedVector2Array([Vector2(-102, -210), Vector2(-92, -236), Vector2(-94, -206)]), Pal.CRAG_LIGHT)
+		b.line(Vector2(-60, -90), Vector2(-60, -190), Pal.TRUNK, 5.0)
+		b.poly(PackedVector2Array([Vector2(-62, -190), Vector2(-34, -196), Vector2(-30, -170), Vector2(-62, -174)]), Pal.CRAG)
+		b.line(Vector2(-10, -100), Vector2(-10, -185), Pal.TRUNK, 5.0)
+		b.rect(Rect2(-26, -198, 32, 18), Pal.CRAG_DARK.lightened(0.15))
+		b.line(Vector2(30, -80), Vector2(44, -200), Pal.TRUNK_DARK, 4.0)
+		# a line of drying hides
+		b.line(Vector2(90, -210), Vector2(250, -226), Pal.VINE, 2.5)
+		for i in 3:
+			var x := 110.0 + i * 50.0
+			var y := -210.0 - i * 5.0
+			b.poly(PackedVector2Array([Vector2(x - 18, y), Vector2(x + 18, y - 2), Vector2(x + 22, y + 44), Vector2(x, y + 54), Vector2(x - 20, y + 42)]),
+				Pal.HIDE if i % 2 == 0 else Pal.WOLF)
+		# the heap of trade shells
+		for i in 14:
+			var p := Vector2(210.0 + (i % 5) * 12.0 - (i / 5) * 6.0, -8.0 - (i / 5) * 10.0)
+			b.circle(p, 7.0, Color("f2dcc0") if i % 2 == 0 else Color("e8c79c"), 8)
+		# a sleeping mat
+		b.rect(Rect2(-200, -10, 90, 10), Pal.HIDE_DARK)
+		b.draw(self)
+
+
 class Vine extends Node2D:
 	## A vine hanging over a pit. Fly into its end and he grabs on (see
 	## CaveMan.grab_vine); left/right pumps the swing; jump lets go and carries
@@ -437,6 +725,65 @@ class Vine extends Node2D:
 			bt.poly(PackedVector2Array([p, p + Vector2(10, -4), p + Vector2(14, 2), p + Vector2(4, 4)]), Pal.CANOPY.lightened(0.15))
 		bt.circle(end, 6.0, Pal.VINE.darkened(0.3), 10)
 		bt.draw(self)
+
+
+class MoonPuff extends World.SpringBush:
+	## A night bloom that grows on the mountain's steps: fat, springy puffballs
+	## speckled with faint glowing spots. Land on one and it squashes and flings
+	## him high into the air, and a burst of glowing spores goes up with him.
+	var _spores := 0.0
+
+	func _ready() -> void:
+		super._ready()
+		launch = -1100.0
+		add_to_group("glow")
+		sprung.connect(func() -> void: _spores = 1.0)
+
+	func _physics_process(delta: float) -> void:
+		super._physics_process(delta)
+		_spores = maxf(_spores - delta * 1.1, 0.0)
+
+	func _draw() -> void:
+		var c := 1.0 - squash * 0.5
+		var sq := Vector2(1.0 + squash * 0.4, c)
+		var b := Batch.new()
+		# leaves at the foot
+		for s in [-1.0, 1.0]:
+			b.poly(PackedVector2Array([Vector2(0, 0), Vector2(s * 34.0, -6.0), Vector2(s * 40.0, 2.0), Vector2(s * 20.0, 4.0)]), Pal.CANOPY.lightened(0.1))
+		# three puffballs on short stalks: two behind, one big in front
+		var puffs := [[Vector2(-17, -24), 15.0, 0.25], [Vector2(18, -26), 16.0, 0.25], [Vector2(0, -22), 21.0, 0.0]]
+		for pf in puffs:
+			var at: Vector2 = (pf[0] as Vector2) * sq
+			var r: float = pf[1]
+			var shade: float = pf[2]
+			b.line(Vector2(at.x * 0.6, 0), at + Vector2(0, r * 0.6), Color("7d8c6a"), 5.0)
+			var body := Color("b9c3ea").darkened(shade)
+			var rim := PackedVector2Array()
+			for i in 18:
+				var a := TAU * i / 18.0
+				rim.append(at + Vector2(cos(a) * r * sq.x * 1.1, sin(a) * r * c))
+			b.poly(rim, Color("5d6690").darkened(shade))
+			var inner := PackedVector2Array()
+			for i in 18:
+				var a := TAU * i / 18.0
+				inner.append(at + Vector2(cos(a) * r * sq.x, sin(a) * r * c * 0.92))
+			b.poly(inner, body)
+			b.circle(at + Vector2(-r * 0.35, -r * 0.4 * c), r * 0.35, Color("e4e9ff").darkened(shade), 12)
+		b.draw(self)
+
+	## The glowing specks, and the spores that go up when it fires.
+	func draw_glow(g: Node2D) -> void:
+		var c := 1.0 - squash * 0.5
+		for i in 7:
+			var p := global_position + Vector2(-24.0 + i * 8.0, (-30.0 + sin(i * 2.1) * 10.0) * c)
+			var on := 0.5 + 0.5 * sin(t * 2.0 + i * 1.3)
+			g.draw_circle(p, 2.0, Color("dff3ff", 0.35 + 0.5 * on))
+		if _spores > 0.0:
+			var k := 1.0 - _spores
+			for i in 14:
+				var ang := -PI * 0.5 + (i - 6.5) * 0.12
+				var p := global_position + Vector2(0, -30) + Vector2.from_angle(ang) * (20.0 + k * 220.0) + Vector2(sin(i * 3.7) * 20.0 * k, 0)
+				g.draw_circle(p, 3.0 * _spores + 1.0, Color("e8f6ff", _spores))
 
 
 class CrumbleRock extends StaticBody2D:
@@ -599,6 +946,39 @@ class Brazier extends Bonfire:
 		else:
 			bt.poly(PackedVector2Array([Vector2(-24, -96), Vector2(0, -104), Vector2(24, -96)]), Pal.ASH)
 		bt.draw(self)
+
+
+class Lair extends Node2D:
+	## Old Scar's lair: a black mouth in a wall of rock at the end of the
+	## clearing, with the bones of his suppers scattered in front of it.
+	func _ready() -> void:
+		z_index = -1
+
+	func _draw() -> void:
+		var b := Batch.new()
+		# the rock he lives in
+		b.poly(PackedVector2Array([Vector2(-120, 0), Vector2(-104, -150), Vector2(-60, -250), Vector2(10, -300), Vector2(140, -320),
+			Vector2(140, 0)]), Pal.CRAG_DARK)
+		b.polyline(PackedVector2Array([Vector2(-104, -150), Vector2(-60, -250), Vector2(10, -300), Vector2(140, -320)]), Color(Pal.MOONLIT, 0.35), 3.0)
+		# the mouth
+		b.poly(PackedVector2Array([Vector2(-80, 0), Vector2(-72, -90), Vector2(-40, -150), Vector2(10, -170), Vector2(60, -140),
+			Vector2(80, -60), Vector2(84, 0)]), Pal.CAVE_DARK)
+		b.poly(PackedVector2Array([Vector2(-50, 0), Vector2(-44, -80), Vector2(-10, -126), Vector2(30, -120), Vector2(56, -60),
+			Vector2(60, 0)]), Color(0, 0, 0, 0.85))
+		# bones in front: a rib cage, a skull, scattered long bones
+		for i in 4:
+			var x := -150.0 + i * 12.0
+			b.polyline(PackedVector2Array([Vector2(x, -2), Vector2(x + 4, -22), Vector2(x + 12, -26)]), Pal.KEY_BONE, 3.0)
+		b.line(Vector2(-152, -18), Vector2(-104, -20), Pal.KEY_BONE, 3.0)
+		b.circle(Vector2(-200, -10), 11.0, Pal.KEY_BONE, 12)
+		b.circle(Vector2(-204, -12), 3.0, Pal.CAVE_DARK, 8)
+		b.circle(Vector2(-195, -12), 3.0, Pal.CAVE_DARK, 8)
+		for k in 3:
+			var a := Vector2(-280.0 + k * 34.0, -3.0)
+			b.line(a, a + Vector2(26, -4 + k * 3), Pal.KEY_BONE, 4.0)
+			b.circle(a, 3.5, Pal.KEY_BONE, 8)
+			b.circle(a + Vector2(26, -4 + k * 3), 3.5, Pal.KEY_BONE, 8)
+		b.draw(self)
 
 
 class FallingRock extends Area2D:

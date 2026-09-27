@@ -8,7 +8,10 @@ extends LevelBase
 ##                              At the very top: Old Bongo, the monkey king, who talks.
 ##   Far side (8420-10600)      last bonfire, a dead snag to climb back up, wolves running scared
 ##   The Long Dark (10600-12700) the roar that snuffs his torch; fireflies; vines; crumbling rock
-##   The Toolmaker (12700-13400) a hermit's fire: the forge (gem -> Fire Club) and his shop
+##   The Toolmaker (12700-13380) his home under a rock overhang: the forge
+##                              (Firestone -> the Firestone Hammer) and his shop
+##   The Three Fires (13380-14300) a trial: a cracked boulder, wolves, and three
+##                              stone bowls to light; they burn the gate down
 ##   Old Scar's clearing (13400-14700) the boss
 ##
 ## The story: Old Bongo has lost the key to his banana box in one of two
@@ -22,7 +25,7 @@ extends LevelBase
 ## what was found.
 
 const GROUND_Y := 600.0
-const LEVEL_W := 14700.0
+const LEVEL_W := 15600.0
 const FALL_Y := 1020.0
 
 ## Reachability budget: a jump climbs ~133 px and carries ~227 px. Every step
@@ -147,7 +150,7 @@ const CAVE_B_IN := Vector2(22970, 600)
 ## In the outcrop's far face: he sees it behind him once he has climbed over.
 const CAVE_B_DOOR := [9600.0, GROUND_Y, -1, "skin"]
 ## [left, right, start x, floor y]
-const RATS := [[22920.0, 23280.0, 23100.0, 600.0], [22920.0, 23280.0, 23220.0, 600.0],
+const RATS := [[23020.0, 23280.0, 23120.0, 600.0], [23020.0, 23280.0, 23220.0, 600.0],
 	[23400.0, 23740.0, 23500.0, 600.0], [23400.0, 23740.0, 23650.0, 600.0],
 	[23780.0, 24380.0, 24000.0, 600.0], [23780.0, 24380.0, 24250.0, 600.0]]
 ## [hole x, hole y, facing]
@@ -167,58 +170,106 @@ const PANIC_AT := 9950.0          ## the wolves come running past here
 const SNUFF_AT := 10650.0         ## the roar, and the dark
 
 ## ---------------------------------------------------------------- the end
-const TOOLMAKER_AT := Vector2(13020, 600)
-const ARENA := Rect2(13400, -900, 1300, 2100)
-const BRAZIERS := [[13520.0, 600.0], [14580.0, 600.0]]
-const ARENA_LEDGES := [[13700.0, 480.0, 140.0], [14260.0, 480.0, 140.0]]
-const BONGO_PERCH := Vector2(13470, 330)
+const TOOLMAKER_AT := Vector2(13060, 600)
+const CAMP_AT := Vector2(13000, 600)       ## his home under the overhang
+## The Three Fires: a trial between his home and the clearing. A cracked
+## boulder bars the way; a pack of wolves waits in the dark; three stone bowls
+## must all burn — then the old palisade across the path burns down.
+const TRIAL_ROCK := Vector2(13470, 600)
+const TRIAL_BOWLS := [[13640.0, 600.0], [13890.0, 480.0], [14130.0, 600.0]]
+const TRIAL_LEDGE := [13820.0, 480.0, 140.0]
+const TRIAL_WOLVES := [[13560.0, 14200.0, 13760.0], [13560.0, 14200.0, 14000.0], [13560.0, 14200.0, 14180.0]]
+const TRIAL_GATE_X := 14250.0
+const ARENA := Rect2(14300, -900, 1300, 2100)
+const BRAZIERS := [[14420.0, 600.0], [15340.0, 600.0]]
+const LAIR_X := 15520.0           ## his lair's mouth, in the rock at the far end
+const ARENA_LEDGES := [[14600.0, 480.0, 140.0], [15160.0, 480.0, 140.0]]
+const BONGO_PERCH := Vector2(14370, 330)
 
 ## ---------------------------------------------------------------- treasure
-## Rows of shells [x0, x1, surface y, how many], floating a hand's height up.
+## Treasure is placed with a reason, never just lining the road:
+##   arcs over a jump show where to go; small clusters reward a climb, a
+##   detour or a risk; a column above each Moonpuff rewards bouncing; the
+##   conches and amber sit in the out-of-the-way places; and the smashable
+##   logs and mounds hold the biggest share.
+## Clusters: [x0, x1, surface y, how many], a hand's height above the surface.
 const SHELL_ROWS := [
-	[200.0, 440.0, 600.0, 5], [620.0, 850.0, 600.0, 4], [895.0, 1035.0, 500.0, 4], [1100.0, 1460.0, 600.0, 6],
-	[1680.0, 2040.0, 600.0, 5], [2090.0, 2215.0, 490.0, 3], [2300.0, 2425.0, 400.0, 3], [2930.0, 3320.0, 700.0, 6],
-	[3380.0, 3950.0, 600.0, 6], [3990.0, 4150.0, 490.0, 3], [4410.0, 4540.0, 285.0, 3], [5070.0, 5300.0, -52.0, 4],
-	[5620.0, 5980.0, -278.0, 6], [6020.0, 6190.0, -155.0, 2], [6400.0, 6570.0, 95.0, 2], [6780.0, 6950.0, 345.0, 2],
-	[7070.0, 7440.0, 600.0, 5], [7600.0, 8440.0, 42.0, 8], [8430.0, 9300.0, 600.0, 7], [9650.0, 10880.0, 600.0, 8],
-	[11320.0, 11590.0, 600.0, 4], [12010.0, 12240.0, 600.0, 3], [12720.0, 12880.0, 600.0, 3],
-	[20420.0, 20880.0, 600.0, 5], [21430.0, 22060.0, 700.0, 6], [22920.0, 23280.0, 600.0, 5],
-	[23420.0, 23740.0, 600.0, 4], [23800.0, 24100.0, 600.0, 4],
+	[920.0, 1010.0, 500.0, 4],      # the first ledge above the camp: look up
+	[2320.0, 2410.0, 400.0, 3],     # the high ledge by the dead tree
+	[3060.0, 3190.0, 700.0, 5],     # down in the hollow, with the pack
+	[4705.0, 4765.0, 172.0, 2],     # the narrow ledge with the bat
+	[5425.0, 5485.0, -165.0, 2],    # the other narrow ledge
+	[9440.0, 9510.0, 490.0, 3],     # on top of the outcrop
+	[20560.0, 20640.0, 600.0, 3],   # Weeping Cave: by the rock pile
+	[21490.0, 21570.0, 700.0, 3],   # Weeping Cave: past the pit, by the old hearth
+	[23315.0, 23375.0, 510.0, 3],   # Rattling Cave: on the snake's pillar
+	[23870.0, 23950.0, 600.0, 3],   # Rattling Cave: by the old hearth
 ]
-## Single shells, mostly strung along jump arcs and vine swings to show the way.
+## Single shells: arcs over jumps and swings, trails up the trees, and a
+## column above each Moonpuff on the way down the mountain.
 const SHELL_POINTS := [
-	[1520.0, 540.0], [1570.0, 515.0], [1620.0, 540.0], [2630.0, 540.0], [2680.0, 515.0], [2730.0, 540.0],
-	[4240.0, 360.0], [4290.0, 360.0], [4705.0, 150.0], [4760.0, 150.0], [4885.0, 38.0], [4945.0, 38.0],
-	[5430.0, -188.0], [5480.0, -188.0],
-	[10960.0, 470.0], [11040.0, 520.0], [11160.0, 520.0], [11240.0, 470.0],
-	[11670.0, 560.0], [11800.0, 560.0], [11930.0, 560.0],
-	[12320.0, 480.0], [12475.0, 520.0], [12640.0, 480.0],
+	[1520.0, 540.0], [1570.0, 515.0], [1620.0, 540.0],              # the first pit
+	[2630.0, 540.0], [2680.0, 515.0], [2730.0, 540.0],              # the second pit
+	[6060.0, -395.0], [6060.0, -455.0], [6060.0, -515.0],           # Moonpuff 1
+	[6440.0, -145.0], [6440.0, -205.0], [6440.0, -265.0],           # Moonpuff 2
+	[6820.0, 105.0], [6820.0, 45.0], [6820.0, -15.0],               # Moonpuff 3
+	[7395.0, 466.0], [7645.0, 354.0], [7390.0, 242.0], [7640.0, 130.0],   # up the great tree
+	[7405.0, -94.0], [7635.0, -207.0], [7410.0, -320.0],            # on up to Bongo
+	[8785.0, 354.0], [8785.0, 130.0],                               # up the snag
+	[10960.0, 470.0], [11040.0, 520.0], [11160.0, 520.0], [11240.0, 470.0],   # the first vine's swing
+	[11670.0, 560.0], [11800.0, 560.0], [11930.0, 560.0],           # the crumbling bridge
+	[12320.0, 480.0], [12475.0, 520.0], [12640.0, 480.0],           # the two vines
+	# up in the air over the path: a jump gets these...
+	[1090.0, 482.0], [1130.0, 472.0], [1170.0, 482.0],
+	[9020.0, 482.0], [9060.0, 472.0],
+	[12790.0, 478.0],
+	[20700.0, 478.0], [20740.0, 470.0],
+	# ...and these, higher, need the double jump
+	[3420.0, 352.0], [3460.0, 342.0], [3500.0, 352.0],
+	[7190.0, 348.0], [7230.0, 342.0],
+	[12090.0, 348.0], [12130.0, 342.0],
 ]
-## [x, y]: conches (5) in out-of-the-way spots.
+## Conches (5): out-of-the-way spots.
 const CONCHES := [
-	[1000.0, 470.0], [2370.0, 370.0], [3310.0, 670.0], [4380.0, 690.0], [5980.0, -300.0], [7450.0, -430.0],
-	[8660.0, 20.0], [9480.0, 460.0], [11230.0, 430.0], [21900.0, 670.0], [22260.0, 350.0], [24300.0, 570.0], [24160.0, 460.0],
+	[1000.0, 470.0], [2400.0, 370.0], [3310.0, 670.0], [4380.0, 690.0], [5980.0, -300.0], [6440.0, -320.0],
+	[7450.0, -430.0], [8660.0, 20.0], [9480.0, 460.0], [11230.0, 430.0], [21900.0, 670.0], [22260.0, 350.0],
+	[24300.0, 570.0], [24160.0, 460.0],
 ]
 ## [x, y, secret]: amber (25), one in each secret place.
 const AMBERS := [[4330.0, 690.0, "crevice"], [5520.0, -420.0, "lookout"], [22180.0, 350.0, "weeping"], [24370.0, 350.0, "rattling"]]
-## [x, surface y, "log" | "mound", contents]
+## [x, surface y, "log" | "mound", contents]: the treasure boxes.
+const LOG := ["shell", "shell", "shell", "shell", "shell", "shell", "conch"]
+const MOUND := ["conch", "conch", "shell", "shell", "shell", "shell", "shell", "shell"]
 const BREAKABLES := [
-	[700.0, 600.0, "log", ["shell", "shell", "shell", "conch"]],
-	[1950.0, 600.0, "mound", ["conch", "conch", "shell", "shell", "shell"]],
-	[3480.0, 600.0, "log", ["shell", "shell", "shell", "conch"]],
-	[5180.0, -52.0, "mound", ["conch", "conch", "shell", "shell", "shell"]],
-	[7380.0, 600.0, "log", ["shell", "shell", "shell", "conch"]],
-	[9100.0, 600.0, "log", ["shell", "shell", "shell", "conch"]],
-	[11480.0, 600.0, "mound", ["conch", "conch", "shell", "shell", "shell"]],
-	[12790.0, 600.0, "log", ["shell", "shell", "shell", "conch"]],
+	[640.0, 600.0, "log", LOG], [1950.0, 600.0, "mound", MOUND], [3480.0, 600.0, "log", LOG],
+	[5880.0, -278.0, "mound", MOUND], [9100.0, 600.0, "log", LOG],
+	[11480.0, 600.0, "mound", MOUND], [12790.0, 600.0, "log", LOG],
+	[21050.0, 700.0, "log", LOG], [24050.0, 600.0, "mound", MOUND],
 ]
+## Clay pots, in little groups: one smack each, a few shells. [x, surface y, how many]
+const POTS := [
+	[330.0, 600.0, 2], [2170.0, 490.0, 2], [3640.0, 600.0, 3], [5790.0, -278.0, 2], [7470.0, 600.0, 2],
+	[8480.0, 600.0, 2], [11060.0, 600.0, 2], [12920.0, 600.0, 3], [20500.0, 600.0, 2], [23000.0, 600.0, 2],
+]
+## Shell Totems: carved faces that spit two shells per hit, six hits.
+const TOTEMS := [[2470.0, 600.0], [6300.0, -30.0], [11370.0, 600.0], [24180.0, 600.0]]
+## Monkey stashes: a log marked with a red X — a fountain of treasure.
+const STASH := ["shell", "shell", "shell", "shell", "shell", "shell", "shell", "shell", "shell", "shell", "conch", "conch", "conch"]
+const STASHES := [[7620.0, 600.0], [7470.0, -418.0]]
+## Golden Hares: [left x, right x, start x, ground y] — catch one for a shower of treasure.
+const HARES := [[3380.0, 3960.0, 3800.0, 600.0], [7060.0, 7700.0, 7560.0, 600.0], [8420.0, 8880.0, 8700.0, 600.0]]
+const HARE_VALUE := 18
+## Moonpuffs: bounce bushes on the mountain's way down, where he lands
+## coming off each step.
+const MOONPUFFS := [[6060.0, -155.0], [6440.0, 95.0], [6820.0, 345.0]]
 const SECRETS := ["crevice", "lookout", "weeping", "rattling"]
 ## [x, darkness]. Dusk at the camp, darkest in the woods, thinner on the
 ## mountain where the moon reaches, dark again under the great tree.
 const DARKNESS := [[0.0, 0.26], [700.0, 0.40], [1500.0, 0.62], [2600.0, 0.72], [3600.0, 0.74],
 	[4300.0, 0.62], [5000.0, 0.56], [5700.0, 0.50], [6600.0, 0.60], [7100.0, 0.70], [7600.0, 0.64],
 	[8500.0, 0.72], [10000.0, 0.76], [10600.0, 0.86], [10700.0, 0.92], [12650.0, 0.92],   # the Long Dark
-	[12800.0, 0.76], [13400.0, 0.82], [14700.0, 0.82],                                    # the Toolmaker; the clearing
+	[12800.0, 0.74], [13350.0, 0.76], [13450.0, 0.88], [14250.0, 0.88],                   # his home; the Three Fires
+	[14300.0, 0.82], [15600.0, 0.82],                                                     # the clearing
 	[20250.0, 0.92], [24600.0, 0.92]]   # the caves: near black
 
 var night: Night
@@ -346,6 +397,10 @@ func _build_world() -> void:
 		add_child(World.Slab.new(Rect2(l[0], l[1], l[2], 22)))
 	for c in CRAGS:
 		add_child(NightWoods.Crag.new(Rect2(c[0], c[1], c[2], c[3])))
+	for m in MOONPUFFS:
+		var puff := NightWoods.MoonPuff.new()
+		puff.position = Vector2(m[0], m[1])
+		add_child(puff)
 	for b in BOULDERS:
 		var rock := NightWoods.Boulder.new()
 		rock.position = Vector2(b[0], b[1])
@@ -786,18 +841,27 @@ func _update_long_dark() -> void:
 
 ## ---------------------------------------------------------------- the end
 func _build_the_end() -> void:
-	# the Toolmaker, at his fire
+	# the Toolmaker's home, and the man himself
+	var camp := NightWoods.ToolmakerCamp.new()
+	camp.position = CAMP_AT
+	add_child(camp)
 	toolmaker = NightBeasts.Toolmaker.new()
 	toolmaker.position = TOOLMAKER_AT
 	toolmaker.player = player
 	add_child(toolmaker)
 	# the clearing: two stone bowls, two ledges, a gate that shuts behind him
+	_build_trial()
+	var arena_bowls: Array = []
 	for b in BRAZIERS:
 		var bowl := NightWoods.Brazier.new()
 		bowl.position = Vector2(b[0], b[1])
 		add_child(bowl)
+		arena_bowls.append(bowl)
 	for l in ARENA_LEDGES:
 		add_child(NightWoods.Crag.new(Rect2(l[0], l[1], l[2], 18)))
+	var lair := NightWoods.Lair.new()
+	lair.position = Vector2(LAIR_X, GROUND_Y)
+	add_child(lair)
 	var snag := NightWoods.Snag.new()
 	snag.position = Vector2(BONGO_PERCH.x - 20.0, GROUND_Y)
 	snag.height = 330.0
@@ -816,12 +880,17 @@ func _build_the_end() -> void:
 	scar.position = Vector2(LEVEL_W + 300.0, GROUND_Y)
 	scar.arena_l = ARENA.position.x
 	scar.arena_r = ARENA.end.x
+	scar.lair_x = LAIR_X
 	scar.ledges = []
 	for l in ARENA_LEDGES:
 		scar.ledges.append([l[0], l[0] + l[2], l[1]])
+	scar.braziers = arena_bowls
+	scar.rock_in_teeth.connect(func() -> void:
+		hud.say("A rock right in the teeth! He's reeling — hit him!", 3.0))
 	scar.roared.connect(_on_scar_roar)
 	scar.phase_changed.connect(_on_scar_phase)
 	scar.beaten.connect(_on_scar_beaten)
+	scar.fang_out.connect(_on_fang_out)
 	add_child(scar)
 	arena_bongo = NightBeasts.Elder.new()
 	arena_bongo.position = BONGO_PERCH
@@ -831,7 +900,45 @@ func _build_the_end() -> void:
 	arena_bongo.visible = false
 	add_child(arena_bongo)
 	player.died.connect(_on_died_in_fight)
-	_note(12200, "Firelight ahead. Someone lives out here.", 3.0)
+	_note(12200, "Firelight ahead, under the rocks. Someone lives out here.", 3.0)
+
+
+## ---------------------------------------------------------------- the Three Fires
+var _trial_lit := 0
+var _trial_gate: NightWoods.PalisadeGate
+
+
+func _build_trial() -> void:
+	var rock := NightWoods.CrackedRock.new()
+	rock.position = TRIAL_ROCK
+	rock.broken.connect(func() -> void: hud.say("The boulder bursts apart!", 2.0))
+	add_child(rock)
+	add_child(NightWoods.Crag.new(Rect2(TRIAL_LEDGE[0], TRIAL_LEDGE[1], TRIAL_LEDGE[2], 18)))
+	for b in TRIAL_BOWLS:
+		var bowl := NightWoods.Brazier.new()
+		bowl.position = Vector2(b[0], b[1])
+		bowl.kindled.connect(_on_trial_fire)
+		add_child(bowl)
+	for w in TRIAL_WOLVES:
+		var wolf := NightBeasts.Wolf.new()
+		wolf.left_x = w[0]
+		wolf.right_x = w[1]
+		wolf.position = Vector2(w[2], GROUND_Y)
+		add_child(wolf)
+	_trial_gate = NightWoods.PalisadeGate.new()
+	_trial_gate.position = Vector2(TRIAL_GATE_X, GROUND_Y)
+	add_child(_trial_gate)
+	_note(TRIAL_ROCK.x - 140.0, "A boulder, split with old cracks. Something heavy could break it.", 3.5)
+
+
+func _on_trial_fire() -> void:
+	_trial_lit += 1
+	if _trial_lit < TRIAL_BOWLS.size():
+		hud.say("A bowl of fire! %d of %d." % [_trial_lit, TRIAL_BOWLS.size()], 2.5)
+		return
+	hud.say("The third fire! The old stakes across the path catch light...", 4.0)
+	hud.set_quest("Face Old Scar")
+	_trial_gate.burn()
 
 
 func _update_toolmaker() -> void:
@@ -850,10 +957,12 @@ func _update_toolmaker() -> void:
 				["TOOLMAKER", "His clearing is just past my fire. He fears one thing: fire in his face. Hold your torch toward him when he leaps."],
 				["TOOLMAKER", "And light the two old stone bowls. Their fire will keep him off you — and relight your torch when he roars it out."],
 			]
+			lines.append(["TOOLMAKER", "Past my fire, three old bowls stand before the stakes of his clearing. Light all three, and the way opens."])
 			if gem_found and GameState.gems.get("level2", "") == "found":
-				lines.append(["TOOLMAKER", "Wait... what's that you carry? A Firestone! Give it here, and I'll forge you a club that bites like fire."])
+				lines.append(["TOOLMAKER", "Wait... what's that you carry? A FIRESTONE?! Boy, I've waited forty winters to see one of those."])
+				lines.append(["TOOLMAKER", "Pick it from my wares. Pay me nothing. Some things are worth more than shells."])
 			else:
-				lines.append(["TOOLMAKER", "If you had something that burns inside — a Firestone — I could forge you a weapon that bites. You don't. Pity."])
+				lines.append(["TOOLMAKER", "If you had a Firestone, I could make you something he'd fear... but you don't. Pity."])
 			lines.append(["TOOLMAKER", "I trade, too. Shells for my work. Let's see what you've got."])
 			_talk(lines, _open_shop, toolmaker)
 		else:
@@ -865,7 +974,7 @@ func _update_toolmaker() -> void:
 
 ## ---------------------------------------------------------------- the shop
 const WARES := [
-	["forge", "Forge the Firestone into the Fire Club", "His club burns: harder hits, Old Scar always flinches from it, and it feeds his torch: never below half, and no roar can put it out.", 0],
+	["forge", "Forge the FIRESTONE HAMMER", "His old hammer — the one that broke Old Scar's fang — with the Firestone set in it. Hold attack, let go: SLAM! A wave of fire.", 0],
 	["heart", "An extra heart", "Toughened by the Toolmaker's bitter roots: one more heart, for good.", 60],
 	["torch", "A long-burning torch", "Resin-soaked wrappings: his torch burns 40% longer.", 40],
 	["pouch", "A bigger pouch", "Carry one more bundle of wood, two more rocks and one more berry.", 40],
@@ -931,10 +1040,9 @@ func _shop_buy(id: String) -> String:
 			price = w[3]
 	if id == "forge":
 		GameState.gems["level2"] = "forged"
-		player.fire_club = true
-		toolmaker.forging = 1.6
 		GameState.save()
-		return "Sparks fly. The Fire Club! It burns — and never burns out."
+		call_deferred("_forge_ceremony")
+		return "The Toolmaker takes the Firestone..."
 	if id in GameState.upgrades:
 		if id == "heart" and int(GameState.upgrades["heart"]) == 1:
 			price = 120
@@ -957,6 +1065,52 @@ func _shop_buy(id: String) -> String:
 	GameState.save()
 	hud.set_shells(GameState.shells)
 	return "He tries it on. Very fine."
+
+
+## The forging: the story of the hammer, the hammering, and then the moment he
+## holds it up — the Firestone Hammer.
+func _forge_ceremony() -> void:
+	for c in get_children():
+		if c is Shop:
+			c._age = 1.0
+			c._close()
+	_talk([
+		["TOOLMAKER", "Forty winters ago, the night Old Scar took my arm... I hit him with this. Broke his fang clean off."],
+		["TOOLMAKER", "Now hold still. Let's put the Firestone where it belongs.", func() -> void: toolmaker.forging = 2.2],
+		["", "Clang. Clang. CLANG. Sparks fly into the dark. The stone in the hammer begins to glow."],
+	], _hammer_reveal, toolmaker)
+
+
+func _hammer_reveal() -> void:
+	player.hammer = true
+	shake(6.0, 0.4)
+	var card := ItemGet.new()
+	card.title = "FIRESTONE HAMMER"
+	card.line = "Hold ATTACK to raise it overhead... let go to SLAM! A wave of fire rolls along the ground: it burns, it lights fires from afar, and it trips anything charging at you."
+	card.icon = _hammer_icon
+	card.player = player
+	card.done.connect(func() -> void:
+		_talk([["TOOLMAKER", "Ha! Now it burns like the stone. Go on — show me on those three bowls. And give Old Scar my regards."]]))
+	add_child(card)
+
+
+## The hammer, big, for the item card.
+func _hammer_icon(c: Control) -> void:
+	# the haft: pale wood, outlined, bound with sinew
+	c.draw_line(Vector2(-78, 92), Vector2(26, -24), Color("3a2a18"), 20.0, true)
+	c.draw_line(Vector2(-78, 92), Vector2(26, -24), Color("c49a64"), 13.0, true)
+	for k in 3:
+		var q := Vector2(-70, 83).lerp(Vector2(26, -24), 0.08 + k * 0.08)
+		c.draw_line(q + Vector2(-10, -9), q + Vector2(10, 9), Color("6b4a2a"), 5.0, true)
+	# the head: a heavy stone block, outlined, with the Firestone set in it
+	var head := PackedVector2Array([Vector2(-10, -104), Vector2(96, -22), Vector2(62, 18), Vector2(-42, -64)])
+	c.draw_colored_polygon(head, Color("8a8378"))
+	c.draw_colored_polygon(PackedVector2Array([Vector2(-6, -98), Vector2(88, -24), Vector2(76, -10), Vector2(-20, -84)]), Color("a39b8f"))
+	c.draw_polyline(PackedVector2Array([head[0], head[1], head[2], head[3], head[0]]), Color("3d3831"), 5.0, true)
+	c.draw_circle(Vector2(28, -43), 34.0, Color(Pal.EMBER_GLOW, 0.45))
+	c.draw_colored_polygon(PackedVector2Array([Vector2(28, -68), Vector2(52, -43), Vector2(28, -18), Vector2(4, -43)]), Pal.GEM)
+	c.draw_colored_polygon(PackedVector2Array([Vector2(28, -68), Vector2(52, -43), Vector2(28, -43)]), Pal.GEM_LIGHT)
+	c.draw_polyline(PackedVector2Array([Vector2(28, -68), Vector2(52, -43), Vector2(28, -18), Vector2(4, -43), Vector2(28, -68)]), Color("5a1016"), 3.0, true)
 
 
 func _apply_upgrade(id: String) -> void:
@@ -1003,22 +1157,23 @@ func _start_fight() -> void:
 	_apply_region(3)
 	scar.start()
 	arena_bongo.visible = true
-	hud.title_card("OLD SCAR", "Terror of the Long Dark")
 	hud.set_boss(1.0)
+	hud.say("Something moves in the dark at the far end of the clearing...", 2.5)
 	var line := "OLD BONGO (from the treetops):  \"Hairless one! Keep your little sun in his face — he hates it!\""
 	if monkey_kills > 0:
 		line = "OLD BONGO (from the treetops):  \"You hit my family. Good luck, hairless one.\""
-	get_tree().create_timer(3.4).timeout.connect(func() -> void: hud.say(line, 4.0))
+	get_tree().create_timer(6.5).timeout.connect(func() -> void: hud.say(line, 4.0))
 
 
 func _on_scar_roar() -> void:
 	if not _fight:
 		return
-	cam.offset = Vector2(0, 0)
 	if scar.state == "intro":
+		# his entrance: the name card, and the torch shudders
+		hud.title_card("OLD SCAR", "Terror of the Long Dark")
 		return
-	if player.fire_club:
-		hud.say("He roars — but the Firestone's fire holds. The torch burns on.", 3.0)
+	if player.hammer:
+		hud.say("He roars — but the Firestone keeps the flame alive. The torch burns on.", 3.0)
 	elif player.has_torch and player.torch_fuel > 0.0:
 		player.torch_fuel = 0.0
 		hud.say("His roar snuffs the torch! Relight it at a stone bowl.", 3.0)
@@ -1052,13 +1207,18 @@ func _on_scar_beaten() -> void:
 	_fight = false
 	_scar_beaten = true
 	hud.set_boss(-1.0)
+	shake(12.0, 0.9)
 	_gate.get_child(0).set_deferred("disabled", true)
+
+
+## Thrown down, his broken fang flies out of his jaw.
+func _on_fang_out(at: Vector2) -> void:
 	var fang := Caves.KeyItem.new()
 	fang.real = false
-	fang.position = scar.global_position
+	fang.position = Vector2(clampf(at.x, ARENA.position.x + 60.0, ARENA.end.x - 60.0), GROUND_Y)
 	fang.taken.connect(func(_r: bool) -> void: _on_fang())
 	add_child(fang)
-	hud.say("Old Scar turns and flees into the dark, limping. Something white lies where he fell.", 5.0)
+	hud.say("His broken fang flies from his jaw! Old Scar staggers up... and limps away into the dark.", 5.0)
 
 
 func _on_fang() -> void:
@@ -1085,7 +1245,7 @@ func _show_scroll() -> void:
 	var gem := "missed"
 	match GameState.gems.get("level2", ""):
 		"forged":
-			gem = "forged: Fire Club"
+			gem = "Firestone Hammer"
 		"found":
 			gem = "found"
 	var found := 0
@@ -1095,7 +1255,7 @@ func _show_scroll() -> void:
 	var scroll := LevelEnd.new()
 	scroll.title = "LEVEL 2   DISCOVERY OF FIRE"
 	scroll.lines = [
-		["Shells", "%d / %d" % [_treasure_found(), _treasure_total]],
+		["Shells", "%d / %d" % [_run_value, _treasure_total]],
 		["Gem", gem],
 		["Secrets", "%d / %d" % [found, SECRETS.size()]],
 		["Troop spared", "%d / %d" % [MONKEYS.size() - monkey_kills, MONKEYS.size()]],
@@ -1110,6 +1270,10 @@ func _show_scroll() -> void:
 
 ## ---------------------------------------------------------------- treasure
 func _build_treasure() -> void:
+	# every visit is a fresh treasure hunt: all of it is back each time the
+	# level starts (only the shells in his pouch carry over)
+	GameState.ensure_loaded()
+	GameState.taken.erase("level2")
 	var n := 0
 	for r in SHELL_ROWS:
 		var count: int = r[3]
@@ -1135,6 +1299,47 @@ func _build_treasure() -> void:
 		add_child(box)
 		for k in b[3]:
 			_treasure_total += int(Treasure.VALUE[k])
+	for i in POTS.size():
+		var pt: Array = POTS[i]
+		var count: int = pt[2]
+		for k in count:
+			var pot := Treasure.Breakable.new()
+			pot.kind = "pot"
+			# every third pot or so has a conch in it
+			pot.contents = ["shell", "shell", "conch"] if (i + k) % 3 == 0 else ["shell", "shell", "shell"]
+			pot.level_id = "level2"
+			pot.id = "p%d_%d" % [i, k]
+			pot.position = Vector2(float(pt[0]) + (k - (count - 1) * 0.5) * 38.0, pt[1])
+			add_child(pot)
+			for c in pot.contents:
+				_treasure_total += int(Treasure.VALUE[c])
+	for i in STASHES.size():
+		var box := Treasure.Breakable.new()
+		box.kind = "stash"
+		box.contents = STASH
+		box.level_id = "level2"
+		box.id = "x%d" % i
+		box.position = Vector2(STASHES[i][0], STASHES[i][1])
+		add_child(box)
+		for c in STASH:
+			_treasure_total += int(Treasure.VALUE[c])
+	for i in TOTEMS.size():
+		var totem := Treasure.ShellTotem.new()
+		totem.level_id = "level2"
+		totem.id = "t%d" % i
+		totem.position = Vector2(TOTEMS[i][0], TOTEMS[i][1])
+		add_child(totem)
+		_treasure_total += 11 + 5
+	for i in HARES.size():
+		var h: Array = HARES[i]
+		var hare := Treasure.GoldenHare.new()
+		hare.left_x = h[0]
+		hare.right_x = h[1]
+		hare.position = Vector2(h[2], h[3])
+		hare.level_id = "level2"
+		hare.id = "h%d" % i
+		add_child(hare)
+		_treasure_total += HARE_VALUE
 
 
 func _treasure(kind: String, id: String, at: Vector2) -> void:
@@ -1153,7 +1358,11 @@ func _on_treasure_popped(p: Treasure.Pickup) -> void:
 	p.collected.connect(_on_treasure)
 
 
-func _on_treasure(_value: int) -> void:
+var _run_value := 0          ## treasure picked up this visit, by value
+
+
+func _on_treasure(value: int) -> void:
+	_run_value += value
 	hud.set_shells(GameState.shells)
 
 
@@ -1221,7 +1430,9 @@ func _process(delta: float) -> void:
 	_told_out = maxf(_told_out - delta, 0.0)
 	hud.set_torch(player.has_torch, player.torch_fuel)
 	sky.dusk = clampf(1.0 - player.global_position.x / 1500.0, 0.0, 1.0)
-	var r := 3 if _fight else _region_at(player.global_position.x)
+	# the camera stays on the clearing through the fight and through his defeat,
+	# until he has limped away into the dark
+	var r := 3 if (_fight or (_scar_beaten and scar.visible)) else _region_at(player.global_position.x)
 	if r != _region:
 		_apply_region(r)
 	_update_elder(delta)

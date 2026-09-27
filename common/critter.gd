@@ -9,6 +9,32 @@ var flash := 0.0
 var dying := 0.0
 var player: CaveMan
 
+## Dying, so it reads from across the screen. The world holds its breath for
+## a blink (hit-stop), there's a pop where the blow landed, and the last hit
+## throws it the way the blow went, spinning; it lands, bounces once, and lies
+## legs-up before it fades. A stomp squashes it flat instead. Each creature
+## can choose its own way to go with death_style():
+##   knock  — thrown back, tumbling (the default)
+##   flip   — flipped high, end over end, lands belly-up
+##   spiral — flying things: spin down to the ground in a wobbling spiral
+##   curl   — drops and curls up, legs to the sky
+##   limp   — no flight at all: slumps where it is
+##   wilt   — plants: droop and shrink
+const DEATH_TIME := 1.3
+var death_t := -1.0
+var _style := "knock"
+var _dv := Vector2.ZERO
+var _dspin := 0.0
+var _dfloor := 0.0
+var _drest := PI
+var _dlift := 0.0
+var _dbounces := 0
+var _dstart := Vector2.ZERO
+
+## Slow-motion that nests safely: the longest request wins, and time only
+## comes back to normal when the last one runs out.
+static var _slow_until_ms := 0
+
 ## Stomping. Landing on a critter from above crushes it.
 ## Big or spiked things set stompable = false so the player learns the exception.
 var stompable := true
@@ -48,6 +74,41 @@ func _on_stomped() -> void:
 	pass
 
 
+## How this creature dies (see the list at the top). Override to change it.
+func death_style() -> String:
+	return "knock"
+
+
+## The ground it lands on when it dies. Flying things override this.
+func death_floor() -> float:
+	return position.y
+
+
+## The whole game slows to `time_scale` for `secs` of real time (a hit-stop,
+## or a boss's last moment). A small keeper node watches the real clock and
+## puts time back to normal when the last slow-down runs out.
+static var _keeper_alive := false
+
+
+static func slow_time(tree: SceneTree, secs: float, time_scale: float) -> void:
+	_slow_until_ms = maxi(_slow_until_ms, Time.get_ticks_msec() + int(secs * 1000.0))
+	Engine.time_scale = minf(Engine.time_scale, time_scale)
+	if not _keeper_alive:
+		_keeper_alive = true
+		tree.root.call_deferred("add_child", SlowKeeper.new())
+
+
+class SlowKeeper extends Node:
+	func _ready() -> void:
+		process_mode = Node.PROCESS_MODE_ALWAYS
+
+	func _process(_delta: float) -> void:
+		if Time.get_ticks_msec() >= Critter._slow_until_ms:
+			Engine.time_scale = 1.0
+			Critter._keeper_alive = false
+			queue_free()
+
+
 ## Caught in a fire burst. Most things simply take the damage; a few react.
 func burned(dmg: int, from: Vector2) -> void:
 	var d := int(signf(global_position.x - from.x))
@@ -61,10 +122,169 @@ func take_hit(dmg: int, from_dir: int) -> void:
 	flash = 0.15
 	_on_hit(from_dir)
 	if hp <= 0:
-		dying = 0.35
-		set_deferred("monitoring", false)
-		set_deferred("monitorable", false)
-		_on_die()
+		_begin_death(from_dir)
+
+
+func _begin_death(from_dir: int) -> void:
+	dying = DEATH_TIME
+	death_t = 0.0
+	flash = 0.2
+	set_deferred("monitoring", false)
+	set_deferred("monitorable", false)
+	var d := float(from_dir)
+	if d == 0.0 and player != null:
+		d = signf(global_position.x - player.global_position.x)
+	if d == 0.0:
+		d = 1.0
+	_style = death_style() if from_dir != 0 else "squash"
+	_dfloor = death_floor()
+	_dstart = position
+	_dlift = _body_height()
+	_drest = PI + randf_range(-0.15, 0.15)
+	match _style:
+		"knock":
+			_dv = Vector2(d * 320.0, -400.0)
+			_dspin = d * 11.0
+		"flip":
+			_dv = Vector2(d * 200.0, -520.0)
+			_dspin = d * 16.0
+		"spiral":
+			_dv = Vector2(d * 100.0, -150.0)
+			_dspin = d * 18.0
+		"curl":
+			_dv = Vector2(d * 150.0, -280.0)
+			_dspin = d * 9.0
+		_:
+			# limp, wilt, squash: no flight
+			_dv = Vector2.ZERO
+			_dspin = 0.0
+			_drest = 0.0
+			_dlift = 0.0
+	_on_die()
+	# the world holds its breath for a blink, and there's a pop where it was hit
+	if is_inside_tree():
+		Critter.slow_time(get_tree(), 0.07, 0.08)
+		var pop := DeathPop.new()
+		pop.position = global_position + Vector2(0, -_body_height() * 0.6)
+		pop.big = _body_height() > 40.0
+		get_parent().call_deferred("add_child", pop)
+
+
+## How tall it stands above its origin (from its hit box), so a creature lying
+## legs-up can be lifted to rest on its back instead of sinking into the ground.
+func _body_height() -> float:
+	for c in get_children():
+		if c is CollisionShape2D:
+			var cs := c as CollisionShape2D
+			if cs.shape is RectangleShape2D:
+				return maxf(0.0, -(cs.position.y - (cs.shape as RectangleShape2D).size.y * 0.5)) * 0.9
+			return 0.0
+	return 0.0
+
+
+## One frame of dying, whichever way it goes.
+func _death_step(delta: float) -> void:
+	death_t += delta
+	dying = maxf(DEATH_TIME - death_t, 0.001)
+	match _style:
+		"squash":
+			var k := clampf(death_t / 0.1, 0.0, 1.0)
+			scale = Vector2(lerpf(1.0, 1.6, k), lerpf(1.0, 0.2, k))
+		"wilt":
+			var k := clampf(death_t / 0.6, 0.0, 1.0)
+			rotation = lerpf(0.0, 0.7, k)
+			scale = Vector2.ONE * lerpf(1.0, 0.6, k)
+		"limp":
+			var k := clampf(death_t / 0.3, 0.0, 1.0)
+			position.y = lerpf(_dstart.y, _dfloor, k * k)
+		_:
+			if _dbounces < 2:
+				_dv.y += 1500.0 * delta
+				if _style == "spiral":
+					_dv.x = cos(death_t * 11.0) * 160.0
+				position += _dv * delta
+				rotation += _dspin * delta
+				if position.y >= _dfloor and _dv.y > 0.0:
+					position.y = _dfloor
+					_dbounces += 1
+					if _dbounces == 1:
+						# one bounce off the ground, and a puff of dust
+						_dv = Vector2(_dv.x * 0.35, -absf(_dv.y) * 0.28)
+						_dspin *= 0.3
+						var dust := DeathPop.new()
+						dust.dust = true
+						dust.position = Vector2(position.x, _dfloor)
+						get_parent().add_child(dust)
+					else:
+						_dv = Vector2.ZERO
+			else:
+				# and lies legs-up, still
+				rotation = lerp_angle(rotation, _drest, minf(12.0 * delta, 1.0))
+				position.y = move_toward(position.y, _dfloor - _dlift, 300.0 * delta)
+	modulate.a = clampf((DEATH_TIME - death_t) / 0.35, 0.0, 1.0)
+	if death_t >= DEATH_TIME:
+		queue_free()
+		return
+	queue_redraw()
+
+
+## Stars going round over something that has been knocked silly.
+class Dizzy extends Node2D:
+	var t := 0.0
+	var life := 3.0
+	var radius := 26.0
+
+	func _process(delta: float) -> void:
+		t += delta
+		if t > life:
+			queue_free()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		var a := clampf((life - t) / 0.5, 0.0, 1.0)
+		for i in 3:
+			var ang := t * 5.0 + i * TAU / 3.0
+			var p := Vector2(cos(ang) * radius, sin(ang) * radius * 0.3)
+			var r := 6.0
+			draw_colored_polygon(PackedVector2Array([p + Vector2(0, -r), p + Vector2(r * 0.35, -r * 0.35), p + Vector2(r, 0),
+				p + Vector2(r * 0.35, r * 0.35), p + Vector2(0, r), p + Vector2(-r * 0.35, r * 0.35), p + Vector2(-r, 0),
+				p + Vector2(-r * 0.35, -r * 0.35)]), Color(1.0, 0.88, 0.45, a))
+
+
+## The pop where a creature dies: a flash ring and a scatter of stars — or,
+## with dust set, a puff of dust where a body hits the ground.
+class DeathPop extends Node2D:
+	var t := 0.0
+	var big := false
+	var dust := false
+
+	func _process(delta: float) -> void:
+		t += delta
+		if t > 0.5:
+			queue_free()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		var k := t / 0.5
+		var a := 1.0 - k
+		var s := 1.6 if big else 1.0
+		if dust:
+			for i in 6:
+				var dx := (i - 2.5) * 9.0 * s
+				draw_circle(Vector2(dx * (1.0 + k * 1.5), -4.0 - k * 10.0), (5.0 + k * 8.0) * s, Color(0.72, 0.66, 0.56, 0.5 * a))
+			return
+		draw_arc(Vector2.ZERO, (10.0 + k * 38.0) * s, 0.0, TAU, 24, Color(1, 1, 1, 0.9 * a), 4.0 * a + 1.0)
+		for i in 7:
+			var ang := TAU * i / 7.0 + 0.4
+			var p := Vector2.from_angle(ang) * (8.0 + k * 46.0) * s
+			var r := 5.0 * a * s
+			if r < 1.0:
+				continue
+			draw_colored_polygon(PackedVector2Array([p + Vector2(0, -r), p + Vector2(r * 0.35, -r * 0.35), p + Vector2(r, 0),
+				p + Vector2(r * 0.35, r * 0.35), p + Vector2(0, r), p + Vector2(-r * 0.35, r * 0.35), p + Vector2(-r, 0),
+				p + Vector2(-r * 0.35, -r * 0.35)]), Color(1.0, 0.93, 0.6, a))
 
 
 ## True when he is coming down and his feet are above this critter's back.
@@ -88,12 +308,7 @@ func _is_stomp() -> bool:
 func _physics_process(delta: float) -> void:
 	flash = maxf(flash - delta, 0.0)
 	if dying > 0.0:
-		dying -= delta
-		modulate.a = clampf(dying / 0.35, 0.0, 1.0)
-		if dying <= 0.0:
-			queue_free()
-			return
-		queue_redraw()
+		_death_step(delta)
 		return
 
 	if player == null:

@@ -85,7 +85,17 @@ var talking := false      ## in a conversation: stands still, can't be hurt, tor
 ## From upgrades and the gem forge (GameState puts these on him at level start).
 var torch_burn := TORCH_BURN
 var club_bonus := 0
-var fire_club := false    ## the forged Firestone: flames on the club, harder hits
+## The Firestone Hammer (Level 2's forged weapon). Tap attack: a heavy blow.
+## Hold attack: he raises it overhead and the gem burns brighter; let go and
+## he SLAMS the ground, and a wave of fire rolls out both ways along it.
+var hammer := false
+const SLAM_READY := 0.5         ## how long the charge takes to be full
+const SLAM_COOLDOWN := 1.3
+var slam_charge := -1.0         ## >= 0 while raising the hammer
+var slam_t := 0.0               ## > 0 just after a slam: the hammer down on the ground
+var slam_cd := 0.0
+var showing_off := 0.0          ## > 0: holding a new treasure up high (set by the level)
+var _attack_held := 0.0
 var skin := "plain"       ## plain, wolf_pelt, war_paint, bone_necklace
 ## Vine swinging. While on one he is placed by the swing, not by physics.
 const HANG := 80.0        ## px from the grip down to his feet
@@ -166,8 +176,8 @@ func _physics_process(delta: float) -> void:
 
 	if has_torch and torch_fuel > 0.0:
 		torch_fuel = maxf(torch_fuel - delta / torch_burn, 0.0)
-		if fire_club:
-			# the Firestone feeds the flame: it never sinks below half
+		if hammer:
+			# the Firestone in the hammer feeds the flame: it never sinks below half
 			torch_fuel = maxf(torch_fuel, 0.5)
 		if torch_fuel <= 0.0:
 			torch_out.emit()
@@ -191,6 +201,31 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		_was_floor = is_on_floor()
 		return
+
+	# raising the Firestone Hammer: rooted while the charge builds; letting go
+	# of attack brings it down — a SLAM if the charge was full
+	slam_t = maxf(slam_t - delta, 0.0)
+	slam_cd = maxf(slam_cd - delta, 0.0)
+	showing_off = maxf(showing_off - delta, 0.0)
+	var held: bool = Input.is_physical_key_pressed(KEY_J) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or touch["attack"]
+	if slam_charge >= 0.0:
+		slam_charge += delta
+		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
+		if not is_on_floor():
+			velocity.y += GRAVITY_DOWN * delta
+		move_and_slide()
+		if not held:
+			if slam_charge >= SLAM_READY:
+				_slam()
+			slam_charge = -1.0
+		_attack_prev = held
+		return
+	if held:
+		_attack_held += delta
+	else:
+		_attack_held = 0.0
+	if hammer and has_stick and is_on_floor() and slam_cd <= 0.0 and attacking <= 0.0 and _attack_held > 0.3:
+		slam_charge = 0.0
 
 	var dir := 0.0
 	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT) or touch["left"]:
@@ -340,7 +375,7 @@ func _process(delta: float) -> void:
 
 ## Runs every frame the swing is live. Each target can only be hit once per swing.
 func _apply_swing() -> void:
-	var dmg := (3 + club_bonus + (3 if fire_club else 0)) if has_stick else 1
+	var dmg := (3 + club_bonus + (2 if hammer else 0)) if has_stick else 1
 	for area in _hitbox.get_overlapping_areas():
 		if not area.has_method("take_hit"):
 			continue
@@ -349,6 +384,19 @@ func _apply_swing() -> void:
 			continue
 		_swing_hits.append(id)
 		area.take_hit(dmg, facing)
+
+
+## The hammer comes down: a wave of fire rolls out along the ground.
+func _slam() -> void:
+	slam_t = 0.3
+	slam_cd = SLAM_COOLDOWN
+	var wave := NightWoods.FireWave.new()
+	wave.position = global_position
+	wave.player = self
+	get_parent().add_child(wave)
+	var level := get_parent()
+	if level.has_method("shake"):
+		level.shake(7.0, 0.35)
 
 
 ## ------------------------------------------------------------------ vines
@@ -424,6 +472,7 @@ func hurt(amount: int, from_x: float) -> void:
 	hp -= amount
 	invuln = 1.1
 	knock = 0.25
+	slam_charge = -1.0
 	if vine != null:
 		_let_go(Vector2.ZERO)
 	var away := signf(global_position.x - from_x)
@@ -828,7 +877,28 @@ func _draw() -> void:
 
 	# ---- the near arm: fists, throw, club swing, club carry, or pumping
 	var sh := Vector2(50, -118)
-	if vine != null:
+	var charge_k := clampf(slam_charge / SLAM_READY, 0.0, 1.0) if slam_charge >= 0.0 else 0.0
+	if showing_off > 0.0 and has_stick:
+		# holding the new treasure up high, both arms, for everyone to see
+		var hd := Vector2(20, -232)
+		_arm(sh, sh + Vector2(10, -60), hd, 13.0, false)
+		_club(hd + Vector2(0, 30), hd + Vector2(0, -80), 7.0, 26.0)
+		_dot(hd, 11.0, _skin)
+	elif slam_charge >= 0.0 and has_stick:
+		# raised overhead and trembling as the gem burns brighter
+		var tremble := Vector2(sin(anim_t * 60.0), cos(anim_t * 71.0)) * 2.5 * charge_k
+		var hd := Vector2(8, -196) + tremble
+		_arm(sh, sh + Vector2(20, -40), hd, 13.0, false)
+		var ca := -1.9 - 0.35 * charge_k
+		_club(hd - Vector2.from_angle(ca) * 12.0, hd + Vector2.from_angle(ca) * 112.0, 7.0, 26.0)
+		_dot(hd, 11.0, _skin)
+	elif slam_t > 0.0 and has_stick:
+		# brought down onto the ground in front of him
+		var hd := Vector2(96, -70)
+		_arm(sh, sh + Vector2(40, 10), hd, 13.0, false)
+		_club(hd, Vector2(190, -8), 7.0, 26.0)
+		_dot(hd, 11.0, _skin)
+	elif vine != null:
 		# hanging on: the near hand up on the vine, the club tucked under the arm
 		var hd := Vector2(0, -HANG / ART)
 		_arm(sh, sh + Vector2(-8, -48), hd, 13.0, false)
@@ -1098,6 +1168,9 @@ func _oval_pts(c: Vector2, rx: float, ry: float, rot: float = 0.0) -> PackedVect
 
 
 func _club(p0: Vector2, p1: Vector2, w0: float, w1: float) -> void:
+	if hammer:
+		_hammer(p0, p1)
+		return
 	## Thin at the grip, thickening all the way up: cut from a branch with the
 	## root end kept, so most of the weight sits in the head.
 	var d := p1 - p0
@@ -1127,14 +1200,44 @@ func _club(p0: Vector2, p1: Vector2, w0: float, w1: float) -> void:
 		var sf: float = q[0]
 		var k: Vector2 = p0 + d * sf + nrm * ((w0 + (w1 - w0) * pow(sf, 1.4)) * 0.5 * float(q[1]) * 0.85)
 		_dot(k, 4.5, C_WOOD2, 2.5)
-	if fire_club:
-		# the Firestone's fire, licking up from the club head whichever way it points
-		var up := Vector2(0, -1)
-		var sway := sin(anim_t * 11.0) * 6.0
-		var head := p1 - u * 10.0
-		_flame(head, 20.0, 58.0, sway, Color(Pal.EMBER_GLOW, 0.85))
-		_flame(head + up * 2.0, 13.0, 44.0, sway * 0.8, Pal.FLAME)
-		_flame(head + up * 4.0, 7.0, 26.0, sway * 0.5, Pal.FLAME_CORE)
+
+
+
+## The Firestone Hammer: a long haft bound with sinew, a heavy stone head,
+## and the Firestone set in its face, glowing — brighter as the slam charges.
+func _hammer(p0: Vector2, p1: Vector2) -> void:
+	var d := (p1 - p0).normalized()
+	var n := Vector2(-d.y, d.x)
+	var charge_k := clampf(slam_charge / SLAM_READY, 0.0, 1.0) if slam_charge >= 0.0 else 0.0
+	# the haft
+	_shape(PackedVector2Array([p0 + n * 4.5, p1 - d * 20.0 + n * 5.5, p1 - d * 20.0 - n * 5.5, p0 - n * 4.5]), C_WOOD, 3.0)
+	for k in 3:
+		var q := p0 + d * (10.0 + k * 7.0)
+		draw_line(q + n * 6.0, q - n * 6.0, C_VINE, 3.0, true)
+	# the head: a heavy block of stone across the end of the haft
+	var hc := p1 - d * 6.0
+	var head := PackedVector2Array([hc + n * 32.0 - d * 20.0, hc + n * 36.0 + d * 14.0, hc - n * 30.0 + d * 18.0, hc - n * 34.0 - d * 16.0])
+	if charge_k > 0.0:
+		draw_circle(hc, 40.0 + 30.0 * charge_k, Color(Pal.FLAME, 0.25 * charge_k))
+	_shape(head, Color("7b7469"), 3.5)
+	_shape(PackedVector2Array([hc + n * 30.0 - d * 16.0, hc + n * 32.0 + d * 4.0, hc - n * 26.0 + d * 8.0, hc - n * 28.0 - d * 12.0]), Color("948c80"), 0.0)
+	draw_line(hc + n * 10.0 - d * 12.0, hc - n * 4.0 + d * 10.0, Color("5b554c"), 2.5, true)
+	# the Firestone, set in the head
+	var g := hc + n * 2.0
+	var pulse := 0.5 + 0.5 * sin(anim_t * 5.0)
+	draw_circle(g, 14.0 + charge_k * 8.0, Color(Pal.EMBER_GLOW, 0.35 + 0.3 * pulse + 0.3 * charge_k))
+	_shape(PackedVector2Array([g + n * 11.0, g + d * 9.0, g - n * 11.0, g - d * 9.0]), Pal.GEM, 2.5)
+	draw_colored_polygon(PackedVector2Array([g + n * 6.0, g + d * 4.0, g - n * 2.0]), Pal.GEM_LIGHT)
+	# embers drifting off it
+	for i in 4:
+		var q := fmod(anim_t * 0.9 + i * 0.25, 1.0)
+		draw_circle(hc + Vector2(sin(i * 2.1 + anim_t * 2.0) * 16.0, -q * 70.0), 3.5 * (1.0 - q) + 0.8, Color(Pal.FLAME_CORE, 1.0 - q))
+	if charge_k > 0.0:
+		# sparks drawn in toward the gem as the charge builds
+		for i in 8:
+			var q := fmod(anim_t * 2.2 + i / 8.0, 1.0)
+			var p := g + Vector2.from_angle(i * 0.79 + anim_t * 4.0) * 90.0 * (1.0 - q)
+			draw_circle(p, 3.5 + 3.0 * q, Color(Pal.FLAME_CORE, q * charge_k))
 
 
 func _leaf(a: Vector2, length: float, width: float, ang: float, col: Color) -> void:

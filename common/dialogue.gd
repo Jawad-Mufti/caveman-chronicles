@@ -28,32 +28,33 @@ var _more: Label
 
 func _ready() -> void:
 	layer = 6
+	# small and low, over the ground strip: it never covers who is talking
 	_box = Panel.new()
-	_box.position = Vector2(160, 500)
-	_box.size = Vector2(960, 172)
+	_box.position = Vector2(270, 598)
+	_box.size = Vector2(740, 108)
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(Pal.CHARCOAL, 0.93)
+	sb.bg_color = Color(Pal.CHARCOAL, 0.82)
 	sb.border_color = Pal.OCHRE
 	sb.set_border_width_all(3)
 	sb.set_corner_radius_all(10)
 	_box.add_theme_stylebox_override("panel", sb)
 	add_child(_box)
 	_name = Label.new()
-	_name.position = Vector2(26, 14)
-	_name.add_theme_font_size_override("font_size", 19)
+	_name.position = Vector2(18, 7)
+	_name.add_theme_font_size_override("font_size", 16)
 	_name.add_theme_color_override("font_color", Pal.OCHRE)
 	_box.add_child(_name)
 	_text = Label.new()
-	_text.position = Vector2(26, 46)
-	_text.size = Vector2(900, 100)
+	_text.position = Vector2(18, 30)
+	_text.size = Vector2(700, 72)
 	_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_text.add_theme_font_size_override("font_size", 23)
+	_text.add_theme_font_size_override("font_size", 19)
 	_text.add_theme_color_override("font_color", Pal.BONE)
 	_box.add_child(_text)
 	_more = Label.new()
 	_more.text = "▸"
-	_more.position = Vector2(918, 128)
-	_more.add_theme_font_size_override("font_size", 24)
+	_more.position = Vector2(716, 76)
+	_more.add_theme_font_size_override("font_size", 20)
 	_more.add_theme_color_override("font_color", Pal.OCHRE)
 	_box.add_child(_more)
 	if player != null:

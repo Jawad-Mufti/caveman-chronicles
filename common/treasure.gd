@@ -10,31 +10,102 @@ extends RefCounted
 const VALUE := {"shell": 1, "conch": 5, "amber": 25}
 
 
+## Colours for each kind: [fill, light, dark outline, glow]
+const LOOK := {
+	"shell": [Color("fbe6cf"), Color("f4b9a5"), Color("6d4a2e"), Color("ffe9c9")],
+	"conch": [Color("f2a97e"), Color("ffd9c0"), Color("6a3620"), Color("ffc6a0")],
+	"amber": [Color("e08a2c"), Color("ffd173"), Color("5e3210"), Color("ffb347")],
+}
+
+
+## Draws one piece of treasure, centred on `at`, bold enough to read at night.
 static func shape_into(b: Batch, kind: String, at: Vector2) -> void:
+	var look: Array = LOOK[kind]
+	var fill: Color = look[0]
+	var light: Color = look[1]
+	var dark: Color = look[2]
 	match kind:
 		"shell":
-			# a little cowrie
-			var pts := PackedVector2Array()
-			for i in 12:
-				var a := TAU * i / 12.0
-				pts.append(at + Vector2(cos(a) * 7.0, sin(a) * 5.0))
-			b.poly(pts, Color("e9dcc0"))
-			b.line(at + Vector2(-5, 0), at + Vector2(5, 0), Color("b79b72"), 1.5)
-			b.circle(at + Vector2(-2, -2), 1.5, Color("fff6e4"), 6)
+			# a scallop: a fan of ridges from the hinge, pink toward the rim
+			var hinge := at + Vector2(0, 8)
+			var rim := PackedVector2Array([at + Vector2(-5, 10)])
+			for i in 11:
+				var a := PI + 0.18 + (PI - 0.36) * i / 10.0
+				rim.append(hinge + Vector2.from_angle(a) * 16.0 + Vector2(0, sin(i * PI) * 0.0))
+			rim.append(at + Vector2(5, 10))
+			var edge := PackedVector2Array()
+			for p in rim:
+				edge.append(hinge + (p - hinge) * 1.14)
+			b.poly(edge, dark)
+			b.poly(rim, fill)
+			var inner := PackedVector2Array([hinge])
+			for i in 9:
+				var a := PI + 0.3 + (PI - 0.6) * i / 8.0
+				inner.append(hinge + Vector2.from_angle(a) * 14.0)
+			b.poly(inner, light)
+			b.poly(PackedVector2Array([hinge, hinge + Vector2.from_angle(PI + 0.9) * 9.0, hinge + Vector2.from_angle(PI + 2.2) * 9.0]), fill)
+			for i in 5:
+				var a := PI + 0.45 + (PI - 0.9) * i / 4.0
+				b.line(hinge + Vector2.from_angle(a) * 3.0, hinge + Vector2.from_angle(a) * 15.0, dark.lightened(0.35), 1.5)
+			b.rect(Rect2(at + Vector2(-6, 8), Vector2(12, 4)), dark)
+			b.rect(Rect2(at + Vector2(-5, 8), Vector2(10, 2.5)), fill)
+			b.circle(at + Vector2(-5, -2), 2.4, Color(1, 1, 1, 0.9), 8)
 		"conch":
-			# a spiral conch, pink at the lip
-			var pts := PackedVector2Array([at + Vector2(-10, 4), at + Vector2(-6, -8), at + Vector2(4, -11), at + Vector2(11, -3),
-				at + Vector2(8, 7), at + Vector2(-2, 9)])
-			b.poly(pts, Color("e8c79c"))
-			b.poly(PackedVector2Array([at + Vector2(-2, 9), at + Vector2(8, 7), at + Vector2(4, 2)]), Color("d98f86"))
-			b.polyline(PackedVector2Array([at + Vector2(-5, -4), at + Vector2(0, -7), at + Vector2(5, -5), at + Vector2(6, 0)]), Color("b0845c"), 1.5)
+			# a spiral conch with a flared pink lip
+			var body := PackedVector2Array([at + Vector2(-15, 6), at + Vector2(-11, -8), at + Vector2(-2, -15), at + Vector2(9, -13),
+				at + Vector2(16, -3), at + Vector2(13, 9), at + Vector2(2, 13), at + Vector2(-8, 12)])
+			var edge := PackedVector2Array()
+			for p in body:
+				edge.append(at + (p - at) * 1.13)
+			b.poly(edge, dark)
+			b.poly(body, fill)
+			b.poly(PackedVector2Array([at + Vector2(2, 13), at + Vector2(13, 9), at + Vector2(9, 1), at + Vector2(0, 5)]), light)
+			var spiral := PackedVector2Array()
+			for i in 14:
+				var a := i * 0.55
+				spiral.append(at + Vector2(-3, -3) + Vector2.from_angle(a) * (1.5 + i * 0.8))
+			b.polyline(spiral, dark.lightened(0.2), 1.8)
+			for k in 3:
+				b.circle(at + Vector2(-12 + k * 5, 7 - k * 2), 1.6, dark.lightened(0.3), 6)
+			b.circle(at + Vector2(-7, -8), 2.6, Color(1, 1, 1, 0.85), 8)
 		"amber":
-			# a rough drop of amber with something trapped inside
-			var pts := PackedVector2Array([at + Vector2(-9, 2), at + Vector2(-6, -10), at + Vector2(3, -13), at + Vector2(10, -4),
-				at + Vector2(7, 8), at + Vector2(-3, 10)])
-			b.poly(pts, Color("c9761f"))
-			b.poly(PackedVector2Array([at + Vector2(-5, -1), at + Vector2(-3, -8), at + Vector2(3, -9), at + Vector2(1, -2)]), Color("f3b04a"))
-			b.circle(at + Vector2(2, 3), 2.2, Color("5b3a14"), 8)
+			# a faceted drop of amber with something caught inside
+			var drop := PackedVector2Array([at + Vector2(0, -17), at + Vector2(11, -6), at + Vector2(13, 5), at + Vector2(6, 14),
+				at + Vector2(-6, 14), at + Vector2(-13, 5), at + Vector2(-11, -6)])
+			var edge := PackedVector2Array()
+			for p in drop:
+				edge.append(at + (p - at) * 1.14)
+			b.poly(edge, dark)
+			b.poly(drop, fill)
+			b.poly(PackedVector2Array([at + Vector2(0, -17), at + Vector2(11, -6), at + Vector2(3, -3), at + Vector2(-4, -8)]), light)
+			b.poly(PackedVector2Array([at + Vector2(-13, 5), at + Vector2(-6, 14), at + Vector2(-3, 6)]), fill.darkened(0.25))
+			b.circle(at + Vector2(2, 4), 2.6, Color("4a2a0c"), 8)
+			b.line(at + Vector2(0, 2), at + Vector2(-3, 0), Color("4a2a0c"), 1.2)
+			b.line(at + Vector2(4, 2), at + Vector2(7, 0), Color("4a2a0c"), 1.2)
+			b.circle(at + Vector2(-5, -9), 3.0, Color(1, 1, 1, 0.9), 8)
+
+
+class CollectPop extends Node2D:
+	## A burst of sparkles where treasure was picked up.
+	var tint := Color("ffe9c9")
+	var t := 0.0
+
+	func _process(delta: float) -> void:
+		t += delta
+		if t > 0.45:
+			queue_free()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		var k := t / 0.45
+		var a := 1.0 - k
+		draw_circle(Vector2.ZERO, 6.0 + k * 22.0, Color(tint, 0.35 * a))
+		for i in 8:
+			var p := Vector2.from_angle(TAU * i / 8.0 + 0.3) * (6.0 + k * 30.0)
+			var r := 4.0 * a + 1.0
+			draw_colored_polygon(PackedVector2Array([p + Vector2(0, -r), p + Vector2(r * 0.3, 0), p + Vector2(0, r), p + Vector2(-r * 0.3, 0)]), Color(1, 1, 1, a))
+			draw_colored_polygon(PackedVector2Array([p + Vector2(-r, 0), p + Vector2(0, r * 0.3), p + Vector2(r, 0), p + Vector2(0, -r * 0.3)]), Color(1, 1, 1, a))
 
 
 class Pickup extends Area2D:
@@ -58,14 +129,13 @@ class Pickup extends Area2D:
 		collision_mask = 2
 		var cs := CollisionShape2D.new()
 		var c := CircleShape2D.new()
-		c.radius = 16.0 if kind == "shell" else 20.0
+		c.radius = 22.0 if kind == "shell" else 26.0
 		cs.shape = c
 		add_child(cs)
 		body_entered.connect(_on_body)
 		t = randf() * TAU
 		_base_y = position.y
-		if kind == "amber":
-			add_to_group("glow")
+		add_to_group("glow")
 
 	func _on_body(b: Node) -> void:
 		if _gone or not (b is CaveMan) or vel != Vector2.ZERO:
@@ -78,6 +148,10 @@ class Pickup extends Area2D:
 		pop.text = "+%d" % v
 		pop.position = global_position + Vector2(-8, -18)
 		get_parent().call_deferred("add_child", pop)
+		var burst := CollectPop.new()
+		burst.tint = (LOOK[kind] as Array)[3]
+		burst.position = global_position
+		get_parent().call_deferred("add_child", burst)
 		set_deferred("monitoring", false)
 		call_deferred("queue_free")
 
@@ -94,19 +168,33 @@ class Pickup extends Area2D:
 					_on_body(body)
 			return
 		if LevelBase.near_view(self):
-			# moved, not redrawn: the shape itself is drawn once
+			# moved and turned, not redrawn: the shape itself is drawn once.
+			# It turns like a spinning coin, and bobs.
 			position.y = _base_y + sin(t * 2.2) * 3.0
+			scale.x = maxf(0.2, absf(cos(t * 2.0)))
 
 	func _draw() -> void:
 		var b := Batch.new()
-		if kind == "amber":
-			b.circle(Vector2.ZERO, 14.0, Color("f3b04a", 0.18), 16)
 		Treasure.shape_into(b, kind, Vector2.ZERO)
 		b.draw(self)
 
+	## A soft glow so it reads in the dark, and now and then a sparkle.
 	func draw_glow(g: Node2D) -> void:
-		var s := absf(sin(t * 1.4))
-		g.draw_circle(global_position, 8.0 + s * 5.0, Color("f3b04a", 0.12 + 0.12 * s))
+		if _gone:
+			return
+		var glow: Color = (LOOK[kind] as Array)[3]
+		var big := 1.5 if kind == "amber" else (1.2 if kind == "conch" else 1.0)
+		var s := 0.5 + 0.5 * sin(t * 1.7)
+		g.draw_circle(global_position, (14.0 + s * 4.0) * big, Color(glow, 0.10 + 0.06 * s))
+		var spark := fmod(t * 0.7, 2.0)
+		if spark < 0.35:
+			var k := sin(spark / 0.35 * PI)
+			var c := global_position + Vector2(8, -10) * big
+			var r := 8.0 * k * big
+			if r < 1.5:
+				return
+			g.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.25, 0), c + Vector2(0, r), c + Vector2(-r * 0.25, 0)]), Color(1, 1, 1, k))
+			g.draw_colored_polygon(PackedVector2Array([c + Vector2(-r, 0), c + Vector2(0, r * 0.25), c + Vector2(r, 0), c + Vector2(0, -r * 0.25)]), Color(1, 1, 1, k))
 
 
 class FloatText extends Node2D:
@@ -126,25 +214,33 @@ class FloatText extends Node2D:
 
 
 class Breakable extends Area2D:
-	## Something to smash for what is inside: a hollow log (two hits) or a
-	## termite mound (three). Whatever was inside and taken stays taken; the
-	## rest comes back if the level is restarted.
-	var kind := "log"               ## log, mound
+	## Something to smash for what is inside. It pays out on every hit, not
+	## just the last one:
+	##   log    — two hits
+	##   mound  — three hits (a termite mound)
+	##   pot    — one hit, a few shells
+	##   stash  — a monkey's hidden stash, a log marked with a red X: two hits,
+	##            and then a FOUNTAIN of shells
+	var kind := "log"
 	var contents: Array = []        ## kinds of treasure inside
 	var level_id := ""
 	var id := ""
 	var hits := 2
+	var _given := 0
 	var _shake := 0.0
 	var _base := Vector2.ZERO
+	var _t := 0.0
 
 	func _ready() -> void:
 		collision_layer = 4          # his swing and his rocks find it
 		collision_mask = 0
 		monitoring = false
-		hits = 3 if kind == "mound" else 2
+		hits = {"log": 2, "mound": 3, "pot": 1, "stash": 2}.get(kind, 2)
+		add_to_group("glow")
+		_t = randf() * 5.0
 		var cs := CollisionShape2D.new()
 		var sh := RectangleShape2D.new()
-		sh.size = Vector2(70, 36) if kind == "log" else Vector2(50, 70)
+		sh.size = {"log": Vector2(70, 36), "mound": Vector2(50, 70), "pot": Vector2(34, 40), "stash": Vector2(74, 40)}.get(kind, Vector2(60, 40))
 		cs.shape = sh
 		cs.position = Vector2(0, -sh.size.y * 0.5)
 		add_child(cs)
@@ -155,46 +251,287 @@ class Breakable extends Area2D:
 			return
 		hits -= 1
 		_shake = 0.25
+		# out comes a share of what's inside with every hit — the rest at the end
+		var total_hits: int = {"log": 2, "mound": 3, "pot": 1, "stash": 2}.get(kind, 2)
+		var share: int = contents.size() - _given if hits == 0 else maxi(1, contents.size() / (total_hits + 1))
+		if kind == "stash" and hits > 0:
+			share = 1
+		for n in share:
+			if _given >= contents.size():
+				break
+			_pop(_given, from_dir, kind == "stash" and hits == 0)
+			_given += 1
+		var dust := Critter.DeathPop.new()
+		dust.dust = true
+		dust.position = global_position
+		get_parent().add_child.call_deferred(dust)
 		if hits > 0:
 			return
-		# burst: out comes everything not already taken
-		for i in contents.size():
-			var tid := "%s_%d" % [id, i]
-			if GameState.is_taken(level_id, tid):
-				continue
-			var p := Pickup.new()
-			p.kind = contents[i]
-			p.level_id = level_id
-			p.id = tid
-			p.position = global_position + Vector2(0, -30)
-			p.vel = Vector2(randf_range(-160, 160) - from_dir * 40.0, randf_range(-460, -300))
-			p.floor_y = global_position.y
-			var level := get_parent()
-			if level.has_method("_on_treasure_popped"):
-				level._on_treasure_popped(p)
-			level.call_deferred("add_child", p)
+		var burst := Critter.DeathPop.new()
+		burst.position = global_position + Vector2(0, -20)
+		get_parent().add_child.call_deferred(burst)
 		set_deferred("monitorable", false)
 		call_deferred("queue_free")
 
+	func _pop(i: int, from_dir: int, fountain: bool) -> void:
+		var tid := "%s_%d" % [id, i]
+		if GameState.is_taken(level_id, tid):
+			return
+		var p := Pickup.new()
+		p.kind = contents[i]
+		p.level_id = level_id
+		p.id = tid
+		p.position = global_position + Vector2(0, -30)
+		if fountain:
+			# a fountain: high, and spreading out both ways
+			p.vel = Vector2(randf_range(-230, 230), randf_range(-760, -520))
+		else:
+			p.vel = Vector2(randf_range(-160, 160) - from_dir * 40.0, randf_range(-460, -300))
+		p.floor_y = global_position.y
+		var level := get_parent()
+		if level.has_method("_on_treasure_popped"):
+			level._on_treasure_popped(p)
+		level.call_deferred("add_child", p)
+
+	## Now and then something inside glints, so he looks twice.
+	func draw_glow(g: Node2D) -> void:
+		if hits <= 0:
+			return
+		var spark := fmod(_t * 0.5, 2.5)
+		if spark < 0.4:
+			var k := sin(spark / 0.4 * PI)
+			var off: Vector2 = {"log": Vector2(34, -18), "mound": Vector2(4, -40), "pot": Vector2(0, -34), "stash": Vector2(0, -30)}.get(kind, Vector2(0, -20))
+			var c := global_position + off
+			var r := 9.0 * k
+			if r < 1.5:
+				return
+			g.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.25, 0), c + Vector2(0, r), c + Vector2(-r * 0.25, 0)]), Color(1, 0.95, 0.75, k))
+			g.draw_colored_polygon(PackedVector2Array([c + Vector2(-r, 0), c + Vector2(0, r * 0.25), c + Vector2(r, 0), c + Vector2(0, -r * 0.25)]), Color(1, 0.95, 0.75, k))
+
 	func _process(delta: float) -> void:
+		_t += delta
 		if _shake > 0.0:
 			_shake = maxf(_shake - delta, 0.0)
 			position = _base + Vector2(sin(_shake * 90.0) * 4.0 * (_shake / 0.25), 0)
 
 	func _draw() -> void:
 		var b := Batch.new()
-		if kind == "log":
-			b.quad(Vector2(-36, -2), Vector2(-32, -34), Vector2(34, -32), Vector2(36, 0), Pal.BARK)
-			b.line(Vector2(-30, -26), Vector2(30, -25), Pal.BARK_DARK, 3.0)
-			b.line(Vector2(-30, -12), Vector2(30, -10), Pal.BARK_DARK, 3.0)
-			b.circle(Vector2(34, -16), 16.0, Pal.DEADWOOD, 16)
-			b.circle(Vector2(34, -16), 11.0, Pal.CAVE_DARK, 14)
-			b.circle(Vector2(34, -16), 5.0, Color("f3d08a", 0.35), 8)   # something pale inside
-		else:
-			var pts := PackedVector2Array([Vector2(-26, 0), Vector2(-18, -30), Vector2(-10, -52), Vector2(-2, -70),
-				Vector2(6, -58), Vector2(12, -40), Vector2(20, -22), Vector2(28, 0)])
-			b.poly(pts, Color("9a7852"))
-			b.poly(PackedVector2Array([Vector2(-18, 0), Vector2(-10, -40), Vector2(-2, -66), Vector2(4, -44), Vector2(10, 0)]), Color("b18d63"))
-			for k in 6:
-				b.circle(Vector2(-12 + k * 5, -8 - (k % 3) * 14), 2.2, Color("6c5236"), 8)
+		match kind:
+			"log", "stash":
+				b.quad(Vector2(-36, -2), Vector2(-32, -34), Vector2(34, -32), Vector2(36, 0), Pal.BARK)
+				b.line(Vector2(-30, -26), Vector2(30, -25), Pal.BARK_DARK, 3.0)
+				b.line(Vector2(-30, -12), Vector2(30, -10), Pal.BARK_DARK, 3.0)
+				b.circle(Vector2(34, -16), 16.0, Pal.DEADWOOD, 16)
+				b.circle(Vector2(34, -16), 11.0, Pal.CAVE_DARK, 14)
+				b.circle(Vector2(34, -16), 5.0, Color("f3d08a", 0.4), 8)
+				if kind == "stash":
+					# a monkey's mark: a red X, a banana peel on top
+					b.line(Vector2(-18, -28), Vector2(6, -6), Color("c0392b"), 5.0)
+					b.line(Vector2(6, -28), Vector2(-18, -6), Color("c0392b"), 5.0)
+					for k in 3:
+						b.line(Vector2(-6, -36), Vector2(-14 + k * 8, -30), Pal.BANANA_DARK, 3.0)
+					b.circle(Vector2(-6, -37), 3.0, Pal.BANANA, 8)
+			"mound":
+				var pts := PackedVector2Array([Vector2(-26, 0), Vector2(-18, -30), Vector2(-10, -52), Vector2(-2, -70),
+					Vector2(6, -58), Vector2(12, -40), Vector2(20, -22), Vector2(28, 0)])
+				b.poly(pts, Color("9a7852"))
+				b.poly(PackedVector2Array([Vector2(-18, 0), Vector2(-10, -40), Vector2(-2, -66), Vector2(4, -44), Vector2(10, 0)]), Color("b18d63"))
+				for k in 6:
+					b.circle(Vector2(-12 + k * 5, -8 - (k % 3) * 14), 2.2, Color("6c5236"), 8)
+			"pot":
+				# a clay pot with a lid and a zig-zag band
+				var body := PackedVector2Array([Vector2(-10, 0), Vector2(-17, -10), Vector2(-18, -22), Vector2(-12, -32), Vector2(-9, -36),
+					Vector2(9, -36), Vector2(12, -32), Vector2(18, -22), Vector2(17, -10), Vector2(10, 0)])
+				b.poly(body, Color("a4623a"))
+				b.poly(PackedVector2Array([Vector2(-8, -2), Vector2(-14, -12), Vector2(-14, -22), Vector2(-8, -30), Vector2(-4, -30), Vector2(-8, -18)]), Color("c0794b"))
+				var zig := PackedVector2Array()
+				for i in 9:
+					zig.append(Vector2(-16 + i * 4, -20 + (4 if i % 2 == 0 else -2)))
+				b.polyline(zig, Color("5b3018"), 2.0)
+				b.rect(Rect2(-11, -40, 22, 5), Color("7a4526"))
+				b.circle(Vector2(0, -42), 3.0, Color("7a4526"), 8)
 		b.draw(self)
+
+
+class ShellTotem extends Area2D:
+	## A carved stone face in the dark with glowing eyes. Every hit, it spits
+	## shells out of its mouth — until the light in its eyes goes out.
+	var level_id := ""
+	var id := ""
+	var hits := 6
+	var t := 0.0
+	var _shake := 0.0
+	var _given := 0
+
+	func _ready() -> void:
+		collision_layer = 4
+		collision_mask = 0
+		monitoring = false
+		add_to_group("glow")
+		var cs := CollisionShape2D.new()
+		var sh := RectangleShape2D.new()
+		sh.size = Vector2(56, 110)
+		cs.shape = sh
+		cs.position = Vector2(0, -55)
+		add_child(cs)
+
+	func take_hit(_dmg: int, _from_dir: int) -> void:
+		if hits <= 0:
+			return
+		hits -= 1
+		_shake = 0.2
+		for n in 2:
+			var tid := "%s_%d" % [id, _given]
+			_given += 1
+			if GameState.is_taken(level_id, tid):
+				continue
+			var p := Pickup.new()
+			p.kind = "conch" if _given == 12 else "shell"
+			p.level_id = level_id
+			p.id = tid
+			p.position = global_position + Vector2(0, -44)
+			p.vel = Vector2(randf_range(-200, 200), randf_range(-520, -380))
+			p.floor_y = global_position.y
+			var level := get_parent()
+			if level.has_method("_on_treasure_popped"):
+				level._on_treasure_popped(p)
+			level.call_deferred("add_child", p)
+		if hits <= 0:
+			var puff := Critter.DeathPop.new()
+			puff.dust = true
+			puff.big = true
+			puff.position = global_position + Vector2(0, -60)
+			get_parent().add_child.call_deferred(puff)
+		queue_redraw()
+
+	func _process(delta: float) -> void:
+		t += delta
+		_shake = maxf(_shake - delta, 0.0)
+		if _shake > 0.0 or LevelBase.near_view(self):
+			queue_redraw()
+
+	func _draw() -> void:
+		var o := Vector2(sin(_shake * 80.0) * 3.0 * (_shake / 0.2), 0)
+		var b := Batch.new()
+		b.poly(PackedVector2Array([o + Vector2(-30, 0), o + Vector2(-26, -96), o + Vector2(-14, -112), o + Vector2(14, -112),
+			o + Vector2(26, -96), o + Vector2(30, 0)]), Pal.CRAG_DARK)
+		b.poly(PackedVector2Array([o + Vector2(-24, 0), o + Vector2(-20, -92), o + Vector2(-10, -104), o + Vector2(10, -104),
+			o + Vector2(20, -92), o + Vector2(22, 0)]), Pal.CRAG)
+		# brow, eyes, nose and a round open mouth
+		b.rect(Rect2(o + Vector2(-20, -84), Vector2(40, 6)), Pal.CRAG_DARK)
+		b.circle(o + Vector2(-10, -72), 6.0, Pal.CAVE_DARK, 10)
+		b.circle(o + Vector2(10, -72), 6.0, Pal.CAVE_DARK, 10)
+		b.poly(PackedVector2Array([o + Vector2(-4, -64), o + Vector2(4, -64), o + Vector2(6, -52), o + Vector2(-6, -52)]), Pal.CRAG_DARK)
+		b.circle(o + Vector2(0, -38), 10.0, Pal.CAVE_DARK, 14)
+		# carved bands below
+		for k in 3:
+			b.line(o + Vector2(-20, -20 + k * 7), o + Vector2(20, -20 + k * 7), Pal.CRAG_DARK, 2.0)
+		b.draw(self)
+
+	func draw_glow(g: Node2D) -> void:
+		if hits <= 0:
+			return
+		var e := 0.6 + 0.4 * sin(t * 3.0)
+		for sx in [-10.0, 10.0]:
+			g.draw_circle(global_position + Vector2(sx, -72), 7.0, Color("ffcf6b", 0.25 * e))
+			g.draw_circle(global_position + Vector2(sx, -72), 3.0, Color("ffe29a", 0.9 * e))
+		g.draw_circle(global_position + Vector2(0, -38), 6.0, Color("ffcf6b", 0.2 * e))
+
+
+class GoldenHare extends Critter:
+	## A hare with a golden coat that glows in the dark. It bolts when he comes
+	## near and zig-zags along its stretch of ground; corner it or catch it, and
+	## it bursts into a shower of treasure — a reward for the chase.
+	var left_x := 0.0
+	var right_x := 0.0
+	var level_id := ""
+	var id := ""
+	var dir := 1
+	var t := 0.0
+	var hop := 0.0
+	var _stride := 0.0
+	var _moving := 0.0
+
+	func _setup() -> void:
+		hp = 1
+		damage = 0
+		stompable = true
+		stomp_top = -18.0
+		add_rect_shape(Vector2(34, 26), Vector2(0, -13))
+		t = randf() * 5.0
+		add_to_group("glow")
+
+	func death_style() -> String:
+		return "hare"
+
+	func _begin_death(from_dir: int) -> void:
+		super._begin_death(from_dir)
+		dying = 0.01
+		# a shower of treasure where it was
+		var kinds := ["conch", "conch", "shell", "shell", "shell", "shell", "shell", "shell", "shell", "shell"]
+		for i in kinds.size():
+			var tid := "%s_%d" % [id, i]
+			if GameState.is_taken(level_id, tid):
+				continue
+			var p := Pickup.new()
+			p.kind = kinds[i]
+			p.level_id = level_id
+			p.id = tid
+			p.position = global_position + Vector2(0, -20)
+			p.vel = Vector2(randf_range(-260, 260), randf_range(-640, -420))
+			p.floor_y = global_position.y
+			var level := get_parent()
+			if level.has_method("_on_treasure_popped"):
+				level._on_treasure_popped(p)
+			level.call_deferred("add_child", p)
+		var burst := Critter.DeathPop.new()
+		burst.big = true
+		burst.position = global_position + Vector2(0, -16)
+		get_parent().add_child.call_deferred(burst)
+		visible = false
+
+	func _tick(delta: float) -> void:
+		t += delta
+		_moving = 0.0
+		if player == null:
+			return
+		var dx := player.global_position.x - position.x
+		var near := absf(dx) < 280.0 and absf(player.global_position.y - position.y) < 90.0
+		# caught: he only has to touch it
+		if absf(dx) < 26.0 and absf(player.global_position.y - position.y) < 50.0:
+			take_hit(1, 1 if dx < 0.0 else -1)
+			return
+		if near:
+			# away from him, zig-zagging in little hops
+			dir = -1 if dx > 0.0 else 1
+			var speed := 250.0
+			var nx := clampf(position.x + dir * speed * delta, left_x, right_x)
+			_moving = absf(nx - position.x) / maxf(delta, 0.001)
+			position.x = nx
+			_stride += _moving * delta
+		hop = absf(sin(_stride / 26.0)) * (14.0 if _moving > 10.0 else 0.0)
+
+	func _draw() -> void:
+		draw_set_transform(Vector2(0, -hop), 0.0, Vector2(dir, 1))
+		var gold := Color("e0b64a")
+		var dark := Color("a67c22")
+		_oval(Vector2(-2, -12), 15.0, 10.0, gold, 2.0)
+		_oval(Vector2(12, -20), 8.0, 7.0, gold, 2.0)
+		_fill(PackedVector2Array([Vector2(8, -26), Vector2(4, -46), Vector2(10, -44), Vector2(13, -26)]), dark)
+		_fill(PackedVector2Array([Vector2(13, -26), Vector2(12, -46), Vector2(18, -42), Vector2(17, -25)]), gold)
+		draw_circle(Vector2(16, -21), 1.8, Pal.OUTLINE)
+		draw_circle(Vector2(-16, -14), 4.5, Color("fff3c4"))
+		var k := sin(_stride / 13.0)
+		_limb(Vector2(-8, -6), Vector2(-14 - k * 6.0, 0), 5.0, dark)
+		_limb(Vector2(8, -6), Vector2(12 + k * 5.0, 0), 4.0, dark)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+	func draw_glow(g: Node2D) -> void:
+		if not visible or dying > 0.0:
+			return
+		var c := global_position + Vector2(0, -16 - hop)
+		g.draw_circle(c, 22.0, Color("ffd76a", 0.14 + 0.06 * sin(t * 3.0)))
+		if fmod(t, 1.4) < 0.25:
+			var r := 8.0
+			var p := c + Vector2(10, -20)
+			g.draw_colored_polygon(PackedVector2Array([p + Vector2(0, -r), p + Vector2(r * 0.25, 0), p + Vector2(0, r), p + Vector2(-r * 0.25, 0)]), Color(1, 1, 1, 0.9))
