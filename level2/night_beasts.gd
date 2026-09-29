@@ -82,7 +82,7 @@ class Wolf extends Critter:
 		if _style != "wolf":
 			return
 		var d := float(from_dir) if from_dir != 0 else 1.0
-		_dv = Vector2(d * 240.0, -560.0)
+		_dv = Vector2(d * 240.0, -560.0) * Vector2(fling, sqrt(fling))
 		_dspin = d * 15.0
 		_dlift = _body_height()
 		dying = 2.8

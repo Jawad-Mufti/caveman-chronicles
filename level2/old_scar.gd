@@ -285,6 +285,8 @@ func _tick(delta: float) -> void:
 			if timer <= 0.0:
 				state = "prowl"
 				cd = 1.2
+				# shaking it off: a moment before he can rake at the man beside him
+				swipe_cd = maxf(swipe_cd, 0.7)
 				if cur_floor != floor_y:
 					var away := signf(position.x - player.global_position.x)
 					_leap_to(Vector2(clampf(position.x + away * 180.0, arena_l + 90.0, arena_r - 90.0), floor_y))
@@ -337,6 +339,11 @@ func _tick(delta: float) -> void:
 			vx = 0.0
 			if timer <= 0.45 and _target != null and _target.lit:
 				_target.lit = false
+				# its embers catch again after a while
+				var bowl := _target
+				get_tree().create_timer(12.0).timeout.connect(func() -> void:
+					if is_instance_valid(bowl) and not bowl.lit:
+						bowl.kindle())
 				var puff := Critter.DeathPop.new()
 				puff.dust = true
 				puff.big = true
@@ -401,10 +408,11 @@ func _think(dx: float, delta: float) -> void:
 		return
 	# too close: the claws, twice
 	if level and absf(dx) < 120.0 * SIZE and swipe_cd <= 0.0:
+		# the paw goes up and is HELD there — a clear warning — then rakes twice
 		state = "swipe"
 		_swipes = 0
-		timer = 0.4
-		swipe_cd = 2.0
+		timer = 0.7
+		swipe_cd = 2.2
 		return
 	# he learns: two pounces stopped by the torch, and he stops leaping into it
 	if cd <= 0.0 and level and _foiled >= 2:
@@ -422,8 +430,10 @@ func _think(dx: float, delta: float) -> void:
 		state = "climb"
 		cd = 3.0
 		return
-	# he hates the light: now and then he goes to put a brazier out
-	if cd <= 0.0 and randf() < 0.25:
+	# he hates the light: now and then he goes to put a brazier out — but never
+	# the last one burning, or the man could be left with no fire at all
+	var lit := braziers.filter(func(b): return b.lit).size()
+	if cd <= 0.0 and lit >= 2 and randf() < 0.25:
 		for b in braziers:
 			if b.lit and absf(player.global_position.x - b.global_position.x) > 260.0:
 				_target = b

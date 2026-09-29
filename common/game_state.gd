@@ -23,6 +23,10 @@ static var trophies: Array = []
 static var weapons: Array = ["club"]   ## owned: club, axe, hammer
 static var weapon := "club"            ## the one he carries
 static var figs := 0                   ## roast figs in his pouch
+## Bones: the building material. Plentiful — they come back on every visit —
+## and kept for building his shelter in the home level. Shells are the rare
+## currency: each is found only once per save.
+static var bones := 0
 static var _loaded := false
 
 
@@ -50,6 +54,7 @@ static func ensure_loaded() -> void:
 	weapons = d.get("weapons", ["club"])
 	weapon = str(d.get("weapon", "club"))
 	figs = int(d.get("figs", 0))
+	bones = int(d.get("bones", 0))
 	# an older save that forged the Firestone before weapons were kept
 	if str(gems.get("level2", "")) == "forged" and not weapons.has("hammer"):
 		weapons.append("hammer")
@@ -61,7 +66,7 @@ static func save() -> void:
 	if f == null:
 		return
 	f.store_string(JSON.stringify({"shells": shells, "upgrades": upgrades, "skins": skins, "skin": skin,
-		"gems": gems, "taken": taken, "trophies": trophies, "weapons": weapons, "weapon": weapon, "figs": figs}))
+		"gems": gems, "taken": taken, "trophies": trophies, "weapons": weapons, "weapon": weapon, "figs": figs, "bones": bones}))
 
 
 ## A fresh start: everything back to nothing, on disk too.
@@ -76,6 +81,7 @@ static func reset() -> void:
 	weapons = ["club"]
 	weapon = "club"
 	figs = 0
+	bones = 0
 	_loaded = true
 	save()
 
@@ -92,8 +98,16 @@ static func is_taken(level: String, id: String) -> bool:
 static func take(level: String, id: String, value: int) -> void:
 	if not taken.has(level):
 		taken[level] = {}
-	(taken[level] as Dictionary)[id] = true
+	(taken[level] as Dictionary)[id] = value     # its value, so finds can be totted up
 	shells += value
+
+
+## How many shells (by value) have ever been found in a level.
+static func found_value(level: String) -> int:
+	var total := 0
+	for v in (taken.get(level, {}) as Dictionary).values():
+		total += int(v)
+	return total
 
 
 static func taken_count(level: String) -> int:

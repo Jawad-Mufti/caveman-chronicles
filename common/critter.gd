@@ -7,6 +7,7 @@ var hp := 1
 var damage := 1
 var flash := 0.0
 var dying := 0.0
+var fling := 1.0                ## > 1 while a HOME RUN lands: a killing blow throws it much further
 var player: CaveMan
 
 ## Dying, so it reads from across the screen. The world holds its breath for
@@ -251,6 +252,8 @@ func _begin_death(from_dir: int) -> void:
 			_dspin = 0.0
 			_drest = 0.0
 			_dlift = 0.0
+	_dv *= fling
+	_dspin *= minf(fling, 1.6)
 	_on_die()
 	# the world holds its breath for a blink, and there's a pop where it was hit
 	if is_inside_tree():

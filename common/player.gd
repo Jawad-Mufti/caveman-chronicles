@@ -100,6 +100,36 @@ var _attack_held := 0.0
 ## firekeeper (and the older wolf_pelt, war_paint, bone_necklace, plain).
 var skin := "plain"
 var axe := false           ## the Flint Axe: a knapped flint blade, harder blows
+
+## ------------------------------------------------------------------ weapons
+## Every weapon fights its own way, and each has its own special (hold
+## attack, then let go):
+##   Wooden Club — a quick overhead BONK.
+##     Special: HOME RUN — pulled back low, then a huge sweeping swing that
+##     sends small things flying.
+##   Flint Axe — fast slashes: tap three times for slash, back-slash, CHOP.
+##     Special: AXE THROW — it spins out, cuts through everything in its way,
+##     and flies back to his hand.
+##   Firestone Hammer — heaved up high and SMASHED down in front of him: slow,
+##     heavy, it shakes the ground.
+##     Special: FIRE SLAM — a wave of fire rolls out along the ground.
+## Each swing: [how long, time before the next, hits from, hits until (as parts
+## of the swing), reach, height, damage]
+const SWINGS := {
+	"club": [0.26, 0.38, 0.20, 1.00, 36.0, -34.0, 3],
+	"axe0": [0.17, 0.20, 0.10, 0.90, 44.0, -48.0, 3],
+	"axe1": [0.17, 0.20, 0.10, 0.90, 44.0, -30.0, 3],
+	"axe2": [0.34, 0.44, 0.52, 1.00, 42.0, -30.0, 6],
+	"hammer": [0.50, 0.64, 0.58, 0.88, 50.0, -18.0, 6],
+	"homerun": [0.38, 0.60, 0.30, 0.82, 64.0, -42.0, 7],
+}
+const CHARGE_READY := {"club": 0.45, "axe": 0.3, "hammer": 0.5}
+var _swing_kind := "club"
+var _swing_time := 0.26
+var _combo := 0
+var _combo_t := 9.0             ## time since the last axe swing ended
+var axe_out := false            ## the axe is out, spinning (thrown)
+var _struck := false            ## this swing has already struck something (for its effects)
 var preview := false       ## a mannequin in the shop: stands, breathes, never moves
 signal ate_fig
 var _fig_prev := false
@@ -181,6 +211,110 @@ func eat_fig() -> bool:
 	return true
 
 
+## The Flint Axe, thrown: it spins out, slowing, cutting through everything in
+## its path; at the end of its flight (or when it hits a wall) it turns and
+## flies back to his hand, cutting again on the way.
+class ThrownAxe extends Area2D:
+	const SPEED := 820.0
+	const OUT := 0.6                ## about 400 px out before it turns back
+	const DAMAGE := 4
+	var man: CaveMan
+	var dir := 1
+	var t := 0.0
+	var back := false
+	var spin := 0.0
+	var _hit := {}
+
+	func _ready() -> void:
+		collision_layer = 0
+		collision_mask = 4
+		monitorable = false
+		z_index = 4
+		var cs := CollisionShape2D.new()
+		var c := CircleShape2D.new()
+		c.radius = 34.0
+		cs.shape = c
+		add_child(cs)
+
+	func _physics_process(delta: float) -> void:
+		t += delta
+		spin += delta * 24.0 * dir
+		if man == null or not is_instance_valid(man):
+			queue_free()
+			return
+		var vel: Vector2
+		if not back:
+			vel = Vector2(dir * SPEED * (1.0 - 0.5 * t / OUT), 0.0)
+			var q := PhysicsRayQueryParameters2D.create(global_position, global_position + vel * delta * 2.0, 1)
+			if t > OUT or not get_world_2d().direct_space_state.intersect_ray(q).is_empty():
+				back = true
+				_hit.clear()
+		else:
+			var to := man.global_position + Vector2(0, -46) - global_position
+			if to.length() < 44.0 or t > 3.0:
+				man.axe_out = false
+				queue_free()
+				return
+			vel = to.normalized() * SPEED * 1.1
+		global_position += vel * delta
+		for a in get_overlapping_areas():
+			if a.has_method("take_hit") and not _hit.has(a.get_instance_id()):
+				_hit[a.get_instance_id()] = true
+				a.take_hit(DAMAGE, dir if not back else -dir)
+		queue_redraw()
+
+	func _draw() -> void:
+		# a blur of the spin, then the axe itself, turning
+		draw_arc(Vector2.ZERO, 34.0, spin - 1.6, spin, 12, Color("dfeaf2", 0.35), 6.0, true)
+		draw_set_transform(Vector2.ZERO, spin, Vector2.ONE)
+		draw_line(Vector2(-30, 0), Vector2(24, 0), Color("3a2a18"), 9.0, true)
+		draw_line(Vector2(-30, 0), Vector2(24, 0), Color("c49a64"), 5.0, true)
+		draw_colored_polygon(PackedVector2Array([Vector2(14, -4), Vector2(18, -26), Vector2(34, -24), Vector2(38, -4), Vector2(26, 4)]), Color("3d4650"))
+		draw_colored_polygon(PackedVector2Array([Vector2(16, -5), Vector2(19, -23), Vector2(32, -22), Vector2(35, -5), Vector2(26, 2)]), Color("6f7f8f"))
+		draw_line(Vector2(32, -22), Vector2(35, -5), Color("d9e4ee"), 2.0, true)
+
+
+## Dust and sparks where the hammer hits the ground.
+class SmashDust extends Node2D:
+	var t := 0.0
+
+	func _process(delta: float) -> void:
+		t += delta
+		if t > 0.45:
+			queue_free()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		var k := t / 0.45
+		for i in 6:
+			var dx := (i - 2.5) * 12.0 * (1.0 + k * 1.6)
+			draw_circle(Vector2(dx, -6.0 - k * 14.0), 7.0 + k * 10.0, Color(0.72, 0.66, 0.56, 0.5 * (1.0 - k)))
+		for i in 5:
+			var p := Vector2.from_angle(-PI * 0.5 + (i - 2) * 0.45) * (10.0 + k * 60.0) + Vector2(0, -6)
+			draw_circle(p, 3.0 * (1.0 - k) + 1.0, Color(1.0, 0.8, 0.4, 1.0 - k))
+
+
+## A word bursting out of a big hit ("HOME RUN!").
+class WordPop extends Node2D:
+	var text := ""
+	var t := 0.0
+
+	func _process(delta: float) -> void:
+		t += delta
+		if t > 0.9:
+			queue_free()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		var k := 1.0 + 0.4 * clampf(1.0 - t / 0.15, 0.0, 1.0)
+		var a := clampf((0.9 - t) / 0.3, 0.0, 1.0)
+		draw_set_transform(Vector2(0, -t * 40.0), -0.08, Vector2(k, k))
+		draw_string(ThemeDB.fallback_font, Vector2(2, 2), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(0, 0, 0, 0.6 * a))
+		draw_string(ThemeDB.fallback_font, Vector2.ZERO, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(1.0, 0.85, 0.35, a))
+
+
 ## Two little hearts rising and fading where he ate a fig.
 class HeartPop extends Node2D:
 	var t := 0.0
@@ -219,6 +353,8 @@ func _physics_process(delta: float) -> void:
 	invuln = maxf(invuln - delta, 0.0)
 	knock = maxf(knock - delta, 0.0)
 	attacking = maxf(attacking - delta, 0.0)
+	if attacking <= 0.0:
+		_combo_t += delta
 	throwing = maxf(throwing - delta, 0.0)
 
 	if talking:
@@ -269,8 +405,14 @@ func _physics_process(delta: float) -> void:
 			velocity.y += GRAVITY_DOWN * delta
 		move_and_slide()
 		if not held:
-			if slam_charge >= SLAM_READY:
-				_slam()
+			if slam_charge >= _charge_ready():
+				match _weapon():
+					"hammer":
+						_slam()
+					"axe":
+						_throw_axe()
+					_:
+						_home_run()
 			slam_charge = -1.0
 		_attack_prev = held
 		return
@@ -278,8 +420,14 @@ func _physics_process(delta: float) -> void:
 		_attack_held += delta
 	else:
 		_attack_held = 0.0
-	if hammer and has_stick and is_on_floor() and slam_cd <= 0.0 and attacking <= 0.0 and _attack_held > 0.3:
-		slam_charge = 0.0
+	# holding attack turns the swing into the weapon's special: if he's still
+	# holding during the wind-up (before the blow has landed), the swing is
+	# dropped and the charge begins — so the special never waits for a whole swing
+	if has_stick and not axe_out and is_on_floor() and slam_cd <= 0.0 and _attack_held > 0.22:
+		var winding := attacking > 0.0 and (1.0 - attacking / _swing_time) < float(SWINGS[_swing_kind][2]) and _swing_kind != "homerun"
+		if attacking <= 0.0 or winding:
+			attacking = 0.0
+			slam_charge = 0.0
 
 	var dir := 0.0
 	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT) or touch["left"]:
@@ -292,11 +440,21 @@ func _physics_process(delta: float) -> void:
 	if vine != null:
 		_swing(delta, dir)
 		return
-	var _reach := CLUB_REACH if has_stick else FIST_REACH
-	if not has_stick and attacking > 0.0 and _punch_beat == 1:
+	var armed := has_stick and not axe_out
+	var _reach := CLUB_REACH if armed else FIST_REACH
+	var _height := -34.0 if armed else -30.0
+	if not armed and attacking > 0.0 and _punch_beat == 1:
 		_reach = FIST_REACH + 9.0
+	if armed and attacking > 0.0:
+		var sw: Array = SWINGS[_swing_kind]
+		_reach = sw[4]
+		_height = sw[5]
 	_hit_shape.position.x = _reach * facing
-	_hit_shape.position.y = -34.0 if has_stick else -30.0
+	_hit_shape.position.y = _height
+	if armed:
+		_hit_box.size = CLUB_BOX * (1.5 if _swing_kind == "homerun" and attacking > 0.0 else 1.0)
+	else:
+		_hit_box.size = FIST_BOX
 
 	if knock <= 0.0:
 		var a := ACCEL if is_on_floor() else AIR_ACCEL
@@ -349,9 +507,13 @@ func _physics_process(delta: float) -> void:
 		or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) \
 		or touch["attack"]
 	if attack_now and not _attack_prev and attack_cd <= 0.0:
-		if has_stick:
-			attack_cd = 0.38
-			attacking = SWING_TIME
+		if has_stick and not axe_out:
+			var kind := _weapon()
+			if kind == "axe":
+				# slash, back-slash, CHOP — if the taps come quickly enough
+				_combo = (_combo + 1) % 3 if _combo_t < 0.45 else 0
+				kind = "axe%d" % _combo
+			_start_swing(kind)
 		else:
 			attack_cd = 0.46
 			attacking = PUNCH_TIME
@@ -362,7 +524,7 @@ func _physics_process(delta: float) -> void:
 	# The club connects across the WHOLE swing, not on one frame. Checking only
 	# at the keypress meant anything that was not already touching him was a miss.
 	if attacking > 0.0:
-		if not has_stick:
+		if not has_stick or axe_out:
 			# the cross is a fresh strike, so the same target can be hit by both
 			var beat := 1 if (1.0 - attacking / PUNCH_TIME) >= 0.5 else 0
 			if beat != _punch_beat:
@@ -376,13 +538,6 @@ func _physics_process(delta: float) -> void:
 	if throw_now and not _throw_prev:
 		throw_rock()
 	_throw_prev = throw_now
-
-	var heal_now: bool = Input.is_physical_key_pressed(KEY_E) \
-		or Input.is_physical_key_pressed(KEY_L) \
-		or touch["heal"]
-	if heal_now and not _heal_prev:
-		use_poultice()
-	_heal_prev = heal_now
 
 	if fire_now and not _fire_prev:
 		start_fire()
@@ -434,7 +589,22 @@ func _process(delta: float) -> void:
 
 ## Runs every frame the swing is live. Each target can only be hit once per swing.
 func _apply_swing() -> void:
-	var dmg := (3 + club_bonus + (2 if hammer else 0) + (2 if axe else 0)) if has_stick else 1
+	var dmg := 1
+	if has_stick and not axe_out:
+		var sw: Array = SWINGS[_swing_kind]
+		var prog := 1.0 - attacking / _swing_time
+		if prog < float(sw[2]) or prog > float(sw[3]):
+			return
+		dmg = int(sw[6]) + club_bonus
+		if _swing_kind == "hammer" and not _struck:
+			# the hammer comes down on the ground: it shakes, and sparks fly
+			_struck = true
+			var level := get_parent()
+			if level.has_method("shake"):
+				level.shake(4.0, 0.15)
+			var dust := SmashDust.new()
+			dust.position = global_position + Vector2(facing * 86.0, 0)
+			level.add_child(dust)
 	for area in _hitbox.get_overlapping_areas():
 		if not area.has_method("take_hit"):
 			continue
@@ -442,7 +612,60 @@ func _apply_swing() -> void:
 		if _swing_hits.has(id):
 			continue
 		_swing_hits.append(id)
+		var flings := _swing_kind == "homerun" and has_stick and "fling" in area
+		if flings:
+			area.fling = 2.4
 		area.take_hit(dmg, facing)
+		if flings and is_instance_valid(area):
+			area.fling = 1.0
+		if _swing_kind == "homerun" and not _struck:
+			_struck = true
+			var word := WordPop.new()
+			word.text = "HOME RUN!"
+			word.position = area.global_position + Vector2(-50, -90)
+			get_parent().add_child(word)
+
+
+## Which weapon is in his hand.
+func _weapon() -> String:
+	if hammer:
+		return "hammer"
+	if axe:
+		return "axe"
+	return "club"
+
+
+func _charge_ready() -> float:
+	return CHARGE_READY[_weapon()]
+
+
+func _start_swing(kind: String) -> void:
+	var sw: Array = SWINGS[kind]
+	_swing_kind = kind
+	_swing_time = sw[0]
+	attacking = sw[0]
+	attack_cd = sw[1]
+	_struck = false
+	if kind.begins_with("axe"):
+		_combo_t = 0.0
+
+
+## The Wooden Club's special: a huge sweep from low behind him, round in front.
+func _home_run() -> void:
+	_start_swing("homerun")
+	_swing_hits.clear()
+	slam_cd = 0.7
+
+
+## The Flint Axe's special: it spins out, and comes back.
+func _throw_axe() -> void:
+	axe_out = true
+	slam_cd = 0.3
+	var flying := ThrownAxe.new()
+	flying.man = self
+	flying.dir = facing
+	flying.position = global_position + Vector2(facing * 40.0, -46.0)     # waist-high: low enough for wolves
+	get_parent().add_child(flying)
 
 
 ## The hammer comes down: a wave of fire rolls out along the ground.
@@ -542,6 +765,8 @@ func hurt(amount: int, from_x: float) -> void:
 	if hp <= 0:
 		dead = true
 		died.emit()
+	elif berries > 0 and is_inside_tree():
+		get_tree().create_timer(0.45).timeout.connect(_auto_eat)
 
 
 ## Put back on solid ground after a fall. Costs one health point, but applies
@@ -593,12 +818,35 @@ func throw_rock() -> bool:
 	return true
 
 
+## Health fruit (a bunch of grapes, or a banana) looks after itself: if he's
+## hurt he eats it on the spot; if he isn't, it goes in his pouch, and he eats
+## one by himself the moment he gets hurt. No key to press.
 func add_berry() -> bool:
+	if hp < max_hp and not dead:
+		_eat_fruit()
+		return true
 	if berries >= max_berries:
 		return false
 	berries += 1
 	berries_changed.emit(berries)
 	return true
+
+
+func _eat_fruit() -> void:
+	hp = mini(hp + 2, max_hp)
+	hp_changed.emit(hp)
+	var pop := HeartPop.new()
+	pop.position = global_position + Vector2(0, -120)
+	get_parent().add_child(pop)
+
+
+## Hurt, with fruit in the pouch: a moment later (so the hit is felt), he eats one.
+func _auto_eat() -> void:
+	if dead or berries <= 0 or hp >= max_hp:
+		return
+	berries -= 1
+	berries_changed.emit(berries)
+	_eat_fruit()
 
 
 ## Gather -> craft -> ability: berries become a poultice that heals.
@@ -979,7 +1227,7 @@ func _paint() -> void:
 		var bx := -20.0 + i * 8.0
 		_ln(Vector2(bx - 2, -73), Vector2(bx + 2, -68), C_WOOD2, 2.0, true)
 	for i in berries:
-		_dot(Vector2(-30.0 + i * 8.0, -79), 5.0, Pal.EMBER, 2.5)
+		_grapes(Vector2(-30.0 + i * 11.0, -80), 0.5)
 	_costume_belt()
 	for i in mini(rocks, 3):
 		_dot(Vector2(36.0 + i * 10.0, -62), 6.5, Pal.STONE, 2.5)
@@ -1027,7 +1275,7 @@ func _paint() -> void:
 
 	# ---- the near arm: fists, throw, club swing, club carry, or pumping
 	var sh := Vector2(50, -118)
-	var charge_k := clampf(slam_charge / SLAM_READY, 0.0, 1.0) if slam_charge >= 0.0 else 0.0
+	var charge_k := clampf(slam_charge / _charge_ready(), 0.0, 1.0) if slam_charge >= 0.0 else 0.0
 	if showing_off > 0.0 and has_stick:
 		# holding the new treasure up high, both arms, for everyone to see
 		var hd := Vector2(20, -232)
@@ -1035,13 +1283,33 @@ func _paint() -> void:
 		_club(hd + Vector2(0, 30), hd + Vector2(0, -80), 7.0, 26.0)
 		_dot(hd, 11.0, _skin)
 	elif slam_charge >= 0.0 and has_stick:
-		# raised overhead and trembling as the gem burns brighter
 		var tremble := Vector2(sin(anim_t * 60.0), cos(anim_t * 71.0)) * 2.5 * charge_k
-		var hd := Vector2(8, -196) + tremble
-		_arm(sh, sh + Vector2(20, -40), hd, 13.0, false)
-		var ca := -1.9 - 0.35 * charge_k
+		var hd: Vector2
+		var ca: float
+		match _weapon():
+			"hammer":
+				# raised overhead and trembling as the gem burns brighter
+				hd = Vector2(8, -196) + tremble
+				ca = -1.9 - 0.35 * charge_k
+				_arm(sh, sh + Vector2(20, -40), hd, 13.0, false)
+			"axe":
+				# drawn back behind his head, ready to throw
+				hd = Vector2(-26, -186) + tremble
+				ca = -2.5 - 0.4 * charge_k
+				_arm(sh, sh + Vector2(-10, -46), hd, 13.0, false)
+			_:
+				# pulled back low behind him, like a batter
+				hd = Vector2(-40, -104) + tremble
+				ca = 2.5 + 0.25 * charge_k
+				_arm(sh, sh + Vector2(-20, 6), hd, 13.0, false)
 		_club(hd - Vector2.from_angle(ca) * 12.0, hd + Vector2.from_angle(ca) * 112.0, 7.0, 26.0)
 		_dot(hd, 11.0, _skin)
+		if charge_k >= 1.0:
+			# ready: a glint at the weapon's head
+			var tip := hd + Vector2.from_angle(ca) * 104.0
+			var r := 9.0 + sin(anim_t * 20.0) * 3.0
+			_pg(PackedVector2Array([tip + Vector2(0, -r), tip + Vector2(r * 0.25, 0), tip + Vector2(0, r), tip + Vector2(-r * 0.25, 0)]), Color(1, 1, 0.9, 0.9))
+			_pg(PackedVector2Array([tip + Vector2(-r, 0), tip + Vector2(0, r * 0.25), tip + Vector2(r, 0), tip + Vector2(0, -r * 0.25)]), Color(1, 1, 0.9, 0.9))
 	elif slam_t > 0.0 and has_stick:
 		# brought down onto the ground in front of him
 		var hd := Vector2(96, -70)
@@ -1086,26 +1354,68 @@ func _paint() -> void:
 		_arm(sh, el, hd, 11.0, false)
 		_dot(hd, 15.0, Pal.STONE)
 		_dot(hd + Vector2(-2, 4), 9.0, _skin, 4.0)
-	elif has_stick and attacking > 0.0:
-		var sp := 1.0 - attacking / SWING_TIME
+	elif has_stick and attacking > 0.0 and not axe_out:
+		var sp := 1.0 - attacking / _swing_time
 		var ang := 0.0
 		var trail := 0.0
 		var reach := 49.0
-		if sp < 0.24:
-			ang = -0.95 - (sp / 0.24) * 0.85
-			trail = 0.55
-		else:
-			var q2 := (sp - 0.24) / 0.76
-			ang = -1.80 + (1.0 - pow(1.0 - q2, 2.6)) * 3.05
-			trail = (1.0 - q2) * 0.85
-			reach = 49.0 + sin(q2 * PI) * 18.0
+		var smear_col := Color(Pal.BONE, 0.32)
+		match _swing_kind:
+			"axe0", "axe1":
+				# a fast slash: up across the front, then back down across it
+				var q := 1.0 - pow(1.0 - sp, 2.0)
+				ang = lerpf(1.0, -1.15, q) if _swing_kind == "axe0" else lerpf(-1.15, 1.0, q)
+				trail = (1.0 - q) * 0.6 * (-1.0 if _swing_kind == "axe0" else 1.0)
+				reach = 56.0
+				smear_col = Color("dfeaf2", 0.4)
+			"axe2":
+				# up over his head, a beat at the top... then the CHOP
+				if sp < 0.45:
+					ang = lerpf(-0.8, -2.35, sp / 0.45)
+					trail = -0.3
+				else:
+					var q := (sp - 0.45) / 0.55
+					ang = -2.35 + (1.0 - pow(1.0 - q, 3.0)) * 3.7
+					trail = (1.0 - q) * 0.9
+					reach = 49.0 + sin(q * PI) * 22.0
+				smear_col = Color("dfeaf2", 0.45)
+			"hammer":
+				# heaved up and back, slowly... then SMASHED down onto the ground
+				if sp < 0.56:
+					var q := sp / 0.56
+					ang = lerpf(-0.9, -2.75, q * q * (3.0 - 2.0 * q))
+					trail = -0.2
+				else:
+					var q := clampf((sp - 0.56) / 0.2, 0.0, 1.0)
+					ang = -2.75 + q * q * 4.1
+					trail = (1.0 - q) * 1.1
+					reach = 52.0 + sin(q * PI) * 10.0
+				smear_col = Color(Pal.EMBER_GLOW, 0.45)
+			"homerun":
+				# from low behind him, a full sweep round to high in front
+				var q := 1.0 - pow(1.0 - sp, 2.2)
+				ang = lerpf(2.6, -1.1, q)
+				trail = -(1.0 - q) * 0.9
+				reach = 60.0
+				smear_col = Color(Pal.BONE, 0.45)
+			_:
+				# the club: a quick overhead bonk
+				if sp < 0.24:
+					ang = -0.95 - (sp / 0.24) * 0.85
+					trail = 0.55
+				else:
+					var q2 := (sp - 0.24) / 0.76
+					ang = -1.80 + (1.0 - pow(1.0 - q2, 2.6)) * 3.05
+					trail = (1.0 - q2) * 0.85
+					reach = 49.0 + sin(q2 * PI) * 18.0
 		var hd := sh + Vector2.from_angle(ang) * reach
 		var el := sh + Vector2.from_angle(ang) * reach * 0.5 + Vector2.from_angle(ang - PI * 0.5) * 9.0
 		var ca := ang - trail
 		var smear := PackedVector2Array()
+		var span := 0.75 * signf(trail if trail != 0.0 else 1.0)
 		for i in 7:
-			smear.append(sh + Vector2.from_angle(ca - 0.75 + i * (0.75 / 6.0)) * (reach + 100.0))
-		_pl(smear, Color(Pal.BONE, 0.32), 7.0, true)
+			smear.append(sh + Vector2.from_angle(ca - span + i * (span / 6.0)) * (reach + 100.0))
+		_pl(smear, smear_col, 9.0 if _swing_kind in ["hammer", "homerun", "axe2"] else 7.0, true)
 		_arm(sh, el, hd, 13.0, false)
 		_club(hd - Vector2.from_angle(ca) * 12.0, hd + Vector2.from_angle(ca) * 112.0, 7.0, 26.0)
 		_dot(hd, 11.0, _skin)
@@ -1206,6 +1516,15 @@ func _hide_loincloth(k: float) -> void:
 	for i in 8:
 		var fx := -24.0 + i * 8.0 + sw
 		_ln(Vector2(fx, -37), Vector2(fx - 2, -29), Pal.WOLF_BELLY if skin in ["wolf_pelt", "wolf_hood"] else spots, 2.5, true)
+
+
+## A little bunch of grapes (the health fruit), at the given size.
+func _grapes(at: Vector2, k: float) -> void:
+	_ln(at + Vector2(0, -14) * k, at + Vector2(3, -22) * k, Color("6b4a2a"), 3.0 * k)
+	for g in [Vector2(-6, -8), Vector2(0, -9), Vector2(6, -8), Vector2(-3, -2), Vector2(3, -2), Vector2(0, 4)]:
+		_cc(at + g * k, 4.6 * k, Color("3e1a52"))
+		_cc(at + g * k, 3.8 * k, Color("7b3aa0"))
+		_cc(at + (g + Vector2(-1.3, -1.3)) * k, 1.3 * k, Color("d9b8ef"))
 
 
 ## ------------------------------------------------------------------ costumes
@@ -1440,6 +1759,8 @@ func _oval_pts(c: Vector2, rx: float, ry: float, rot: float = 0.0) -> PackedVect
 
 
 func _club(p0: Vector2, p1: Vector2, w0: float, w1: float) -> void:
+	if axe_out:
+		return
 	if hammer:
 		_hammer(p0, p1)
 		return

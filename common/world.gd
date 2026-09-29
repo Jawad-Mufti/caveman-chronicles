@@ -321,7 +321,8 @@ class Exit extends Area2D:
 
 class BerryBush extends Area2D:
 	var _pen: Batch             ## its picture, collected into one draw call
-	## Gather -> craft -> ability. Berries become the poultice that heals him.
+	## Health fruit: a grape vine. Touch it and he eats the grapes (or keeps
+	## them, if he isn't hurt, and eats them himself when he is).
 	signal taken
 	var t := 0.0
 
@@ -353,14 +354,57 @@ class BerryBush extends Area2D:
 		_paint()
 		_pen.draw(self)
 
+	## A wild grape vine: a curling stem with two lobed leaves, and a heavy
+	## bunch of glossy purple grapes hanging from it, swaying a little, with
+	## a soft glow and now and then a glint so it's easy to spot.
 	func _paint() -> void:
 		var pulse := 0.5 + 0.5 * sin(t * 2.4)
-		_pen.draw_arc(Vector2(0, -18), 24.0 + pulse * 5.0, 0.0, TAU, 28, Color(Pal.EMBER, 0.18 + pulse * 0.28), 2.0)
-		_pen.draw_circle(Vector2(-11, -12), 13.0, Pal.OCHRE_DEEP)
-		_pen.draw_circle(Vector2(11, -14), 12.0, Pal.OCHRE_DEEP)
-		_pen.draw_circle(Vector2(0, -23), 14.0, Pal.OCHRE_DARK)
-		for p in [Vector2(-9, -21), Vector2(6, -25), Vector2(13, -12), Vector2(-15, -8), Vector2(2, -11)]:
-			_pen.draw_circle(p, 4.0, Pal.EMBER)
+		var sway := sin(t * 1.6) * 2.0
+		_pen.draw_circle(Vector2(0, -24), 30.0 + pulse * 4.0, Color("b07ad8", 0.10 + 0.08 * pulse))
+		# the stem, curling up from the ground
+		var stem := PackedVector2Array()
+		for i in 9:
+			var k := i / 8.0
+			stem.append(Vector2(-14.0 + sin(k * 4.0) * 6.0 + k * 20.0, -k * 52.0))
+		_pen.draw_polyline(stem, Color("5a3d22"), 4.0)
+		# a tendril curl
+		var curl := PackedVector2Array()
+		for i in 10:
+			var a := i * 0.7
+			curl.append(Vector2(8, -50) + Vector2(cos(a), sin(a)) * (7.0 - i * 0.6))
+		_pen.draw_polyline(curl, Color("7a9a3a"), 1.8)
+		# two vine leaves: five lobes each
+		for lf in [[Vector2(-18, -40), 1.0], [Vector2(12, -56), -1.0]]:
+			var c: Vector2 = lf[0]
+			var fl: float = lf[1]
+			var leaf := PackedVector2Array()
+			for i in 11:
+				var ang := -PI * 0.5 + (i - 5) * 0.55
+				var r := 13.0 if i % 2 == 0 else 8.0
+				leaf.append(c + Vector2(cos(ang) * r * fl, sin(ang) * r) + Vector2(0, 6))
+			leaf.append(c + Vector2(0, 8))
+			_pen.draw_colored_polygon(leaf, Color("4f7d34"))
+			_pen.draw_line(c + Vector2(0, 7), c + Vector2(0, -4), Color("3a5e26"), 1.5)
+		# the bunch: rows of grapes, wide at the top, to a point at the bottom
+		var top := Vector2(6 + sway, -46)
+		_pen.draw_line(Vector2(6, -52), top, Color("5a3d22"), 3.0)
+		var rows := [4, 4, 3, 2, 1]
+		for r in rows.size():
+			var n: int = rows[r]
+			for i in n:
+				var g := top + Vector2((i - (n - 1) * 0.5) * 8.5, 6.0 + r * 7.5)
+				_pen.draw_circle(g, 5.4, Color("3e1a52"))
+				_pen.draw_circle(g, 4.6, Color("7b3aa0").lerp(Color("5b2a7a"), r / 5.0))
+				_pen.draw_circle(g + Vector2(-1.6, -1.8), 1.5, Color("e6ccf5"))
+		# a glint now and then
+		var glint := fmod(t * 0.6, 2.2)
+		if glint < 0.3:
+			var k := sin(glint / 0.3 * PI)
+			var c := top + Vector2(10, 4)
+			var r := 7.0 * k
+			if r > 1.5:
+				_pen.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.25, 0), c + Vector2(0, r), c + Vector2(-r * 0.25, 0)]), Color(1, 1, 1, k))
+				_pen.draw_colored_polygon(PackedVector2Array([c + Vector2(-r, 0), c + Vector2(0, r * 0.25), c + Vector2(r, 0), c + Vector2(0, -r * 0.25)]), Color(1, 1, 1, k))
 
 
 class DistantBoar extends Node2D:

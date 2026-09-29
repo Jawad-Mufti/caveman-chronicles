@@ -26,6 +26,8 @@ var _fade: ColorRect
 var _shells: Control
 var _figs: Control
 var figs := 0
+var _bones: Control
+var bones := 0
 signal fig_tapped
 var _card: Label
 var _card_sub: Label
@@ -92,9 +94,15 @@ func _ready() -> void:
 	_shells.size = Vector2(130, 30)
 	_shells.draw.connect(_draw_shells)
 	add_child(_shells)
+	# bones: the building material
+	_bones = Control.new()
+	_bones.position = Vector2(1130, 80)
+	_bones.size = Vector2(130, 30)
+	_bones.draw.connect(_draw_bones)
+	add_child(_bones)
 	# roast figs: tap to eat one (or press H)
 	_figs = Control.new()
-	_figs.position = Vector2(1130, 80)
+	_figs.position = Vector2(1130, 114)
 	_figs.size = Vector2(130, 34)
 	_figs.draw.connect(_draw_figs)
 	_figs.gui_input.connect(func(e: InputEvent) -> void:
@@ -145,6 +153,20 @@ func _process(delta: float) -> void:
 func say(text: String, seconds: float = 4.0) -> void:
 	_msg.text = text
 	msg_time = seconds
+
+
+func set_bones(value: int) -> void:
+	bones = value
+	_bones.queue_redraw()
+
+
+func _draw_bones() -> void:
+	var b := Batch.new()
+	Treasure.shape_into(b, "bone", Vector2.ZERO)
+	_bones.draw_set_transform(Vector2(14, 15), 0.0, Vector2(0.8, 0.8))
+	b.draw(_bones)
+	_bones.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	_bones.draw_string(ThemeDB.fallback_font, Vector2(34, 22), str(bones), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Pal.BONE)
 
 
 func set_figs(value: int) -> void:
@@ -266,9 +288,12 @@ func _draw_berries() -> void:
 	# Only what he is actually carrying. Empty slots used to be drawn as faint
 	# outlines, which read as berries he owned but could not spend.
 	for i in berries:
-		var p := Vector2(14 + i * 22, 11)
-		_berries.draw_circle(p, 7.0, Pal.EMBER)
-		_berries.draw_circle(p + Vector2(-2, -2), 2.5, Pal.BONE)
+		var p := Vector2(14 + i * 22, 13)
+		_berries.draw_line(p + Vector2(0, -8), p + Vector2(2, -12), Color("6b4a2a"), 2.0)
+		for g in [Vector2(-4, -4), Vector2(0, -5), Vector2(4, -4), Vector2(-2, 0), Vector2(2, 0), Vector2(0, 4)]:
+			_berries.draw_circle(p + g, 3.4, Color("3e1a52"))
+			_berries.draw_circle(p + g, 2.7, Color("7b3aa0"))
+			_berries.draw_circle(p + g + Vector2(-0.9, -0.9), 0.9, Color("d9b8ef"))
 	# rocks live on their own row, and are drawn as chipped stone, not dots,
 	# so the two counts can never be mistaken for one another
 	for i in rocks:
@@ -328,7 +353,6 @@ func add_touch_controls(player: CaveMan, with_fire: bool = false) -> void:
 		[">", Vector2(170, 560), "right"],
 		["JUMP", Vector2(1000, 560), "jump"],
 		["HIT", Vector2(1140, 560), "attack"],
-		["EAT", Vector2(1140, 420), "heal"],
 		["THROW", Vector2(1010, 420), "throw"],
 	]
 	if with_fire:

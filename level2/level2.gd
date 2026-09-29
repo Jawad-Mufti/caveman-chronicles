@@ -113,7 +113,7 @@ const BAT_HOVER := 70.0
 ## [x, the surface this bat belongs to]
 const BATS := [[1880.0, GROUND_Y], [2360.0, 400.0], [4735.0, 172.0], [5455.0, -165.0], [21335.0, 700.0]]
 const ROCK_PILES := [[760.0, GROUND_Y], [2130.0, 490.0], [2785.0, GROUND_Y], [5230.0, -52.0], [7200.0, GROUND_Y], [20600.0, 600.0]]
-const BERRIES := [[960.0, 500.0], [2320.0, 400.0], [4290.0, 720.0], [5510.0, -398.0], [21700.0, 700.0], [24020.0, 600.0]]
+const BERRIES := [[1030.0, 500.0], [2425.0, 400.0], [4270.0, 720.0], [5460.0, -398.0], [21700.0, 700.0], [23960.0, 600.0]]
 
 ## ---------------------------------------------------------------- caves
 ## Each cave: its camera bounds, its rock [x, y, w, h, kind], where he comes in,
@@ -187,6 +187,11 @@ const ARENA_LEDGES := [[14600.0, 480.0, 140.0], [15160.0, 480.0, 140.0]]
 const BONGO_PERCH := Vector2(14370, 330)
 
 ## ---------------------------------------------------------------- treasure
+## Two kinds of find. SHELLS (shell 1, conch 5, amber 25) are the rare
+## currency: each one is found only once per save, and they sit where finding
+## them is a small feat — secrets, double-jump heights, the tops of Moonpuff
+## bounces, one to a box. BONES are the building material: generous, and
+## back on every visit. Everything below that isn't marked "shell" is bones.
 ## Treasure is placed with a reason, never just lining the road:
 ##   arcs over a jump show where to go; small clusters reward a climb, a
 ##   detour or a risk; a column above each Moonpuff rewards bouncing; the
@@ -194,8 +199,8 @@ const BONGO_PERCH := Vector2(14370, 330)
 ##   logs and mounds hold the biggest share.
 ## Clusters: [x0, x1, surface y, how many], a hand's height above the surface.
 const SHELL_ROWS := [
-	[920.0, 1010.0, 500.0, 4],      # the first ledge above the camp: look up
-	[2320.0, 2410.0, 400.0, 3],     # the high ledge by the dead tree
+	[895.0, 985.0, 500.0, 4],       # the first ledge above the camp: look up
+	[2300.0, 2380.0, 400.0, 3],     # the high ledge by the dead tree
 	[3060.0, 3190.0, 700.0, 5],     # down in the hollow, with the pack
 	[4705.0, 4765.0, 172.0, 2],     # the narrow ledge with the bat
 	[5425.0, 5485.0, -165.0, 2],    # the other narrow ledge
@@ -210,11 +215,11 @@ const SHELL_ROWS := [
 const SHELL_POINTS := [
 	[1520.0, 540.0], [1570.0, 515.0], [1620.0, 540.0],              # the first pit
 	[2630.0, 540.0], [2680.0, 515.0], [2730.0, 540.0],              # the second pit
-	[6060.0, -395.0], [6060.0, -455.0], [6060.0, -515.0],           # Moonpuff 1
-	[6440.0, -145.0], [6440.0, -205.0], [6440.0, -265.0],           # Moonpuff 2
-	[6820.0, 105.0], [6820.0, 45.0], [6820.0, -15.0],               # Moonpuff 3
+	[6060.0, -395.0], [6060.0, -455.0], [6060.0, -515.0, "shell"],           # Moonpuff 1
+	[6440.0, -145.0], [6440.0, -205.0], [6440.0, -265.0, "shell"],           # Moonpuff 2
+	[6820.0, 105.0], [6820.0, 45.0], [6820.0, -15.0, "shell"],               # Moonpuff 3
 	[7395.0, 466.0], [7645.0, 354.0], [7390.0, 242.0], [7640.0, 130.0],   # up the great tree
-	[7405.0, -94.0], [7635.0, -207.0], [7410.0, -320.0],            # on up to Bongo
+	[7405.0, -94.0], [7635.0, -207.0], [7410.0, -320.0, "shell"],            # on up to Bongo
 	[8785.0, 354.0], [8785.0, 130.0],                               # up the snag
 	[10960.0, 470.0], [11040.0, 520.0], [11160.0, 520.0], [11240.0, 470.0],   # the first vine's swing
 	[11670.0, 560.0], [11800.0, 560.0], [11930.0, 560.0],           # the crumbling bridge
@@ -225,9 +230,9 @@ const SHELL_POINTS := [
 	[12790.0, 478.0],
 	[20700.0, 478.0], [20740.0, 470.0],
 	# ...and these, higher, need the double jump
-	[3420.0, 352.0], [3460.0, 342.0], [3500.0, 352.0],
-	[7190.0, 348.0], [7230.0, 342.0],
-	[12090.0, 348.0], [12130.0, 342.0],
+	[3420.0, 352.0, "shell"], [3460.0, 342.0, "shell"], [3500.0, 352.0, "shell"],
+	[7190.0, 348.0, "shell"], [7230.0, 342.0, "shell"],
+	[12090.0, 348.0, "shell"], [12130.0, 342.0, "shell"],
 ]
 ## Conches (5): out-of-the-way spots.
 const CONCHES := [
@@ -238,8 +243,8 @@ const CONCHES := [
 ## [x, y, secret]: amber (25), one in each secret place.
 const AMBERS := [[4330.0, 690.0, "crevice"], [5520.0, -420.0, "lookout"], [22180.0, 350.0, "weeping"], [24370.0, 350.0, "rattling"]]
 ## [x, surface y, "log" | "mound", contents]: the treasure boxes.
-const LOG := ["shell", "shell", "shell", "shell", "shell", "shell", "conch"]
-const MOUND := ["conch", "conch", "shell", "shell", "shell", "shell", "shell", "shell"]
+const LOG := ["bone", "bone", "bone", "bone", "bone", "bone", "shell"]
+const MOUND := ["bone", "bone", "bone", "bone", "bone", "bone", "bone", "conch"]
 const BREAKABLES := [
 	[640.0, 600.0, "log", LOG], [1950.0, 600.0, "mound", MOUND], [3480.0, 600.0, "log", LOG],
 	[5880.0, -278.0, "mound", MOUND], [9100.0, 600.0, "log", LOG],
@@ -254,7 +259,7 @@ const POTS := [
 ## Shell Totems: carved faces that spit two shells per hit, six hits.
 const TOTEMS := [[2470.0, 600.0], [6300.0, -30.0], [11370.0, 600.0], [24180.0, 600.0]]
 ## Monkey stashes: a log marked with a red X — a fountain of treasure.
-const STASH := ["shell", "shell", "shell", "shell", "shell", "shell", "shell", "shell", "shell", "shell", "conch", "conch", "conch"]
+const STASH := ["bone", "bone", "bone", "bone", "bone", "bone", "bone", "bone", "bone", "bone", "bone", "conch", "conch"]
 const STASHES := [[7620.0, 600.0], [7470.0, -418.0]]
 ## Golden Hares: [left x, right x, start x, ground y] — catch one for a shower of treasure.
 const HARES := [[3380.0, 3960.0, 3800.0, 600.0], [7060.0, 7700.0, 7560.0, 600.0], [8420.0, 8880.0, 8700.0, 600.0]]
@@ -977,16 +982,16 @@ func _update_toolmaker() -> void:
 ## The economy. Prices are worked out from how much treasure the level holds
 ## (_treasure_total), so that a player who finds about 60% of it can buy
 ## exactly one new weapon, one new costume and three roast figs:
-##     axe 26%  +  a costume ~19%  +  3 figs x 5%   =  60%
+##     axe 26%  +  a costume ~19%  +  3 figs x 4%   =  57%
 ## The upgrades are extra, for the ones who search every corner. Move or add
 ## treasure and the prices follow on their own.
 const ECONOMY := {"axe": 0.26, "wolf_hood": 0.16, "ember_paint": 0.18, "bear_cloak": 0.21, "firekeeper": 0.20,
-	"fig": 0.05, "heart": 0.18, "torch": 0.11, "pouch": 0.11}
+	"fig": 0.04, "heart": 0.18, "torch": 0.11, "pouch": 0.11}
 ## [id, tab, name, what it is]
 const WARES := [
-	["club", "weapons", "Wooden Club", "His old club. Honest wood, heavy enough."],
-	["axe", "weapons", "Flint Axe", "A blade of knapped flint, lashed to a haft with sinew. Every blow lands far harder than the club."],
-	["hammer", "weapons", "Firestone Hammer", "The Toolmaker's own hammer — the one that broke Old Scar's fang — with the Firestone set in it. Hold attack, let go: SLAM! A wave of fire."],
+	["club", "weapons", "Wooden Club", "A quick overhead BONK. Hold attack and let go: HOME RUN! A huge swing that sends small beasts flying."],
+	["axe", "weapons", "Flint Axe", "Fast slashes: tap three times for slash, back-slash, CHOP! Hold attack and let go: it spins out through everything, and flies back to his hand."],
+	["hammer", "weapons", "Firestone Hammer", "Heaved up and SMASHED down: slow, heavy, the ground shakes. Hold attack and let go: FIRE SLAM! A wave of fire rolls along the ground."],
 	["plain", "costumes", "Plain Hide", "His everyday hide. Nothing wrong with it."],
 	["wolf_hood", "costumes", "Wolf Hood", "A wolf's head worn as a hood, its grey pelt down his back. Let the pack wonder whose side he's on."],
 	["ember_paint", "costumes", "Ember Paint", "Charcoal and ochre painted like flames rising up his chest, and a black band across the eyes: the mark of those who tamed fire."],
@@ -1095,7 +1100,7 @@ func _shop_buy(id: String) -> String:
 			GameState.shells -= price
 			GameState.weapons.append(id)
 			GameState.weapon = id
-			said = "The %s! He swings it once. It whistles." % _ware_name(id)
+			said = "The %s! Tap to slash, three times fast for a CHOP. Hold, then let go, to throw it." % _ware_name(id)
 		player.axe = GameState.weapon == "axe"
 		player.hammer = GameState.weapon == "hammer"
 	elif id == "fig":
@@ -1327,7 +1332,8 @@ func _show_scroll() -> void:
 	var scroll := LevelEnd.new()
 	scroll.title = "LEVEL 2   DISCOVERY OF FIRE"
 	scroll.lines = [
-		["Shells", "%d / %d" % [_run_value, _treasure_total]],
+		["Shells", "%d / %d" % [_treasure_found(), _treasure_total]],
+		["Bones", "%d" % _run_bones],
 		["Gem", gem],
 		["Secrets", "%d / %d" % [found, SECRETS.size()]],
 		["Troop spared", "%d / %d" % [MONKEYS.size() - monkey_kills, MONKEYS.size()]],
@@ -1342,19 +1348,17 @@ func _show_scroll() -> void:
 
 ## ---------------------------------------------------------------- treasure
 func _build_treasure() -> void:
-	# every visit is a fresh treasure hunt: all of it is back each time the
-	# level starts (only the shells in his pouch carry over)
+	# shells are remembered once found (per save); bones come back every visit
 	GameState.ensure_loaded()
-	GameState.taken.erase("level2")
 	var n := 0
 	for r in SHELL_ROWS:
 		var count: int = r[3]
 		for i in count:
 			var x := lerpf(r[0], r[1], (i + 0.5) / count)
-			_treasure("shell", "s%d" % n, Vector2(x, float(r[2]) - 24.0))
+			_treasure("bone", "s%d" % n, Vector2(x, float(r[2]) - 24.0))
 			n += 1
 	for p in SHELL_POINTS:
-		_treasure("shell", "s%d" % n, Vector2(p[0], p[1]))
+		_treasure(p[2] if p.size() > 2 else "bone", "s%d" % n, Vector2(p[0], p[1]))
 		n += 1
 	for i in CONCHES.size():
 		_treasure("conch", "c%d" % i, Vector2(CONCHES[i][0], CONCHES[i][1]))
@@ -1370,21 +1374,21 @@ func _build_treasure() -> void:
 		box.position = Vector2(b[0], b[1])
 		add_child(box)
 		for k in b[3]:
-			_treasure_total += int(Treasure.VALUE[k])
+			_count_treasure(k)
 	for i in POTS.size():
 		var pt: Array = POTS[i]
 		var count: int = pt[2]
 		for k in count:
 			var pot := Treasure.Breakable.new()
 			pot.kind = "pot"
-			# every third pot or so has a conch in it
-			pot.contents = ["shell", "shell", "conch"] if (i + k) % 3 == 0 else ["shell", "shell", "shell"]
+			# bones; every third pot or so has a shell hidden at the bottom
+			pot.contents = ["bone", "bone", "shell"] if (i + k) % 3 == 0 else ["bone", "bone", "bone"]
 			pot.level_id = "level2"
 			pot.id = "p%d_%d" % [i, k]
 			pot.position = Vector2(float(pt[0]) + (k - (count - 1) * 0.5) * 38.0, pt[1])
 			add_child(pot)
 			for c in pot.contents:
-				_treasure_total += int(Treasure.VALUE[c])
+				_count_treasure(c)
 	for i in STASHES.size():
 		var box := Treasure.Breakable.new()
 		box.kind = "stash"
@@ -1394,14 +1398,15 @@ func _build_treasure() -> void:
 		box.position = Vector2(STASHES[i][0], STASHES[i][1])
 		add_child(box)
 		for c in STASH:
-			_treasure_total += int(Treasure.VALUE[c])
+			_count_treasure(c)
 	for i in TOTEMS.size():
 		var totem := Treasure.ShellTotem.new()
 		totem.level_id = "level2"
 		totem.id = "t%d" % i
 		totem.position = Vector2(TOTEMS[i][0], TOTEMS[i][1])
 		add_child(totem)
-		_treasure_total += 11 + 5
+		_bones_total += 11
+		_treasure_total += 5
 	for i in HARES.size():
 		var h: Array = HARES[i]
 		var hare := Treasure.GoldenHare.new()
@@ -1411,11 +1416,24 @@ func _build_treasure() -> void:
 		hare.level_id = "level2"
 		hare.id = "h%d" % i
 		add_child(hare)
-		_treasure_total += HARE_VALUE
+		_bones_total += 8
+		_treasure_total += 5
+
+
+## Counts what the level holds: shells by value (the economy is worked out
+## from this), bones by number.
+var _bones_total := 0
+
+
+func _count_treasure(kind: String) -> void:
+	if Treasure.is_bone(kind):
+		_bones_total += int(Treasure.VALUE[kind])
+	else:
+		_treasure_total += int(Treasure.VALUE[kind])
 
 
 func _treasure(kind: String, id: String, at: Vector2) -> void:
-	_treasure_total += int(Treasure.VALUE[kind])
+	_count_treasure(kind)
 	var t := Treasure.Pickup.new()
 	t.kind = kind
 	t.level_id = "level2"
@@ -1430,31 +1448,22 @@ func _on_treasure_popped(p: Treasure.Pickup) -> void:
 	p.collected.connect(_on_treasure)
 
 
-var _run_value := 0          ## treasure picked up this visit, by value
+var _run_value := 0          ## shells picked up this visit, by value
+var _run_bones := 0          ## bones picked up this visit
 
 
-func _on_treasure(value: int) -> void:
-	_run_value += value
-	hud.set_shells(GameState.shells)
+func _on_treasure(kind: String, value: int) -> void:
+	if Treasure.is_bone(kind):
+		_run_bones += value
+		hud.set_bones(GameState.bones)
+	else:
+		_run_value += value
+		hud.set_shells(GameState.shells)
 
 
 ## How much of this level's treasure has been taken, by value.
 func _treasure_found() -> int:
-	var total := 0
-	var taken: Dictionary = GameState.taken.get("level2", {})
-	for id in taken:
-		var key := String(id)
-		if key.begins_with("s"):
-			total += 1
-		elif key.begins_with("c"):
-			total += 5
-		elif key.begins_with("a"):
-			total += 25
-		elif key.begins_with("b"):
-			var parts := key.substr(1).split("_")
-			var b: Array = BREAKABLES[int(parts[0])]
-			total += int(Treasure.VALUE[b[3][int(parts[1])]])
-	return total
+	return GameState.found_value("level2")
 
 
 ## A note that trips only inside a small area (a secret spot), not on passing an x.

@@ -61,13 +61,16 @@ func _build_hud(with_fire: bool = false) -> void:
 	player.berries_changed.connect(func(v: int) -> void: hud.set_berries(v))
 	player.rocks_changed.connect(func(v: int) -> void: hud.set_rocks(v))
 	player.wood_changed.connect(func(v: int) -> void: hud.set_wood(v))
-	player.poultice.connect(func(_ok: bool, note: String) -> void: hud.say(note, 2.0))
+	player.poultice.connect(func(_ok: bool, note: String) -> void:
+		if note != "":
+			hud.say(note, 2.0))
 	player.said.connect(func(note: String) -> void: hud.say(note, 2.5))
 	player.died.connect(_on_died)
 	hud.max_hp = player.max_hp
 	hud.set_hp(player.hp)
 	hud.set_shells(GameState.shells)
 	hud.set_figs(GameState.figs)
+	hud.set_bones(GameState.bones)
 	hud.fig_tapped.connect(func() -> void: player.eat_fig())
 	player.ate_fig.connect(func() -> void: hud.set_figs(GameState.figs))
 	if DisplayServer.is_touchscreen_available():

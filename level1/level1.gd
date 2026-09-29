@@ -226,7 +226,7 @@ func _build_world() -> void:
 		var bush := World.BerryBush.new()
 		bush.position = Vector2(b[0], b[1])
 		bush.taken.connect(func() -> void:
-			hud.say("Berries. Press E to crush them into a poultice.", 4.0)
+			hud.say("Grapes! They heal him — and if he's not hurt, he saves them and eats them by himself when he is.", 4.5)
 		)
 		add_child(bush)
 

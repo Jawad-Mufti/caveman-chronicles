@@ -7,7 +7,7 @@
 class_name Treasure
 extends RefCounted
 
-const VALUE := {"shell": 1, "conch": 5, "amber": 25}
+const VALUE := {"shell": 1, "conch": 5, "amber": 25, "bone": 1}
 
 
 ## Colours for each kind: [fill, light, dark outline, glow]
@@ -15,7 +15,14 @@ const LOOK := {
 	"shell": [Color("fbe6cf"), Color("f4b9a5"), Color("6d4a2e"), Color("ffe9c9")],
 	"conch": [Color("f2a97e"), Color("ffd9c0"), Color("6a3620"), Color("ffc6a0")],
 	"amber": [Color("e08a2c"), Color("ffd173"), Color("5e3210"), Color("ffb347")],
+	"bone": [Color("efe4cc"), Color("fffaf0"), Color("6e5d44"), Color("fff1d6")],
 }
+
+
+## Bones are building material, not money: counted on their own, and they
+## come back on every visit. Everything else here is a shell of some kind.
+static func is_bone(kind: String) -> bool:
+	return kind == "bone"
 
 
 ## Draws one piece of treasure, centred on `at`, bold enough to read at night.
@@ -68,6 +75,19 @@ static func shape_into(b: Batch, kind: String, at: Vector2) -> void:
 			for k in 3:
 				b.circle(at + Vector2(-12 + k * 5, 7 - k * 2), 1.6, dark.lightened(0.3), 6)
 			b.circle(at + Vector2(-7, -8), 2.6, Color(1, 1, 1, 0.85), 8)
+		"bone":
+			# a cartoon bone, lying a little crooked: a shaft and two knobbly ends
+			var r := Transform2D(-0.35, at)
+			var shaft := PackedVector2Array([Vector2(-12, -3.5), Vector2(12, -3.5), Vector2(12, 3.5), Vector2(-12, 3.5)])
+			b.poly(r * PackedVector2Array([Vector2(-13, -5.5), Vector2(13, -5.5), Vector2(13, 5.5), Vector2(-13, 5.5)]), dark)
+			for e in [Vector2(-13, -5), Vector2(-13, 5), Vector2(13, -5), Vector2(13, 5)]:
+				b.circle(r * e, 6.8, dark, 12)
+			b.poly(r * shaft, fill)
+			for e in [Vector2(-13, -5), Vector2(-13, 5), Vector2(13, -5), Vector2(13, 5)]:
+				b.circle(r * e, 5.2, fill, 12)
+			b.poly(r * PackedVector2Array([Vector2(-10, -3), Vector2(10, -3), Vector2(10, -1), Vector2(-10, -1)]), light)
+			b.circle(r * Vector2(-14, -6), 1.8, light, 8)
+			b.circle(r * Vector2(12, -6), 1.8, light, 8)
 		"amber":
 			# a faceted drop of amber with something caught inside
 			var drop := PackedVector2Array([at + Vector2(0, -17), at + Vector2(11, -6), at + Vector2(13, 5), at + Vector2(6, 14),
@@ -115,7 +135,7 @@ class Pickup extends Area2D:
 	## on them from above, and settles on the first solid ground it meets —
 	## always somewhere he can reach. If it ever drops out of reach, it pops
 	## back up beside the spot it came from.
-	signal collected(value: int)
+	signal collected(kind: String, value: int)
 	var kind := "shell"
 	var level_id := ""
 	var id := ""
@@ -150,8 +170,12 @@ class Pickup extends Area2D:
 			return
 		_gone = true
 		var v: int = VALUE[kind]
-		GameState.take(level_id, id, v)
-		collected.emit(v)
+		if Treasure.is_bone(kind):
+			# bones aren't remembered: they'll be back next visit
+			GameState.bones += v
+		else:
+			GameState.take(level_id, id, v)
+		collected.emit(kind, v)
 		var pop := FloatText.new()
 		pop.text = "+%d" % v
 		pop.position = global_position + Vector2(-8, -18)
@@ -444,7 +468,7 @@ class ShellTotem extends Area2D:
 			if GameState.is_taken(level_id, tid):
 				continue
 			var p := Pickup.new()
-			p.kind = "conch" if _given == 12 else "shell"
+			p.kind = "conch" if _given == 12 else "bone"
 			p.level_id = level_id
 			p.id = tid
 			p.position = global_position + Vector2(0, -44)
@@ -526,7 +550,7 @@ class GoldenHare extends Critter:
 		super._begin_death(from_dir)
 		dying = 0.01
 		# a shower of treasure where it was
-		var kinds := ["conch", "conch", "shell", "shell", "shell", "shell", "shell", "shell", "shell", "shell"]
+		var kinds := ["conch", "bone", "bone", "bone", "bone", "bone", "bone", "bone", "bone"]
 		for i in kinds.size():
 			var tid := "%s_%d" % [id, i]
 			if GameState.is_taken(level_id, tid):
