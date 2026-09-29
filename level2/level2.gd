@@ -3,16 +3,18 @@ extends LevelBase
 ## and his defence at once, and it burns down; bonfires feed it.
 ##   Dusk camp (0-900)          the torch, and the first eyes in the trees
 ##   Firelit woods (900-3980)   wolves, bats, dead trees, fire, the pack in the hollow
-##   The Mountain (3980-7050)   a hard climb in the wind; a crevice stash; a lookout
-##   The Great Tree (7050-8420) climb it, cross the chasm on its bough, mind the monkeys.
+##   The Hanging Gorge (3980-5680) a ravine crossed by a chain of vines hanging from a
+##                              fallen giant; a resting ledge; crumbling stepping stones
+##   The Mountain (5680-8750)   a hard climb in the wind; a crevice stash; a lookout
+##   The Great Tree (8750-10120) climb it, cross the chasm on its bough, mind the monkeys.
 ##                              At the very top: Old Bongo, the monkey king, who talks.
-##   Far side (8420-10600)      last bonfire, a dead snag to climb back up, wolves running scared
-##   The Long Dark (10600-12700) the roar that snuffs his torch; fireflies; vines; crumbling rock
-##   The Toolmaker (12700-13380) his home under a rock overhang: the forge
+##   Far side (10120-12300)      last bonfire, a dead snag to climb back up, wolves running scared
+##   The Long Dark (12300-14400) the roar that snuffs his torch; fireflies; vines; crumbling rock
+##   The Toolmaker (14400-15080) his home under a rock overhang: the forge
 ##                              (Firestone -> the Firestone Hammer) and his shop
-##   The Three Fires (13380-14300) a trial: a cracked boulder, wolves, and three
+##   The Three Fires (15080-16000) a trial: a cracked boulder, wolves, and three
 ##                              stone bowls to light; they burn the gate down
-##   Old Scar's clearing (13400-14700) the boss
+##   Old Scar's clearing (15100-16400) the boss
 ##
 ## The story: Old Bongo has lost the key to his banana box in one of two
 ## caves, and he'll trade the gem for it. Which cave is decided fresh each
@@ -25,14 +27,14 @@ extends LevelBase
 ## what was found.
 
 const GROUND_Y := 600.0
-const LEVEL_W := 15600.0
+const LEVEL_W := 17300.0
 const FALL_Y := 1020.0
 
 ## Reachability budget: a jump climbs ~133 px and carries ~227 px. Every step
 ## here asks for 100-125 up; the mountain's are the ones near the top of that.
 ## Ground runs: [x0, x1] at GROUND_Y.
-const FLOORS := [[0.0, 1500.0], [1640.0, 2600.0], [2760.0, 2900.0], [3350.0, 3980.0], [7050.0, 7700.0],
-	[8420.0, 10900.0], [11300.0, 11600.0], [12000.0, 12250.0], [12700.0, LEVEL_W]]
+const FLOORS := [[0.0, 1500.0], [1640.0, 2600.0], [2760.0, 2900.0], [3350.0, 4060.0], [5420.0, 5680.0], [8750.0, 9400.0],
+	[10120.0, 12600.0], [13000.0, 13300.0], [13700.0, 13950.0], [14400.0, LEVEL_W]]
 ## The hollow where the pack waits: [x, floor y, width].
 const HOLLOW := [2900.0, 700.0, 450.0]
 const LEDGES := [
@@ -44,76 +46,84 @@ const LEDGES := [
 ## thin ones are ledges sticking out of the face. A missed jump off the thin
 ## ones is a fall; missing the first one drops him into the crevice (a stash).
 const CRAGS := [
-	[3980.0, 490.0, 180.0, 710.0],     # first step up from the base camp
-	[4160.0, 720.0, 240.0, 480.0],     # crevice floor
-	[4180.0, 610.0, 60.0, 16.0],       # the way back out of the crevice
-	[4230.0, 385.0, 100.0, 18.0],
-	[4400.0, 285.0, 200.0, 915.0],
-	[4690.0, 172.0, 90.0, 18.0],       # narrow, and a bat waits here
-	[4870.0, 60.0, 100.0, 18.0],
-	[5060.0, -52.0, 260.0, 1252.0],    # a broad shelf: dead tree, rocks, a boulder
-	[5410.0, -165.0, 90.0, 18.0],      # narrow, second bat
-	[5590.0, -278.0, 420.0, 1478.0],   # the summit
-	[5470.0, -398.0, 80.0, 18.0],      # the lookout, above and behind the summit
+	[5680.0, 490.0, 180.0, 710.0],     # first step up the mountain
+	[5860.0, 720.0, 240.0, 480.0],     # crevice floor
+	[5880.0, 610.0, 60.0, 16.0],       # the way back out of the crevice
+	[5930.0, 385.0, 100.0, 18.0],
+	[6100.0, 285.0, 200.0, 915.0],
+	[6390.0, 172.0, 90.0, 18.0],       # narrow, and a bat waits here
+	[6570.0, 60.0, 100.0, 18.0],
+	[6760.0, -52.0, 260.0, 1252.0],    # a broad shelf: dead tree, rocks, a boulder
+	[7110.0, -165.0, 90.0, 18.0],      # narrow, second bat
+	[7290.0, -278.0, 420.0, 1478.0],   # the summit
+	[7170.0, -398.0, 80.0, 18.0],      # the lookout, above and behind the summit
 	# the way down, in steps
-	[6010.0, -155.0, 190.0, 1355.0], [6200.0, -30.0, 190.0, 1230.0], [6390.0, 95.0, 190.0, 1105.0],
-	[6580.0, 220.0, 190.0, 980.0], [6770.0, 345.0, 190.0, 855.0], [6960.0, 470.0, 90.0, 730.0],
-	[9350.0, 490.0, 250.0, 710.0],     # the far-side outcrop: the Rattling Cave's mouth is in its far face
+	[7710.0, -155.0, 190.0, 1355.0], [7900.0, -30.0, 190.0, 1230.0], [8090.0, 95.0, 190.0, 1105.0],
+	[8280.0, 220.0, 190.0, 980.0], [8470.0, 345.0, 190.0, 855.0], [8660.0, 470.0, 90.0, 730.0],
+	[11050.0, 490.0, 250.0, 710.0],     # the far-side outcrop: the Rattling Cave's mouth is in its far face
 ]
 ## Boulders to shelter behind, [x, surface y]. The wind blows down the climb
 ## (from the right), so the lee is the left side.
-const BOULDERS := [[4565.0, 285.0], [5290.0, -52.0]]
-const WIND_ZONE := [4170.0, 5590.0]
+const BOULDERS := [[6265.0, 285.0], [6990.0, -52.0]]
+const WIND_ZONE := [5870.0, 7290.0]
+## ---------------------------------------------------------------- the Hanging Gorge
+## Between the base camp and the mountain: a ravine crossed on old vines that
+## hang from a giant tree fallen across it long ago. Two vines, a resting
+## ledge, two more vines, two crumbling stepping stones, and the far side.
+const GORGE_TRUNK := [3990.0, 5460.0, 250.0]        ## [x0, x1, y]: the fallen giant
+const GORGE_VINES := [[4190.0, 262.0, 240.0], [4390.0, 262.0, 240.0], [4820.0, 262.0, 240.0], [5020.0, 262.0, 240.0]]
+const GORGE_LEDGE := [4530.0, 520.0, 130.0]          ## the resting ledge
+const GORGE_CRUMBLES := [[5170.0, 560.0, 70.0], [5290.0, 545.0, 70.0]]
 ## The mountain's silhouette, drawn behind the climb.
-const MOUNTAIN := [[3930, 1200], [3960, 560], [4120, 430], [4320, 330], [4520, 230], [4720, 110], [4920, 0],
-	[5120, -120], [5340, -210], [5520, -380], [5700, -420], [5900, -370], [6100, -230], [6380, 20],
-	[6650, 230], [6900, 420], [7080, 1200]]
+const MOUNTAIN := [[5630, 1200], [5660, 560], [5820, 430], [6020, 330], [6220, 230], [6420, 110], [6620, 0],
+	[6820, -120], [7040, -210], [7220, -380], [7400, -420], [7600, -370], [7800, -230], [8080, 20],
+	[8350, 230], [8600, 420], [8780, 1200]]
 
 ## The great tree: trunk centred here, and its branches as one-way platforms
 ## [x, top, width, grows from the left end?]. Left and right of the trunk in
 ## turn, 112 px apart; the long bough crosses the chasm; above it, the crown.
-const TREE_X := 7520.0
+const TREE_X := 9220.0
 const BRANCHES := [
-	[7330.0, 490.0, 130.0, false], [7580.0, 378.0, 130.0, true], [7320.0, 266.0, 140.0, false],
-	[7580.0, 154.0, 120.0, true],
-	[7560.0, 42.0, 900.0, true],        # the long bough, over the chasm to the far side
-	[7340.0, -70.0, 130.0, false], [7580.0, -183.0, 120.0, true], [7350.0, -296.0, 120.0, false],
-	[7430.0, -408.0, 230.0, true],      # the crown
+	[9030.0, 490.0, 130.0, false], [9280.0, 378.0, 130.0, true], [9020.0, 266.0, 140.0, false],
+	[9280.0, 154.0, 120.0, true],
+	[9260.0, 42.0, 900.0, true],        # the long bough, over the chasm to the far side
+	[9040.0, -70.0, 130.0, false], [9280.0, -183.0, 120.0, true], [9050.0, -296.0, 120.0, false],
+	[9130.0, -408.0, 230.0, true],      # the crown
 	# the dead snag on the far side: the way back up to the bough
-	[8600.0, 490.0, 110.0, false], [8730.0, 378.0, 110.0, true], [8600.0, 266.0, 110.0, false],
-	[8730.0, 154.0, 110.0, true], [8520.0, 42.0, 190.0, false],
+	[10300.0, 490.0, 110.0, false], [10430.0, 378.0, 110.0, true], [10300.0, 266.0, 110.0, false],
+	[10430.0, 154.0, 110.0, true], [10220.0, 42.0, 190.0, false],
 ]
-const SNAG_X := 8715.0
+const SNAG_X := 10415.0
 ## The troop: [x, y, habit, hanging]
 const MONKEYS := [
-	[7660.0, 378.0, 0, false],
-	[7360.0, 280.0, 0, true],            # hanging under a branch by its tail
-	[7790.0, 42.0, 0, false], [8010.0, 42.0, 1, false], [8240.0, 42.0, 0, false],
-	[7640.0, -183.0, 1, false],
+	[9360.0, 378.0, 0, false],
+	[9060.0, 280.0, 0, true],            # hanging under a branch by its tail
+	[9490.0, 42.0, 0, false], [9710.0, 42.0, 1, false], [9940.0, 42.0, 0, false],
+	[9340.0, -183.0, 1, false],
 ]
 ## Old Bongo sits at the top of the crown, beside his banana box.
-const ELDER_AT := Vector2(7620, -408)
+const ELDER_AT := Vector2(9320, -408)
 
 ## [x, y, lit at start]
 const BONFIRES := [[520.0, GROUND_Y, true], [1720.0, GROUND_Y, false], [3560.0, GROUND_Y, false],
-	[5710.0, -278.0, false], [7130.0, GROUND_Y, false], [8570.0, GROUND_Y, false],
+	[7410.0, -278.0, false], [8830.0, GROUND_Y, false], [10270.0, GROUND_Y, false],
 	[21470.0, 700.0, false], [23860.0, 600.0, false]]   # an old hearth in each cave
 ## [x, y, bundles of wood in it]
-const DEAD_TREES := [[1260.0, GROUND_Y, 2], [2400.0, 400.0, 1], [2855.0, GROUND_Y, 2], [5130.0, -52.0, 2], [7290.0, GROUND_Y, 2]]
+const DEAD_TREES := [[1260.0, GROUND_Y, 2], [2400.0, 400.0, 1], [2855.0, GROUND_Y, 2], [6830.0, -52.0, 2], [8990.0, GROUND_Y, 2]]
 ## Loose bundles already on the ground: the crevice stash.
-const WOOD := [[4200.0, 720.0], [4370.0, 720.0], [21600.0, 700.0], [23990.0, 600.0]]
+const WOOD := [[5900.0, 720.0], [6070.0, 720.0], [21600.0, 700.0], [23990.0, 600.0]]
 ## [left, right, start_x, floor_y]. Kept clear of the bonfires' light.
 const WOLVES := [
 	[1000.0, 1490.0, 1330.0, GROUND_Y], [1000.0, 1490.0, 1450.0, GROUND_Y],
 	[2040.0, 2590.0, 2420.0, GROUND_Y], [2040.0, 2590.0, 2540.0, GROUND_Y],
 	[2915.0, 3335.0, 3120.0, 700.0], [2915.0, 3335.0, 3220.0, 700.0], [2915.0, 3335.0, 3310.0, 700.0],
-	[8890.0, 9300.0, 9050.0, GROUND_Y], [8890.0, 9300.0, 9200.0, GROUND_Y],
+	[10590.0, 11000.0, 10750.0, GROUND_Y], [10590.0, 11000.0, 10900.0, GROUND_Y],
 ]
 const BAT_HOVER := 70.0
 ## [x, the surface this bat belongs to]
-const BATS := [[1880.0, GROUND_Y], [2360.0, 400.0], [4735.0, 172.0], [5455.0, -165.0], [21335.0, 700.0]]
-const ROCK_PILES := [[760.0, GROUND_Y], [2130.0, 490.0], [2785.0, GROUND_Y], [5230.0, -52.0], [7200.0, GROUND_Y], [20600.0, 600.0]]
-const BERRIES := [[1030.0, 500.0], [2425.0, 400.0], [4270.0, 720.0], [5460.0, -398.0], [21700.0, 700.0], [23960.0, 600.0]]
+const BATS := [[1880.0, GROUND_Y], [2360.0, 400.0], [6435.0, 172.0], [7155.0, -165.0], [21335.0, 700.0]]
+const ROCK_PILES := [[760.0, GROUND_Y], [2130.0, 490.0], [2785.0, GROUND_Y], [6930.0, -52.0], [8900.0, GROUND_Y], [20600.0, 600.0]]
+const BERRIES := [[1030.0, 500.0], [2425.0, 400.0], [5970.0, 720.0], [7160.0, -398.0], [21700.0, 700.0], [23960.0, 600.0]]
 
 ## ---------------------------------------------------------------- caves
 ## Each cave: its camera bounds, its rock [x, y, w, h, kind], where he comes in,
@@ -129,7 +139,7 @@ const CAVE_A_ROCK := [
 	[21760.0, 150.0, 320.0, 100.0, "roof"], [22080.0, 150.0, 220.0, 30.0, "roof"],
 ]
 const CAVE_A_IN := Vector2(20470, 600)
-const CAVE_A_DOOR := [7050.0, GROUND_Y, -1, "webs"]
+const CAVE_A_DOOR := [8750.0, GROUND_Y, -1, "webs"]
 const CAVE_A_WEBS := [[20840.0, 600.0, 180.0], [22160.0, 380.0, 200.0]]
 ## [x, roof y, floor y, left, right]
 const SPIDERS := [[21080.0, 470.0, 700.0, 20910.0, 21240.0], [21650.0, 470.0, 700.0, 21440.0, 22070.0],
@@ -148,7 +158,7 @@ const CAVE_B_ROCK := [
 ]
 const CAVE_B_IN := Vector2(22970, 600)
 ## In the outcrop's far face: he sees it behind him once he has climbed over.
-const CAVE_B_DOOR := [9600.0, GROUND_Y, -1, "skin"]
+const CAVE_B_DOOR := [11300.0, GROUND_Y, -1, "skin"]
 ## [left, right, start x, floor y]
 const RATS := [[23020.0, 23280.0, 23120.0, 600.0], [23020.0, 23280.0, 23220.0, 600.0],
 	[23400.0, 23740.0, 23500.0, 600.0], [23400.0, 23740.0, 23650.0, 600.0],
@@ -159,39 +169,39 @@ const NEST := [24330.0, 380.0]
 
 ## ---------------------------------------------------------------- the Long Dark
 ## [anchor x, anchor y, length]: the grip hangs at anchor y + length.
-const VINES := [[11100.0, 330.0, 190.0], [12390.0, 320.0, 200.0], [12560.0, 320.0, 200.0]]
+const VINES := [[12800.0, 330.0, 190.0], [14090.0, 320.0, 200.0], [14260.0, 320.0, 200.0]]
 ## [x, top y, width]: rotten rock over the second pit.
-const CRUMBLES := [[11630.0, 600.0, 80.0], [11760.0, 600.0, 80.0], [11890.0, 600.0, 80.0]]
-const FIREFLIES := [[10800.0, 520.0], [11100.0, 440.0], [11450.0, 520.0], [11800.0, 480.0], [12120.0, 520.0], [12470.0, 420.0]]
+const CRUMBLES := [[13330.0, 600.0, 80.0], [13460.0, 600.0, 80.0], [13590.0, 600.0, 80.0]]
+const FIREFLIES := [[12500.0, 520.0], [12800.0, 440.0], [13150.0, 520.0], [13500.0, 480.0], [13820.0, 520.0], [14170.0, 420.0]]
 ## eyes in the trees, watching
-const WATCHERS := [[9950.0, 430.0], [10700.0, 400.0], [11520.0, 380.0], [12250.0, 390.0]]
-const CLAW_MARKS := [[10150.0, 470.0], [11380.0, 460.0]]
-const PANIC_AT := 9950.0          ## the wolves come running past here
-const SNUFF_AT := 10650.0         ## the roar, and the dark
+const WATCHERS := [[11650.0, 430.0], [12400.0, 400.0], [13220.0, 380.0], [13950.0, 390.0]]
+const CLAW_MARKS := [[11850.0, 470.0], [13080.0, 460.0]]
+const PANIC_AT := 11650.0          ## the wolves come running past here
+const SNUFF_AT := 12350.0         ## the roar, and the dark
 
 ## ---------------------------------------------------------------- the end
-const TOOLMAKER_AT := Vector2(13060, 600)
-const CAMP_AT := Vector2(13000, 600)       ## his home under the overhang
+const TOOLMAKER_AT := Vector2(14760, 600)
+const CAMP_AT := Vector2(14700, 600)       ## his home under the overhang
 ## The Three Fires: a trial between his home and the clearing. A cracked
 ## boulder bars the way; a pack of wolves waits in the dark; three stone bowls
 ## must all burn — then the old palisade across the path burns down.
-const TRIAL_ROCK := Vector2(13470, 600)
-const TRIAL_BOWLS := [[13640.0, 600.0], [13890.0, 480.0], [14130.0, 600.0]]
-const TRIAL_LEDGE := [13820.0, 480.0, 140.0]
-const TRIAL_WOLVES := [[13560.0, 14200.0, 13760.0], [13560.0, 14200.0, 14000.0], [13560.0, 14200.0, 14180.0]]
-const TRIAL_GATE_X := 14250.0
-const ARENA := Rect2(14300, -900, 1300, 2100)
-const BRAZIERS := [[14420.0, 600.0], [15340.0, 600.0]]
-const LAIR_X := 15520.0           ## his lair's mouth, in the rock at the far end
-const ARENA_LEDGES := [[14600.0, 480.0, 140.0], [15160.0, 480.0, 140.0]]
-const BONGO_PERCH := Vector2(14370, 330)
+const TRIAL_ROCK := Vector2(15170, 600)
+const TRIAL_BOWLS := [[15340.0, 600.0], [15590.0, 480.0], [15830.0, 600.0]]
+const TRIAL_LEDGE := [15520.0, 480.0, 140.0]
+const TRIAL_WOLVES := [[15260.0, 15900.0, 15460.0], [15260.0, 15900.0, 15700.0], [15260.0, 15900.0, 15880.0]]
+const TRIAL_GATE_X := 15950.0
+const ARENA := Rect2(16000, -900, 1300, 2100)
+const BRAZIERS := [[16120.0, 600.0], [17040.0, 600.0]]
+const LAIR_X := 17220.0           ## his lair's mouth, in the rock at the far end
+const ARENA_LEDGES := [[16300.0, 480.0, 140.0], [16860.0, 480.0, 140.0]]
+const BONGO_PERCH := Vector2(16070, 330)
 
 ## ---------------------------------------------------------------- treasure
-## Two kinds of find. SHELLS (shell 1, conch 5, amber 25) are the rare
-## currency: each one is found only once per save, and they sit where finding
-## them is a small feat — secrets, double-jump heights, the tops of Moonpuff
-## bounces, one to a box. BONES are the building material: generous, and
-## back on every visit. Everything below that isn't marked "shell" is bones.
+## Two kinds of find, in a fair mix. SHELLS (shell 1, conch 5, amber 25) are
+## the currency: each one is found only once per save, so they can't be
+## farmed. BONES (mammoth ribs 1, tusks 5) are the building material for his
+## shelter: they come back on every visit. Clusters and arcs alternate the
+## two; points marked "shell" or "tusk" are that; boxes hold a mix.
 ## Treasure is placed with a reason, never just lining the road:
 ##   arcs over a jump show where to go; small clusters reward a climb, a
 ##   detour or a risk; a column above each Moonpuff rewards bouncing; the
@@ -202,9 +212,9 @@ const SHELL_ROWS := [
 	[895.0, 985.0, 500.0, 4],       # the first ledge above the camp: look up
 	[2300.0, 2380.0, 400.0, 3],     # the high ledge by the dead tree
 	[3060.0, 3190.0, 700.0, 5],     # down in the hollow, with the pack
-	[4705.0, 4765.0, 172.0, 2],     # the narrow ledge with the bat
-	[5425.0, 5485.0, -165.0, 2],    # the other narrow ledge
-	[9440.0, 9510.0, 490.0, 3],     # on top of the outcrop
+	[6405.0, 6465.0, 172.0, 2],     # the narrow ledge with the bat
+	[7125.0, 7185.0, -165.0, 2],    # the other narrow ledge
+	[11140.0, 11210.0, 490.0, 3],     # on top of the outcrop
 	[20560.0, 20640.0, 600.0, 3],   # Weeping Cave: by the rock pile
 	[21490.0, 21570.0, 700.0, 3],   # Weeping Cave: past the pit, by the old hearth
 	[23315.0, 23375.0, 510.0, 3],   # Rattling Cave: on the snake's pillar
@@ -215,66 +225,77 @@ const SHELL_ROWS := [
 const SHELL_POINTS := [
 	[1520.0, 540.0], [1570.0, 515.0], [1620.0, 540.0],              # the first pit
 	[2630.0, 540.0], [2680.0, 515.0], [2730.0, 540.0],              # the second pit
-	[6060.0, -395.0], [6060.0, -455.0], [6060.0, -515.0, "shell"],           # Moonpuff 1
-	[6440.0, -145.0], [6440.0, -205.0], [6440.0, -265.0, "shell"],           # Moonpuff 2
-	[6820.0, 105.0], [6820.0, 45.0], [6820.0, -15.0, "shell"],               # Moonpuff 3
-	[7395.0, 466.0], [7645.0, 354.0], [7390.0, 242.0], [7640.0, 130.0],   # up the great tree
-	[7405.0, -94.0], [7635.0, -207.0], [7410.0, -320.0, "shell"],            # on up to Bongo
-	[8785.0, 354.0], [8785.0, 130.0],                               # up the snag
-	[10960.0, 470.0], [11040.0, 520.0], [11160.0, 520.0], [11240.0, 470.0],   # the first vine's swing
-	[11670.0, 560.0], [11800.0, 560.0], [11930.0, 560.0],           # the crumbling bridge
-	[12320.0, 480.0], [12475.0, 520.0], [12640.0, 480.0],           # the two vines
+	[7760.0, -395.0], [7760.0, -455.0], [7760.0, -515.0, "shell"],           # Moonpuff 1
+	[8140.0, -145.0], [8140.0, -205.0], [8140.0, -265.0, "shell"],           # Moonpuff 2
+	[8520.0, 105.0], [8520.0, 45.0], [8520.0, -15.0, "shell"],               # Moonpuff 3
+	[9095.0, 466.0], [9345.0, 354.0], [9090.0, 242.0], [9340.0, 130.0],   # up the great tree
+	[9105.0, -94.0], [9335.0, -207.0], [9110.0, -320.0, "shell"],            # on up to Bongo
+	[10485.0, 354.0], [10485.0, 130.0],                               # up the snag
+	[12660.0, 470.0], [12740.0, 520.0], [12860.0, 520.0], [12940.0, 470.0],   # the first vine's swing
+	[13370.0, 560.0], [13500.0, 560.0], [13630.0, 560.0],           # the crumbling bridge
+	[14020.0, 480.0], [14175.0, 520.0], [14340.0, 480.0],           # the two vines
+	# the Hanging Gorge: along the swings, shells up at the top of them,
+	# and a tusk and a conch waiting on the resting ledge
+	[4230.0, 500.0], [4290.0, 520.0], [4350.0, 500.0],
+	[4470.0, 380.0, "shell"], [4500.0, 350.0, "shell"],
+	[4570.0, 494.0, "tusk"],
+	[4860.0, 500.0], [4920.0, 520.0], [4980.0, 500.0],
+	[5100.0, 380.0, "shell"], [5130.0, 350.0, "shell"],
+	[5230.0, 510.0], [5350.0, 500.0],
 	# up in the air over the path: a jump gets these...
 	[1090.0, 482.0], [1130.0, 472.0], [1170.0, 482.0],
-	[9020.0, 482.0], [9060.0, 472.0],
-	[12790.0, 478.0],
+	[10720.0, 482.0], [10760.0, 472.0],
+	[14490.0, 478.0],
 	[20700.0, 478.0], [20740.0, 470.0],
 	# ...and these, higher, need the double jump
 	[3420.0, 352.0, "shell"], [3460.0, 342.0, "shell"], [3500.0, 352.0, "shell"],
-	[7190.0, 348.0, "shell"], [7230.0, 342.0, "shell"],
-	[12090.0, 348.0, "shell"], [12130.0, 342.0, "shell"],
+	[8890.0, 348.0, "shell"], [8930.0, 342.0, "shell"],
+	[13790.0, 348.0, "shell"], [13830.0, 342.0, "shell"],
 ]
 ## Conches (5): out-of-the-way spots.
 const CONCHES := [
-	[1000.0, 470.0], [2400.0, 370.0], [3310.0, 670.0], [4380.0, 690.0], [5980.0, -300.0], [6440.0, -320.0],
-	[7450.0, -430.0], [8660.0, 20.0], [9480.0, 460.0], [11230.0, 430.0], [21900.0, 670.0], [22260.0, 350.0],
+	[4630.0, 490.0],
+	[1000.0, 470.0], [2400.0, 370.0], [3310.0, 670.0], [6080.0, 690.0], [7680.0, -300.0], [8140.0, -320.0],
+	[9150.0, -430.0], [10360.0, 20.0], [11180.0, 460.0], [12930.0, 430.0], [21900.0, 670.0], [22260.0, 350.0],
 	[24300.0, 570.0], [24160.0, 460.0],
 ]
 ## [x, y, secret]: amber (25), one in each secret place.
-const AMBERS := [[4330.0, 690.0, "crevice"], [5520.0, -420.0, "lookout"], [22180.0, 350.0, "weeping"], [24370.0, 350.0, "rattling"]]
+const AMBERS := [[6030.0, 690.0, "crevice"], [7220.0, -420.0, "lookout"], [22180.0, 350.0, "weeping"], [24370.0, 350.0, "rattling"]]
 ## [x, surface y, "log" | "mound", contents]: the treasure boxes.
-const LOG := ["bone", "bone", "bone", "bone", "bone", "bone", "shell"]
-const MOUND := ["bone", "bone", "bone", "bone", "bone", "bone", "bone", "conch"]
+const LOG := ["bone", "shell", "bone", "shell", "bone", "shell", "bone"]
+const MOUND := ["bone", "shell", "bone", "shell", "bone", "shell", "tusk", "conch"]
 const BREAKABLES := [
 	[640.0, 600.0, "log", LOG], [1950.0, 600.0, "mound", MOUND], [3480.0, 600.0, "log", LOG],
-	[5880.0, -278.0, "mound", MOUND], [9100.0, 600.0, "log", LOG],
-	[11480.0, 600.0, "mound", MOUND], [12790.0, 600.0, "log", LOG],
+	[7580.0, -278.0, "mound", MOUND], [10800.0, 600.0, "log", LOG],
+	[13180.0, 600.0, "mound", MOUND], [14490.0, 600.0, "log", LOG],
 	[21050.0, 700.0, "log", LOG], [24050.0, 600.0, "mound", MOUND],
 ]
 ## Clay pots, in little groups: one smack each, a few shells. [x, surface y, how many]
 const POTS := [
-	[330.0, 600.0, 2], [2170.0, 490.0, 2], [3640.0, 600.0, 3], [5790.0, -278.0, 2], [7470.0, 600.0, 2],
-	[8480.0, 600.0, 2], [10820.0, 600.0, 2], [12920.0, 600.0, 3], [20500.0, 600.0, 2], [23000.0, 600.0, 2],
+	[5520.0, 600.0, 2],
+	[330.0, 600.0, 2], [2170.0, 490.0, 2], [3640.0, 600.0, 3], [7490.0, -278.0, 2], [9170.0, 600.0, 2],
+	[10180.0, 600.0, 2], [12520.0, 600.0, 2], [14620.0, 600.0, 3], [20500.0, 600.0, 2], [23000.0, 600.0, 2],
 ]
 ## Shell Totems: carved faces that spit two shells per hit, six hits.
-const TOTEMS := [[2470.0, 600.0], [6300.0, -30.0], [11370.0, 600.0], [24180.0, 600.0]]
+const TOTEMS := [[2470.0, 600.0], [8000.0, -30.0], [13070.0, 600.0], [24180.0, 600.0]]
 ## Monkey stashes: a log marked with a red X — a fountain of treasure.
-const STASH := ["bone", "bone", "bone", "bone", "bone", "bone", "bone", "bone", "bone", "bone", "bone", "conch", "conch"]
-const STASHES := [[7620.0, 600.0], [7470.0, -418.0]]
+const STASH := ["bone", "shell", "bone", "shell", "bone", "shell", "bone", "shell", "bone", "shell", "tusk", "conch", "conch"]
+const STASHES := [[9320.0, 600.0], [9170.0, -418.0]]
 ## Golden Hares: [left x, right x, start x, ground y] — catch one for a shower of treasure.
-const HARES := [[3380.0, 3960.0, 3800.0, 600.0], [7060.0, 7700.0, 7560.0, 600.0], [8420.0, 8880.0, 8700.0, 600.0]]
+const HARES := [[3380.0, 3960.0, 3800.0, 600.0], [8760.0, 9400.0, 9260.0, 600.0], [10120.0, 10580.0, 10400.0, 600.0]]
 const HARE_VALUE := 18
 ## Moonpuffs: bounce bushes on the mountain's way down, where he lands
 ## coming off each step.
-const MOONPUFFS := [[6060.0, -155.0], [6440.0, 95.0], [6820.0, 345.0]]
+const MOONPUFFS := [[7760.0, -155.0], [8140.0, 95.0], [8520.0, 345.0]]
 const SECRETS := ["crevice", "lookout", "weeping", "rattling"]
 ## [x, darkness]. Dusk at the camp, darkest in the woods, thinner on the
 ## mountain where the moon reaches, dark again under the great tree.
 const DARKNESS := [[0.0, 0.26], [700.0, 0.40], [1500.0, 0.62], [2600.0, 0.72], [3600.0, 0.74],
-	[4300.0, 0.62], [5000.0, 0.56], [5700.0, 0.50], [6600.0, 0.60], [7100.0, 0.70], [7600.0, 0.64],
-	[8500.0, 0.72], [10000.0, 0.76], [10600.0, 0.86], [10700.0, 0.92], [12650.0, 0.92],   # the Long Dark
-	[12800.0, 0.74], [13350.0, 0.76], [13450.0, 0.88], [14250.0, 0.88],                   # his home; the Three Fires
-	[14300.0, 0.82], [15600.0, 0.82],                                                     # the clearing
+	[3950.0, 0.64], [4300.0, 0.50], [5400.0, 0.50], [5800.0, 0.60],                       # the gorge: the last light of dusk
+	[6000.0, 0.62], [6700.0, 0.56], [7400.0, 0.50], [8300.0, 0.60], [8800.0, 0.70], [9300.0, 0.64],
+	[10200.0, 0.72], [11700.0, 0.76], [12300.0, 0.86], [12400.0, 0.92], [14350.0, 0.92],   # the Long Dark
+	[14500.0, 0.74], [15050.0, 0.76], [15150.0, 0.88], [15950.0, 0.88],                   # his home; the Three Fires
+	[16000.0, 0.82], [17300.0, 0.82],                                                     # the clearing
 	[20250.0, 0.92], [24600.0, 0.92]]   # the caves: near black
 
 var night: Night
@@ -332,6 +353,7 @@ func _ready() -> void:
 	_build_critters()
 	_build_tree_life()
 	_build_caves()
+	_build_gorge()
 	_build_long_dark()
 	_build_the_end()
 	_build_treasure()
@@ -348,11 +370,47 @@ func _ready() -> void:
 	_wire_player()
 	wind.first_gust.connect(func() -> void:
 		hud.say("Wind! In the air it carries him. Hold INTO it to brace — or get behind rock.", 5.0))
+	# the guide first (once per save), then the story begins
+	if not GameState.seen.has("level2"):
+		var guide := Guide.new()
+		guide.pages = GUIDE
+		guide.player = player
+		guide.done.connect(func() -> void:
+			GameState.seen["level2"] = true
+			GameState.save()
+			_opening())
+		add_child(guide)
+	else:
+		_opening()
+
+
+func _opening() -> void:
 	_talk([
 		["", "The sun is going down, and he is far from the cave he knows."],
 		["", "Night is coming. Something out there is hungry. He will need fire."],
 		["", "(Space, J or a tap to go on.)"],
 	])
+
+
+## The guide at the start of the level: what to collect and why, the boss,
+## and the secrets. Every page can be skipped.
+const GUIDE := [
+	{"title": "TREASURE OF THE WILD", "tag": "What to pick up, and why", "accent": Color("f0b44a"), "items": [
+		["shells", "SHELLS, CONCHES & AMBER", "The treasure everyone trades with. Each one can be found only ONCE — so look high, look hidden, smash every box. Spend them at the Toolmaker's."],
+		["bones", "MAMMOTH BONES", "For BUILDING! Grab all you can — they come back every time you play. One day you'll build your very own home with them."],
+		["health", "GRAPES & ROAST FIGS", "Grapes heal you all by themselves. Roast figs are for emergencies: press H (or tap the fig)."],
+	]},
+	{"title": "BEWARE: OLD SCAR", "tag": "The terror of the Long Dark", "accent": Color("e0663a"), "items": [
+		["scar", "A GIANT SABRE-TOOTH", "Deep in the dark lives Old Scar — huge, clever, and he LEARNS. Beat him to finish the level."],
+		["torch", "HE FEARS FIRE", "When he crouches and wiggles, he's about to pounce: hold your torch toward him and he'll cower. Now hit him!"],
+		["tricks", "WATCH FOR HIS TRICKS", "Two pairs of eyes in the dark... a shadow growing under you... And a rock thrown into his roaring jaws works wonders."],
+	]},
+	{"title": "GEMS & SECRET WEAPONS", "tag": "Legends of the forge", "accent": Color("b95ad6"), "items": [
+		["gem", "THE FIRESTONE", "Somewhere a red gem glows. Help old Bongo the monkey find what he lost, and he might give it to you..."],
+		["hammer", "THE FIRESTONE HAMMER", "Take it to the Toolmaker and he'll forge a legend. Hold attack, let go — FIRE SLAM! A wave of fire!"],
+		["weapons", "EVERY WEAPON HAS A SECRET", "Hold attack with any weapon to find its special move: HOME RUN with the club, a boomerang AXE THROW..."],
+	]},
+]
 
 
 func _build_background() -> void:
@@ -461,11 +519,12 @@ func _build_critters() -> void:
 	_note(980, "Eyes. They will not cross strong light — keep the torch above the notch.", 4.5)
 	_note(1170, "A dead tree, dry as bone. Club it for wood.", 3.5)
 	_note(2700, "Three of them down there. This is what fire is for.", 4.0)
-	_note(3800, "The only way on is up.", 3.0)
-	_spot(Rect2(4160, 620, 240, 110), "A crack in the rock — and someone's stash in it.", "crevice")
-	_spot(Rect2(5470, -480, 80, 90), "From up here, the whole valley. And something glints, high in the great tree.", "lookout")
-	_note(7240, "Monkeys, up in the great tree. Leave them be and they leave him be.", 4.5)
-	_note(8480, "A dead snag, right by the fire. Its branches go all the way back up to the bough.", 4.5)
+	_note(3800, "A gorge — and old vines hanging from a fallen giant. Jump to a vine, swing, and let go at the top!", 5.0)
+	_note(5500, "The only way on is up.", 3.0)
+	_spot(Rect2(5860, 620, 240, 110), "A crack in the rock — and someone's stash in it.", "crevice")
+	_spot(Rect2(7170, -480, 80, 90), "From up here, the whole valley. And something glints, high in the great tree.", "lookout")
+	_note(8940, "Monkeys, up in the great tree. Leave them be and they leave him be.", 4.5)
+	_note(10180, "A dead snag, right by the fire. Its branches go all the way back up to the bough.", 4.5)
 
 
 func _build_tree_life() -> void:
@@ -783,7 +842,7 @@ func _update_elder(delta: float) -> void:
 		_near_elder = false
 	# from the bough, a voice from above
 	_callout_t -= delta
-	var on_bough := absf(player.global_position.y - 42.0) < 12.0 and player.global_position.x > 7700.0
+	var on_bough := absf(player.global_position.y - 42.0) < 12.0 and player.global_position.x > 9400.0
 	if quest == "none" and on_bough and _callouts < 3 and _callout_t <= 0.0:
 		_callouts += 1
 		_callout_t = 10.0
@@ -791,6 +850,26 @@ func _update_elder(delta: float) -> void:
 
 
 ## ---------------------------------------------------------------- the Long Dark
+## The Hanging Gorge: the fallen giant, its vines, the ledge, the crumbling stones.
+func _build_gorge() -> void:
+	var giant := NightWoods.FallenGiant.new()
+	giant.position = Vector2(GORGE_TRUNK[0], GORGE_TRUNK[2])
+	giant.w = GORGE_TRUNK[1] - GORGE_TRUNK[0]
+	add_child(giant)
+	for v in GORGE_VINES:
+		var vine := NightWoods.Vine.new()
+		vine.position = Vector2(v[0], v[1])
+		vine.length = v[2]
+		add_child(vine)
+	add_child(NightWoods.Crag.new(Rect2(GORGE_LEDGE[0], GORGE_LEDGE[1], GORGE_LEDGE[2], 18)))
+	for c in GORGE_CRUMBLES:
+		var rock := NightWoods.CrumbleRock.new()
+		rock.position = Vector2(c[0], c[1])
+		rock.w = c[2]
+		rock.player = player
+		add_child(rock)
+
+
 func _build_long_dark() -> void:
 	for v in VINES:
 		var vine := NightWoods.Vine.new()
@@ -826,9 +905,9 @@ func _update_long_dark() -> void:
 		for i in 3:
 			var wolf := NightBeasts.Wolf.new()
 			wolf.panic = true
-			wolf.panic_end = 9660.0
-			wolf.left_x = 9000.0
-			wolf.right_x = 11000.0
+			wolf.panic_end = 11360.0
+			wolf.left_x = 10700.0
+			wolf.right_x = 12700.0
 			wolf.position = Vector2(x + 720.0 + i * 70.0, GROUND_Y)
 			add_child(wolf)
 		hud.say("The wolves come running — straight past him. They're running FROM something.", 4.5)
@@ -905,7 +984,7 @@ func _build_the_end() -> void:
 	arena_bongo.visible = false
 	add_child(arena_bongo)
 	player.died.connect(_on_died_in_fight)
-	_note(12200, "Firelight ahead, under the rocks. Someone lives out here.", 3.0)
+	_note(13900, "Firelight ahead, under the rocks. Someone lives out here.", 3.0)
 
 
 ## ---------------------------------------------------------------- the Three Fires
@@ -1355,10 +1434,10 @@ func _build_treasure() -> void:
 		var count: int = r[3]
 		for i in count:
 			var x := lerpf(r[0], r[1], (i + 0.5) / count)
-			_treasure("bone", "s%d" % n, Vector2(x, float(r[2]) - 24.0))
+			_treasure("shell" if i % 2 == 1 else "bone", "s%d" % n, Vector2(x, float(r[2]) - 24.0))
 			n += 1
 	for p in SHELL_POINTS:
-		_treasure(p[2] if p.size() > 2 else "bone", "s%d" % n, Vector2(p[0], p[1]))
+		_treasure(p[2] if p.size() > 2 else ("shell" if n % 3 == 1 else "bone"), "s%d" % n, Vector2(p[0], p[1]))
 		n += 1
 	for i in CONCHES.size():
 		_treasure("conch", "c%d" % i, Vector2(CONCHES[i][0], CONCHES[i][1]))
@@ -1381,8 +1460,8 @@ func _build_treasure() -> void:
 		for k in count:
 			var pot := Treasure.Breakable.new()
 			pot.kind = "pot"
-			# bones; every third pot or so has a shell hidden at the bottom
-			pot.contents = ["bone", "bone", "shell"] if (i + k) % 3 == 0 else ["bone", "bone", "bone"]
+			# a bone and a shell or two in each
+			pot.contents = ["shell", "bone", "shell"] if (i + k) % 2 == 0 else ["bone", "shell", "bone"]
 			pot.level_id = "level2"
 			pot.id = "p%d_%d" % [i, k]
 			pot.position = Vector2(float(pt[0]) + (k - (count - 1) * 0.5) * 38.0, pt[1])

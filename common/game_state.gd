@@ -27,6 +27,7 @@ static var figs := 0                   ## roast figs in his pouch
 ## and kept for building his shelter in the home level. Shells are the rare
 ## currency: each is found only once per save.
 static var bones := 0
+static var seen := {}                  ## guides already shown, by level
 static var _loaded := false
 
 
@@ -55,6 +56,7 @@ static func ensure_loaded() -> void:
 	weapon = str(d.get("weapon", "club"))
 	figs = int(d.get("figs", 0))
 	bones = int(d.get("bones", 0))
+	seen = d.get("seen", {})
 	# an older save that forged the Firestone before weapons were kept
 	if str(gems.get("level2", "")) == "forged" and not weapons.has("hammer"):
 		weapons.append("hammer")
@@ -66,7 +68,8 @@ static func save() -> void:
 	if f == null:
 		return
 	f.store_string(JSON.stringify({"shells": shells, "upgrades": upgrades, "skins": skins, "skin": skin,
-		"gems": gems, "taken": taken, "trophies": trophies, "weapons": weapons, "weapon": weapon, "figs": figs, "bones": bones}))
+		"gems": gems, "taken": taken, "trophies": trophies, "weapons": weapons, "weapon": weapon, "figs": figs, "bones": bones,
+		"seen": seen}))
 
 
 ## A fresh start: everything back to nothing, on disk too.
@@ -82,6 +85,7 @@ static func reset() -> void:
 	weapon = "club"
 	figs = 0
 	bones = 0
+	seen = {}
 	_loaded = true
 	save()
 

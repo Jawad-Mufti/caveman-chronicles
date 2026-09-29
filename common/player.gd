@@ -135,6 +135,9 @@ signal ate_fig
 var _fig_prev := false
 ## Vine swinging. While on one he is placed by the swing, not by physics.
 const HANG := 80.0        ## px from the grip down to his feet
+const FLIP_TIME := 0.55    ## the somersault when he jumps off a vine
+var flip_t := 0.0
+var flip_dir := 1.0
 var vine: Node2D = null
 var _vine_a := 0.0        ## angle from straight down
 var _vine_w := 0.0        ## angular speed
@@ -353,6 +356,10 @@ func _physics_process(delta: float) -> void:
 	invuln = maxf(invuln - delta, 0.0)
 	knock = maxf(knock - delta, 0.0)
 	attacking = maxf(attacking - delta, 0.0)
+	if flip_t > 0.0:
+		flip_t = maxf(flip_t - delta, 0.0)
+		if is_on_floor() or vine != null or knock > 0.0:
+			flip_t = 0.0
 	if attacking <= 0.0:
 		_combo_t += delta
 	throwing = maxf(throwing - delta, 0.0)
@@ -713,6 +720,9 @@ func _swing(delta: float, dir: float) -> void:
 	if jump_now and not _jump_prev:
 		var tangent := Vector2(cos(_vine_a), -sin(_vine_a)) * _vine_w * length
 		_let_go(tangent + Vector2(0, -320))
+		# off the vine with a somersault, turning the way he's flying
+		flip_t = FLIP_TIME
+		flip_dir = signf(velocity.x) if absf(velocity.x) > 40.0 else float(facing)
 	_jump_prev = jump_now
 
 
@@ -1125,6 +1135,16 @@ func _paint() -> void:
 			sx -= 0.03 * pop
 	var rot := float(facing) * PI * 0.5 if dead else 0.0
 	var base := Transform2D(rot, Vector2(ART * facing * sx, ART * sy), 0.0, Vector2.ZERO)
+	if flip_t > 0.0:
+		# the somersault: the whole figure turns once around his middle,
+		# quick through the top of the turn and easing out at the end,
+		# with a soft trail of the spin behind him
+		var k := 1.0 - flip_t / FLIP_TIME
+		var ang := flip_dir * TAU * (k * k * (3.0 - 2.0 * k))
+		var pivot := Vector2(0, -38)
+		_stm(Transform2D.IDENTITY)
+		_ac(pivot, 40.0, ang - PI * 0.5 - flip_dir * 1.8, ang - PI * 0.5, 14, Color(1, 1, 1, 0.22 * (1.0 - k)), 7.0)
+		base = Transform2D(0.0, pivot) * Transform2D(ang, Vector2.ZERO) * Transform2D(0.0, -pivot) * base
 
 	# ---- pelvis: rises through each stride, sinks on a landing, leans into a run
 	var bob := land_k * 9.0

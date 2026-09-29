@@ -380,6 +380,61 @@ class FireBurst extends Node2D:
 
 
 ## ================================================================ THE LONG DARK
+class FallenGiant extends Node2D:
+	## A giant tree that fell across the gorge long ago: a huge mossy trunk
+	## spanning it high up, its roots torn out of one cliff and its crown lost
+	## on the other, with old vines hanging down from it.
+	var w := 1500.0
+
+	func _ready() -> void:
+		z_index = -1
+
+	func _draw() -> void:
+		var b := Batch.new()
+		# the trunk, thick at the root end and tapering, a gentle sag
+		var top := PackedVector2Array()
+		var bot := PackedVector2Array()
+		for i in 25:
+			var k := i / 24.0
+			var x := k * w
+			var sag := sin(k * PI) * 18.0
+			var r := lerpf(34.0, 20.0, k)
+			top.append(Vector2(x, sag - r))
+			bot.append(Vector2(x, sag + r))
+		var trunk := PackedVector2Array(top)
+		for i in range(bot.size() - 1, -1, -1):
+			trunk.append(bot[i])
+		b.poly(trunk, Pal.BARK_DARK)
+		var lit := PackedVector2Array()
+		for i in 25:
+			lit.append(top[i] + Vector2(0, 5))
+		for i in range(24, -1, -1):
+			lit.append((top[i] + bot[i]) * 0.5 + Vector2(0, 4))
+		b.poly(lit, Pal.BARK)
+		# bark lines, and moss along the top
+		for i in 14:
+			var x := 40.0 + i * (w - 80.0) / 13.0
+			var k := x / w
+			var sag := sin(k * PI) * 18.0
+			b.line(Vector2(x, sag - 14.0), Vector2(x + 30.0, sag - 10.0), Pal.BARK_DARK, 2.5)
+			b.circle(Vector2(x + 12.0, sag - lerpf(34.0, 20.0, k) + 2.0), 7.0, Pal.CANOPY.lightened(0.1), 10)
+		# the torn roots at the near end, reaching down the cliff
+		for i in 6:
+			var a := PI * 0.55 + i * 0.22
+			var pts := PackedVector2Array([Vector2(0, 0)])
+			for j in 5:
+				pts.append(Vector2.from_angle(a + sin(j * 1.3 + i) * 0.2) * (18.0 + j * 16.0) + Vector2(-6, 0))
+			b.polyline(pts, Pal.BARK_DARK, 6.0 - i * 0.5)
+		b.circle(Vector2(0, 0), 36.0, Pal.BARK_DARK, 18)
+		b.circle(Vector2(0, 0), 26.0, Pal.BARK, 16)
+		for r in [8.0, 15.0, 21.0]:
+			b.arc(Vector2(0, 0), r, 0.0, TAU, 16, Pal.BARK_DARK, 1.5)
+		# broken branches at the far end
+		b.line(Vector2(w - 10.0, -10.0), Vector2(w + 70.0, -60.0), Pal.BARK_DARK, 9.0)
+		b.line(Vector2(w + 30.0, -30.0), Vector2(w + 60.0, -90.0), Pal.BARK_DARK, 6.0)
+		b.draw(self)
+
+
 class FireWave extends Node2D:
 	## The Firestone Hammer's slam: two walls of flame roll out along the ground
 	## from where it struck. Everything on that ground they pass through burns

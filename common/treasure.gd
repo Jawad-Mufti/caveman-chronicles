@@ -7,7 +7,7 @@
 class_name Treasure
 extends RefCounted
 
-const VALUE := {"shell": 1, "conch": 5, "amber": 25, "bone": 1}
+const VALUE := {"shell": 1, "conch": 5, "amber": 25, "bone": 1, "tusk": 5}
 
 
 ## Colours for each kind: [fill, light, dark outline, glow]
@@ -15,14 +15,15 @@ const LOOK := {
 	"shell": [Color("fbe6cf"), Color("f4b9a5"), Color("6d4a2e"), Color("ffe9c9")],
 	"conch": [Color("f2a97e"), Color("ffd9c0"), Color("6a3620"), Color("ffc6a0")],
 	"amber": [Color("e08a2c"), Color("ffd173"), Color("5e3210"), Color("ffb347")],
-	"bone": [Color("efe4cc"), Color("fffaf0"), Color("6e5d44"), Color("fff1d6")],
+	"bone": [Color("e9dcbc"), Color("fbf4e2"), Color("5e4d34"), Color("fff1d6")],
+	"tusk": [Color("f3e6c4"), Color("fffaf0"), Color("6b5530"), Color("fff4d8")],
 }
 
 
 ## Bones are building material, not money: counted on their own, and they
 ## come back on every visit. Everything else here is a shell of some kind.
 static func is_bone(kind: String) -> bool:
-	return kind == "bone"
+	return kind == "bone" or kind == "tusk"
 
 
 ## Draws one piece of treasure, centred on `at`, bold enough to read at night.
@@ -76,18 +77,67 @@ static func shape_into(b: Batch, kind: String, at: Vector2) -> void:
 				b.circle(at + Vector2(-12 + k * 5, 7 - k * 2), 1.6, dark.lightened(0.3), 6)
 			b.circle(at + Vector2(-7, -8), 2.6, Color(1, 1, 1, 0.85), 8)
 		"bone":
-			# a cartoon bone, lying a little crooked: a shaft and two knobbly ends
-			var r := Transform2D(-0.35, at)
-			var shaft := PackedVector2Array([Vector2(-12, -3.5), Vector2(12, -3.5), Vector2(12, 3.5), Vector2(-12, 3.5)])
-			b.poly(r * PackedVector2Array([Vector2(-13, -5.5), Vector2(13, -5.5), Vector2(13, 5.5), Vector2(-13, 5.5)]), dark)
-			for e in [Vector2(-13, -5), Vector2(-13, 5), Vector2(13, -5), Vector2(13, 5)]:
-				b.circle(r * e, 6.8, dark, 12)
-			b.poly(r * shaft, fill)
-			for e in [Vector2(-13, -5), Vector2(-13, 5), Vector2(13, -5), Vector2(13, 5)]:
-				b.circle(r * e, 5.2, fill, 12)
-			b.poly(r * PackedVector2Array([Vector2(-10, -3), Vector2(10, -3), Vector2(10, -1), Vector2(-10, -1)]), light)
-			b.circle(r * Vector2(-14, -6), 1.8, light, 8)
-			b.circle(r * Vector2(12, -6), 1.8, light, 8)
+			# a mammoth rib: the stuff Stone Age huts were built from. A long
+			# curved rib, knobbly at the joint end, weathered and cracked, with
+			# two bands of sinew tied round it
+			var outer := PackedVector2Array()
+			var inner := PackedVector2Array()
+			for i in 11:
+				var k := i / 10.0
+				var ang := lerpf(-2.5, -0.7, k)
+				var w := lerpf(5.5, 2.8, k)
+				outer.append(at + Vector2(0, 16) + Vector2.from_angle(ang) * (22.0 + w))
+				inner.append(at + Vector2(0, 16) + Vector2.from_angle(ang) * (22.0 - w))
+			var rib := PackedVector2Array(outer)
+			for i in range(inner.size() - 1, -1, -1):
+				rib.append(inner[i])
+			var edge := PackedVector2Array()
+			var c := at + Vector2(0, 2)
+			for p in rib:
+				edge.append(c + (p - c) * 1.12)
+			b.poly(edge, dark)
+			b.poly(rib, fill)
+			# the lit upper edge
+			var shine := PackedVector2Array()
+			for i in range(1, 9):
+				shine.append(outer[i] + (inner[i] - outer[i]) * 0.25)
+			b.polyline(shine, light, 2.0)
+			# the knobbly joint end
+			b.circle(outer[0].lerp(inner[0], 0.5) + Vector2(-2, 2), 6.5, dark, 12)
+			b.circle(outer[0].lerp(inner[0], 0.5) + Vector2(-2, 2), 5.2, fill, 12)
+			b.circle(outer[0].lerp(inner[0], 0.5) + Vector2(-3, 0), 1.8, light, 6)
+			# a weathering crack, and the sinew bands
+			b.line(outer[5].lerp(inner[5], 0.3), outer[6].lerp(inner[6], 0.6), dark.lightened(0.25), 1.2)
+			for i in [3, 7]:
+				b.line(outer[i] + (outer[i] - inner[i]).normalized() * 1.5, inner[i] - (outer[i] - inner[i]).normalized() * 1.5, Color("8a5a2c"), 3.0)
+		"tusk":
+			# a mammoth tusk: a great curve of ivory, thick at the root,
+			# ringed with growth lines, tied with a sinew band — worth five bones
+			var outer := PackedVector2Array()
+			var inner := PackedVector2Array()
+			for i in 13:
+				var k := i / 12.0
+				var ang := lerpf(2.6, 0.6, k)
+				var w := lerpf(8.0, 0.8, k)
+				var rad := 26.0 - k * 4.0
+				outer.append(at + Vector2(2, -14) + Vector2.from_angle(ang) * (rad + w))
+				inner.append(at + Vector2(2, -14) + Vector2.from_angle(ang) * (rad - w))
+			var tusk := PackedVector2Array(outer)
+			for i in range(inner.size() - 1, -1, -1):
+				tusk.append(inner[i])
+			var edge := PackedVector2Array()
+			var c := at + Vector2(0, 4)
+			for p in tusk:
+				edge.append(c + (p - c) * 1.1)
+			b.poly(edge, Color("6b5530"))
+			b.poly(tusk, Color("f3e6c4"))
+			for i in [2, 4, 6, 8]:
+				b.line(outer[i], inner[i], Color("c9b48a"), 1.4)
+			var shine := PackedVector2Array()
+			for i in range(1, 11):
+				shine.append(outer[i] + (inner[i] - outer[i]) * 0.3)
+			b.polyline(shine, Color("fffaf0"), 2.0)
+			b.line(outer[1] + (outer[1] - inner[1]).normalized() * 2.0, inner[1] - (outer[1] - inner[1]).normalized() * 2.0, Color("8a5a2c"), 4.0)
 		"amber":
 			# a faceted drop of amber with something caught inside
 			var drop := PackedVector2Array([at + Vector2(0, -17), at + Vector2(11, -6), at + Vector2(13, 5), at + Vector2(6, 14),
@@ -468,7 +518,7 @@ class ShellTotem extends Area2D:
 			if GameState.is_taken(level_id, tid):
 				continue
 			var p := Pickup.new()
-			p.kind = "conch" if _given == 12 else "bone"
+			p.kind = "conch" if _given == 12 else ("shell" if _given % 2 == 0 else "bone")
 			p.level_id = level_id
 			p.id = tid
 			p.position = global_position + Vector2(0, -44)
@@ -550,7 +600,7 @@ class GoldenHare extends Critter:
 		super._begin_death(from_dir)
 		dying = 0.01
 		# a shower of treasure where it was
-		var kinds := ["conch", "bone", "bone", "bone", "bone", "bone", "bone", "bone", "bone"]
+		var kinds := ["conch", "shell", "shell", "shell", "bone", "bone", "bone", "tusk"]
 		for i in kinds.size():
 			var tid := "%s_%d" % [id, i]
 			if GameState.is_taken(level_id, tid):
