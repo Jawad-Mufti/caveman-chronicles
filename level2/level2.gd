@@ -8,13 +8,14 @@ extends LevelBase
 ##   The Mountain (5680-8750)   a hard climb in the wind; a crevice stash; a lookout
 ##   The Great Tree (8750-10120) climb it, cross the chasm on its bough, mind the monkeys.
 ##                              At the very top: Old Bongo, the monkey king, who talks.
-##   Far side (10120-12300)      last bonfire, a dead snag to climb back up, wolves running scared
-##   The Long Dark (12300-14400) the roar that snuffs his torch; fireflies; vines; crumbling rock
-##   The Toolmaker (14400-15080) his home under a rock overhang: the forge
+##   Far side (10120-12200)      last bonfire, a dead snag to climb back up, wolves running scared
+##   The Boulder Run (12200-14200) a boulder breaks loose and rolls after him: run!
+##   The Long Dark (14300-16400) the roar that snuffs his torch; fireflies; vines; crumbling rock
+##   The Toolmaker (16400-17080) his home under a rock overhang: the forge
 ##                              (Firestone -> the Firestone Hammer) and his shop
-##   The Three Fires (15080-16000) a trial: a cracked boulder, wolves, and three
+##   The Three Fires (17080-18000) a trial: a cracked boulder, wolves, and three
 ##                              stone bowls to light; they burn the gate down
-##   Old Scar's clearing (15100-16400) the boss
+##   Old Scar's clearing (17100-18400) the boss
 ##
 ## The story: Old Bongo has lost the key to his banana box in one of two
 ## caves, and he'll trade the gem for it. Which cave is decided fresh each
@@ -27,14 +28,14 @@ extends LevelBase
 ## what was found.
 
 const GROUND_Y := 600.0
-const LEVEL_W := 17300.0
+const LEVEL_W := 19300.0
 const FALL_Y := 1020.0
 
 ## Reachability budget: a jump climbs ~133 px and carries ~227 px. Every step
 ## here asks for 100-125 up; the mountain's are the ones near the top of that.
 ## Ground runs: [x0, x1] at GROUND_Y.
 const FLOORS := [[0.0, 1500.0], [1640.0, 2600.0], [2760.0, 2900.0], [3350.0, 4060.0], [5420.0, 5680.0], [8750.0, 9400.0],
-	[10120.0, 12600.0], [13000.0, 13300.0], [13700.0, 13950.0], [14400.0, LEVEL_W]]
+	[10120.0, 12620.0], [12730.0, 13100.0], [13230.0, 13640.0], [13780.0, 13940.0], [14100.0, 14600.0], [15000.0, 15300.0], [15700.0, 15950.0], [16400.0, LEVEL_W]]
 ## The hollow where the pack waits: [x, floor y, width].
 const HOLLOW := [2900.0, 700.0, 450.0]
 const LEDGES := [
@@ -169,32 +170,43 @@ const NEST := [24330.0, 380.0]
 
 ## ---------------------------------------------------------------- the Long Dark
 ## [anchor x, anchor y, length]: the grip hangs at anchor y + length.
-const VINES := [[12800.0, 330.0, 190.0], [14090.0, 320.0, 200.0], [14260.0, 320.0, 200.0]]
+const VINES := [[14800.0, 330.0, 190.0], [16090.0, 320.0, 200.0], [16260.0, 320.0, 200.0]]
 ## [x, top y, width]: rotten rock over the second pit.
-const CRUMBLES := [[13330.0, 600.0, 80.0], [13460.0, 600.0, 80.0], [13590.0, 600.0, 80.0]]
-const FIREFLIES := [[12500.0, 520.0], [12800.0, 440.0], [13150.0, 520.0], [13500.0, 480.0], [13820.0, 520.0], [14170.0, 420.0]]
+const CRUMBLES := [[15330.0, 600.0, 80.0], [15460.0, 600.0, 80.0], [15590.0, 600.0, 80.0]]
+const FIREFLIES := [[14500.0, 520.0], [14800.0, 440.0], [15150.0, 520.0], [15500.0, 480.0], [15820.0, 520.0], [16170.0, 420.0]]
 ## eyes in the trees, watching
-const WATCHERS := [[11650.0, 430.0], [12400.0, 400.0], [13220.0, 380.0], [13950.0, 390.0]]
-const CLAW_MARKS := [[11850.0, 470.0], [13080.0, 460.0]]
+const WATCHERS := [[11650.0, 430.0], [14400.0, 400.0], [15220.0, 380.0], [15950.0, 390.0]]
+const CLAW_MARKS := [[11850.0, 470.0], [15080.0, 460.0]]
 const PANIC_AT := 11650.0          ## the wolves come running past here
-const SNUFF_AT := 12350.0         ## the roar, and the dark
+const SNUFF_AT := 14350.0         ## the roar, and the dark
+## ---------------------------------------------------------------- the Boulder Run
+## A boulder on a crumbling ledge breaks loose as he passes beneath it and
+## rolls after him down the pass: over fallen logs (it smashes them), across
+## gaps, until it plunges into the ravine at the end — and the crash shakes a
+## stash loose from the cliff. Caught, or fallen, he starts the run again.
+const RUN_START := 12240.0
+const RUN_TRIGGER := 12330.0
+const RUN_LEDGE := Vector2(12110.0, 520.0)
+const RUN_LOGS := [12930.0, 13380.0, 13540.0]
+const RUN_RAVINE := [13940.0, 14100.0]
+const RUN_STASH := ["shell", "shell", "shell", "shell", "conch", "tusk", "bone", "bone", "bone", "bone"]
 
 ## ---------------------------------------------------------------- the end
-const TOOLMAKER_AT := Vector2(14760, 600)
-const CAMP_AT := Vector2(14700, 600)       ## his home under the overhang
+const TOOLMAKER_AT := Vector2(16760, 600)
+const CAMP_AT := Vector2(16700, 600)       ## his home under the overhang
 ## The Three Fires: a trial between his home and the clearing. A cracked
 ## boulder bars the way; a pack of wolves waits in the dark; three stone bowls
 ## must all burn — then the old palisade across the path burns down.
-const TRIAL_ROCK := Vector2(15170, 600)
-const TRIAL_BOWLS := [[15340.0, 600.0], [15590.0, 480.0], [15830.0, 600.0]]
-const TRIAL_LEDGE := [15520.0, 480.0, 140.0]
-const TRIAL_WOLVES := [[15260.0, 15900.0, 15460.0], [15260.0, 15900.0, 15700.0], [15260.0, 15900.0, 15880.0]]
-const TRIAL_GATE_X := 15950.0
-const ARENA := Rect2(16000, -900, 1300, 2100)
-const BRAZIERS := [[16120.0, 600.0], [17040.0, 600.0]]
-const LAIR_X := 17220.0           ## his lair's mouth, in the rock at the far end
-const ARENA_LEDGES := [[16300.0, 480.0, 140.0], [16860.0, 480.0, 140.0]]
-const BONGO_PERCH := Vector2(16070, 330)
+const TRIAL_ROCK := Vector2(17170, 600)
+const TRIAL_BOWLS := [[17340.0, 600.0], [17590.0, 480.0], [17830.0, 600.0]]
+const TRIAL_LEDGE := [17520.0, 480.0, 140.0]
+const TRIAL_WOLVES := [[17260.0, 17900.0, 17460.0], [17260.0, 17900.0, 17700.0], [17260.0, 17900.0, 17880.0]]
+const TRIAL_GATE_X := 17950.0
+const ARENA := Rect2(18000, -900, 1300, 2100)
+const BRAZIERS := [[18120.0, 600.0], [18960.0, 600.0]]
+const LAIR_X := 19150.0           ## his lair's mouth, in the rock at the far end
+const ARENA_LEDGES := [[18300.0, 480.0, 140.0], [18860.0, 480.0, 140.0]]
+const BONGO_PERCH := Vector2(18070, 330)
 
 ## ---------------------------------------------------------------- treasure
 ## Two kinds of find, in a fair mix. SHELLS (shell 1, conch 5, amber 25) are
@@ -231,9 +243,12 @@ const SHELL_POINTS := [
 	[9095.0, 466.0], [9345.0, 354.0], [9090.0, 242.0], [9340.0, 130.0],   # up the great tree
 	[9105.0, -94.0], [9335.0, -207.0], [9110.0, -320.0, "shell"],            # on up to Bongo
 	[10485.0, 354.0], [10485.0, 130.0],                               # up the snag
-	[12660.0, 470.0], [12740.0, 520.0], [12860.0, 520.0], [12940.0, 470.0],   # the first vine's swing
-	[13370.0, 560.0], [13500.0, 560.0], [13630.0, 560.0],           # the crumbling bridge
-	[14020.0, 480.0], [14175.0, 520.0], [14340.0, 480.0],           # the two vines
+	[14660.0, 470.0], [14740.0, 520.0], [14860.0, 520.0], [14940.0, 470.0],   # the first vine's swing
+	[15370.0, 560.0], [15500.0, 560.0], [15630.0, 560.0],           # the crumbling bridge
+	[16020.0, 480.0], [16175.0, 520.0], [16340.0, 480.0],           # the two vines
+	# the Boulder Run: shells over the gaps (no time to stop for them!), bones on the way
+	[12680.0, 520.0, "shell"], [13170.0, 520.0, "shell"], [13715.0, 520.0, "shell"],
+	[12820.0, 560.0], [13000.0, 500.0], [13300.0, 560.0], [13460.0, 500.0], [13860.0, 560.0],
 	# the Hanging Gorge: along the swings, shells up at the top of them,
 	# and a tusk and a conch waiting on the resting ledge
 	[4230.0, 500.0], [4290.0, 520.0], [4350.0, 500.0],
@@ -245,18 +260,18 @@ const SHELL_POINTS := [
 	# up in the air over the path: a jump gets these...
 	[1090.0, 482.0], [1130.0, 472.0], [1170.0, 482.0],
 	[10720.0, 482.0], [10760.0, 472.0],
-	[14490.0, 478.0],
+	[16490.0, 478.0],
 	[20700.0, 478.0], [20740.0, 470.0],
 	# ...and these, higher, need the double jump
 	[3420.0, 352.0, "shell"], [3460.0, 342.0, "shell"], [3500.0, 352.0, "shell"],
 	[8890.0, 348.0, "shell"], [8930.0, 342.0, "shell"],
-	[13790.0, 348.0, "shell"], [13830.0, 342.0, "shell"],
+	[15790.0, 348.0, "shell"], [15830.0, 342.0, "shell"],
 ]
 ## Conches (5): out-of-the-way spots.
 const CONCHES := [
 	[4630.0, 490.0],
 	[1000.0, 470.0], [2400.0, 370.0], [3310.0, 670.0], [6080.0, 690.0], [7680.0, -300.0], [8140.0, -320.0],
-	[9150.0, -430.0], [10360.0, 20.0], [11180.0, 460.0], [12930.0, 430.0], [21900.0, 670.0], [22260.0, 350.0],
+	[9150.0, -430.0], [10360.0, 20.0], [11180.0, 460.0], [14930.0, 430.0], [21900.0, 670.0], [22260.0, 350.0],
 	[24300.0, 570.0], [24160.0, 460.0],
 ]
 ## [x, y, secret]: amber (25), one in each secret place.
@@ -267,17 +282,17 @@ const MOUND := ["bone", "shell", "bone", "shell", "bone", "shell", "tusk", "conc
 const BREAKABLES := [
 	[640.0, 600.0, "log", LOG], [1950.0, 600.0, "mound", MOUND], [3480.0, 600.0, "log", LOG],
 	[7580.0, -278.0, "mound", MOUND], [10800.0, 600.0, "log", LOG],
-	[13180.0, 600.0, "mound", MOUND], [14490.0, 600.0, "log", LOG],
+	[15180.0, 600.0, "mound", MOUND], [16490.0, 600.0, "log", LOG],
 	[21050.0, 700.0, "log", LOG], [24050.0, 600.0, "mound", MOUND],
 ]
 ## Clay pots, in little groups: one smack each, a few shells. [x, surface y, how many]
 const POTS := [
 	[5520.0, 600.0, 2],
 	[330.0, 600.0, 2], [2170.0, 490.0, 2], [3640.0, 600.0, 3], [7490.0, -278.0, 2], [9170.0, 600.0, 2],
-	[10180.0, 600.0, 2], [12520.0, 600.0, 2], [14620.0, 600.0, 3], [20500.0, 600.0, 2], [23000.0, 600.0, 2],
+	[10180.0, 600.0, 2], [14520.0, 600.0, 2], [16620.0, 600.0, 3], [20500.0, 600.0, 2], [23000.0, 600.0, 2],
 ]
 ## Shell Totems: carved faces that spit two shells per hit, six hits.
-const TOTEMS := [[2470.0, 600.0], [8000.0, -30.0], [13070.0, 600.0], [24180.0, 600.0]]
+const TOTEMS := [[2470.0, 600.0], [8000.0, -30.0], [15070.0, 600.0], [24180.0, 600.0]]
 ## Monkey stashes: a log marked with a red X — a fountain of treasure.
 const STASH := ["bone", "shell", "bone", "shell", "bone", "shell", "bone", "shell", "bone", "shell", "tusk", "conch", "conch"]
 const STASHES := [[9320.0, 600.0], [9170.0, -418.0]]
@@ -293,9 +308,9 @@ const SECRETS := ["crevice", "lookout", "weeping", "rattling"]
 const DARKNESS := [[0.0, 0.26], [700.0, 0.40], [1500.0, 0.62], [2600.0, 0.72], [3600.0, 0.74],
 	[3950.0, 0.64], [4300.0, 0.50], [5400.0, 0.50], [5800.0, 0.60],                       # the gorge: the last light of dusk
 	[6000.0, 0.62], [6700.0, 0.56], [7400.0, 0.50], [8300.0, 0.60], [8800.0, 0.70], [9300.0, 0.64],
-	[10200.0, 0.72], [11700.0, 0.76], [12300.0, 0.86], [12400.0, 0.92], [14350.0, 0.92],   # the Long Dark
-	[14500.0, 0.74], [15050.0, 0.76], [15150.0, 0.88], [15950.0, 0.88],                   # his home; the Three Fires
-	[16000.0, 0.82], [17300.0, 0.82],                                                     # the clearing
+	[10200.0, 0.72], [11700.0, 0.76], [12150.0, 0.70], [14150.0, 0.72], [14300.0, 0.86], [14400.0, 0.92], [16350.0, 0.92],   # the Long Dark
+	[16500.0, 0.74], [17050.0, 0.76], [17150.0, 0.88], [17950.0, 0.88],                   # his home; the Three Fires
+	[18000.0, 0.82], [19300.0, 0.82],                                                     # the clearing
 	[20250.0, 0.92], [24600.0, 0.92]]   # the caves: near black
 
 var night: Night
@@ -354,6 +369,7 @@ func _ready() -> void:
 	_build_tree_life()
 	_build_caves()
 	_build_gorge()
+	_build_boulder_run()
 	_build_long_dark()
 	_build_the_end()
 	_build_treasure()
@@ -850,6 +866,93 @@ func _update_elder(delta: float) -> void:
 
 
 ## ---------------------------------------------------------------- the Long Dark
+## ---------------------------------------------------------------- the Boulder Run
+var _boulder: NightWoods.RollingBoulder
+var _run_logs: Array = []
+var _run_on := false
+var _run_done := false
+
+
+func _build_boulder_run() -> void:
+	var ledge := NightWoods.BoulderLedge.new()
+	ledge.position = RUN_LEDGE
+	add_child(ledge)
+	_boulder = NightWoods.RollingBoulder.new()
+	_boulder.position = Vector2(RUN_LEDGE.x + 10.0, RUN_LEDGE.y - 80.0 - NightWoods.RollingBoulder.R)
+	_boulder.road_y = GROUND_Y
+	_boulder.ravine_x = RUN_RAVINE[0]
+	_boulder.crashed.connect(_on_boulder_crashed)
+	add_child(_boulder)
+	for k in RUN_STASH:
+		_count_treasure(k)
+	for x in RUN_LOGS:
+		var log := NightWoods.FallenLog.new()
+		log.position = Vector2(x, GROUND_Y)
+		add_child(log)
+		_run_logs.append(log)
+
+
+func _update_boulder_run(_delta: float) -> void:
+	if _run_done or _boulder == null:
+		return
+	var p := player.global_position
+	if not _run_on:
+		if p.x > RUN_TRIGGER and p.x < RUN_RAVINE[1] and not player.dead:
+			_run_on = true
+			_boulder.release()
+			shake(10.0, 0.5)
+			hud.say("CRACK! The ledge gives way — a BOULDER! RUN!!", 3.5)
+		return
+	if player.dead:
+		_reset_run(false)
+		return
+	var bx := _boulder.position.x
+	# the logs it reaches are smashed to splinters
+	for log in _run_logs:
+		if not log.smashed and bx + NightWoods.RollingBoulder.R > log.position.x - 40.0:
+			log.smash()
+			shake(6.0, 0.2)
+	# the ground rumbles, harder the closer it gets
+	var gap := p.x - bx
+	if _boulder.state in ["drop", "roll"]:
+		shake(clampf(1.0 - gap / 700.0, 0.0, 1.0) * 6.0 + 1.0, 0.08)
+		# caught!
+		if absf(gap) < NightWoods.RollingBoulder.R + 12.0 and p.y > _boulder.position.y - NightWoods.RollingBoulder.R - 50.0:
+			_reset_run(true)
+			return
+	# fell into one of the gaps
+	if p.y > GROUND_Y + 90.0 and p.x > RUN_START and p.x < RUN_RAVINE[0]:
+		_reset_run(true)
+
+
+## Flattened, or fallen: back to the start of the pass, boulder back on its ledge.
+func _reset_run(hurt: bool) -> void:
+	_run_on = false
+	_boulder.reset()
+	for log in _run_logs:
+		log.restore()
+	if hurt:
+		player.hurt(1, player.global_position.x - 40.0)
+		if not player.dead:
+			player.respawn_at(Vector2(RUN_START, GROUND_Y - 10.0))
+			player.facing = 1
+			hud.say("FLATTENED! Back you go — and this time, don't stop running!", 3.0)
+
+
+func _on_boulder_crashed() -> void:
+	_run_on = false
+	_run_done = true
+	shake(14.0, 0.8)
+	hud.say("It plunges into the ravine — CRASH!! Something shakes loose from the cliff...", 4.0)
+	var box := Treasure.Breakable.new()
+	box.kind = "stash"
+	box.contents = RUN_STASH
+	box.level_id = "level2"
+	box.id = "rstash"
+	box.position = Vector2(RUN_RAVINE[1] + 110.0, GROUND_Y)
+	add_child(box)
+
+
 ## The Hanging Gorge: the fallen giant, its vines, the ledge, the crumbling stones.
 func _build_gorge() -> void:
 	var giant := NightWoods.FallenGiant.new()
@@ -907,7 +1010,7 @@ func _update_long_dark() -> void:
 			wolf.panic = true
 			wolf.panic_end = 11360.0
 			wolf.left_x = 10700.0
-			wolf.right_x = 12700.0
+			wolf.right_x = 14700.0
 			wolf.position = Vector2(x + 720.0 + i * 70.0, GROUND_Y)
 			add_child(wolf)
 		hud.say("The wolves come running — straight past him. They're running FROM something.", 4.5)
@@ -969,6 +1072,7 @@ func _build_the_end() -> void:
 	for l in ARENA_LEDGES:
 		scar.ledges.append([l[0], l[0] + l[2], l[1]])
 	scar.braziers = arena_bowls
+	scar.siege_wave.connect(_on_siege_wave)
 	scar.rock_in_teeth.connect(func() -> void:
 		hud.say("A rock right in the teeth! He's reeling — hit him!", 3.0))
 	scar.roared.connect(_on_scar_roar)
@@ -984,7 +1088,7 @@ func _build_the_end() -> void:
 	arena_bongo.visible = false
 	add_child(arena_bongo)
 	player.died.connect(_on_died_in_fight)
-	_note(13900, "Firelight ahead, under the rocks. Someone lives out here.", 3.0)
+	_note(15900, "Firelight ahead, under the rocks. Someone lives out here.", 3.0)
 
 
 ## ---------------------------------------------------------------- the Three Fires
@@ -1295,6 +1399,7 @@ func _update_fight(delta: float) -> void:
 			_start_fight()
 		return
 	hud.set_boss(scar.ratio())
+	_update_siege(delta)
 	# Old Bongo, in the treetops: helps only if the troop was spared
 	_bongo_cd -= delta
 	if monkey_kills == 0 and _bongo_helps < 2 and _bongo_cd <= 0.0 and player.hp <= 2:
@@ -1341,9 +1446,87 @@ func _on_scar_roar() -> void:
 		add_child(rock)
 
 
+## ---------------------------------------------------------------- the siege
+## At half his health Old Scar leaps onto his lair rock and howls, and the
+## night answers in three waves — 2 wolves, then 3, then 4 bats out of his
+## cave. The wolves he calls are in a frenzy: the torch won't hold them off.
+var _wave: Array = []            ## what's still alive of the current wave
+var _wave_n := 0
+var _wave_clear := -1.0          ## counting down to the next wave, once one is beaten
+
+
+func _on_siege_wave(n: int) -> void:
+	_wave_n = n
+	_wave_clear = -1.0
+	_wave.clear()
+	match n:
+		1:
+			hud.say("Old Scar leaps onto his rock and HOWLS — and the pack answers! TWO WOLVES!", 4.0)
+			_wave_wolf(ARENA.position.x + 70.0)
+			_wave_wolf(LAIR_X - 160.0)
+		2:
+			hud.say("He howls again — THREE WOLVES this time!", 3.5)
+			_wave_wolf(ARENA.position.x + 70.0)
+			_wave_wolf((ARENA.position.x + ARENA.end.x) * 0.5)
+			_wave_wolf(LAIR_X - 160.0)
+		3:
+			hud.say("BATS! They pour out of his lair!", 3.5)
+			for i in 4:
+				var bat := NightBeasts.Bat.new()
+				bat.ground_y = GROUND_Y
+				bat.position = Vector2(LAIR_X - 60.0 - i * 26.0, GROUND_Y - 110.0 - (i % 2) * 34.0)
+				bat.roam_x = 1100.0
+				bat.roam_y = 240.0
+				add_child(bat)
+				_wave.append(bat)
+
+
+func _wave_wolf(x: float) -> void:
+	var wolf := NightBeasts.Wolf.new()
+	wolf.left_x = ARENA.position.x + 60.0
+	wolf.right_x = ARENA.end.x - 60.0
+	wolf.position = Vector2(x, GROUND_Y)
+	wolf.frenzy = true
+	add_child(wolf)
+	# the pack he calls: many of them, each a little lighter than a wolf of the woods
+	wolf.hp = 5
+	wolf.lunge_cd = randf_range(0.6, 1.6)
+	wolf.state = "hunt"
+	_wave.append(wolf)
+
+
+func _update_siege(delta: float) -> void:
+	if _wave_n == 0 or _wave_n > 3:
+		return
+	if _wave_clear < 0.0:
+		var alive := _wave.filter(func(c): return is_instance_valid(c) and c.dying <= 0.0)
+		if alive.is_empty():
+			_wave_clear = 1.6
+			if _wave_n == 3:
+				hud.say("The last of them falls... Old Scar crouches on his rock — HE'S COMING DOWN!", 3.5)
+			else:
+				hud.say("Beaten back! But he's drawing breath to howl again...", 2.5)
+		return
+	_wave_clear -= delta
+	if _wave_clear <= 0.0:
+		_wave_clear = -1.0
+		if _wave_n == 3:
+			_wave_n = 4
+		scar.next_wave()
+
+
+func _clear_siege() -> void:
+	for c in _wave:
+		if is_instance_valid(c):
+			c.queue_free()
+	_wave.clear()
+	_wave_n = 0
+	_wave_clear = -1.0
+
+
 func _on_scar_phase(ph: int) -> void:
 	if ph == 2:
-		hud.say("OLD BONGO:  \"He'll roar your fire out! Light the stone bowls — relight there!\"", 4.0)
+		hud.say("OLD BONGO:  \"He's calling the others! Beat them, and he'll have to come down to you!\"", 4.0)
 	elif ph == 3:
 		hud.say("OLD BONGO:  \"He's charging blind! Step aside — let him hit the rocks!\"", 4.0)
 
@@ -1351,9 +1534,18 @@ func _on_scar_phase(ph: int) -> void:
 func _on_died_in_fight() -> void:
 	if not _fight:
 		return
-	# back to the Toolmaker's fire; the beast goes back into the dark
+	# back to the Toolmaker's fire; the beast goes back into the dark. A
+	# checkpoint: once the siege has been beaten, he comes back at half his
+	# health with it behind him, rather than all of it to do again.
 	_fight = false
+	var siege_beaten := scar._siege >= 4
+	_clear_siege()
 	scar.reset_fight()
+	if siege_beaten:
+		scar.hp = OldScar.MAX_HP / 2
+		scar.phase = 2
+		scar._siege = 4
+		hud.say("Old Scar still bears his wounds — and the pack he called is gone.", 3.5)
 	arena_bongo.visible = false
 	_gate.get_child(0).set_deferred("disabled", true)
 	hud.set_boss(-1.0)
@@ -1600,4 +1792,5 @@ func _process(delta: float) -> void:
 		_time += delta
 	_update_long_dark()
 	_update_toolmaker()
+	_update_boulder_run(delta)
 	_update_fight(delta)

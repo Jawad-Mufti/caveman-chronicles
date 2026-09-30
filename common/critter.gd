@@ -196,6 +196,12 @@ func _stm(m: Transform2D) -> void:
 	_bb.set_xf(m)
 
 
+## Knocked flat by a heavy blow (the hammer): most creatures shrug it off;
+## some are stunned for `secs`.
+func stagger(_from_dir: int, _secs: float) -> void:
+	pass
+
+
 ## What the creature looks like. Each kind of creature draws itself here.
 func _paint() -> void:
 	pass

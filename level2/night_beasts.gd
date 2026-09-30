@@ -48,10 +48,16 @@ class Wolf extends Critter:
 	var night: Night
 	var _stride := 0.0       ## gait phase, driven by distance covered so paws do not slide
 	var _moving := 0.0
+	## Tougher now that he has weapons: nine health, it snaps back when hit,
+	## bites twice, and only a strong light turns its leap. Some flank him.
+	var frenzy := false      ## called by Old Scar: the light doesn't hold it back at all
+	var flank := false       ## in the dark it darts past him, to bite from behind
+	var _second := false     ## its follow-up bite is used
 
 	func _setup() -> void:
-		# 6 health, like the lizard: two clubs or two rocks. The fire kills outright.
-		hp = 6
+		hp = 7
+		flank = randf() < 0.4
+		self_modulate = Color(0.84, 0.82, 0.86)     # a darker, meaner coat
 		damage = 0
 		stomp_top = -36.0
 		add_rect_shape(Vector2(60, 34), Vector2(0, -19))
@@ -149,11 +155,44 @@ class Wolf extends Critter:
 			return
 		queue_redraw()
 
+	## Fire is what a wolf fears most: a fire burst (the wood he spends on it)
+	## kills one outright.
+	func burned(_dmg: int, from: Vector2) -> void:
+		if dying > 0.0:
+			return
+		take_hit(maxi(hp, 1), 1 if global_position.x > from.x else -1)
+
+	## The hammer's rolling fire: it hurts, and it knocks the wolf flat.
+	func fire_wave(dmg: int, from: Vector2) -> void:
+		if dying > 0.0:
+			return
+		var d := 1 if global_position.x > from.x else -1
+		take_hit(dmg, d)
+		stagger(d, 0.9)
+
+	## Knocked flat by the hammer: thrown back and stunned, no snapping back.
+	func stagger(from_dir: int, secs: float) -> void:
+		if dying > 0.0 or hp <= 0:
+			return
+		state = "recoil"
+		vel = Vector2(from_dir * 300.0, -260.0)
+		timer = secs
+		damage = 0
+
+	## Hit, it doesn't run any more: it staggers, then snaps straight back.
 	func _on_hit(from_dir: int) -> void:
 		position.x = clampf(position.x + from_dir * 16.0, left_x, right_x)
 		if hp > 0 and state != "recoil":
-			state = "flee"
-			timer = 0.9
+			if randf() < 0.5:
+				# it snaps straight back at him
+				state = "crouch"
+				timer = 0.45
+				lunge_cd = 0.0
+				dir = -from_dir
+			else:
+				# or backs off a few steps, snarling, to come again
+				state = "flee"
+				timer = 0.5
 
 	func _level() -> bool:
 		return absf(player.global_position.y - floor_y) < 60.0
@@ -208,6 +247,8 @@ class Wolf extends Critter:
 				queue_free()
 			return
 		var dx := player.global_position.x - position.x
+		if frenzy and state in ["patrol", "stalk", "cower"]:
+			state = "hunt"
 		match state:
 			"patrol":
 				_patrol(delta)
@@ -284,30 +325,33 @@ class Wolf extends Critter:
 				and Time.get_ticks_msec() - _last_lunge_ms > 1300 and player.invuln <= 0.0:
 			_last_lunge_ms = Time.get_ticks_msec()
 			state = "crouch"
-			timer = 0.5
+			timer = 0.38
 
 	## In the dark he is simply prey: close in, and leap from close range.
 	## No turn-taking here — the pack comes in together.
 	func _hunt(dx: float, delta: float) -> void:
-		if _shelter() > 0.0 or not _level():
+		if not frenzy and (_shelter() > 0.0 or not _level()):
 			state = "stalk"
 			return
 		dir = 1 if dx > 0.0 else -1
-		if absf(dx) > 120.0:
-			_move_to(player.global_position.x - signf(dx) * 100.0, HUNT, delta, false)
+		# a flanker goes round to his far side, to come at him from behind
+		var side := signf(dx) if flank else -signf(dx)
+		var want := clampf(player.global_position.x + side * 100.0, left_x, right_x)
+		if absf(want - position.x) > 20.0:
+			_move_to(want, HUNT * (1.25 if frenzy else 1.0), delta, false)
 		if lunge_cd <= 0.0 and absf(dx) < 260.0 and player.invuln <= 0.0:
 			state = "crouch"
-			timer = 0.3
+			timer = 0.24
 
 	func _leap(dx: float) -> void:
 		var land := clampf(player.global_position.x, left_x, right_x)
 		var d := clampf(land - position.x, -470.0, 470.0)
 		if absf(d) < 30.0:
 			d = 30.0 * signf(dx if dx != 0.0 else 1.0)
-		vel = Vector2(d / 0.5, -430.0)
+		vel = Vector2(d / 0.42, -430.0)
 		state = "lunge"
 		resolved = false
-		lunge_cd = randf_range(1.0, 1.8) if _shelter() <= 0.0 else randf_range(2.6, 4.6)
+		lunge_cd = randf_range(1.1, 1.8) if frenzy else (randf_range(0.8, 1.4) if _shelter() <= 0.0 else randf_range(2.2, 3.8))
 
 	func _fly(delta: float) -> void:
 		vel.y += GRAV * delta
@@ -317,14 +361,22 @@ class Wolf extends Critter:
 			var ddy := absf((player.global_position.y - 30.0) - (position.y - 18.0))
 			if ddx < 58.0 and ddy < 70.0:
 				resolved = true
-				if _shelter() >= 0.5:
+				# only a strong light turns it now — and a frenzied one, nothing
+				if not frenzy and _shelter() >= 0.75:
 					_yelp()
 					return
 		if position.y >= floor_y and vel.y > 0.0:
 			position.y = floor_y
 			vel = Vector2.ZERO
 			position.x = clampf(position.x, left_x, right_x)
-			state = "stalk"
+			# landed right by him after a bite: now and then it snaps again at once
+			if resolved and not _second and absf(player.global_position.x - position.x) < 110.0 and randf() < 0.5:
+				_second = true
+				state = "crouch"
+				timer = 0.2
+				return
+			_second = false
+			state = "hunt" if frenzy else "stalk"
 
 	## The leap broke on the light. It flinches back and stays stunned.
 	func _yelp() -> void:
@@ -401,9 +453,12 @@ class Wolf extends Critter:
 			body[i] = body[i] + Vector2(stretch * (body[i].x * 0.18), shiver)
 		_shape(body, Pal.WOLF)
 		_fill(_pts_oval(Vector2(0, -20 + sink * 0.6), 17.0, 3.5), Pal.WOLF_BELLY)
-		for i in 5:
-			var rx := 8.0 + i * 5.0
-			_fill(PackedVector2Array([Vector2(rx - 3, -38 + sink * 1.3), Vector2(rx, -46 + sink * 1.3), Vector2(rx + 3, -38 + sink * 1.3)]), Pal.WOLF_DARK)
+		# hackles: a bristling ridge along the neck and back, raised high when it attacks
+		var bristle := 1.6 if state in ["crouch", "lunge", "hunt"] else 1.0
+		for i in 9:
+			var rx := -14.0 + i * 5.0
+			var hgt := (7.0 + sin(i * 1.7) * 2.0) * bristle
+			_fill(PackedVector2Array([Vector2(rx - 3, -38 + sink * 1.3), Vector2(rx + 1, -38 - hgt + sink * 1.3), Vector2(rx + 3, -38 + sink * 1.3)]), Pal.WOLF_DARK)
 		# near legs
 		_legs(1.0, ph, gait, sink, stretch, Pal.WOLF)
 		# head: low and level when it stalks, thrown forward when it leaps
@@ -412,15 +467,21 @@ class Wolf extends Critter:
 		var ears := -9.0 if tuck > 0.0 else 0.0
 		_shape(PackedVector2Array([Vector2(hx + 2, hy - 8 + ears * 0.2), Vector2(hx + 3, hy - 20 - ears), Vector2(hx + 8, hy - 9)]), Pal.WOLF_DARK, 2.0)
 		_shape(PackedVector2Array([Vector2(hx + 7, hy - 9), Vector2(hx + 10, hy - 20 - ears), Vector2(hx + 13, hy - 8)]), Pal.WOLF, 2.0)
-		var snarl := 3.0 if state == "crouch" or state == "lunge" or state == "hunt" else 0.0
+		# it always shows its teeth now; wider when it attacks
+		var snarl := 3.0 if state == "crouch" or state == "lunge" or state == "hunt" else 1.5
 		var head := PackedVector2Array([
 			Vector2(hx - 6, hy - 2), Vector2(hx + 4, hy - 10), Vector2(hx + 14, hy - 8), Vector2(hx + 26, hy - 3),
 			Vector2(hx + 29, hy + 1), Vector2(hx + 26, hy + 4 + snarl), Vector2(hx + 12, hy + 7 + snarl), Vector2(hx - 2, hy + 8)])
 		_shape(head, Pal.WOLF)
 		_fill(_pts_oval(Vector2(hx + 16, hy + 4 + snarl * 0.5), 9.0, 2.2), Pal.WOLF_BELLY)
 		_cc(Vector2(hx + 28, hy), 2.4, Pal.OUTLINE)
+		# an old scar across its muzzle
+		_ln(Vector2(hx + 12, hy - 7), Vector2(hx + 22, hy + 1), Pal.WOLF_BELLY.lightened(0.2), 1.6, true)
 		if snarl > 0.0:
 			_ln(Vector2(hx + 14, hy + 3), Vector2(hx + 26, hy + 2), Pal.MAW, 2.0, true)
+			# long fangs, top and bottom
+			_fill(PackedVector2Array([Vector2(hx + 23, hy + 1), Vector2(hx + 25.5, hy + 1), Vector2(hx + 24.5, hy + 8)]), Pal.TOOTH)
+			_fill(PackedVector2Array([Vector2(hx + 17, hy + 6 + snarl), Vector2(hx + 19, hy + 6 + snarl), Vector2(hx + 18, hy + 1 + snarl)]), Pal.TOOTH)
 			for k in 3:
 				var tx := hx + 16.0 + k * 3.5
 				_fill(PackedVector2Array([Vector2(tx, hy + 2), Vector2(tx + 1.2, hy + 5), Vector2(tx + 2.4, hy + 2)]), Pal.TOOTH)
@@ -460,9 +521,9 @@ class Wolf extends Critter:
 		var e := global_position + Vector2(f * 40.0 * SIZE, (-43.0 + low * 14.0) * SIZE)
 		var flare := 1.0 if state == "crouch" else 0.0
 		var dim := 0.45 if state == "cower" or state == "recoil" else 1.0
-		g.draw_circle(e, 7.0 + flare * 6.0, Color(Pal.WOLF_EYE, (0.14 + flare * 0.25) * dim))
-		g.draw_circle(e, 2.4 + flare * 0.8, Color(Pal.WOLF_EYE, 0.95 * dim))
-		g.draw_circle(e + Vector2(-f * 6.0, 1.0), 2.0 + flare * 0.6, Color(Pal.WOLF_EYE, 0.7 * dim))
+		g.draw_circle(e, 4.0 + flare * 3.0, Color(Color("ff4a36"), (0.10 + flare * 0.16) * dim))
+		g.draw_circle(e, 2.4 + flare * 0.8, Color(Color("ff4a36"), 0.95 * dim))
+		g.draw_circle(e + Vector2(-f * 6.0, 1.0), 2.0 + flare * 0.6, Color(Color("ff4a36"), 0.7 * dim))
 
 
 class Bat extends Bestiary.Insect:
@@ -471,6 +532,8 @@ class Bat extends Bestiary.Insect:
 	## him INSIDE the light, where the wolves will not go.
 	func _setup() -> void:
 		super._setup()
+		hp = 3
+		dash_speed = 560.0
 		add_to_group("glow")
 
 	func _facing() -> float:
@@ -500,7 +563,9 @@ class Bat extends Bestiary.Insect:
 		for s2 in [-1.0, 1.0]:
 			var e: float = s2
 			_fill(PackedVector2Array([Vector2(1 + e * 2, -12), Vector2(1 + e * 5, -20), Vector2(1 + e * 5.5, -11)]), Pal.BAT.darkened(0.2))
-		_fill(PackedVector2Array([Vector2(3, -7), Vector2(5, -4), Vector2(7, -7)]), Pal.TOOTH)
+		# two long fangs
+		_fill(PackedVector2Array([Vector2(2, -7), Vector2(3.4, -1), Vector2(4.2, -7)]), Pal.TOOTH)
+		_fill(PackedVector2Array([Vector2(5.2, -7), Vector2(6.4, -1), Vector2(7.2, -7)]), Pal.TOOTH)
 		if flash > 0.0:
 			_cc(Vector2.ZERO, 16.0, Color(1, 1, 1, 0.5))
 		_st(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -512,8 +577,8 @@ class Bat extends Bestiary.Insect:
 		var a := 1.0 if state == "wind" else 0.7
 		for s in [-1.0, 1.0]:
 			var e := global_position + Vector2(1.0 * f + float(s) * 2.4, -10.0)
-			g.draw_circle(e, 3.5, Color(Pal.EMBER_GLOW, 0.2 * a))
-			g.draw_circle(e, 1.3, Color(Pal.EMBER_GLOW, a))
+			g.draw_circle(e, 3.5, Color(Color("ff3a2a"), 0.2 * a))
+			g.draw_circle(e, 1.3, Color(Color("ff3a2a"), a))
 
 
 ## ================================================================ MONKEYS

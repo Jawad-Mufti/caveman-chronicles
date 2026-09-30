@@ -30,6 +30,10 @@ extends Critter
 ##   The meteor (phase 3). He climbs his lair rock and roars; a shadow grows
 ##     under the man; then he comes down on it.
 ##   The Firestone Hammer's fire wave knocks him down, and trips his charge.
+## THE SIEGE (at half health). He leaps up onto his lair rock, out of reach,
+##   and howls — and the night answers: first TWO wolves, then THREE, then
+##   FOUR bats bursting out of his cave, each wave once the last is beaten.
+##   Only then does he come crashing down on the man — and lands dazed.
 ## Beaten, he goes down hard; his broken fang flies from his jaw; he rises,
 ##   roars once at the sky, and limps away into the dark.
 ##
@@ -42,8 +46,10 @@ signal roared
 signal beaten
 signal fang_out(at: Vector2)
 signal rock_in_teeth
+signal siege_wave(n: int)
+signal howled                   ## a siege howl: calls the pack, but brings no rocks down
 
-const MAX_HP := 100
+const MAX_HP := 120
 const GRAV := 1800.0
 const PROWL := 170.0
 const CHARGE := 600.0
@@ -89,6 +95,9 @@ var _meteor_cd := 6.0
 var _mark: Node2D = null
 var _hide_x := 0.0
 var _rock_top := 0.0
+var _siege := 0                 ## which wave of the siege is out (0: none yet, 4: over)
+var _hit_t := 0.0               ## > 0 just after a blow lands: the recoil
+var _hit_dir := 1
 
 
 func _setup() -> void:
@@ -122,6 +131,7 @@ func start() -> void:
 
 func reset_fight() -> void:
 	hp = MAX_HP
+	_siege = 0
 	phase = 1
 	state = "wait"
 	visible = false
@@ -143,7 +153,7 @@ func distract(at: Vector2) -> void:
 
 ## --------------------------------------------------------------- being hit
 func burned(dmg: int, from: Vector2) -> void:
-	if state in ["wait", "lurk_in", "emerge", "intro", "beaten"]:
+	if state in ["wait", "lurk_in", "emerge", "intro", "beaten", "siege_climb", "siege"]:
 		return
 	_hurt(dmg, 1 if global_position.x > from.x else -1)
 	if hp > 0:
@@ -153,7 +163,7 @@ func burned(dmg: int, from: Vector2) -> void:
 
 
 func take_hit(dmg: int, from_dir: int) -> void:
-	if state in ["wait", "lurk_in", "emerge", "intro", "beaten"]:
+	if state in ["wait", "lurk_in", "emerge", "intro", "beaten", "siege_climb", "siege"]:
 		return
 	var open := state in ["cower", "dazed", "distracted", "swat"]
 	# a rock (from further off than any club could reach) into his roaring jaws
@@ -175,7 +185,7 @@ func take_hit(dmg: int, from_dir: int) -> void:
 
 ## The Firestone Hammer's fire wave: it knocks him flat — and trips a charge.
 func fire_wave(dmg: int, from: Vector2) -> void:
-	if state in ["wait", "lurk_in", "emerge", "intro", "beaten", "perch", "meteor", "climb"]:
+	if state in ["wait", "lurk_in", "emerge", "intro", "beaten", "perch", "meteor", "climb", "siege_climb", "siege"]:
 		return
 	var from_dir := 1 if global_position.x > from.x else -1
 	var tripped := state == "charge"
@@ -201,21 +211,32 @@ func _stars(life: float) -> void:
 	add_child(stars)
 
 
+## A blow lands: no big flash — a quick recoil (head snapped back, body
+## jolted, ears flat, tail lashing), tufts of fur flying from the spot, a
+## brief warm tint, and a "GRRAH!" when it's a hit during an opening.
 func _hurt(amount: int, from_dir: int) -> void:
 	hp -= amount
-	flash = 0.14
-	# a spark where the blow landed
-	var spark := Critter.DeathPop.new()
-	spark.position = global_position + Vector2(-float(from_dir) * 40.0, -70.0) * SIZE
-	get_parent().add_child(spark)
+	_hit_t = 0.3
+	_hit_dir = from_dir
+	_tail_v += 18.0 * float(from_dir)
+	var at := global_position + Vector2(-float(from_dir) * 30.0, -80.0) * SIZE
+	var tufts := FurTufts.new()
+	tufts.position = at
+	tufts.dir = float(from_dir)
+	get_parent().add_child(tufts)
+	if state in ["cower", "dazed", "distracted", "swat"] and hp > 0:
+		var word := CaveMan.WordPop.new()
+		word.text = ["GRRAH!", "RRAWR!", "HRRNGH!"][randi() % 3]
+		word.position = global_position + Vector2(-40, -190)
+		get_parent().add_child(word)
 	if hp <= 0:
 		hp = 0
 		_defeat(from_dir)
 		return
-	if phase == 1 and ratio() <= 0.6:
+	if phase == 1 and ratio() <= 0.5:
 		phase = 2
 		phase_changed.emit(2)
-		_begin_roar()
+		_begin_siege()
 	elif phase == 2 and ratio() <= 0.25:
 		phase = 3
 		phase_changed.emit(3)
@@ -231,6 +252,7 @@ func _tick(delta: float) -> void:
 	swipe_cd -= delta
 	_meteor_cd -= delta
 	_land = maxf(_land - delta, 0.0)
+	_hit_t = maxf(_hit_t - delta, 0.0)
 	if night == null:
 		night = get_tree().get_first_node_in_group("night") as Night
 	if player == null or state == "wait":
@@ -384,8 +406,17 @@ func _tick(delta: float) -> void:
 				_launch(Vector2(at.x, floor_y), 0.75)
 				state = "meteor"
 		"meteor":
-			damage = 3
+			damage = 2
 			_fly(delta)
+		"siege_climb":
+			damage = 0
+			_fly(delta)
+		"siege":
+			vx = 0.0
+			damage = 0
+			dir = 1 if player.global_position.x > position.x else -1
+			if timer <= -3.5:
+				timer = 1.2
 	if state != "vanish" and state != "eyes" and modulate.a < 1.0 and state != "beaten":
 		modulate.a = move_toward(modulate.a, 1.0, delta * 4.0)
 	_tail_step(delta)
@@ -572,7 +603,7 @@ func _fly(delta: float) -> void:
 	if vel.y > 0.0:
 		var surface := floor_y
 		var may_perch := not (state == "pounce" and _from_ledge) and state != "meteor"
-		if state == "climb":
+		if state == "climb" or state == "siege_climb":
 			surface = _rock_top
 		for l in ledges:
 			if may_perch and position.x > float(l[0]) - 10.0 and position.x < float(l[1]) + 10.0 and position.y - vel.y * delta <= float(l[2]) + 2.0:
@@ -584,6 +615,14 @@ func _fly(delta: float) -> void:
 			_land = 0.18
 			_dust(1.0)
 			_was_vault = state == "vault"
+			if state == "siege_climb":
+				state = "siege"
+				timer = 1.2
+				_siege = 1
+				howled.emit()
+				_shockwave(false)
+				siege_wave.emit(1)
+				return
 			if state == "climb":
 				state = "perch"
 				timer = 1.6
@@ -701,6 +740,40 @@ func _trail_dust(delta: float) -> void:
 		_dust(0.5)
 
 
+## ------------------------------------------------------------------- siege
+## Half his health gone: up onto his rock, to call the night down on the man.
+func _begin_siege() -> void:
+	state = "siege_climb"
+	_siege = 0
+	_rock_top = floor_y - 292.0
+	flash = 0.3
+	_launch(Vector2(lair_x + 10.0, _rock_top), 0.8)
+
+
+## The level has beaten a wave: the next one, or down he comes.
+func next_wave() -> void:
+	if state != "siege":
+		return
+	if _siege < 3:
+		_siege += 1
+		timer = 1.2
+		howled.emit()
+		_shockwave(false)
+		siege_wave.emit(_siege)
+	else:
+		# all of them beaten: he rears up on his rock — a shadow grows under the
+		# man and follows him, as fair a warning as the meteor gives — then down
+		_siege = 4
+		state = "perch"
+		timer = 1.6
+		howled.emit()
+		_shockwave(false)
+		_mark = MeteorMark.new()
+		_mark.position = Vector2(player.global_position.x, floor_y)
+		get_parent().add_child(_mark)
+		roar_cd = 4.0
+
+
 ## ------------------------------------------------------------------- beaten
 func _defeat(from_dir: int) -> void:
 	state = "beaten"
@@ -773,7 +846,7 @@ func _tail_step(delta: float) -> void:
 ## The pose, worked out from what he is doing this frame.
 func _pose() -> Dictionary:
 	var p := {"crouch": 0.0, "rump": 0.0, "stretch": 0.0, "cower": 0.0, "head_up": 0.0, "jaw": 0.0,
-		"gait": 0.0, "gallop": 0.0, "wiggle": 0.0, "paw": 0.0, "tuck": 0.0, "down": 0.0, "limp": 0.0}
+		"gait": 0.0, "gallop": 0.0, "wiggle": 0.0, "paw": 0.0, "tuck": 0.0, "down": 0.0, "limp": 0.0, "recoil": 0.0}
 	var moving := clampf(absf(vx) / 180.0, 0.0, 1.0)
 	p["gait"] = moving
 	match state:
@@ -825,6 +898,15 @@ func _pose() -> Dictionary:
 		"perch":
 			p["head_up"] = 1.0
 			p["jaw"] = 1.0 if timer < 1.2 else 0.3
+		"siege_climb":
+			p["stretch"] = 1.0
+			p["jaw"] = 0.6
+			p["tuck"] = 1.0 if vel.y < 0.0 else 0.0
+		"siege":
+			# howling to the night, then watching the fight below, head low
+			p["head_up"] = 1.0 if timer > 0.0 else 0.0
+			p["jaw"] = 1.0 if timer > 0.0 else 0.15
+			p["crouch"] = 0.0 if timer > 0.0 else 0.35
 		"scrape":
 			p["crouch"] = 0.7
 			p["gait"] = 0.8
@@ -850,6 +932,11 @@ func _pose() -> Dictionary:
 				p["cower"] = 0.3
 	if _land > 0.0:
 		p["crouch"] = maxf(float(p["crouch"]), _land / 0.18 * 0.8)
+	if _hit_t > 0.0:
+		var k := sin(_hit_t / 0.3 * PI)
+		p["cower"] = maxf(float(p["cower"]), 0.35 * k)
+		p["jaw"] = maxf(float(p["jaw"]), 0.45 * k)
+		p["recoil"] = k
 	return p
 
 
@@ -860,6 +947,9 @@ func _draw() -> void:
 	var p := _pose()
 	var b := Batch.new()
 	var fur := Color("b58d58")
+	var recoil: float = p["recoil"]
+	if recoil > 0.0:
+		fur = fur.lerp(Color("e8b88a"), 0.35 * recoil)       # a brief warm tint
 	var fur_dark := Color("7a5a36")
 	var fur_deep := Color("5b4127")
 	var belly := Color("e2d0a6")
@@ -877,15 +967,19 @@ func _draw() -> void:
 	elif float(p["gait"]) > 0.0:
 		bob = sin(_phase_walk / SIZE / 110.0 * TAU * 2.0) * 2.0 * float(p["gait"])
 
-	# the skeleton
-	# a stocky, heavy build: short back, deep chest, a hump of muscle at the shoulders
-	var hip := Vector2(-46.0 - stretch * 16.0 + float(p["wiggle"]) * 5.0, -62.0 + crouch * 14.0 - rump * 16.0 + cower * 18.0 + bob * 0.6 + down * 30.0)
-	var shoulder := Vector2(40.0 + stretch * 16.0, -80.0 + crouch * 30.0 + cower * 22.0 - bob * 0.4 + down * 42.0 + breath * 0.3)
+	# the skeleton, built like a real Smilodon: bear-heavy and front-heavy —
+	# a short back, the shoulders held high over short hind legs so the back
+	# slopes down to the hips, a great hump of muscle at the shoulder blades
+	var hip := Vector2(-40.0 - stretch * 16.0 + float(p["wiggle"]) * 5.0, -54.0 + crouch * 12.0 - rump * 18.0 + cower * 16.0 + bob * 0.6 + down * 26.0)
+	var shoulder := Vector2(40.0 + stretch * 16.0, -88.0 + crouch * 32.0 + cower * 24.0 - bob * 0.4 + down * 46.0 + breath * 0.3)
 	if float(p["gallop"]) > 0.0:
 		# the spine bunching and stretching in the gallop
 		var g := sin(_phase_walk / 30.0)
 		hip.x += g * 12.0
 		shoulder.x -= g * 10.0
+	# the jolt of a blow: the front of him knocked back
+	shoulder.x -= 10.0 * recoil
+	hip.x -= 4.0 * recoil
 	var mid := (hip + shoulder) * 0.5 + Vector2(0, -8.0 + crouch * 6.0 - cower * 4.0)
 
 	# far legs first, in shadow
@@ -893,10 +987,10 @@ func _draw() -> void:
 	# the tail: a short, thick bobtail that lags and swings
 	var ta := -2.6 + _tail - stretch * 0.4 + cower * 0.9
 	var t1 := hip + Vector2(-10, -4)
-	var t2 := t1 + Vector2.from_angle(ta) * 22.0
-	var t3 := t2 + Vector2.from_angle(ta + _tail * 0.6) * 16.0
-	_tapered(b, t1, t2, 13.0, 10.0, fur_dark)
-	_tapered(b, t2, t3, 10.0, 6.0, fur_deep)
+	var t2 := t1 + Vector2.from_angle(ta) * 13.0
+	var t3 := t2 + Vector2.from_angle(ta + _tail * 0.6) * 9.0
+	_tapered(b, t1, t2, 14.0, 11.0, fur_dark)
+	_tapered(b, t2, t3, 11.0, 8.0, fur_deep)
 	# the body: a thick shape along the bent spine, with a deep chest
 	var top := PackedVector2Array()
 	var bottom := PackedVector2Array()
@@ -913,7 +1007,7 @@ func _draw() -> void:
 	b.circle(hip + Vector2(-6, -4), 28.0, fur, 18)
 	b.poly(body, fur)
 	b.circle(shoulder + Vector2(2, 2), 34.0, fur, 20)
-	b.circle(shoulder + Vector2(-8, -18), 20.0, fur, 14)     # the shoulder hump
+	b.circle(shoulder + Vector2(-10, -22), 25.0, fur, 16)    # the great hump over the shoulder blades
 	# the belly, pale underneath
 	var under := PackedVector2Array()
 	for i in range(3, 12):
@@ -921,23 +1015,31 @@ func _draw() -> void:
 	for i in range(11, 2, -1):
 		under.append(bottom[i] + Vector2(0, -12))
 	b.poly(under, belly)
-	# stripes down the back, and a darker saddle
-	for i in 6:
-		var k := 0.18 + i * 0.12
-		var at: Vector2 = top[int(k * 12.0)]
-		b.poly(PackedVector2Array([at + Vector2(-5, 1), at + Vector2(4, 0), at + Vector2(1, 18 - i), at + Vector2(-3, 16 - i)]), fur_dark)
-	b.polyline(PackedVector2Array([top[2], top[5], top[8], top[11]]), shade, 5.0)
+	# his coat: faint spots down the flank, a dark line along the spine,
+	# and the pale marks of old fights across the shoulder
+	for i in 9:
+		var k := 0.12 + (i % 5) * 0.16
+		var row := 0.3 + (i / 5) * 0.28
+		var at: Vector2 = top[int(k * 12.0)].lerp(bottom[int(k * 12.0)], row)
+		b.circle(at + Vector2(sin(i * 2.3) * 3.0, 0), 3.4, fur.darkened(0.22), 8)
+		b.circle(at + Vector2(sin(i * 2.3) * 3.0 + 1.0, -1.0), 1.6, fur, 6)
+	b.polyline(PackedVector2Array([top[1], top[4], top[7], top[10], top[12]]), fur_deep, 4.0)
+	for k in 3:
+		var sa := shoulder + Vector2(-26 + k * 7.0, -16 + k * 3.0)
+		b.line(sa, sa + Vector2(16, 12), belly.lightened(0.2), 2.2)
 	# near legs
 	_legs(b, hip, shoulder, p, 1.0, fur)
 	# the head: level and steady while the body moves (a hunter's head)
-	var neck := shoulder + Vector2(18, -10 + cower * 10.0)
-	var head_ang := -float(p["head_up"]) * 0.75 + cower * 0.5 + crouch * 0.12 + down * 0.35
-	var head := neck + Vector2(26, -6).rotated(head_ang) + Vector2(stretch * 10.0, 0)
-	_tapered(b, shoulder + Vector2(4, -6), head + Vector2(-8, 4), 34.0, 26.0, fur)
+	var neck := shoulder + Vector2(14, -6 + cower * 10.0)
+	var head_ang := -float(p["head_up"]) * 0.75 + cower * 0.5 + crouch * 0.12 + down * 0.35 - 0.45 * recoil
+	var head := neck + Vector2(22, -4).rotated(head_ang) + Vector2(stretch * 10.0, 0)
+	_tapered(b, shoulder + Vector2(0, -8), head + Vector2(-8, 6), 50.0, 38.0, fur)
+	# a ruff of heavier fur at the throat
+	b.poly(PackedVector2Array([shoulder + Vector2(10, 10), head + Vector2(-6, 18), head + Vector2(0, 26), shoulder + Vector2(20, 24)]), fur.lightened(0.08))
 	_head(b, head, head_ang, float(p["jaw"]), cower, fur, fur_dark, belly)
 
-	if flash > 0.0:
-		b.circle(Vector2(-6, -60), 72.0, Color(1, 1, 1, 0.45 * flash / 0.14), 20)
+	if flash > 0.2:
+		b.circle(Vector2(-6, -60), 72.0, Color(1, 1, 1, 0.18 * clampf(flash / 0.3, 0.0, 1.0)), 20)
 	draw_set_transform(Vector2.ZERO, rotation * 0.0, Vector2(f * SIZE, SIZE))
 	b.draw(self)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -979,32 +1081,34 @@ func _step(anchor_x: float, u: float, stride: float, stance: float, lift: float)
 	return Vector2(anchor_x - stride * 0.5 + k * stride, -sin(k * PI) * lift)
 
 
-func _paw(b: Batch, at: Vector2, tilt: float, col: Color) -> void:
-	var r := func(v: Vector2) -> Vector2: return at + v.rotated(tilt)
-	b.poly(PackedVector2Array([r.call(Vector2(-8, -5)), r.call(Vector2(9, -6)), r.call(Vector2(16, 0)), r.call(Vector2(-9, 1))]), col.darkened(0.12))
-	for k in 3:
-		b.circle(r.call(Vector2(6 + k * 3.8, 0)), 2.5, col.darkened(0.3), 6)
+func _paw(b: Batch, at: Vector2, tilt: float, col: Color, big: float = 1.0) -> void:
+	var r := func(v: Vector2) -> Vector2: return at + (v * big).rotated(tilt)
+	b.poly(PackedVector2Array([r.call(Vector2(-8, -6)), r.call(Vector2(9, -7)), r.call(Vector2(17, 0)), r.call(Vector2(-9, 1))]), col.darkened(0.12))
+	for k in 4:
+		b.circle(r.call(Vector2(4 + k * 3.8, 0)), 2.6 * big, col.darkened(0.3), 6)
 
 
 ## One front leg: shoulder -> elbow (bent back) -> wrist -> paw.
 func _front_leg(b: Batch, sh: Vector2, paw: Vector2, swinging: bool, col: Color) -> void:
 	var wrist := paw + (Vector2(-9, -10) if swinging else Vector2(-2, -13))
-	var elbow := _joint(sh, wrist, 31.0, 31.0, false)
-	_tapered(b, sh, elbow, 30.0, 22.0, col)
-	_tapered(b, elbow, wrist, 22.0, 15.0, col)
-	_tapered(b, wrist, paw + Vector2(2, -4), 15.0, 13.0, col)
-	_paw(b, paw, -0.7 if swinging else 0.0, col)
+	# the huge upper arm, a short thick forearm: the forelimbs that held prey down
+	var elbow := _joint(sh, wrist, 34.0, 27.0, false)
+	_tapered(b, sh, elbow, 40.0, 30.0, col)
+	_tapered(b, elbow, wrist, 30.0, 21.0, col)
+	_tapered(b, wrist, paw + Vector2(2, -4), 21.0, 17.0, col)
+	_paw(b, paw, -0.7 if swinging else 0.0, col, 1.45)
 
 
 ## One hind leg: hip -> knee (forward) -> hock (high, behind) -> paw: the long
 ## zig-zag of a big cat's back leg.
 func _hind_leg(b: Batch, hip: Vector2, paw: Vector2, swinging: bool, col: Color) -> void:
-	var hock := paw + (Vector2(-20, -24) if swinging else Vector2(-15, -30))
-	var knee := _joint(hip, hock, 34.0, 32.0, true)
-	_tapered(b, hip, knee, 36.0, 24.0, col)
-	_tapered(b, knee, hock, 22.0, 14.0, col)
-	_tapered(b, hock, paw + Vector2(2, -4), 14.0, 12.0, col)
-	_paw(b, paw, -0.6 if swinging else 0.0, col)
+	var hock := paw + (Vector2(-17, -20) if swinging else Vector2(-13, -25))
+	# short, stocky hind legs
+	var knee := _joint(hip, hock, 30.0, 27.0, true)
+	_tapered(b, hip, knee, 40.0, 26.0, col)
+	_tapered(b, knee, hock, 24.0, 16.0, col)
+	_tapered(b, hock, paw + Vector2(2, -4), 16.0, 13.0, col)
+	_paw(b, paw, -0.6 if swinging else 0.0, col, 1.15)
 
 
 ## Both legs on one side. The walk is a four-beat walk — one paw at a time,
@@ -1064,49 +1168,69 @@ func _legs(b: Batch, hip: Vector2, shoulder: Vector2, p: Dictionary, side: float
 	_front_leg(b, sh, fpaw, fswing, col)
 
 
-## The head: a heavy skull, the long sabres, the scar, the jaw that drops.
+## The head, after the real Smilodon's skull: broad and heavy with a crest on
+## top, a short broad muzzle, small rounded ears (one torn), a deep lower jaw
+## with the bony flange that guarded the sabres — and a gape that opened to
+## about 110 degrees, far wider than any cat alive. The sabres are long and
+## finely serrated; one is snapped off short. An old scar crosses his eye and
+## his muzzle has gone grey.
 func _head(b: Batch, at: Vector2, ang: float, jaw: float, cower: float, fur: Color, fur_dark: Color, belly: Color) -> void:
 	var r := func(v: Vector2) -> Vector2: return at + v.rotated(ang)
-	# ears: pinned back when he's afraid
-	var ear := -cower * 10.0
-	b.poly(PackedVector2Array([r.call(Vector2(-10, -20)), r.call(Vector2(-4 + ear, -34 - ear * 0.2)), r.call(Vector2(4, -20))]), fur_dark)
-	# lower jaw first, so the skull sits over its hinge
-	var hinge := Vector2(0, 8)
-	var jang := jaw * 0.7
+	# small rounded ears, pinned back when he's afraid; the near one torn
+	var ear := -cower * 8.0
+	b.poly(PackedVector2Array([r.call(Vector2(-12, -18)), r.call(Vector2(-10 + ear, -28)), r.call(Vector2(-3 + ear, -30)), r.call(Vector2(2, -21))]), fur_dark)
+	b.poly(PackedVector2Array([r.call(Vector2(-7 + ear, -27)), r.call(Vector2(-5 + ear, -23)), r.call(Vector2(-3 + ear, -28))]), Color(0.08, 0.05, 0.03))
+	# the lower jaw first, so the skull sits over its hinge. It drops far:
+	# up to ~110 degrees in a full roar
+	var hinge := Vector2(-2, 10)
+	var jang := jaw * 1.9
 	var jw := func(v: Vector2) -> Vector2: return at + (hinge + (v - hinge).rotated(jang)).rotated(ang)
-	b.poly(PackedVector2Array([jw.call(Vector2(-2, 8)), jw.call(Vector2(34, 10)), jw.call(Vector2(30, 20)), jw.call(Vector2(4, 20))]), belly.darkened(0.08))
+	# the jaw, with the flange at its front that sheathed the sabres
+	b.poly(PackedVector2Array([jw.call(Vector2(-4, 8)), jw.call(Vector2(32, 10)), jw.call(Vector2(34, 16)), jw.call(Vector2(30, 30)),
+		jw.call(Vector2(22, 32)), jw.call(Vector2(18, 22)), jw.call(Vector2(2, 22))]), belly.darkened(0.12))
 	if jaw > 0.1:
-		b.poly(PackedVector2Array([r.call(Vector2(2, 8)), r.call(Vector2(36, 8)), jw.call(Vector2(34, 10)), jw.call(Vector2(4, 10))]), Pal.MAW)
-		for k in 3:
-			var lt: Vector2 = jw.call(Vector2(12 + k * 7, 11))
+		b.poly(PackedVector2Array([r.call(Vector2(0, 8)), r.call(Vector2(38, 8)), jw.call(Vector2(34, 10)), jw.call(Vector2(0, 10))]), Pal.MAW)
+		b.poly(PackedVector2Array([jw.call(Vector2(4, 11)), jw.call(Vector2(28, 11)), jw.call(Vector2(24, 15)), jw.call(Vector2(8, 15))]), Color("c96a74"))
+		for k in 4:
+			var lt: Vector2 = jw.call(Vector2(10 + k * 6, 11))
 			b.tri(lt, lt + Vector2(3, 0).rotated(ang + jang), lt + Vector2(1.5, -5).rotated(ang + jang), Pal.TOOTH)
-	# skull and muzzle
+	# the skull: broad, with a crest along the top
 	var skull := PackedVector2Array()
-	for i in 16:
-		var a := TAU * i / 16.0
-		skull.append(r.call(Vector2(4, -4) + Vector2(cos(a) * 22.0, sin(a) * 17.0)))
+	for i in 18:
+		var a := TAU * i / 18.0
+		skull.append(r.call(Vector2(2, -4) + Vector2(cos(a) * 25.0, sin(a) * 18.0)))
 	b.poly(skull, fur)
-	var muzzle := PackedVector2Array([r.call(Vector2(12, -12)), r.call(Vector2(36, -8)), r.call(Vector2(44, 0)), r.call(Vector2(40, 9)),
+	b.poly(PackedVector2Array([r.call(Vector2(-18, -14)), r.call(Vector2(-6, -24)), r.call(Vector2(12, -22)), r.call(Vector2(20, -16))]), fur)
+	b.polyline(PackedVector2Array([r.call(Vector2(-16, -16)), r.call(Vector2(-4, -24)), r.call(Vector2(12, -22))]), fur_dark, 3.0)
+	# a short, broad muzzle, gone grey
+	var muzzle := PackedVector2Array([r.call(Vector2(12, -12)), r.call(Vector2(32, -9)), r.call(Vector2(40, -1)), r.call(Vector2(38, 9)),
 		r.call(Vector2(14, 10))])
 	b.poly(muzzle, fur)
-	b.poly(PackedVector2Array([r.call(Vector2(18, 2)), r.call(Vector2(42, 2)), r.call(Vector2(40, 9)), r.call(Vector2(16, 10))]), belly)
-	b.circle(r.call(Vector2(43, -2)), 4.0, Pal.OUTLINE, 8)
-	# the sabres: one long and curved, one snapped off short (and gone, once it has flown)
+	b.poly(PackedVector2Array([r.call(Vector2(18, 1)), r.call(Vector2(38, 1)), r.call(Vector2(38, 9)), r.call(Vector2(16, 10))]), belly)
+	for k in 6:
+		b.circle(r.call(Vector2(20 + (k % 3) * 6, -4 + (k / 3) * 5)), 1.6, Color("cfc6b8"), 6)
+	b.circle(r.call(Vector2(39, -3)), 4.2, Pal.OUTLINE, 8)
+	# the sabres: long, slender, finely serrated — one snapped off short (and
+	# gone altogether once it has flown)
 	var fang_gone := state == "beaten" and _down
 	if not fang_gone:
-		b.poly(PackedVector2Array([r.call(Vector2(24, 7)), r.call(Vector2(31, 7)), r.call(Vector2(30, 26)), r.call(Vector2(26, 44))]), Pal.TOOTH)
+		var sab := PackedVector2Array([r.call(Vector2(22, 7)), r.call(Vector2(30, 7)), r.call(Vector2(30, 28)), r.call(Vector2(27, 44)), r.call(Vector2(24, 50))])
+		b.poly(sab, Pal.TOOTH)
+		for k in 5:
+			var q: Vector2 = r.call(Vector2(29.5 - k * 0.6, 14 + k * 7))
+			b.line(q, q + Vector2(2.2, 0.6).rotated(ang), Color("c9bfa6"), 1.0)
 	else:
-		b.poly(PackedVector2Array([r.call(Vector2(24, 7)), r.call(Vector2(31, 7)), r.call(Vector2(29, 13)), r.call(Vector2(25, 13))]), Pal.TOOTH)
-	b.poly(PackedVector2Array([r.call(Vector2(14, 8)), r.call(Vector2(20, 8)), r.call(Vector2(19, 17)), r.call(Vector2(15, 16))]), Pal.TOOTH)
-	# brow, eye and the old scar across it
-	b.poly(PackedVector2Array([r.call(Vector2(8, -16)), r.call(Vector2(26, -14)), r.call(Vector2(24, -9)), r.call(Vector2(8, -10))]), fur_dark)
-	var eye: Vector2 = r.call(Vector2(18, -7))
+		b.poly(PackedVector2Array([r.call(Vector2(22, 7)), r.call(Vector2(30, 7)), r.call(Vector2(29, 13)), r.call(Vector2(23, 13))]), Pal.TOOTH)
+	b.poly(PackedVector2Array([r.call(Vector2(12, 8)), r.call(Vector2(18, 8)), r.call(Vector2(17, 18)), r.call(Vector2(13, 17))]), Pal.TOOTH)
+	# heavy brow, the eye, and the old scar across it
+	b.poly(PackedVector2Array([r.call(Vector2(6, -16)), r.call(Vector2(26, -14)), r.call(Vector2(24, -8)), r.call(Vector2(6, -10))]), fur_dark)
+	var eye: Vector2 = r.call(Vector2(17, -7))
 	b.circle(eye, 3.8, Pal.OUTLINE, 10)
 	_eye_at = eye
-	b.line(r.call(Vector2(10, -20)), r.call(Vector2(28, 2)), belly.lightened(0.25), 3.0)
+	b.line(r.call(Vector2(8, -20)), r.call(Vector2(28, 2)), belly.lightened(0.25), 3.0)
 	# whisker pads
 	for k in 3:
-		b.circle(r.call(Vector2(34 + k * 3, 4 + (k % 2) * 2)), 1.2, fur_dark, 6)
+		b.circle(r.call(Vector2(32 + k * 3, 4 + (k % 2) * 2)), 1.2, fur_dark, 6)
 
 
 ## Big amber eyes that burn through the dark, flaring in the tell.
@@ -1114,7 +1238,7 @@ func draw_glow(g: Node2D) -> void:
 	if not visible or state == "wait":
 		return
 	var e := global_position + Vector2(float(dir) * _eye_at.x, _eye_at.y) * SIZE
-	var flare := 1.0 if state in ["crouch", "scrape", "lurk_in", "perch"] else 0.0
+	var flare := 1.0 if state in ["crouch", "scrape", "lurk_in", "perch", "siege"] else 0.0
 	var dim := 0.35 if state in ["cower", "dazed"] or (state == "beaten" and _down and _beat_t < 2.4) else 1.0
 	g.draw_circle(e, 12.0 + flare * 10.0, Color(Pal.WOLF_EYE, (0.2 + flare * 0.3) * dim))
 	g.draw_circle(e, 4.0 + flare * 1.5, Color(Pal.WOLF_EYE, 0.95 * dim))
@@ -1185,3 +1309,31 @@ class MeteorMark extends Node2D:
 			pts.append(Vector2(cos(a) * (40.0 + 90.0 * k), -3.0 + sin(a) * (8.0 + 12.0 * k)))
 		draw_colored_polygon(pts, Color(0, 0, 0, 0.25 + 0.35 * k))
 		draw_arc(Vector2(0, -3), 40.0 + 90.0 * k, 0.0, TAU, 32, Color(Pal.EMBER_GLOW, 0.5 * k), 2.0)
+
+
+## Tufts of fur knocked loose by a blow: they fly off, tumble and fade.
+class FurTufts extends Node2D:
+	var dir := 1.0
+	var t := 0.0
+	var _bits: Array = []
+
+	func _ready() -> void:
+		for i in 7:
+			_bits.append([Vector2(dir * randf_range(60, 220), randf_range(-260, -80)), randf_range(0, TAU), randf_range(-9, 9)])
+
+	func _process(delta: float) -> void:
+		t += delta
+		if t > 0.7:
+			queue_free()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		var a := 1.0 - t / 0.7
+		for bit in _bits:
+			var v: Vector2 = bit[0]
+			var p := v * t + Vector2(0, 520.0 * t * t)
+			var ang: float = bit[1] + bit[2] * t
+			var tip := p + Vector2.from_angle(ang) * 9.0
+			var side := Vector2.from_angle(ang + PI * 0.5) * 2.5
+			draw_colored_polygon(PackedVector2Array([p + side, tip, p - side]), Color(0.78, 0.62, 0.4, a))

@@ -135,9 +135,19 @@ signal ate_fig
 var _fig_prev := false
 ## Vine swinging. While on one he is placed by the swing, not by physics.
 const HANG := 80.0        ## px from the grip down to his feet
-const FLIP_TIME := 0.55    ## the somersault when he jumps off a vine
+## Jumping off a vine he somersaults the way he's flying: curls into a ball,
+## spins, then opens out — arms wide, legs reaching — to land in a crouch.
+## A big fast release is a DOUBLE flip; letting go on the backswing is a BACK
+## flip, arms flung out. Faded ghosts of the ball trace the arc behind him.
+const FLIP_TIME := 0.62
 var flip_t := 0.0
 var flip_dir := 1.0
+var flip_len := FLIP_TIME
+var flip_turns := 1.0
+var flip_back := false
+var _ghosts: Array = []         ## [global centre, time left] of the ball, for the trail
+var _ghost_in := 0.0
+var _flipped := false           ## was flipping just before landing: a puff of dust
 var vine: Node2D = null
 var _vine_a := 0.0        ## angle from straight down
 var _vine_w := 0.0        ## angular speed
@@ -358,8 +368,24 @@ func _physics_process(delta: float) -> void:
 	attacking = maxf(attacking - delta, 0.0)
 	if flip_t > 0.0:
 		flip_t = maxf(flip_t - delta, 0.0)
+		_ghost_in -= delta
+		if _ghost_in <= 0.0:
+			_ghost_in = 0.035
+			_ghosts.append([global_position + Vector2(0, -38), 0.22])
 		if is_on_floor() or vine != null or knock > 0.0:
 			flip_t = 0.0
+	for g in _ghosts:
+		g[1] = float(g[1]) - delta
+	_ghosts = _ghosts.filter(func(g): return float(g[1]) > 0.0)
+	if _flipped and is_on_floor():
+		# landed out of a flip: a crouch and a puff of dust
+		_flipped = false
+		var dust := SmashDust.new()
+		dust.position = global_position
+		dust.scale = Vector2(0.6, 0.6)
+		get_parent().add_child(dust)
+	elif _flipped and (vine != null or knock > 0.0):
+		_flipped = false
 	if attacking <= 0.0:
 		_combo_t += delta
 	throwing = maxf(throwing - delta, 0.0)
@@ -625,6 +651,9 @@ func _apply_swing() -> void:
 		area.take_hit(dmg, facing)
 		if flings and is_instance_valid(area):
 			area.fling = 1.0
+		# the hammer's weight: what it hits and doesn't kill is knocked flat
+		if _swing_kind == "hammer" and is_instance_valid(area) and area.has_method("stagger"):
+			area.stagger(facing, 0.9)
 		if _swing_kind == "homerun" and not _struck:
 			_struck = true
 			var word := WordPop.new()
@@ -721,8 +750,13 @@ func _swing(delta: float, dir: float) -> void:
 		var tangent := Vector2(cos(_vine_a), -sin(_vine_a)) * _vine_w * length
 		_let_go(tangent + Vector2(0, -320))
 		# off the vine with a somersault, turning the way he's flying
-		flip_t = FLIP_TIME
 		flip_dir = signf(velocity.x) if absf(velocity.x) > 40.0 else float(facing)
+		flip_back = flip_dir != float(facing) and absf(velocity.x) > 60.0
+		flip_turns = 2.0 if absf(velocity.x) > 430.0 and not flip_back else 1.0
+		flip_len = FLIP_TIME * (1.35 if flip_turns > 1.0 else 1.0)
+		flip_t = flip_len
+		_ghosts.clear()
+		_flipped = true
 	_jump_prev = jump_now
 
 
@@ -1135,16 +1169,25 @@ func _paint() -> void:
 			sx -= 0.03 * pop
 	var rot := float(facing) * PI * 0.5 if dead else 0.0
 	var base := Transform2D(rot, Vector2(ART * facing * sx, ART * sy), 0.0, Vector2.ZERO)
+	var curl := 0.0                 ## 1 = curled into a ball; 0 = open
+	var open_k := 0.0               ## 1 = opened out for the landing
 	if flip_t > 0.0:
-		# the somersault: the whole figure turns once around his middle,
-		# quick through the top of the turn and easing out at the end,
-		# with a soft trail of the spin behind him
-		var k := 1.0 - flip_t / FLIP_TIME
-		var ang := flip_dir * TAU * (k * k * (3.0 - 2.0 * k))
+		var k := 1.0 - flip_t / flip_len
+		# the spin: all of it in the curled part, finished as he opens out
+		var spin_k := clampf(k / 0.78, 0.0, 1.0)
+		var ang := flip_dir * TAU * flip_turns * (spin_k * spin_k * (3.0 - 2.0 * spin_k))
+		curl = clampf(k / 0.12, 0.0, 1.0) * (1.0 - clampf((k - 0.72) / 0.12, 0.0, 1.0))
+		open_k = clampf((k - 0.72) / 0.2, 0.0, 1.0)
 		var pivot := Vector2(0, -38)
+		# the ghosts of the ball, fading along the arc behind him
 		_stm(Transform2D.IDENTITY)
-		_ac(pivot, 40.0, ang - PI * 0.5 - flip_dir * 1.8, ang - PI * 0.5, 14, Color(1, 1, 1, 0.22 * (1.0 - k)), 7.0)
-		base = Transform2D(0.0, pivot) * Transform2D(ang, Vector2.ZERO) * Transform2D(0.0, -pivot) * base
+		for g in _ghosts:
+			var a := float(g[1]) / 0.22
+			var at: Vector2 = (g[0] as Vector2) - global_position
+			_cc(at, 17.0, Color(C_SKIN, 0.28 * a))
+			_cc(at + Vector2(-flip_dir * 4.0, -6.0), 8.0, Color(C_HAIR, 0.3 * a))
+		# a ball is smaller than a man: squeeze him in while he's curled
+		base = Transform2D(0.0, pivot) * Transform2D(ang, Vector2.ONE * (1.0 - 0.14 * curl)) * Transform2D(0.0, -pivot) * base
 
 	# ---- pelvis: rises through each stride, sinks on a landing, leans into a run
 	var bob := land_k * 9.0
@@ -1154,6 +1197,8 @@ func _paint() -> void:
 		lean = 0.14 * speed_k
 	elif air:
 		lean = 0.06
+	if flip_t > 0.0:
+		lean = 0.5 * curl - 0.1 * open_k      # curled forward into the ball
 	if fury >= 0.0 and not roaring:
 		bob += 7.0 * rage
 	var shake := Vector2.ZERO
@@ -1168,7 +1213,13 @@ func _paint() -> void:
 	var foot_b := Vector2(-16, -6)
 	var foot_f := Vector2(24, -6)
 	var bend := 0.0
-	if air:
+	if air and flip_t > 0.0:
+		bend = 1.0
+		foot_f = Vector2(34, -28).lerp(Vector2(22, -62), curl).lerp(Vector2(34, -4), open_k)
+		foot_b = Vector2(-26, -26).lerp(Vector2(-2, -60), curl).lerp(Vector2(-28, -8), open_k)
+		if flip_back:
+			foot_f = foot_f.lerp(Vector2(30, -40), curl * 0.6)
+	elif air:
 		bend = 1.0
 		if velocity.y < -150.0:
 			foot_f = Vector2(42, -36)      # lead knee drives up
@@ -1335,6 +1386,17 @@ func _paint() -> void:
 		var hd := Vector2(96, -70)
 		_arm(sh, sh + Vector2(40, 10), hd, 13.0, false)
 		_club(hd, Vector2(190, -8), 7.0, 26.0)
+		_dot(hd, 11.0, _skin)
+	elif flip_t > 0.0 and (curl > 0.0 or open_k > 0.0):
+		var hd: Vector2
+		if open_k > 0.0:
+			hd = Vector2(70, -150).lerp(Vector2(88, -120), open_k)          # out wide for balance
+		elif flip_back:
+			hd = Vector2(20, -210)                                          # flung up and back
+		else:
+			hd = Vector2(34, -84)                                           # hugging the knees
+		_arm(sh, sh.lerp(hd, 0.5) + Vector2(10, 14), hd, 13.0, false)
+		_club(hd, hd + Vector2(-60, 40), 7.0, 22.0)
 		_dot(hd, 11.0, _skin)
 	elif vine != null:
 		# hanging on: the near hand up on the vine, the club tucked under the arm

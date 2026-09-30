@@ -23,8 +23,8 @@ class Insect extends Critter:
 	var dash_speed := 440.0
 	var vel := Vector2.ZERO  ## it carries momentum now, so nothing teleports
 	var origin := Vector2.ZERO  ## where it was born. Its patch of the level, not its perch.
-	const ROAM_X := 330.0    ## how far either side of home it may wander
-	const ROAM_Y := 110.0    ## and how far above or below. Stops the long crawl home.
+	var roam_x := 330.0      ## how far either side of home it may wander
+	var roam_y := 110.0      ## and how far above or below. Stops the long crawl home.
 	var floor_y := 0.0       ## the one line it may not cross: the ground it lives above
 	var ground_y := 0.0      ## set by the level. Without it the insect has to guess.
 
@@ -45,8 +45,8 @@ class Insect extends Critter:
 	## Adopts wherever the lunge left it as its new perch, kept inside its patch.
 	func _settle() -> void:
 		anchor = Vector2(
-			clampf(global_position.x, origin.x - ROAM_X, origin.x + ROAM_X),
-			clampf(global_position.y, origin.y - ROAM_Y, minf(origin.y + ROAM_Y, floor_y))
+			clampf(global_position.x, origin.x - roam_x, origin.x + roam_x),
+			clampf(global_position.y, origin.y - roam_y, minf(origin.y + roam_y, floor_y))
 		)
 
 	func _tick(delta: float) -> void:
@@ -62,7 +62,7 @@ class Insect extends Critter:
 					var dy: float = player.global_position.y - 30.0 - global_position.y
 					home.x = clampf(
 						global_position.x + clampf(dx, -70.0, 70.0),
-						origin.x - ROAM_X, origin.x + ROAM_X
+						origin.x - roam_x, origin.x + roam_x
 					)
 					# Only commits when he is roughly level with it. Before this it
 					# would wind up at a player standing far above, dash, fall short,
@@ -112,8 +112,8 @@ class Insect extends Critter:
 		# back in one step. A bound must never be enforced by moving something:
 		# it is enforced by ENDING the lunge at the edge, and by capping where it
 		# is allowed to aim. Then it stops at the line under its own power.
-		global_position.y = clampf(global_position.y, origin.y - ROAM_Y, origin.y + ROAM_Y)
-		if state == "dash" and absf(global_position.x - origin.x) > ROAM_X:
+		global_position.y = clampf(global_position.y, origin.y - roam_y, origin.y + roam_y)
+		if state == "dash" and absf(global_position.x - origin.x) > roam_x:
 			state = "rest"
 			timer = 1.2
 		if global_position.y > floor_y:

@@ -435,6 +435,167 @@ class FallenGiant extends Node2D:
 		b.draw(self)
 
 
+class RollingBoulder extends Node2D:
+	## The Boulder Run's boulder: a huge ball of granite resting on a crumbling
+	## ledge. Once it breaks loose it drops onto the path and rolls after him,
+	## faster and faster (never quite as fast as he can run flat out), smashing
+	## the fallen logs, rumbling the ground — until it plunges into the ravine.
+	signal crashed
+	const R := 64.0
+	const TOP_SPEED := 285.0
+	var state := "wait"            ## wait -> drop -> roll -> plunge -> gone
+	var vel := Vector2.ZERO
+	var spin := 0.0
+	var home := Vector2.ZERO
+	var road_y := 600.0            ## the path it rolls on
+	var ravine_x := 0.0            ## where the path ends and it falls
+	var _dust_in := 0.0
+
+	func _ready() -> void:
+		home = position
+		z_index = 2
+
+	func reset() -> void:
+		state = "wait"
+		position = home
+		vel = Vector2.ZERO
+		visible = true
+		queue_redraw()
+
+	func release() -> void:
+		if state == "wait":
+			state = "drop"
+			vel = Vector2(90.0, -120.0)
+
+	func _process(delta: float) -> void:
+		match state:
+			"drop":
+				vel.y += 1500.0 * delta
+				position += vel * delta
+				spin += vel.x * delta / R
+				if position.y >= road_y - R:
+					position.y = road_y - R
+					vel = Vector2(120.0, 0.0)
+					state = "roll"
+					_puff(1.6)
+			"roll":
+				vel.x = move_toward(vel.x, TOP_SPEED, 180.0 * delta)
+				position.x += vel.x * delta
+				spin += vel.x * delta / R
+				# a little bounce as it goes, bigger over the joins in the path
+				position.y = road_y - R - absf(sin(position.x / 90.0)) * 4.0
+				_dust_in -= delta
+				if _dust_in <= 0.0:
+					_dust_in = 0.07
+					_puff(0.8)
+				if position.x > ravine_x + R * 0.6:
+					state = "plunge"
+					vel = Vector2(vel.x * 0.6, -80.0)
+			"plunge":
+				vel.y += 1500.0 * delta
+				position += vel * delta
+				spin += vel.x * delta / R
+				if position.y > road_y + 420.0:
+					state = "gone"
+					visible = false
+					crashed.emit()
+		if state != "wait" and state != "gone":
+			queue_redraw()
+
+	func _puff(amount: float) -> void:
+		var d := Critter.DeathPop.new()
+		d.dust = true
+		d.big = amount > 1.0
+		d.position = Vector2(position.x - R * 0.6, road_y)
+		get_parent().add_child(d)
+
+	func _draw() -> void:
+		var b := Batch.new()
+		b.circle(Vector2.ZERO, R + 3.0, Color("3e3a35"), 28)
+		b.circle(Vector2.ZERO, R, Color("7b7064"), 28)
+		b.set_xf(Transform2D(spin, Vector2.ZERO))
+		# facets and a lit side, cracks and a patch of moss, all turning with it
+		b.poly(PackedVector2Array([Vector2(-40, -44), Vector2(8, -58), Vector2(40, -34), Vector2(10, -14), Vector2(-26, -18)]), Color("8d8275"))
+		b.poly(PackedVector2Array([Vector2(12, 8), Vector2(50, 0), Vector2(44, 34), Vector2(10, 44)]), Color("6a6056"))
+		b.poly(PackedVector2Array([Vector2(-54, 4), Vector2(-24, 14), Vector2(-30, 46), Vector2(-50, 30)]), Color("857a6e"))
+		b.polyline(PackedVector2Array([Vector2(-10, -60), Vector2(-4, -30), Vector2(-18, -4), Vector2(-8, 24)]), Color("4a443e"), 3.0)
+		b.polyline(PackedVector2Array([Vector2(26, 20), Vector2(40, 48)]), Color("4a443e"), 2.5)
+		b.circle(Vector2(-30, -30), 12.0, Color("5f7a45"), 12)
+		b.circle(Vector2(-20, -36), 8.0, Color("6f8c52"), 10)
+		b.set_xf(Transform2D.IDENTITY)
+		b.arc(Vector2.ZERO, R - 6.0, -2.6, -1.2, 10, Color(1, 1, 1, 0.12), 6.0)
+		b.draw(self)
+
+
+class FallenLog extends StaticBody2D:
+	## A fallen log across the path: he has to jump it. The boulder smashes it
+	## to splinters.
+	var smashed := false
+	var _cs: CollisionShape2D
+	var _t := -1.0
+
+	func _ready() -> void:
+		collision_layer = 1
+		collision_mask = 0
+		_cs = CollisionShape2D.new()
+		var sh := RectangleShape2D.new()
+		sh.size = Vector2(84, 44)
+		_cs.shape = sh
+		_cs.position = Vector2(0, -22)
+		add_child(_cs)
+
+	func smash() -> void:
+		if smashed:
+			return
+		smashed = true
+		_t = 0.0
+		_cs.set_deferred("disabled", true)
+
+	func restore() -> void:
+		smashed = false
+		_t = -1.0
+		_cs.set_deferred("disabled", false)
+		queue_redraw()
+
+	func _process(delta: float) -> void:
+		if _t >= 0.0 and _t < 1.0:
+			_t += delta
+			queue_redraw()
+
+	func _draw() -> void:
+		var b := Batch.new()
+		if not smashed:
+			b.quad(Vector2(-42, 0), Vector2(-40, -42), Vector2(40, -44), Vector2(42, 0), Pal.BARK)
+			b.line(Vector2(-36, -30), Vector2(36, -31), Pal.BARK_DARK, 3.0)
+			b.line(Vector2(-36, -14), Vector2(36, -13), Pal.BARK_DARK, 3.0)
+			b.circle(Vector2(40, -22), 21.0, Pal.DEADWOOD, 16)
+			for r in [7.0, 13.0, 18.0]:
+				b.arc(Vector2(40, -22), r, 0.0, TAU, 14, Pal.BARK_DARK, 1.4)
+		elif _t < 1.0:
+			# splinters flying
+			for i in 9:
+				var a := -PI * 0.5 + (i - 4) * 0.3
+				var p := Vector2(0, -22) + Vector2.from_angle(a) * _t * 320.0 + Vector2(0, _t * _t * 700.0)
+				var tip := p + Vector2.from_angle(a + _t * 9.0) * 14.0
+				b.line(p, tip, Color(Pal.BARK, 1.0 - _t), 4.0)
+		b.draw(self)
+
+
+class BoulderLedge extends Node2D:
+	## The crumbling ledge the boulder waits on, above the start of the pass.
+	func _ready() -> void:
+		z_index = -1
+
+	func _draw() -> void:
+		var b := Batch.new()
+		b.poly(PackedVector2Array([Vector2(-140, 0), Vector2(-120, -60), Vector2(-40, -80), Vector2(70, -70), Vector2(90, -10),
+			Vector2(60, 180), Vector2(-150, 180)]), Pal.CRAG_DARK)
+		b.poly(PackedVector2Array([Vector2(-120, -60), Vector2(-40, -80), Vector2(70, -70), Vector2(60, -54), Vector2(-100, -46)]), Pal.CRAG)
+		for c in [[Vector2(-60, -20), Vector2(-40, 30)], [Vector2(20, -40), Vector2(34, 10)], [Vector2(-100, 20), Vector2(-80, 70)]]:
+			b.line(c[0], c[1], Color("2f2b27"), 2.5)
+		b.draw(self)
+
+
 class FireWave extends Node2D:
 	## The Firestone Hammer's slam: two walls of flame roll out along the ground
 	## from where it struck. Everything on that ground they pass through burns
