@@ -630,8 +630,6 @@ class Spider extends Critter:
 		_fill(PackedVector2Array([Vector2(-f * 7.0, -22), Vector2(-f * 4.0, -16), Vector2(-f * 7.0, -10), Vector2(-f * 10.0, -16)]), Pal.SPIDER_MARK)
 		_oval(Vector2(f * 8.0, -13), 7.5, 6.5, Pal.SPIDER)
 		_ln(Vector2(f * 13.0, -10), Vector2(f * 15.0, -5), Pal.BONE, 1.5, true)
-		if flash > 0.0:
-			_cc(Vector2(0, -14), 20.0, Color(1, 1, 1, 0.5))
 
 	func draw_glow(g: Node2D) -> void:
 		if dying > 0.0:
@@ -705,8 +703,6 @@ class Rat extends Critter:
 			var fx := -6.0 + k * 12.0 + sin(_run * 0.3 + k * PI) * 3.0
 			_ln(Vector2(fx, -4 - bob), Vector2(fx, 0), Pal.RAT.darkened(0.3), 2.0)
 		_st(Vector2.ZERO, 0.0, Vector2.ONE)
-		if flash > 0.0:
-			_cc(Vector2(0, -8), 14.0, Color(1, 1, 1, 0.5))
 
 	func draw_glow(g: Node2D) -> void:
 		if dying > 0.0:
@@ -803,8 +799,6 @@ class Snake extends Critter:
 				_ln(head + Vector2(d * 10, 0), head + Vector2(d * (18.0 + sin(t * 30.0) * 3.0), 0), Pal.MAW.lightened(0.3), 1.2)
 		if state == "rear":
 			draw_string(ThemeDB.fallback_font, Vector2(d * 8.0 - 12.0, -24), "sss", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Pal.BONE)
-		if flash > 0.0:
-			_cc(Vector2(d * ext * REACH, 0), 16.0, Color(1, 1, 1, 0.5))
 
 	func draw_glow(g: Node2D) -> void:
 		if dying > 0.0:

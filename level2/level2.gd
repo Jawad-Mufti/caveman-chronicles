@@ -72,9 +72,11 @@ const WIND_ZONE := [5870.0, 7290.0]
 ## hang from a giant tree fallen across it long ago. Two vines, a resting
 ## ledge, two more vines, two crumbling stepping stones, and the far side.
 const GORGE_TRUNK := [3990.0, 5460.0, 250.0]        ## [x0, x1, y]: the fallen giant
-const GORGE_VINES := [[4190.0, 262.0, 240.0], [4390.0, 262.0, 240.0], [4820.0, 262.0, 240.0], [5020.0, 262.0, 240.0]]
-const GORGE_LEDGE := [4530.0, 520.0, 130.0]          ## the resting ledge
-const GORGE_CRUMBLES := [[5170.0, 560.0, 70.0], [5290.0, 545.0, 70.0]]
+## The vines hang far apart: every swing needs a well-timed release, or it's
+## a long drop into the ravine.
+const GORGE_VINES := [[4200.0, 262.0, 255.0], [4500.0, 262.0, 255.0], [4940.0, 262.0, 255.0], [5250.0, 262.0, 255.0]]
+const GORGE_LEDGE := [4640.0, 520.0, 140.0]          ## a narrow resting ledge
+const GORGE_CRUMBLES := []
 ## The mountain's silhouette, drawn behind the climb.
 const MOUNTAIN := [[5630, 1200], [5660, 560], [5820, 430], [6020, 330], [6220, 230], [6420, 110], [6620, 0],
 	[6820, -120], [7040, -210], [7220, -380], [7400, -420], [7600, -370], [7800, -230], [8080, 20],
@@ -170,7 +172,7 @@ const NEST := [24330.0, 380.0]
 
 ## ---------------------------------------------------------------- the Long Dark
 ## [anchor x, anchor y, length]: the grip hangs at anchor y + length.
-const VINES := [[14800.0, 330.0, 190.0], [16090.0, 320.0, 200.0], [16260.0, 320.0, 200.0]]
+const VINES := [[14800.0, 330.0, 190.0], [16060.0, 310.0, 230.0], [16330.0, 310.0, 230.0]]
 ## [x, top y, width]: rotten rock over the second pit.
 const CRUMBLES := [[15330.0, 600.0, 80.0], [15460.0, 600.0, 80.0], [15590.0, 600.0, 80.0]]
 const FIREFLIES := [[14500.0, 520.0], [14800.0, 440.0], [15150.0, 520.0], [15500.0, 480.0], [15820.0, 520.0], [16170.0, 420.0]]
@@ -251,12 +253,12 @@ const SHELL_POINTS := [
 	[12820.0, 560.0], [13000.0, 500.0], [13300.0, 560.0], [13460.0, 500.0], [13860.0, 560.0],
 	# the Hanging Gorge: along the swings, shells up at the top of them,
 	# and a tusk and a conch waiting on the resting ledge
-	[4230.0, 500.0], [4290.0, 520.0], [4350.0, 500.0],
-	[4470.0, 380.0, "shell"], [4500.0, 350.0, "shell"],
-	[4570.0, 494.0, "tusk"],
-	[4860.0, 500.0], [4920.0, 520.0], [4980.0, 500.0],
-	[5100.0, 380.0, "shell"], [5130.0, 350.0, "shell"],
-	[5230.0, 510.0], [5350.0, 500.0],
+	[4290.0, 500.0], [4350.0, 520.0], [4410.0, 500.0],
+	[4600.0, 370.0, "shell"], [4630.0, 345.0, "shell"],
+	[4665.0, 494.0, "tusk"],
+	[5030.0, 500.0], [5095.0, 520.0], [5160.0, 500.0],
+	[5340.0, 370.0, "shell"], [5370.0, 345.0, "shell"],
+	[5480.0, 560.0], [5540.0, 560.0],
 	# up in the air over the path: a jump gets these...
 	[1090.0, 482.0], [1130.0, 472.0], [1170.0, 482.0],
 	[10720.0, 482.0], [10760.0, 472.0],
@@ -269,7 +271,7 @@ const SHELL_POINTS := [
 ]
 ## Conches (5): out-of-the-way spots.
 const CONCHES := [
-	[4630.0, 490.0],
+	[4715.0, 490.0],
 	[1000.0, 470.0], [2400.0, 370.0], [3310.0, 670.0], [6080.0, 690.0], [7680.0, -300.0], [8140.0, -320.0],
 	[9150.0, -430.0], [10360.0, 20.0], [11180.0, 460.0], [14930.0, 430.0], [21900.0, 670.0], [22260.0, 350.0],
 	[24300.0, 570.0], [24160.0, 460.0],

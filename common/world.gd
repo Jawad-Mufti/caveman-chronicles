@@ -1226,6 +1226,11 @@ class Undergrowth extends Panorama:
 	## none taller than a man's waist, so nothing ever stands between the player
 	## and what he is doing.
 	## Built as one Batch: the whole band, end to end, is a single draw call.
+	## A shader sways it in the wind: roots still, tips moving.
+	func _enter_tree() -> void:
+		if material == null:
+			material = FX.sway_material(566.0, 4.5)
+
 	func _draw() -> void:
 		_pen = Batch.new()
 		_paint()

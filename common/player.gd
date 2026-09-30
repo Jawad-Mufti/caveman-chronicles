@@ -133,6 +133,12 @@ var _struck := false            ## this swing has already struck something (for 
 var preview := false       ## a mannequin in the shop: stands, breathes, never moves
 signal ate_fig
 var _fig_prev := false
+## Scorched by standing in a campfire: "YEOWCH!", a leap, his loincloth
+## smoking with little flames, a panicked run — then a sooty face a while.
+var scorch_t := 0.0
+var soot_t := 0.0
+var _panic_dir := 1.0
+var _smoke_in := 0.0
 ## Vine swinging. While on one he is placed by the swing, not by physics.
 const HANG := 80.0        ## px from the grip down to his feet
 ## Jumping off a vine he somersaults the way he's flying: curls into a ball,
@@ -161,6 +167,7 @@ var _heal_prev := false
 var _throw_prev := false
 var _fire_prev := false
 var _torch_tip := Vector2(-22, -80)   ## where the flame is, in his local space; set by drawing
+var _embers: CPUParticles2D           ## embers rising from the torch
 var _coyote := 0.0
 var _buffer := 0.0
 var _jumps_left := 0
@@ -188,6 +195,9 @@ func _ready() -> void:
 	add_to_group("player")
 	collision_layer = 2
 	collision_mask = 1
+	_embers = FX.embers(3.0, 8, 0.7)
+	_embers.emitting = false
+	add_child(_embers)
 
 	var body := CollisionShape2D.new()
 	var cap := CapsuleShape2D.new()
@@ -208,6 +218,21 @@ func _ready() -> void:
 	_hit_shape.position = Vector2(FIST_REACH, -30)
 	_hitbox.add_child(_hit_shape)
 	add_child(_hitbox)
+
+
+func scorched(fire_x: float) -> void:
+	if dead or scorch_t > 0.0 or vine != null:
+		return
+	scorch_t = 1.5
+	soot_t = 6.0
+	_panic_dir = 1.0 if global_position.x >= fire_x else -1.0
+	facing = int(_panic_dir)
+	velocity = Vector2(_panic_dir * 260.0, -720.0)
+	var word := WordPop.new()
+	word.text = "YEOWCH!"
+	word.position = global_position + Vector2(-50, -120)
+	get_parent().add_child(word)
+	FX.burst(get_parent(), global_position + Vector2(0, -40), "embers")
 
 
 ## A roast fig: two hearts back.
@@ -462,11 +487,21 @@ func _physics_process(delta: float) -> void:
 			attacking = 0.0
 			slam_charge = 0.0
 
+	# scorched: running off in a panic, smoke trailing behind
+	scorch_t = maxf(scorch_t - delta, 0.0)
+	soot_t = maxf(soot_t - delta, 0.0)
+	if scorch_t > 0.0:
+		_smoke_in -= delta
+		if _smoke_in <= 0.0:
+			_smoke_in = 0.08
+			FX.burst(get_parent(), global_position + Vector2(-_panic_dir * 16.0, -44.0), "smoke", -_panic_dir)
 	var dir := 0.0
 	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT) or touch["left"]:
 		dir -= 1.0
 	if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT) or touch["right"]:
 		dir += 1.0
+	if scorch_t > 0.0:
+		dir = _panic_dir
 	if dir != 0.0:
 		facing = int(signf(dir))
 	_vine_cd = maxf(_vine_cd - delta, 0.0)
@@ -597,6 +632,8 @@ func _physics_process(delta: float) -> void:
 	if on_floor and not _was_floor and pre_vy > 200.0:
 		_land = LAND_TIME
 		_land_amt = clampf(pre_vy / 1400.0, 0.3, 1.0)
+		if pre_vy > 650.0:
+			FX.burst(get_parent(), global_position, "dust", float(facing))
 	_was_floor = on_floor
 
 
@@ -606,6 +643,9 @@ func _process(delta: float) -> void:
 		anim_t += delta
 		queue_redraw()
 		return
+	if _embers != null:
+		_embers.position = _torch_tip
+		_embers.emitting = has_torch and torch_fuel > 0.05 and not dead
 	if invuln > 0.0 and fmod(invuln * 12.0, 1.0) < 0.5:
 		modulate.a = 0.35
 	else:
@@ -649,6 +689,8 @@ func _apply_swing() -> void:
 		if flings:
 			area.fling = 2.4
 		area.take_hit(dmg, facing)
+		if has_stick:
+			FX.burst(get_parent(), (area as Node2D).global_position + Vector2(-facing * 10.0, -34.0), "sparks", float(facing))
 		if flings and is_instance_valid(area):
 			area.fling = 1.0
 		# the hammer's weight: what it hits and doesn't kill is knocked flat
@@ -1286,6 +1328,7 @@ func _paint() -> void:
 
 	if costume >= 2:
 		_hide_loincloth(speed_k)
+		_seat_flames()
 	else:
 		for i in 6:
 			var lx := -21.0 + i * 10.0
@@ -1341,6 +1384,7 @@ func _paint() -> void:
 	if skin == "war_paint":
 		_rc(Rect2(-12, -161, 36, 3.5), Pal.EMBER)
 	_costume_head()
+	_soot_face()
 	if fury >= 0.0:
 		_rage_marks(rage, roaring)
 
@@ -1386,6 +1430,12 @@ func _paint() -> void:
 		var hd := Vector2(96, -70)
 		_arm(sh, sh + Vector2(40, 10), hd, 13.0, false)
 		_club(hd, Vector2(190, -8), 7.0, 26.0)
+		_dot(hd, 11.0, _skin)
+	elif scorch_t > 0.0 and has_stick:
+		# arms up, waving wildly
+		var hd := Vector2(24 + sin(anim_t * 26.0) * 14.0, -214)
+		_arm(sh, sh + Vector2(12, -52), hd, 13.0, false)
+		_club(hd, hd + Vector2(-50, -60), 7.0, 22.0)
 		_dot(hd, 11.0, _skin)
 	elif flip_t > 0.0 and (curl > 0.0 or open_k > 0.0):
 		var hd: Vector2
@@ -1607,6 +1657,35 @@ func _grapes(at: Vector2, k: float) -> void:
 		_cc(at + g * k, 4.6 * k, Color("3e1a52"))
 		_cc(at + g * k, 3.8 * k, Color("7b3aa0"))
 		_cc(at + (g + Vector2(-1.3, -1.3)) * k, 1.3 * k, Color("d9b8ef"))
+
+
+## The sooty face after a scorching: black with soot, just the whites of
+## his eyes showing, fading over its last second.
+func _soot_face() -> void:
+	if soot_t <= 0.0:
+		return
+	var a := clampf(soot_t, 0.0, 1.0)
+	_pg(_oval_pts(Vector2(4, -150), 23.0, 20.0), Color(0.12, 0.1, 0.09, 0.78 * a))
+	for e in [Vector2(-7, -151), Vector2(15, -151)]:
+		_cc(e, 5.0, Color(1, 1, 1, a))
+		_cc(e + Vector2(1.5, 0.5), 2.2, Color(0.1, 0.08, 0.06, a))
+
+
+## Little flames licking at the seat of his loincloth while he panics.
+func _seat_flames() -> void:
+	if scorch_t <= 0.0:
+		return
+	for i in 3:
+		var x := -30.0 + i * 11.0
+		var h := 26.0 + sin(anim_t * 30.0 + i * 2.0) * 7.0
+		_pg(_seat_flame_pts(Vector2(x, -52), 9.0, h, 6.0), Color(1.0, 0.55, 0.15, 0.95))
+		_pg(_seat_flame_pts(Vector2(x, -52), 5.0, h * 0.6, 4.0), Color(1.0, 0.9, 0.5))
+
+
+## A small flame: a teardrop rising from `base`, `w` wide and `h` tall, its tip leaning by `lean`.
+func _seat_flame_pts(base: Vector2, w: float, h: float, lean: float) -> PackedVector2Array:
+	return PackedVector2Array([base + Vector2(-w, 0), base + Vector2(-w * 0.8, -h * 0.45), base + Vector2(lean, -h),
+		base + Vector2(w * 0.8, -h * 0.45), base + Vector2(w, 0), base + Vector2(0, h * 0.12)])
 
 
 ## ------------------------------------------------------------------ costumes

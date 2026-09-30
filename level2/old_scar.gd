@@ -218,6 +218,8 @@ func _hurt(amount: int, from_dir: int) -> void:
 	hp -= amount
 	_hit_t = 0.3
 	_hit_dir = from_dir
+	flash = 0.1                  # a light flash of the whole silhouette (a shader)
+	FX.burst(get_parent(), global_position + Vector2(-float(from_dir) * 30.0, -80.0) * SIZE, "sparks", -float(from_dir))
 	_tail_v += 18.0 * float(from_dir)
 	var at := global_position + Vector2(-float(from_dir) * 30.0, -80.0) * SIZE
 	var tufts := FurTufts.new()

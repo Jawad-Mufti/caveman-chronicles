@@ -52,11 +52,23 @@ func _ready() -> void:
 	monitoring = true
 	monitorable = true
 	add_to_group("critters")
+	# struck, the whole silhouette flashes white (a shader), not a circle over it
+	material = FX.flash_material()
 	_setup()
 
 
 func _setup() -> void:
 	pass
+
+
+var _flash_shown := 0.0
+
+
+func _show_flash() -> void:
+	var k := clampf(flash / 0.15, 0.0, 1.0) * 0.85
+	if k != _flash_shown and material is ShaderMaterial:
+		_flash_shown = k
+		(material as ShaderMaterial).set_shader_parameter("flash", k)
 
 
 func _tick(_delta: float) -> void:
@@ -407,6 +419,7 @@ func _is_stomp() -> bool:
 
 func _physics_process(delta: float) -> void:
 	flash = maxf(flash - delta, 0.0)
+	_show_flash()
 	if dying > 0.0:
 		_death_step(delta)
 		return

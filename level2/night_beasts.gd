@@ -428,7 +428,7 @@ class Wolf extends Critter:
 		if state == "ko":
 			ph = death_t * 30.0
 			gait = 0.5
-		var sink := low * 8.0
+		var sink := low * 8.0 + absf(sin(_stride / STEP * TAU)) * 2.0 * clampf(_moving / 120.0, 0.0, 1.0)
 		var shiver := sin(t * 60.0) * 1.2 if state == "cower" else 0.0
 
 		# far legs, in the body's shadow
@@ -492,18 +492,33 @@ class Wolf extends Critter:
 			_fill(PackedVector2Array([Vector2(hx + 20, hy + 4), Vector2(hx + 26, hy + 5), Vector2(hx + 27, hy + 16), Vector2(hx + 22, hy + 17)]), Color("d96b7a"))
 		else:
 			_cc(Vector2(hx + 10, hy - 3), 2.2, Pal.OUTLINE)
-		if flash > 0.0:
-			_cc(Vector2(0, -28), 32.0, Color(1, 1, 1, 0.45))
 		_st(Vector2.ZERO, 0.0, Vector2.ONE)
 
-	func _legs(side: float, ph: float, gait: float, sink: float, stretch: float, col: Color) -> void:
+	## A real trot: diagonal pairs move together (near fore with far hind),
+	## and every paw PLANTS — it stays put on the ground while the body travels
+	## over it, then lifts and swings forward. The step is driven by distance
+	## covered, so at any speed the paws never skate.
+	const STEP := 52.0              ## body travel per full step
+	const STANCE := 0.6             ## share of the step a paw is on the ground
+
+	func _legs(side: float, _ph: float, gait: float, sink: float, stretch: float, col: Color) -> void:
 		var s := side * 3.0
+		var reach := STEP * STANCE      # how far a planted paw travels back
 		for fore in [true, false]:
 			var is_fore: bool = fore
 			var hip := Vector2(18.0 + s if is_fore else -20.0 + s, -26.0 + sink)
-			var swing := sin(ph + (0.0 if is_fore else PI)) * 12.0 * gait
-			var lift := maxf(0.0, cos(ph + (0.0 if is_fore else PI))) * 7.0 * gait
-			var paw := Vector2(hip.x + swing, 0.0 - lift)
+			# diagonal pairs: near fore + far hind, near hind + far fore
+			var off := 0.0 if (is_fore == (side > 0.0)) else 0.5
+			var u := fmod(_stride / STEP + off + 10.0, 1.0)
+			var paw := Vector2(hip.x, 0.0)
+			if gait > 0.05:
+				if u < STANCE:
+					paw.x = hip.x + reach * 0.5 - (u / STANCE) * reach
+				else:
+					var k := (u - STANCE) / (1.0 - STANCE)
+					paw.x = hip.x - reach * 0.5 + k * reach
+					paw.y = -sin(k * PI) * 9.0
+				paw = Vector2(hip.x, 0.0).lerp(paw, clampf(gait * 1.6, 0.0, 1.0))
 			if stretch > 0.0:
 				paw = hip + (Vector2(24, 14) if is_fore else Vector2(-26, 12))
 			var knee := hip.lerp(paw, 0.5) + Vector2(-4.0 if is_fore else 5.0, 0)
@@ -566,8 +581,6 @@ class Bat extends Bestiary.Insect:
 		# two long fangs
 		_fill(PackedVector2Array([Vector2(2, -7), Vector2(3.4, -1), Vector2(4.2, -7)]), Pal.TOOTH)
 		_fill(PackedVector2Array([Vector2(5.2, -7), Vector2(6.4, -1), Vector2(7.2, -7)]), Pal.TOOTH)
-		if flash > 0.0:
-			_cc(Vector2.ZERO, 16.0, Color(1, 1, 1, 0.5))
 		_st(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	func draw_glow(g: Node2D) -> void:

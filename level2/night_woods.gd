@@ -56,6 +56,52 @@ class Bonfire extends Area2D:
 		add_to_group("bonfire")
 		t = randf() * 10.0
 
+	## Stand IN the flames of a campfire for three seconds and he gets his
+	## backside scorched (see CaveMan.scorched): smoke curls up from his feet
+	## as a warning first. Harmless — and funny. Not the braziers on pillars.
+	var can_scorch := true
+	var _scorch := 0.0
+	var _smoke_in := 0.0
+
+	func _scorch_check(delta: float) -> void:
+		if not lit or not can_scorch:
+			return
+		var man = get_tree().get_first_node_in_group("player")
+		if man == null or man.dead:
+			return
+		var d: Vector2 = (man as Node2D).global_position - global_position
+		var in_flames: bool = absf(d.x) < 34.0 and absf(d.y) < 30.0 and man.is_on_floor()
+		if not in_flames:
+			_scorch = minf(_scorch, 0.0)
+			_scorch = move_toward(_scorch, 0.0, delta)
+			return
+		_scorch += delta
+		if _scorch > 1.4:
+			_smoke_in -= delta
+			if _smoke_in <= 0.0:
+				_smoke_in = 0.18
+				FX.burst(get_parent(), (man as Node2D).global_position + Vector2(0, -6), "smoke")
+		if _scorch >= 3.0:
+			_scorch = -2.5
+			man.scorched(global_position.x)
+
+	var _embers: CPUParticles2D
+	var _haze: ColorRect
+
+	## Embers and heat haze: made once, shown only while lit and on screen.
+	func _fx_update() -> void:
+		var want := lit and NightWoods.near_view(self)
+		if want and _embers == null:
+			_embers = FX.embers(22.0 * radius / 340.0, 20, 1.0)
+			_embers.position = Vector2(0, -34)
+			add_child(_embers)
+			_haze = FX.shimmer(90.0 * radius / 340.0, 150.0)
+			_haze.position += Vector2(0, -40)
+			add_child(_haze)
+		if _embers != null:
+			_embers.emitting = want
+			_haze.visible = want
+
 	func kindle() -> void:
 		if lit:
 			return
@@ -88,9 +134,11 @@ class Bonfire extends Area2D:
 		return 1.0 if lit else 0.0
 
 	func _process(delta: float) -> void:
+		_scorch_check(delta)
 		t += delta
 		if NightWoods.near_view(self):
 			queue_redraw()
+		_fx_update()
 
 	## Rebuilt every frame (it flickers), but as one Batch: one draw call, not ~30.
 	func _draw() -> void:
@@ -633,7 +681,14 @@ class FireWave extends Node2D:
 		if t > REACH / SPEED + 0.6:
 			queue_free()
 			return
+		_ember_in -= delta
+		if _ember_in <= 0.0 and t * SPEED <= REACH:
+			_ember_in = 0.07
+			for side in [-1.0, 1.0]:
+				FX.burst(get_parent(), global_position + Vector2(float(side) * reach, -20.0), "embers", float(side))
 		queue_redraw()
+
+	var _ember_in := 0.0
 
 	func _burn_at(fx: float) -> void:
 		var y := global_position.y
@@ -1138,6 +1193,7 @@ class Brazier extends Bonfire:
 	## lit bowl pushes the dark (and the beast) back.
 	func _ready() -> void:
 		super._ready()
+		can_scorch = false
 		radius = 280.0
 
 	func light() -> Vector4:

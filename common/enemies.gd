@@ -146,8 +146,6 @@ class Insect extends Critter:
 		_dot(Vector2(12, -2), 4.6, Pal.WASP_DARK, 2.2)
 		_eye(Vector2(14, -3), 2.6, Vector2(0.6, 0), Pal.EYE_YELLOW)
 		_ln(Vector2(13, -6), Vector2(19, -11), Pal.OUTLINE, 1.5, true)
-		if flash > 0.0:
-			_cc(Vector2.ZERO, 15.0, Color(1, 1, 1, 0.5))
 class Lizard extends Critter:
 	func death_style() -> String:
 		return "flip"
@@ -230,8 +228,6 @@ class Lizard extends Critter:
 		# tongue, flicked now and then
 		if fmod(t, 2.2) < 0.22:
 			_ln(Vector2(f * 32, -11), Vector2(f * 41, -13), Pal.MAW, 1.8, true)
-		if flash > 0.0:
-			_cc(Vector2(0, -10), 26.0, Color(1, 1, 1, 0.45))
 class Stone extends Critter:
 	var vy := 0.0
 	var floor_y := 0.0
@@ -677,8 +673,6 @@ class Flytrap extends Critter:
 		_fill(_pts_oval(head + Vector2(9, 0), 12.0, 3.0 + open_amt * 11.0), Pal.MAW)
 		_jaw(head, -1.0)
 		_jaw(head, 1.0)
-		if flash > 0.0:
-			_cc(head + Vector2(8, 0), 26.0, Color(1, 1, 1, 0.45))
 		_st(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	## One lobe, hinged at the back and swinging open. sgn -1 is the upper lobe.
@@ -762,5 +756,3 @@ class Runner extends Critter:
 		_fill(PackedVector2Array([Vector2(f * 14, -28), Vector2(f * 12, -36), Vector2(f * 20, -30)]), Pal.RUNNER_DARK)
 		_shape(PackedVector2Array([Vector2(f * 27, -14), Vector2(f * 34, -22), Vector2(f * 30, -12)]), Pal.TUSK, 1.6)
 		_eye(Vector2(f * 22, -23), 2.8, Vector2(f * 0.6, 0), Pal.EMBER)
-		if flash > 0.0:
-			_cc(Vector2(0, -18), 26.0, Color(1, 1, 1, 0.45))
