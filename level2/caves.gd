@@ -83,7 +83,7 @@ class CaveBackdrop extends Node2D:
 		rng.seed = int(rect.position.x)
 		_bt.rect(rect.grow(500.0), Pal.CAVE_DARK)
 		_bt.rect(rect, Pal.CAVE_BACK)
-		for i in 60:
+		for i in int(rect.size.x / 35.0):
 			var c := rect.position + Vector2(rng.randf() * rect.size.x, rng.randf() * rect.size.y)
 			var r := rng.randf_range(20.0, 70.0)
 			var pts := PackedVector2Array()

@@ -110,11 +110,11 @@ const ELDER_AT := Vector2(9320, -408)
 ## [x, y, lit at start]
 const BONFIRES := [[520.0, GROUND_Y, true], [1720.0, GROUND_Y, false], [3560.0, GROUND_Y, false],
 	[7410.0, -278.0, false], [8830.0, GROUND_Y, false], [10270.0, GROUND_Y, false],
-	[21470.0, 700.0, false], [23860.0, 600.0, false]]   # an old hearth in each cave
+	[21470.0, 700.0, false], [23290.0, 700.0, false], [25140.0, 600.0, false], [26300.0, 600.0, false]]   # old hearths in the caves
 ## [x, y, bundles of wood in it]
 const DEAD_TREES := [[1260.0, GROUND_Y, 2], [2400.0, 400.0, 1], [2855.0, GROUND_Y, 2], [6830.0, -52.0, 2], [8990.0, GROUND_Y, 2]]
 ## Loose bundles already on the ground: the crevice stash.
-const WOOD := [[5900.0, 720.0], [6070.0, 720.0], [21600.0, 700.0], [23990.0, 600.0]]
+const WOOD := [[5900.0, 720.0], [6070.0, 720.0], [21600.0, 700.0], [26430.0, 600.0]]
 ## [left, right, start_x, floor_y]. Kept clear of the bonfires' light.
 const WOLVES := [
 	[1000.0, 1490.0, 1330.0, GROUND_Y], [1000.0, 1490.0, 1450.0, GROUND_Y],
@@ -124,51 +124,90 @@ const WOLVES := [
 ]
 const BAT_HOVER := 70.0
 ## [x, the surface this bat belongs to]
-const BATS := [[1880.0, GROUND_Y], [2360.0, 400.0], [6435.0, 172.0], [7155.0, -165.0], [21335.0, 700.0]]
-const ROCK_PILES := [[760.0, GROUND_Y], [2130.0, 490.0], [2785.0, GROUND_Y], [6930.0, -52.0], [8900.0, GROUND_Y], [20600.0, 600.0]]
-const BERRIES := [[1030.0, 500.0], [2425.0, 400.0], [5970.0, 720.0], [7160.0, -398.0], [21700.0, 700.0], [23960.0, 600.0]]
+const BATS := [[1880.0, GROUND_Y], [2360.0, 400.0], [6435.0, 172.0], [7155.0, -165.0], [21335.0, 700.0], [22540.0, 700.0, 240.0]]
+const ROCK_PILES := [[760.0, GROUND_Y], [2130.0, 490.0], [2785.0, GROUND_Y], [6930.0, -52.0], [8900.0, GROUND_Y], [20600.0, 600.0], [22060.0, 700.0], [25220.0, 600.0]]
+const BERRIES := [[1030.0, 500.0], [2425.0, 400.0], [5970.0, 720.0], [7160.0, -398.0], [21700.0, 700.0], [26400.0, 600.0], [23060.0, 700.0], [25180.0, 600.0]]
 
 ## ---------------------------------------------------------------- caves
 ## Each cave: its camera bounds, its rock [x, y, w, h, kind], where he comes in,
 ## and its doorway outside [x, y, which way he walks in, "webs" | "skin"].
-const CAVE_A := Rect2(20300, 150, 2100, 800)      # the Weeping Cave
+const CAVE_A := Rect2(20300, 150, 3370, 800)      # the Weeping Cave
 const CAVE_A_ROCK := [
-	[20300.0, 150.0, 100.0, 800.0, "wall"], [22300.0, 150.0, 100.0, 800.0, "wall"],
+	[20300.0, 150.0, 100.0, 800.0, "wall"], [23570.0, 150.0, 100.0, 800.0, "wall"],
 	[20400.0, 600.0, 500.0, 350.0, "floor"], [20900.0, 700.0, 350.0, 250.0, "floor"],
-	[21420.0, 700.0, 660.0, 250.0, "floor"],           # after the pit
-	[21800.0, 590.0, 100.0, 18.0, "floor"], [21950.0, 480.0, 100.0, 18.0, "floor"],
-	[22080.0, 380.0, 220.0, 570.0, "floor"],           # the cocoon chamber
+	[21420.0, 700.0, 990.0, 250.0, "floor"],           # after the pit: the old hearth, the Weeping Hall, the nursery
+	[22650.0, 700.0, 120.0, 250.0, "floor"],           # the pillar in the Glowcap Chasm
+	[23010.0, 700.0, 340.0, 250.0, "floor"],           # the far side of the chasm, and under the stairs
+	[23070.0, 590.0, 100.0, 18.0, "floor"], [23220.0, 480.0, 100.0, 18.0, "floor"],
+	[23350.0, 380.0, 220.0, 570.0, "floor"],           # the cocoon chamber
 	[20400.0, 150.0, 500.0, 270.0, "roof"], [20900.0, 150.0, 860.0, 320.0, "roof"],
-	[21760.0, 150.0, 320.0, 100.0, "roof"], [22080.0, 150.0, 220.0, 30.0, "roof"],
+	[21760.0, 150.0, 340.0, 180.0, "roof"],            # the Weeping Hall: a high roof, to hang stalactites from
+	[22100.0, 150.0, 310.0, 270.0, "roof"],            # the nursery: lower
+	[22410.0, 150.0, 1160.0, 30.0, "roof"],            # the chasm and the chamber: very high
 ]
 const CAVE_A_IN := Vector2(20470, 600)
 const CAVE_A_DOOR := [8750.0, GROUND_Y, -1, "webs"]
-const CAVE_A_WEBS := [[20840.0, 600.0, 180.0], [22160.0, 380.0, 200.0]]
+const CAVE_A_WEBS := [[20840.0, 600.0, 180.0], [23430.0, 380.0, 200.0]]
 ## [x, roof y, floor y, left, right]
-const SPIDERS := [[21080.0, 470.0, 700.0, 20910.0, 21240.0], [21650.0, 470.0, 700.0, 21440.0, 22070.0],
-	[22140.0, 180.0, 380.0, 22090.0, 22290.0]]
-const COCOON := [22240.0, 180.0, 380.0]
+const SPIDERS := [[21080.0, 470.0, 700.0, 20910.0, 21240.0], [21600.0, 470.0, 700.0, 21440.0, 21690.0],
+	[23410.0, 180.0, 380.0, 23360.0, 23560.0], [21950.0, 330.0, 700.0, 21770.0, 22090.0]]
+const COCOON := [23510.0, 180.0, 380.0]
 
-const CAVE_B := Rect2(22800, 150, 1700, 800)      # the Rattling Cave
+const CAVE_B := Rect2(24100, 150, 2840, 800)      # the Rattling Cave
 const CAVE_B_ROCK := [
-	[22800.0, 150.0, 100.0, 800.0, "wall"], [24400.0, 150.0, 100.0, 800.0, "wall"],
-	[22900.0, 600.0, 400.0, 350.0, "floor"], [23300.0, 510.0, 90.0, 440.0, "floor"],   # a pillar, with a snake in it
-	[23390.0, 600.0, 1010.0, 350.0, "floor"],
-	[24120.0, 490.0, 110.0, 18.0, "floor"], [24260.0, 380.0, 140.0, 18.0, "floor"],   # up to the hoard
-	[22900.0, 150.0, 400.0, 180.0, "roof"], [23300.0, 150.0, 120.0, 180.0, "roof"],
-	[23420.0, 150.0, 340.0, 370.0, "roof"],            # the crawl tunnel: no room to jump
-	[23760.0, 150.0, 640.0, 60.0, "roof"],
+	[24100.0, 150.0, 100.0, 800.0, "wall"], [26840.0, 150.0, 100.0, 800.0, "wall"],
+	[24200.0, 600.0, 400.0, 350.0, "floor"], [24600.0, 510.0, 90.0, 440.0, "floor"],   # a pillar, with a snake in it
+	[24690.0, 600.0, 410.0, 350.0, "floor"],
+	[25100.0, 600.0, 280.0, 350.0, "floor"],           # the Stampede Alley
+	[25380.0, 540.0, 80.0, 410.0, "floor"],            # the rat mound, with the burrow in its face
+	[25600.0, 510.0, 80.0, 440.0, "floor"],            # the Rattle Pit's pillar: another snake
+	[25830.0, 600.0, 1010.0, 350.0, "floor"],          # the rockfall run, then the old hearth and on to the hoard
+	[26560.0, 490.0, 110.0, 18.0, "floor"], [26700.0, 380.0, 140.0, 18.0, "floor"],   # up to the hoard
+	[24200.0, 150.0, 400.0, 180.0, "roof"], [24600.0, 150.0, 120.0, 180.0, "roof"],
+	[24720.0, 150.0, 340.0, 370.0, "roof"],            # the crawl tunnel: no room to jump
+	[25060.0, 150.0, 1780.0, 60.0, "roof"],
 ]
-const CAVE_B_IN := Vector2(22970, 600)
+const CAVE_B_IN := Vector2(24270, 600)
 ## In the outcrop's far face: he sees it behind him once he has climbed over.
 const CAVE_B_DOOR := [11300.0, GROUND_Y, -1, "skin"]
 ## [left, right, start x, floor y]
-const RATS := [[23020.0, 23280.0, 23120.0, 600.0], [23020.0, 23280.0, 23220.0, 600.0],
-	[23400.0, 23740.0, 23500.0, 600.0], [23400.0, 23740.0, 23650.0, 600.0],
-	[23780.0, 24380.0, 24000.0, 600.0], [23780.0, 24380.0, 24250.0, 600.0]]
+const RATS := [[24320.0, 24580.0, 24420.0, 600.0], [24320.0, 24580.0, 24520.0, 600.0],
+	[24700.0, 25040.0, 24800.0, 600.0], [24700.0, 25040.0, 24950.0, 600.0],
+	[26400.0, 26820.0, 26480.0, 600.0], [26400.0, 26820.0, 26700.0, 600.0]]
 ## [hole x, hole y, facing]
-const SNAKES := [[23300.0, 580.0, -1], [24400.0, 580.0, -1]]
-const NEST := [24330.0, 380.0]
+const SNAKES := [[24600.0, 580.0, -1], [26840.0, 580.0, -1], [25600.0, 580.0, -1]]
+const NEST := [26770.0, 380.0]
+
+## ---------------------------------------------------------------- the longer caves
+## Each cave is two-thirds longer than it was, and the new stretch is made of
+## set-pieces that each say what they are about to do before they do it.
+##
+## The Weeping Cave: the Weeping Hall (stalactites that fall behind a runner and
+## on a dawdler), the nursery (egg sacs: pop them from afar, or they hatch), and
+## the Glowcap Chasm (a mushroom on a pillar, a bat, and a high shelf).
+## [x, the roof's underside, length]
+const HALL_STALACTITES := [[21800.0, 330.0, 96.0], [21870.0, 330.0, 112.0], [21940.0, 330.0, 92.0], [22010.0, 330.0, 108.0], [22075.0, 330.0, 94.0]]
+## [x, floor y]: the nursery's sacs; the nursery's own limits are below
+const EGG_SACS := [[22200.0, 700.0], [22290.0, 700.0], [22370.0, 700.0]]
+const NURSERY := [22110.0, 22400.0]
+## [x, floor y, tint]: glowing mushrooms (tint 0 teal, 1 violet)
+const GLOWCAPS := [[22710.0, 700.0, 0]]
+## [x, y, width]: a one-way shelf in the air over the chasm
+const CAVE_SHELVES := [[22830.0, 470.0, 120.0]]
+## The Rattling Cave: the Stampede Alley (a burrow that empties out at him),
+## the Rattle Pit (rib bridge, a snake pillar), the Rockfall Run.
+const STAMPEDE := [25380.0, 600.0]                   # the burrow's mouth, in the mound's face
+const STAMPEDE_ZONE := [25110.0, 24760.0]            # [where it wakes, where the rats are gone]
+const BONE_SLABS := [[25470.0, 600.0, 80.0], [25720.0, 600.0, 80.0]]
+const ROCKFALL_XS := [26070.0, 26160.0, 26250.0]
+## [x, y, hanging from the roof?, tint]: glowing crystal (0 teal, 1 violet, 2 amber, 3 rose)
+const CRYSTALS := [
+	[21520.0, 700.0, false, 0], [21745.0, 330.0, true, 0], [22140.0, 420.0, true, 3], [22330.0, 700.0, false, 3],
+	[22480.0, 180.0, true, 1], [22760.0, 700.0, false, 1], [22950.0, 180.0, true, 0], [23290.0, 180.0, true, 1],
+	[24440.0, 600.0, false, 2], [25090.0, 210.0, true, 2], [25300.0, 210.0, true, 2], [25440.0, 540.0, false, 3],
+	[25660.0, 210.0, true, 2], [26020.0, 600.0, false, 2], [26480.0, 210.0, true, 3], [26780.0, 210.0, true, 2],
+]
+const TINTS := [Color("5ee0d0"), Color("b084ff"), Color("ffb347"), Color("ff7fa8")]
 
 ## ---------------------------------------------------------------- the Long Dark
 ## [anchor x, anchor y, length]: the grip hangs at anchor y + length.
@@ -231,8 +270,8 @@ const SHELL_ROWS := [
 	[11140.0, 11210.0, 490.0, 3],     # on top of the outcrop
 	[20560.0, 20640.0, 600.0, 3],   # Weeping Cave: by the rock pile
 	[21490.0, 21570.0, 700.0, 3],   # Weeping Cave: past the pit, by the old hearth
-	[23315.0, 23375.0, 510.0, 3],   # Rattling Cave: on the snake's pillar
-	[23870.0, 23950.0, 600.0, 3],   # Rattling Cave: by the old hearth
+	[24615.0, 24675.0, 510.0, 3],   # Rattling Cave: on the snake's pillar
+	[26310.0, 26390.0, 600.0, 3],   # Rattling Cave: by the old hearth
 ]
 ## Single shells: arcs over jumps and swings, trails up the trees, and a
 ## column above each Moonpuff on the way down the mountain.
@@ -273,11 +312,11 @@ const SHELL_POINTS := [
 const CONCHES := [
 	[4715.0, 490.0],
 	[1000.0, 470.0], [2400.0, 370.0], [3310.0, 670.0], [6080.0, 690.0], [7680.0, -300.0], [8140.0, -320.0],
-	[9150.0, -430.0], [10360.0, 20.0], [11180.0, 460.0], [14930.0, 430.0], [21900.0, 670.0], [22260.0, 350.0],
-	[24300.0, 570.0], [24160.0, 460.0],
+	[9150.0, -430.0], [10360.0, 20.0], [11180.0, 460.0], [14930.0, 430.0], [23170.0, 670.0], [23530.0, 350.0],
+	[26740.0, 570.0], [26600.0, 460.0],
 ]
 ## [x, y, secret]: amber (25), one in each secret place.
-const AMBERS := [[6030.0, 690.0, "crevice"], [7220.0, -420.0, "lookout"], [22180.0, 350.0, "weeping"], [24370.0, 350.0, "rattling"]]
+const AMBERS := [[6030.0, 690.0, "crevice"], [7220.0, -420.0, "lookout"], [23450.0, 350.0, "weeping"], [26810.0, 350.0, "rattling"]]
 ## [x, surface y, "log" | "mound", contents]: the treasure boxes.
 const LOG := ["bone", "shell", "bone", "shell", "bone", "shell", "bone"]
 const MOUND := ["bone", "shell", "bone", "shell", "bone", "shell", "tusk", "conch"]
@@ -285,16 +324,58 @@ const BREAKABLES := [
 	[640.0, 600.0, "log", LOG], [1950.0, 600.0, "mound", MOUND], [3480.0, 600.0, "log", LOG],
 	[7580.0, -278.0, "mound", MOUND], [10800.0, 600.0, "log", LOG],
 	[15180.0, 600.0, "mound", MOUND], [16490.0, 600.0, "log", LOG],
-	[21050.0, 700.0, "log", LOG], [24050.0, 600.0, "mound", MOUND],
+	[21050.0, 700.0, "log", LOG], [26490.0, 600.0, "mound", MOUND],
 ]
 ## Clay pots, in little groups: one smack each, a few shells. [x, surface y, how many]
 const POTS := [
 	[5520.0, 600.0, 2],
 	[330.0, 600.0, 2], [2170.0, 490.0, 2], [3640.0, 600.0, 3], [7490.0, -278.0, 2], [9170.0, 600.0, 2],
-	[10180.0, 600.0, 2], [14520.0, 600.0, 2], [16620.0, 600.0, 3], [20500.0, 600.0, 2], [23000.0, 600.0, 2],
+	[10180.0, 600.0, 2], [14520.0, 600.0, 2], [16620.0, 600.0, 3], [20500.0, 600.0, 2], [24300.0, 600.0, 2],
 ]
+## ---------------------------------------------------------------- the sky lanes
+## Optional roads of floating stone above the ground road. Each starts with a
+## bounce bloom on the ground ("pad": [x, y]) that throws him up to the first
+## rock; then it is hops and bounces from stone to stone. [x, top y, width,
+## flags] — flags: 1 = a bounce bloom on the rock, 2 = a lamp (a real light in
+## the dark). A lane over solid ground costs nothing to fall from: the ground
+## catches him. Each ends above solid ground, and he just steps off.
+## Reach budget: hops of up to ~90 up and ~130 across; a bloom carries ~330
+## across and puts him ~390 higher than where it launched him.
+const SKY_LANES := [
+	{
+		"name": "Moonstep Road",          # the firelit woods: over the first wolves and the first pit, to the bonfire
+		"pad": [800.0, 600.0],
+		"rocks": [[940.0, 300.0, 190.0, 0], [1200.0, 280.0, 120.0, 0], [1370.0, 250.0, 110.0, 0], [1560.0, 310.0, 140.0, 1], [1780.0, 70.0, 170.0, 0]],
+		"cache": [4, ["shell", "shell", "shell", "shell", "conch", "bone", "bone", "bone"]],
+		"motes": [1100.0, 1700.0],
+		"note": [690.0, "Pale stones float in the sky: a road above the road. The bloom throws him up.", 5.0],
+	},
+	{
+		"name": "Silver Stair",           # the far side: over the wolves and the outcrop, to before the boulder run
+		"pad": [10610.0, 600.0],
+		"rocks": [[10740.0, 300.0, 190.0, 0], [11010.0, 290.0, 110.0, 1], [11260.0, 40.0, 160.0, 0], [11490.0, 80.0, 110.0, 0],
+			[11680.0, 130.0, 110.0, 0], [11860.0, 210.0, 110.0, 0], [12010.0, 330.0, 80.0, 0]],
+		"cache": [2, ["shell", "shell", "shell", "shell", "conch", "tusk", "bone", "bone"]],
+		"bat": [11590.0, 70.0],
+		"motes": [10900.0, 11500.0, 12000.0],
+		"note": [10560.0, "Stones in the sky again: a silver stair. The bloom throws him up.", 4.5],
+	},
+	{
+		"name": "Starlit Road",           # the Long Dark: glowing stones over the three pits, down to the toolmaker's fire
+		"pad": [14480.0, 600.0],
+		"rocks": [[14560.0, 290.0, 150.0, 2], [14790.0, 220.0, 100.0, 0], [14990.0, 230.0, 110.0, 2], [15170.0, 300.0, 140.0, 1],
+			[15480.0, 120.0, 130.0, 2], [15690.0, 150.0, 100.0, 0], [15840.0, 190.0, 100.0, 2], [15990.0, 270.0, 130.0, 1], [16330.0, 160.0, 140.0, 2]],
+		"cache": [8, ["shell", "shell", "shell", "shell", "shell", "conch", "conch", "tusk", "bone", "bone"]],
+		"bat": [15650.0, 150.0],
+		"motes": [14800.0, 15500.0, 16100.0],
+		"note": [14440.0, "Glowing stones over the pits, like dropped stars. A bloom lifts him to them.", 5.0],
+	},
+]
+
+## More pots, for the longer caves: [x, surface y, how many]. Their own ids.
+const POTS_LATE := [[25420.0, 540.0, 2]]
 ## Shell Totems: carved faces that spit two shells per hit, six hits.
-const TOTEMS := [[2470.0, 600.0], [8000.0, -30.0], [15070.0, 600.0], [24180.0, 600.0]]
+const TOTEMS := [[2470.0, 600.0], [8000.0, -30.0], [15070.0, 600.0], [26620.0, 600.0]]
 ## Monkey stashes: a log marked with a red X — a fountain of treasure.
 const STASH := ["bone", "shell", "bone", "shell", "bone", "shell", "bone", "shell", "bone", "shell", "tusk", "conch", "conch"]
 const STASHES := [[9320.0, 600.0], [9170.0, -418.0]]
@@ -305,6 +386,25 @@ const HARE_VALUE := 18
 ## coming off each step.
 const MOONPUFFS := [[7760.0, -155.0], [8140.0, 95.0], [8520.0, 345.0]]
 const SECRETS := ["crevice", "lookout", "weeping", "rattling"]
+## [x, y, kind]: the treasure of the longer caves. These have their own ids ("v0",
+## "v1"...), separate from the old tables, so nothing already found moves.
+const CAVE_LOOT := [
+	# the Weeping Hall: a trail under the stalactites (run, don't linger)
+	[21830.0, 676.0, "shell"], [21905.0, 676.0, "bone"], [21975.0, 676.0, "shell"], [22045.0, 676.0, "bone"],
+	# the nursery
+	[22130.0, 676.0, "bone"], [22245.0, 676.0, "shell"], [22330.0, 676.0, "bone"],
+	# the Glowcap Chasm: an arc over the first gap, a column up the bounce, the shelf, an arc down
+	[22490.0, 560.0, "shell"], [22540.0, 530.0, "shell"], [22590.0, 560.0, "shell"],
+	[22710.0, 520.0, "shell"], [22710.0, 450.0, "shell"], [22710.0, 385.0, "shell"],
+	[22890.0, 440.0, "conch"], [22845.0, 440.0, "tusk"], [22935.0, 440.0, "shell"],
+	[22990.0, 570.0, "shell"], [23030.0, 625.0, "shell"], [23070.0, 676.0, "bone"],
+	# the Stampede Alley
+	[25190.0, 576.0, "shell"], [25250.0, 576.0, "bone"], [25320.0, 576.0, "shell"], [25420.0, 500.0, "shell"],
+	# the Rattle Pit: over the slabs, and a conch on the snake's pillar
+	[25510.0, 560.0, "shell"], [25640.0, 476.0, "conch"], [25760.0, 560.0, "shell"], [25560.0, 520.0, "bone"],
+	# the Rockfall Run: greedy, under the rocks
+	[26000.0, 576.0, "bone"], [26070.0, 576.0, "shell"], [26160.0, 576.0, "bone"], [26250.0, 576.0, "shell"],
+]
 ## [x, darkness]. Dusk at the camp, darkest in the woods, thinner on the
 ## mountain where the moon reaches, dark again under the great tree.
 const DARKNESS := [[0.0, 0.26], [700.0, 0.40], [1500.0, 0.62], [2600.0, 0.72], [3600.0, 0.74],
@@ -313,7 +413,7 @@ const DARKNESS := [[0.0, 0.26], [700.0, 0.40], [1500.0, 0.62], [2600.0, 0.72], [
 	[10200.0, 0.72], [11700.0, 0.76], [12150.0, 0.70], [14150.0, 0.72], [14300.0, 0.86], [14400.0, 0.92], [16350.0, 0.92],   # the Long Dark
 	[16500.0, 0.74], [17050.0, 0.76], [17150.0, 0.88], [17950.0, 0.88],                   # his home; the Three Fires
 	[18000.0, 0.82], [19300.0, 0.82],                                                     # the clearing
-	[20250.0, 0.92], [24600.0, 0.92]]   # the caves: near black
+	[20250.0, 0.92], [27050.0, 0.92]]   # the caves: near black
 
 var night: Night
 var sky: NightWoods.NightSky
@@ -370,6 +470,8 @@ func _ready() -> void:
 	_build_critters()
 	_build_tree_life()
 	_build_caves()
+	_build_cave_trials()
+	_build_sky_lanes()
 	_build_gorge()
 	_build_boulder_run()
 	_build_long_dark()
@@ -532,6 +634,8 @@ func _build_critters() -> void:
 		var bat := NightBeasts.Bat.new()
 		bat.ground_y = b[1]
 		bat.position = Vector2(b[0], b[1] - BAT_HOVER)
+		if b.size() > 2:
+			bat.roam_x = b[2]
 		add_child(bat)
 
 	_note(980, "Eyes. They will not cross strong light — keep the torch above the notch.", 4.5)
@@ -610,6 +714,141 @@ func _build_caves() -> void:
 	nest.holds_key = key_cave == 1
 	nest.revealed.connect(_on_revealed)
 	add_child(nest)
+
+
+## The longer caves: what lies between the old rooms. See the tables above.
+func _build_cave_trials() -> void:
+	for c in CRYSTALS:
+		var crystal := CaveTrials.Crystals.new()
+		crystal.position = Vector2(c[0], c[1])
+		crystal.hanging = c[2]
+		crystal.tint = TINTS[c[3]]
+		crystal.n = 3 + (int(c[0]) / 7) % 3
+		add_child(crystal)
+	# the Weeping Hall
+	for i in HALL_STALACTITES.size():
+		var h: Array = HALL_STALACTITES[i]
+		var st := CaveTrials.Stalactite.new()
+		st.position = Vector2(h[0], h[1])
+		st.len = h[2]
+		st.floor_y = 700.0
+		st.warn = 0.72 + 0.09 * (i % 3)
+		add_child(st)
+	# the nursery
+	for sc in EGG_SACS:
+		var sac := CaveTrials.EggSac.new()
+		sac.position = Vector2(sc[0], sc[1])
+		sac.left_x = NURSERY[0]
+		sac.right_x = NURSERY[1]
+		sac.popped.connect(_on_sac_popped)
+		add_child(sac)
+		_count_treasure("shell")
+	# the Glowcap Chasm
+	for g in GLOWCAPS:
+		var cap := CaveTrials.GlowCap.new()
+		cap.position = Vector2(g[0], g[1])
+		cap.tint = TINTS[g[2]]
+		add_child(cap)
+	for sh in CAVE_SHELVES:
+		var shelf := CaveTrials.Shelf.new()
+		shelf.position = Vector2(sh[0], sh[1])
+		shelf.w = sh[2]
+		add_child(shelf)
+	# the Stampede Alley
+	var mound := CaveTrials.RatMound.new()
+	mound.position = Vector2(STAMPEDE[0], STAMPEDE[1])
+	mound.zone_x0 = STAMPEDE_ZONE[0]
+	mound.kill_x = STAMPEDE_ZONE[1]
+	mound.rumbled.connect(func(_wave: int) -> void:
+		hud.say("Skritch-skritch-skritch — here they come!", 2.0))
+	add_child(mound)
+	# the Rattle Pit
+	for bs in BONE_SLABS:
+		var slab := CaveTrials.BoneSlab.new()
+		slab.position = Vector2(bs[0], bs[1])
+		slab.w = bs[2]
+		slab.player = player
+		add_child(slab)
+	# the Rockfall Run
+	var fall := CaveTrials.Rockfall.new()
+	fall.xs = ROCKFALL_XS
+	fall.floor_y = 600.0
+	fall.start_y = 222.0
+	fall.lead = 380.0
+	fall.delay = 0.7
+	fall.rattled.connect(func() -> void:
+		hud.say("Dust trickles down. The roof is letting go — watch the floor: shadows come first.", 4.0))
+	add_child(fall)
+	_note(21715, "The Weeping Hall. Drops shake loose here. Keep moving under them — don't wait.", 4.5)
+	_note(22105, "Silk sacs, and something in them is moving. Hit one from afar and it only pops.", 4.5)
+	_note(22415, "A pale cap, glowing on a pillar. Land on it and it throws him high.", 4.0)
+	_note(25110, "Scratching, from the mound ahead. A lot of it.", 3.5)
+	_note(25465, "A bridge of old ribs. It gives way — and something hisses from the pillar.", 4.5)
+	_note(25835, "The roof is rattling.", 3.0)
+
+
+## The sky lanes: see SKY_LANES. Loot is added with the rest of the treasure.
+func _build_sky_lanes() -> void:
+	for li in SKY_LANES.size():
+		var lane: Dictionary = SKY_LANES[li]
+		var pad: Array = lane["pad"]
+		var bloom := NightWoods.MoonPuff.new()
+		bloom.position = Vector2(pad[0], pad[1])
+		add_child(bloom)
+		var beacon := SkyLanes.Beacon.new()
+		beacon.position = Vector2(pad[0], pad[1])
+		add_child(beacon)
+		var rocks: Array = lane["rocks"]
+		for r in rocks:
+			var rock := SkyLanes.SkyRock.new()
+			rock.position = Vector2(r[0], r[1])
+			rock.w = r[2]
+			rock.lamp = (int(r[3]) & 2) != 0
+			add_child(rock)
+			if (int(r[3]) & 1) != 0:
+				var b2 := NightWoods.MoonPuff.new()
+				b2.position = Vector2(float(r[0]) + float(r[2]) * 0.5, r[1])
+				add_child(b2)
+		for mx in lane["motes"]:
+			var motes := SkyLanes.StarMotes.new()
+			motes.position = Vector2(mx, 200.0)
+			add_child(motes)
+		var c: Array = lane["cache"]
+		var cr: Array = rocks[c[0]]
+		var cache := SkyLanes.SkyCache.new()
+		cache.contents = c[1]
+		cache.level_id = "level2"
+		cache.id = "sc%d" % li
+		cache.position = Vector2(float(cr[0]) + float(cr[2]) * 0.5, cr[1])
+		add_child(cache)
+		for kind in cache.contents:
+			_count_treasure(kind)
+		if lane.has("bat"):
+			var at: Array = lane["bat"]
+			var bat := NightBeasts.Bat.new()
+			bat.ground_y = float(at[1]) + 260.0
+			bat.position = Vector2(at[0], at[1])
+			bat.roam_x = 170.0
+			bat.roam_y = 70.0
+			add_child(bat)
+		var n: Array = lane["note"]
+		_note(n[0], n[1], n[2])
+
+
+## A sac popped from afar: one shell, and no spiderlings.
+func _on_sac_popped(sac: CaveTrials.EggSac) -> void:
+	var id := "sac%d" % int(sac.position.x)
+	if GameState.is_taken("level2", id):
+		return
+	var p := Treasure.Pickup.new()
+	p.kind = "shell"
+	p.level_id = "level2"
+	p.id = id
+	p.position = sac.global_position + Vector2(0, -30)
+	p.vel = Vector2(randf_range(-70.0, 70.0), randf_range(-420.0, -330.0))
+	p.floor_y = sac.global_position.y
+	_on_treasure_popped(p)
+	call_deferred("add_child", p)
 
 
 func _build_cave(bounds: Rect2, rock: Array, entry: Vector2, door: Array, which: int) -> void:
@@ -1691,6 +1930,31 @@ func _build_treasure() -> void:
 		add_child(hare)
 		_bones_total += 8
 		_treasure_total += 5
+	_build_extension_loot()
+
+
+## The treasure of the longer caves, and of the sky lanes.
+func _build_extension_loot() -> void:
+	for i in CAVE_LOOT.size():
+		var l: Array = CAVE_LOOT[i]
+		_treasure(l[2], "v%d" % i, Vector2(l[0], l[1]))
+	# the sky lanes: their shells are worked out from the rocks, ids "k0", "k1"...
+	var sky_n := 0
+	for lane in SKY_LANES:
+		for sl in SkyLanes.loot_for(lane["pad"], lane["rocks"]):
+			_treasure(sl[2], "k%d" % sky_n, Vector2(sl[0], sl[1]))
+			sky_n += 1
+	for c in POTS_LATE:
+		for k in int(c[2]):
+			var pot := Treasure.Breakable.new()
+			pot.kind = "pot"
+			pot.contents = ["shell", "bone", "shell"] if k % 2 == 0 else ["bone", "shell", "bone"]
+			pot.level_id = "level2"
+			pot.id = "q%d_%d" % [int(c[0]), k]
+			pot.position = Vector2(float(c[0]) + (k - (int(c[2]) - 1) * 0.5) * 38.0, c[1])
+			add_child(pot)
+			for kind in pot.contents:
+				_count_treasure(kind)
 
 
 ## Counts what the level holds: shells by value (the economy is worked out
