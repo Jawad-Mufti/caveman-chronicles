@@ -37,15 +37,21 @@ const JUMP_BUFFER := 0.12     ## a jump press is remembered this long before lan
 const STOMP_BOUNCE := -430.0  ## pop up after crushing something underfoot
 const MAX_JUMPS := 2
 const AIR_JUMP := -520.0      ## weaker than the ground jump: a recovery, not a free second jump
-## Hercules-style: the second jump is a quick somersault, and after it he
-## comes down a little softer than a plain fall, with a capped speed and time
-## to steer — and he TUMBLES: legs pedalling, arms windmilling, yelling.
+## Hercules-style: the second jump is a quick somersault that opens into the
+## SPEAR pose — club arm thrust forward like a spear, the lead leg reaching
+## out, the back leg tucked — and he comes down a little softer than a plain
+## fall, with a capped speed and time to steer. A LONG fall (any fall) turns
+## into a cartoon TUMBLE: legs pedalling, arms windmilling, yelling.
 const AIR_FLIP_TIME := 0.42
 const GLIDE_GRAVITY := 1900.0
 const GLIDE_FALL := 620.0
+const LONG_FALL := 0.5        ## falling this long (s) and he starts to tumble
+const LONG_FALL_HERC := 1.1   ## ...but out of a double jump he holds the spear pose this long
 const YELLS := ["Whoa-oa-oa!", "Waaah!", "Yaaa-aa!", "Whoooa!", "Uh-oh!"]
 var _air_glide := false
-var _tumble := 0.0            ## 0..1: the cartoon fall after the double jump
+var _spear := 0.0             ## 0..1: the spear pose after the double jump
+var _tumble := 0.0            ## 0..1: the cartoon fall
+var _fall_t := 0.0
 var _yelled := false
 ## Chimneys: between two close walls (bodies in group "kick_wall") he jumps
 ## from one to the other, Prince of Persia style. Holding into a wall slows
@@ -564,16 +570,23 @@ func _physics_process(delta: float) -> void:
 		else:
 			velocity.y += (GRAVITY_UP if velocity.y < 0.0 else GRAVITY_DOWN) * delta
 
-	# the tumble: once the somersault is done and he's falling, the cartoon fall
-	var tumbling := _air_glide and flip_t <= 0.0 and velocity.y > 60.0 and not is_on_floor()
+	# the spear pose out of the double jump's somersault; the tumble on a long fall
+	var aloft := not is_on_floor() and vine == null and knock <= 0.0 and not dead
+	if aloft and velocity.y > 0.0:
+		_fall_t += delta
+	else:
+		_fall_t = 0.0
+	var tumbling := aloft and flip_t <= 0.0 and _fall_t > (LONG_FALL_HERC if _air_glide else LONG_FALL)
+	var spearing := aloft and _air_glide and flip_t < AIR_FLIP_TIME * 0.35 and not tumbling
 	_tumble = move_toward(_tumble, 1.0 if tumbling else 0.0, delta * (7.0 if tumbling else 12.0))
+	_spear = move_toward(_spear, 1.0 if spearing else 0.0, delta * 9.0)
 	if tumbling and not _yelled:
 		_yelled = true
 		var pop := Treasure.FloatText.new()
 		pop.text = YELLS[randi() % YELLS.size()]
 		pop.position = global_position + Vector2(-30, -190)
 		get_parent().add_child.call_deferred(pop)
-	if not _air_glide:
+	if not aloft:
 		_yelled = false
 
 	# chimney walls: cling and slide while holding into one
@@ -1269,6 +1282,7 @@ func _paint() -> void:
 	var boxing := attacking > 0.0 and not has_stick and throwing <= 0.0
 	var wince := invuln > 0.8 and not dead
 	var tumble := _tumble if air else 0.0
+	var spear := _spear * (1.0 - _tumble) if air else 0.0
 	# the anger: builds 0 -> 1 through the wind-up, then the snarl
 	var rage := 0.0
 	var roaring := false
@@ -1334,6 +1348,7 @@ func _paint() -> void:
 		lean = 0.06
 	if flip_t > 0.0:
 		lean = 0.5 * curl - 0.1 * open_k      # curled forward into the ball
+	lean = lerpf(lean, 0.16, spear)                                  # driving forward into the dive
 	lean = lerpf(lean, -0.08 + sin(anim_t * 11.0) * 0.17, tumble)   # rocking as he flails
 	if fury >= 0.0 and not roaring:
 		bob += 7.0 * rage
@@ -1385,6 +1400,11 @@ func _paint() -> void:
 			bend = maxf(bend, 0.7 * rage)
 			foot_f.x += 8.0 * rage
 			foot_b.x -= 8.0 * rage
+	if spear > 0.0:
+		# the lead leg reaching out in front, the back one tucked up behind
+		foot_f = foot_f.lerp(Vector2(58, -30), spear)
+		foot_b = foot_b.lerp(Vector2(-34, -46), spear)
+		bend = 1.0
 	_leg(hip_b, foot_b, bend)
 	_leg(hip_f, foot_f, bend)
 	if tumble > 0.0:
@@ -1565,6 +1585,13 @@ func _paint() -> void:
 		_arm(sh, sh + Vector2(12, -52), hd, 13.0, false)
 		_club(hd, hd + Vector2(-50, -60), 7.0, 22.0)
 		_dot(hd, 11.0, _skin)
+	elif spear > 0.3 and throwing <= 0.0 and attacking <= 0.0:
+		# the spear: arm thrust straight out in front, club pointed ahead like a spear
+		var hd := sh + Vector2(72, 12)
+		_arm(sh, sh.lerp(hd, 0.5) + Vector2(0, -3), hd, 13.0, false)
+		if has_stick and not axe_out:
+			_club(hd + Vector2(-22, -3), hd + Vector2(96, 16), 7.0, 22.0)
+		_dot(hd, 11.0, _skin)
 	elif flip_t > 0.0 and (curl > 0.0 or open_k > 0.0):
 		var hd: Vector2
 		if open_k > 0.0:
@@ -1710,7 +1737,8 @@ func _torch_arm(sh: Vector2, running: bool, air: bool, ph: float, k: float, rage
 		hd += Vector2(cos(ph) * 3.0 * k, -absf(sin(ph)) * 4.0 * k)
 	elif air:
 		hd += Vector2(2, -10)
-		# tumbling: the torch waved wildly overhead
+		# the spear pose: the torch carried forward and high; tumbling: waved wildly
+		hd += Vector2(34, -14) * _spear * (1.0 - _tumble)
 		hd += Vector2(sin(anim_t * 14.0) * 16.0, -30.0 + cos(anim_t * 14.0) * 8.0) * _tumble
 	else:
 		hd.y += sin(anim_t * 1.8) * 1.5
@@ -2010,6 +2038,9 @@ func _pose_arm(sh: Vector2, side: float, running: bool, air: bool, phase: float,
 		var a := anim_t * 19.0 + PI
 		var hd := sh + Vector2(cos(a) * 50.0, sin(a) * 50.0 - 28.0)
 		return [sh.lerp(hd, 0.5) + Vector2(sin(a) * 9.0, -cos(a) * 9.0), hd]
+	if air and _spear > 0.3:
+		# reaching forward too, a little higher than the club arm
+		return [sh + Vector2(36, -8), sh + Vector2(70, -14)]
 	if air:
 		if velocity.y < -150.0:
 			return [sh + Vector2(20.0 * side, -18.0), sh + Vector2(24.0 * side, -44.0)]
