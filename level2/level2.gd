@@ -6,22 +6,23 @@ extends "res://level2/level2_data.gd"
 ##   The Hanging Gorge (3980-5680) a ravine crossed by a chain of vines hanging from a
 ##                              fallen giant; a resting ledge; crumbling stepping stones
 ##   The Mountain (5680-8750)   a hard climb in the wind; a crevice stash; a lookout
-##   The Great Tree (8750-10120) climb it, cross the chasm on its bough, mind the monkeys.
+##   (8750-12750)               open ground between the mountain and the great tree
+##   The Great Tree (12750-14120) climb it, cross the chasm on its bough, mind the monkeys.
 ##                              At the very top: Old Bongo, the monkey king, who talks.
-##   Far side (10120-12200)      last bonfire, a dead snag to climb back up, wolves running scared
-##   The Boulder Run (12200-14200) a boulder breaks loose and rolls after him: run!
-##   The Long Dark (14300-16400) the roar that snuffs his torch; fireflies; vines; crumbling rock
-##   The Toolmaker (16400-17080) his home under a rock overhang: the forge
+##   Far side (14120-16200)      last bonfire, a dead snag to climb back up, wolves running scared
+##   The Boulder Run (16200-18200) a boulder breaks loose and rolls after him: run!
+##   The Long Dark (18300-20400) the roar that snuffs his torch; fireflies; vines; crumbling rock
+##   The Toolmaker (20400-21080) his home under a rock overhang: the forge
 ##                              (Firestone -> the Firestone Hammer) and his shop
-##   The Three Fires (17080-18000) a trial: a cracked boulder, wolves, and three
+##   The Three Fires (21080-22000) a trial: a cracked boulder, wolves, and three
 ##                              stone bowls to light; they burn the gate down
-##   Old Scar's clearing (17100-18400) the boss
+##   Old Scar's clearing (22000-23300) the boss
 ##
 ## The story: Old Bongo has lost the key to his banana box in one of two
 ## caves, and he'll trade the gem for it. Which cave is decided fresh each
 ## time the level starts. His memory of what chased him, and what lies at each
 ## cave's door, are the clues. The caves are built off to the right of the
-## woods (x > 10,000); their doorways fade him there and back.
+## level (x > 24,000); their doorways fade him there and back.
 ##   The Weeping Cave  (mouth in the mountain's foot)  spiders, webs; a cocoon in the roof
 ##   The Rattling Cave (mouth in the far-side outcrop) rats, snakes; the rats' hoard
 ## Beaten, Old Scar flees and dawn comes up; the end-of-level scroll counts
@@ -257,8 +258,8 @@ func _build_critters() -> void:
 	_note(5500, "The only way on is up.", 3.0)
 	_spot(Rect2(5860, 620, 240, 110), "A crack in the rock — and someone's stash in it.", "crevice")
 	_spot(Rect2(7170, -480, 80, 90), "From up here, the whole valley. And something glints, high in the great tree.", "lookout")
-	_note(8940, "Monkeys, up in the great tree. Leave them be and they leave him be.", 4.5)
-	_note(10180, "A dead snag, right by the fire. Its branches go all the way back up to the bough.", 4.5)
+	_note(12940, "Monkeys, up in the great tree. Leave them be and they leave him be.", 4.5)
+	_note(14180, "A dead snag, right by the fire. Its branches go all the way back up to the bough.", 4.5)
 
 
 func _build_tree_life() -> void:
@@ -391,12 +392,12 @@ func _build_cave_trials() -> void:
 	fall.rattled.connect(func() -> void:
 		hud.say("Dust trickles down. The roof is letting go — watch the floor: shadows come first.", 4.0))
 	add_child(fall)
-	_note(21715, "The Weeping Hall. Drops shake loose here. Keep moving under them — don't wait.", 4.5)
-	_note(22105, "Silk sacs, and something in them is moving. Hit one from afar and it only pops.", 4.5)
-	_note(22415, "A pale cap, glowing on a pillar. Land on it and it throws him high.", 4.0)
-	_note(25110, "Scratching, from the mound ahead. A lot of it.", 3.5)
-	_note(25465, "A bridge of old ribs. It gives way — and something hisses from the pillar.", 4.5)
-	_note(25835, "The roof is rattling.", 3.0)
+	_note(25715, "The Weeping Hall. Drops shake loose here. Keep moving under them — don't wait.", 4.5)
+	_note(26105, "Silk sacs, and something in them is moving. Hit one from afar and it only pops.", 4.5)
+	_note(26415, "A pale cap, glowing on a pillar. Land on it and it throws him high.", 4.0)
+	_note(29110, "Scratching, from the mound ahead. A lot of it.", 3.5)
+	_note(29465, "A bridge of old ribs. It gives way — and something hisses from the pillar.", 4.5)
+	_note(29835, "The roof is rattling.", 3.0)
 
 
 ## The sky lanes: see SKY_LANES. Loot is added with the rest of the treasure.
@@ -711,7 +712,7 @@ func _update_elder(delta: float) -> void:
 		_near_elder = false
 	# from the bough, a voice from above
 	_callout_t -= delta
-	var on_bough := absf(player.global_position.y - 42.0) < 12.0 and player.global_position.x > 9400.0
+	var on_bough := absf(player.global_position.y - 42.0) < 12.0 and player.global_position.x > 13400.0
 	if quest == "none" and on_bough and _callouts < 3 and _callout_t <= 0.0:
 		_callouts += 1
 		_callout_t = 10.0
@@ -861,9 +862,9 @@ func _update_long_dark() -> void:
 		for i in 3:
 			var wolf := NightBeasts.Wolf.new()
 			wolf.panic = true
-			wolf.panic_end = 11360.0
-			wolf.left_x = 10700.0
-			wolf.right_x = 14700.0
+			wolf.panic_end = 15360.0
+			wolf.left_x = 14700.0
+			wolf.right_x = 18700.0
 			wolf.position = Vector2(x + 720.0 + i * 70.0, GROUND_Y)
 			add_child(wolf)
 		hud.say("The wolves come running — straight past him. They're running FROM something.", 4.5)
@@ -941,7 +942,7 @@ func _build_the_end() -> void:
 	arena_bongo.visible = false
 	add_child(arena_bongo)
 	player.died.connect(_on_died_in_fight)
-	_note(15900, "Firelight ahead, under the rocks. Someone lives out here.", 3.0)
+	_note(19900, "Firelight ahead, under the rocks. Someone lives out here.", 3.0)
 
 
 ## ---------------------------------------------------------------- the Three Fires
