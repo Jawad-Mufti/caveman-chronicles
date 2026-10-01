@@ -43,6 +43,19 @@ const AIR_FLIP_TIME := 0.42
 const GLIDE_GRAVITY := 1300.0
 const GLIDE_FALL := 420.0
 var _air_glide := false
+## Chimneys: between two close walls (bodies in group "kick_wall") he jumps
+## from one to the other, Prince of Persia style. Holding into a wall slows
+## his fall to a slide; jump kicks him up and across. Other walls don't count,
+## so climbs elsewhere can't be skipped this way.
+const WALL_SLIDE := 150.0
+const WALL_KICK := Vector2(340, -600)
+const WALL_LOCK := 0.16       ## after a kick, steering is ignored this long
+const WALL_GRACE := 0.10      ## a kick still works this long after leaving the wall
+var wall_cling := false
+var _wall_dir := 0            ## the side the wall is on: -1 left, 1 right
+var _wall_t := 0.0
+var _kick_lock := 0.0
+var _slide_dust := 0.0
 const SWING_TIME := 0.26
 ## Bare-handed he throws a one-two: a jab off the lead hand, then a cross off
 ## the rear. Two separate strikes inside a single press.
@@ -530,7 +543,8 @@ func _physics_process(delta: float) -> void:
 	else:
 		_hit_box.size = FIST_BOX
 
-	if knock <= 0.0:
+	_kick_lock = maxf(_kick_lock - delta, 0.0)
+	if knock <= 0.0 and _kick_lock <= 0.0:
 		var a := ACCEL if is_on_floor() else AIR_ACCEL
 		if dir != 0.0:
 			velocity.x = move_toward(velocity.x, dir * SPEED, a * delta)
@@ -545,6 +559,22 @@ func _physics_process(delta: float) -> void:
 			velocity.y = minf(velocity.y + GLIDE_GRAVITY * delta, GLIDE_FALL)
 		else:
 			velocity.y += (GRAVITY_UP if velocity.y < 0.0 else GRAVITY_DOWN) * delta
+
+	# chimney walls: cling and slide while holding into one
+	_wall_t = maxf(_wall_t - delta, 0.0)
+	wall_cling = false
+	if not is_on_floor():
+		var wn := _kick_wall_normal()
+		if wn != 0.0:
+			_wall_dir = -int(wn)
+			_wall_t = WALL_GRACE
+			if dir == float(_wall_dir) and velocity.y > 0.0:
+				wall_cling = true
+				velocity.y = minf(velocity.y, WALL_SLIDE)
+				_slide_dust -= delta
+				if _slide_dust <= 0.0:
+					_slide_dust = 0.12
+					FX.burst(get_parent(), global_position + Vector2(_wall_dir * 13.0, -20.0), "dust", float(-_wall_dir))
 
 	# coyote time: full on the ground, draining in the air
 	if is_on_floor():
@@ -569,7 +599,17 @@ func _physics_process(delta: float) -> void:
 		_buffer = maxf(_buffer - delta, 0.0)
 
 	if _buffer > 0.0:
-		if _coyote > 0.0 and _jumps_left == MAX_JUMPS:
+		if _wall_t > 0.0 and not is_on_floor():
+			# kick off the wall: up, and across to the other one
+			velocity = Vector2(-_wall_dir * WALL_KICK.x, WALL_KICK.y)
+			facing = -_wall_dir
+			_kick_lock = WALL_LOCK
+			_jumps_left = MAX_JUMPS - 1
+			_air_glide = false
+			_wall_t = 0.0
+			_buffer = 0.0
+			FX.burst(get_parent(), global_position + Vector2(_wall_dir * 13.0, -30.0), "dust", float(-_wall_dir))
+		elif _coyote > 0.0 and _jumps_left == MAX_JUMPS:
 			velocity.y = JUMP
 			_jumps_left -= 1
 			_buffer = 0.0
@@ -784,6 +824,17 @@ func _slam() -> void:
 ## A vine hands itself to him when he flies into its end. He keeps the speed he
 ## arrived with, can pump with left/right, and jumps to let go — carrying the
 ## swing's speed with him, plus a little hop.
+## The side normal of a chimney wall he touched in the last move, or 0.
+func _kick_wall_normal() -> float:
+	for i in get_slide_collision_count():
+		var c := get_slide_collision(i)
+		var n := c.get_normal()
+		var body := c.get_collider() as Node
+		if absf(n.x) > 0.7 and body != null and body.is_in_group("kick_wall"):
+			return signf(n.x)
+	return 0.0
+
+
 func grab_vine(v: Node2D) -> bool:
 	if vine != null or dead or talking or fury >= 0.0 or is_on_floor():
 		return false
