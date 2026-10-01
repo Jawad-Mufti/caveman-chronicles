@@ -19,6 +19,9 @@ class SkyRock extends StaticBody2D:
 	var has_pad := false
 	var tint := Color("bcd8ff")
 	var t := 0.0
+	## Its outline, kept from _draw: the glow layer draws a moonlit copy of it
+	## over the dark, so a lane reads at night without his torch.
+	var _outline := PackedVector2Array()
 
 	func _ready() -> void:
 		collision_layer = 1
@@ -66,6 +69,7 @@ class SkyRock extends StaticBody2D:
 			rock.append(Vector2(x, 6.0 + depth[i]))
 			soil.append(Vector2(x, 6.0 + depth[i] * 0.42))
 		bt.poly(rock, Color("3e4660"))
+		_outline = rock
 		bt.poly(soil, Color("4f3d2f"))
 		bt.polyline(soil.slice(2), Color("3a2c22"), 2.0)
 		# stones set in the rock, and in the soil
@@ -120,6 +124,13 @@ class SkyRock extends StaticBody2D:
 	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		var tt := Time.get_ticks_msec() / 1000.0 + t
 		var o := global_position
+		# moonlight on the island itself, over the dark: a pale silhouette, its
+		# grassy top silvered, so the way across shows even without the torch
+		if _outline.size() > 2:
+			g.draw_set_transform(o)
+			g.draw_colored_polygon(_outline, Color("b0a497", 0.27))
+			g.draw_set_transform(Vector2.ZERO)
+		g.draw_line(o + Vector2(-4, 1), o + Vector2(w + 4, 1), Color("9fd6a6", 0.75), 4.0)
 		# a soft halo, and a bright lip
 		g.draw_circle(o + Vector2(w * 0.5, 14.0), w * 0.55 + 10.0, Color(tint, 0.05 + (0.03 if lamp else 0.0)))
 		g.draw_line(o + Vector2(3, 0.5), o + Vector2(w - 3, 0.5), Color(tint, 0.6), 2.0)

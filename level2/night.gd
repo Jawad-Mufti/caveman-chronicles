@@ -16,6 +16,10 @@ extends Node
 ## light is still mostly light, not where its fade finally reaches the dark.
 const EDGE := 0.85
 const MAX_LIGHTS := 12
+## How much of the table's darkness actually reaches the screen: a little under
+## all of it, so even the darkest places still show their shapes. The order of
+## dark to darker is kept; only the floor is lifted.
+const DARK_SCALE := 0.86
 ## The dark is soft gradients all the way through, so it is worked out on a
 ## small image and smoothed up to the screen: the shader runs for 57,600
 ## pixels instead of one per screen pixel (0.9 million at 720p, 3.7 million at
@@ -171,7 +175,7 @@ func shelter_at(p: Vector2) -> float:
 
 func _process(_delta: float) -> void:
 	if player != null:
-		ambient = clampf(darkness_at(player.global_position.x) + extra, 0.0, 0.97)
+		ambient = clampf((darkness_at(player.global_position.x) + extra) * DARK_SCALE, 0.0, 0.97)
 	var xf := get_viewport().get_canvas_transform()
 	var zoom := xf.get_scale().x
 	var view := get_viewport().get_visible_rect().size
