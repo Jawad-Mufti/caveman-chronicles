@@ -662,5 +662,4 @@ class Crystals extends Node2D:
 			var at := global_position + Vector2(float(s0[0]), float(s0[1]) * dirn)
 			var r := 8.0 * k
 			if r > 1.5:
-				g.draw_colored_polygon(PackedVector2Array([at + Vector2(0, -r), at + Vector2(r * 0.25, 0), at + Vector2(0, r), at + Vector2(-r * 0.25, 0)]), Color(1, 1, 1, k))
-				g.draw_colored_polygon(PackedVector2Array([at + Vector2(-r, 0), at + Vector2(0, r * 0.25), at + Vector2(r, 0), at + Vector2(0, -r * 0.25)]), Color(1, 1, 1, k))
+				Treasure.glint(g, at, r, Color(1, 1, 1, k))

@@ -27,6 +27,17 @@ static func is_bone(kind: String) -> bool:
 
 
 ## Draws one piece of treasure, centred on `at`, bold enough to read at night.
+## A four-point glint for the glow layer, drawn around the origin and moved
+## into place: far out (x > 20,000) a hair-thin diamond in world coordinates
+## loses too much float precision to triangulate.
+static func glint(g: CanvasItem, at: Vector2, r: float, col: Color, both := true) -> void:
+	g.draw_set_transform(at)
+	g.draw_colored_polygon(PackedVector2Array([Vector2(0, -r), Vector2(r * 0.25, 0), Vector2(0, r), Vector2(-r * 0.25, 0)]), col)
+	if both:
+		g.draw_colored_polygon(PackedVector2Array([Vector2(-r, 0), Vector2(0, r * 0.25), Vector2(r, 0), Vector2(0, -r * 0.25)]), col)
+	g.draw_set_transform(Vector2.ZERO)
+
+
 static func shape_into(b: Batch, kind: String, at: Vector2) -> void:
 	var look: Array = LOOK[kind]
 	var fill: Color = look[0]
@@ -325,8 +336,7 @@ class Pickup extends Area2D:
 			var r := 8.0 * k * big
 			if r < 1.5:
 				return
-			g.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.25, 0), c + Vector2(0, r), c + Vector2(-r * 0.25, 0)]), Color(1, 1, 1, k))
-			g.draw_colored_polygon(PackedVector2Array([c + Vector2(-r, 0), c + Vector2(0, r * 0.25), c + Vector2(r, 0), c + Vector2(0, -r * 0.25)]), Color(1, 1, 1, k))
+			Treasure.glint(g, c, r, Color(1, 1, 1, k))
 
 
 class FloatText extends Node2D:
@@ -437,8 +447,7 @@ class Breakable extends Area2D:
 			var r := 9.0 * k
 			if r < 1.5:
 				return
-			g.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.25, 0), c + Vector2(0, r), c + Vector2(-r * 0.25, 0)]), Color(1, 0.95, 0.75, k))
-			g.draw_colored_polygon(PackedVector2Array([c + Vector2(-r, 0), c + Vector2(0, r * 0.25), c + Vector2(r, 0), c + Vector2(0, -r * 0.25)]), Color(1, 0.95, 0.75, k))
+			Treasure.glint(g, c, r, Color(1, 0.95, 0.75, k))
 
 	func _process(delta: float) -> void:
 		_t += delta
@@ -666,4 +675,4 @@ class GoldenHare extends Critter:
 		if fmod(t, 1.4) < 0.25:
 			var r := 8.0
 			var p := c + Vector2(10, -20)
-			g.draw_colored_polygon(PackedVector2Array([p + Vector2(0, -r), p + Vector2(r * 0.25, 0), p + Vector2(0, r), p + Vector2(-r * 0.25, 0)]), Color(1, 1, 1, 0.9))
+			Treasure.glint(g, p, r, Color(1, 1, 1, 0.9), false)

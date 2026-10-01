@@ -136,8 +136,7 @@ class SkyRock extends StaticBody2D:
 			var c := o + Vector2(w * (0.25 + 0.5 * fmod(absf(sin(t * 7.0)), 1.0)), -5.0)
 			var r := 7.0 * k
 			if r > 1.5:
-				g.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.25, 0), c + Vector2(0, r), c + Vector2(-r * 0.25, 0)]), Color(1, 1, 1, k))
-				g.draw_colored_polygon(PackedVector2Array([c + Vector2(-r, 0), c + Vector2(0, r * 0.25), c + Vector2(r, 0), c + Vector2(0, -r * 0.25)]), Color(1, 1, 1, k))
+				Treasure.glint(g, c, r, Color(1, 1, 1, k))
 
 
 ## ================================================================ CACHE
