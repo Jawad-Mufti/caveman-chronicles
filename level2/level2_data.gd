@@ -10,7 +10,7 @@ const FALL_Y := 1020.0
 ## Reachability budget: a jump climbs ~133 px and carries ~227 px. Every step
 ## here asks for 100-125 up; the mountain's are the ones near the top of that.
 ## Ground runs: [x0, x1] at GROUND_Y.
-const FLOORS := [[0.0, 1500.0], [1640.0, 2600.0], [2760.0, 2900.0], [3350.0, 4060.0], [5420.0, 5680.0], [8750.0, 13400.0],
+const FLOORS := [[0.0, 1500.0], [1640.0, 2600.0], [2760.0, 2900.0], [3350.0, 4060.0], [5420.0, 5680.0], [8750.0, 10500.0], [11000.0, 13400.0],
 	[14120.0, 16620.0], [16730.0, 17100.0], [17230.0, 17640.0], [17780.0, 17940.0], [18100.0, 18600.0], [19000.0, 19300.0], [19700.0, 19950.0], [20400.0, LEVEL_W]]
 ## The hollow where the pack waits: [x, floor y, width].
 const HOLLOW := [2900.0, 700.0, 450.0]
@@ -58,6 +58,35 @@ const MOUNTAIN := [[5630, 1200], [5660, 560], [5820, 430], [6020, 330], [6220, 2
 	[6820, -120], [7040, -210], [7220, -380], [7400, -420], [7600, -370], [7800, -230], [8080, 20],
 	[8350, 230], [8600, 420], [8780, 1200]]
 
+## ---------------------------------------------------------------- the Mammoth Steppe
+## Between the mountain's foot and the great tree. A split rock blocks the way:
+## he walks in under its loose slab and climbs the chimney by jumping from wall
+## to wall. Then a herd of mammoths on the path (mind the feet, ride the backs),
+## a river only the old bull wades, and a mammoth graveyard under the tree.
+const CHIMNEY := [9150.0, 120.0, 60.0, 380.0]      ## the loose slab [x, top, w, h]: hangs 100 px off the ground
+const CLIFF := [9300.0, 100.0, 400.0]               ## [x, top, w]: the face to climb, and the top
+const CLIFF_STEPS := [[9700.0, 260.0, 110.0], [9810.0, 420.0, 100.0]]   ## the way down: [x, top, w]
+## The herd: [x0, x1, start x, speed, size]. The calf's back is one jump up;
+## the bull's needs the double jump (or the calf as a step).
+const HERD := [[9900.0, 10200.0, 10000.0, 70.0, 1.0], [10000.0, 10360.0, 10300.0, 95.0, 0.72]]
+const RIVER := [10500.0, 11000.0]
+## The old bull who wades the river: [x0, x1, ground y (in the water), speed].
+## His back is one jump up from either bank.
+const FERRY := [10620.0, 10880.0, 680.0, 70.0]
+const GRAVEYARD := [[11350.0, 1.0], [11900.0, 0.8], [12350.0, 1.15]]   ## skeletons: [x, size]
+## Hand-placed treasure in the Steppe: [x, y, kind]. Ids "m0", "m1"...
+const STEPPE_LOOT := [
+	[9255.0, 420.0, "shell"], [9255.0, 320.0, "shell"], [9255.0, 220.0, "conch"],      # up the chimney
+	[9420.0, 70.0, "shell"], [9500.0, 70.0, "shell"], [9580.0, 70.0, "bone"],         # the clifftop
+	[9755.0, 230.0, "shell"],
+	[9950.0, 570.0, "bone"], [10150.0, 570.0, "shell"], [10330.0, 570.0, "bone"],    # under the herd's feet
+	[10470.0, 570.0, "shell"],
+	[10750.0, 420.0, "shell"], [10750.0, 350.0, "shell"],                              # jump for them off the bull's back
+	[11300.0, 570.0, "bone"], [11360.0, 570.0, "bone"], [11420.0, 570.0, "tusk"],      # the graveyard
+	[11850.0, 570.0, "bone"], [11900.0, 480.0, "shell"], [11950.0, 570.0, "bone"],
+	[12300.0, 570.0, "shell"], [12360.0, 480.0, "conch"], [12420.0, 570.0, "bone"],
+]
+
 ## The great tree: trunk centred here, and its branches as one-way platforms
 ## [x, top, width, grows from the left end?]. Left and right of the trunk in
 ## turn, 112 px apart; the long bough crosses the chasm; above it, the crown.
@@ -86,7 +115,8 @@ const ELDER_AT := Vector2(13320, -408)
 ## [x, y, lit at start]
 const BONFIRES := [[520.0, GROUND_Y, true], [1720.0, GROUND_Y, false], [3560.0, GROUND_Y, false],
 	[7410.0, -278.0, false], [12830.0, GROUND_Y, false], [14270.0, GROUND_Y, false],
-	[25470.0, 700.0, false], [27290.0, 700.0, false], [29140.0, 600.0, false], [30300.0, 600.0, false]]   # old hearths in the caves
+	[25470.0, 700.0, false], [27290.0, 700.0, false], [29140.0, 600.0, false], [30300.0, 600.0, false],   # old hearths in the caves
+	[8960.0, GROUND_Y, false]]   # the mountain's foot, before the Steppe
 ## [x, y, bundles of wood in it]
 const DEAD_TREES := [[1260.0, GROUND_Y, 2], [2400.0, 400.0, 1], [2855.0, GROUND_Y, 2], [6830.0, -52.0, 2], [12990.0, GROUND_Y, 2]]
 ## Loose bundles already on the ground: the crevice stash.
@@ -346,6 +376,15 @@ const SKY_LANES := [
 		"motes": [18800.0, 19500.0, 20100.0],
 		"note": [18440.0, "Glowing stones over the pits, like dropped stars. A bloom lifts him to them.", 5.0],
 	},
+	{
+		"name": "Mammoth Sky",            # the Steppe: off the split rock, over the herd and the river, down past the graveyard
+		"pad": [9620.0, 100.0],
+		"rocks": [[9760.0, -110.0, 150.0, 0], [9990.0, -70.0, 110.0, 0], [10200.0, -20.0, 120.0, 1], [10420.0, -230.0, 170.0, 0],
+			[10680.0, 40.0, 120.0, 0], [10900.0, 110.0, 110.0, 0], [11110.0, 200.0, 130.0, 0], [11330.0, 330.0, 140.0, 0]],
+		"cache": [3, ["shell", "shell", "shell", "shell", "conch", "conch", "tusk", "bone", "bone"]],
+		"motes": [9900.0, 10500.0, 11100.0],
+		"note": [9560.0, "Little islands in the sky, over the herd and the river. The bloom throws him up.", 5.0],
+	},
 ]
 
 ## More pots, for the longer caves: [x, surface y, how many]. Their own ids.
@@ -385,7 +424,9 @@ const CAVE_LOOT := [
 ## mountain where the moon reaches, dark again under the great tree.
 const DARKNESS := [[0.0, 0.26], [700.0, 0.40], [1500.0, 0.62], [2600.0, 0.72], [3600.0, 0.74],
 	[3950.0, 0.64], [4300.0, 0.50], [5400.0, 0.50], [5800.0, 0.60],                       # the gorge: the last light of dusk
-	[6000.0, 0.62], [6700.0, 0.56], [7400.0, 0.50], [8300.0, 0.60], [12800.0, 0.70], [13300.0, 0.64],
+	[6000.0, 0.62], [6700.0, 0.56], [7400.0, 0.50], [8300.0, 0.60],
+	[8800.0, 0.60], [9200.0, 0.64], [9800.0, 0.54], [10700.0, 0.48], [11500.0, 0.56], [12400.0, 0.64],   # the Steppe: open sky, a bright river
+	[12800.0, 0.70], [13300.0, 0.64],
 	[14200.0, 0.72], [15700.0, 0.76], [16150.0, 0.70], [18150.0, 0.72], [18300.0, 0.86], [18400.0, 0.92], [20350.0, 0.92],   # the Long Dark
 	[20500.0, 0.74], [21050.0, 0.76], [21150.0, 0.88], [21950.0, 0.88],                   # his home; the Three Fires
 	[22000.0, 0.82], [23300.0, 0.82],                                                     # the clearing

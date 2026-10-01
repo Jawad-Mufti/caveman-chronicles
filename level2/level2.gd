@@ -86,6 +86,7 @@ func _ready() -> void:
 	_build_cave_trials()
 	_build_sky_lanes()
 	_build_gorge()
+	_build_steppe()
 	_build_boulder_run()
 	_build_long_dark()
 	_build_the_end()
@@ -808,6 +809,49 @@ func _on_boulder_crashed() -> void:
 
 
 ## The Hanging Gorge: the fallen giant, its vines, the ledge, the crumbling stones.
+## The Mammoth Steppe: the split rock, the herd, the river and its ferry, the graveyard.
+func _build_steppe() -> void:
+	add_child(Steppe.KickWall.new(Rect2(CHIMNEY[0], CHIMNEY[1], CHIMNEY[2], CHIMNEY[3])))
+	add_child(Steppe.KickWall.new(Rect2(CLIFF[0], CLIFF[1], CLIFF[2], GROUND_Y + 240.0 - CLIFF[1]), true))
+	for s in CLIFF_STEPS:
+		add_child(NightWoods.Crag.new(Rect2(s[0], s[1], s[2], GROUND_Y + 240.0 - float(s[1]))))
+	for h in HERD:
+		var m := Steppe.Mammoth.new()
+		m.x0 = h[0]
+		m.x1 = h[1]
+		m.position = Vector2(h[2], GROUND_Y)
+		m.speed = h[3]
+		m.size = h[4]
+		add_child(m)
+	var river := Steppe.River.new()
+	river.position = Vector2(RIVER[0], 0)
+	river.w = RIVER[1] - RIVER[0]
+	river.swept.connect(_on_swept)
+	add_child(river)
+	var bull := Steppe.Mammoth.new()
+	bull.x0 = FERRY[0]
+	bull.x1 = FERRY[1]
+	bull.position = Vector2(FERRY[0], FERRY[2])
+	bull.speed = FERRY[3]
+	bull.rest = 2.2
+	add_child(bull)
+	for g in GRAVEYARD:
+		var bones := Steppe.Skeleton.new()
+		bones.position = Vector2(g[0], GROUND_Y)
+		bones.size = g[1]
+		add_child(bones)
+	_note(9000, "A split rock. Two walls, close together: jump at one — then jump again, off it to the other. Up and up!", 5.5)
+	_note(9840, "Mammoths! Big and gentle — but mind their feet. Their backs are broad and warm.", 5.0)
+	_note(10420, "The river runs deep and fast. The old bull wades it, to and fro. Hop on.", 5.0)
+	_note(11250, "Old bones, big as huts: a mammoth graveyard. And there, beyond it — the great tree.", 5.0)
+
+
+## In the river: the current throws him back out on the near bank.
+func _on_swept() -> void:
+	player.respawn_at(Vector2(RIVER[0] - 40.0, GROUND_Y - 10.0))
+	hud.say("Brr! Too deep, too fast — the river throws him back out.", 3.0)
+
+
 func _build_gorge() -> void:
 	var giant := NightWoods.FallenGiant.new()
 	giant.position = Vector2(GORGE_TRUNK[0], GORGE_TRUNK[2])
@@ -1543,6 +1587,9 @@ func _build_extension_loot() -> void:
 	for i in CAVE_LOOT.size():
 		var l: Array = CAVE_LOOT[i]
 		_treasure(l[2], "v%d" % i, Vector2(l[0], l[1]))
+	for i in STEPPE_LOOT.size():
+		var m: Array = STEPPE_LOOT[i]
+		_treasure(m[2], "m%d" % i, Vector2(m[0], m[1]))
 	# the sky lanes: their shells are worked out from the rocks, ids "k0", "k1"...
 	var sky_n := 0
 	for lane in SKY_LANES:
