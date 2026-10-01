@@ -38,11 +38,15 @@ const STOMP_BOUNCE := -430.0  ## pop up after crushing something underfoot
 const MAX_JUMPS := 2
 const AIR_JUMP := -520.0      ## weaker than the ground jump: a recovery, not a free second jump
 ## Hercules-style: the second jump is a quick somersault, and after it he
-## drifts down slower with a capped speed, with time to steer the landing.
+## comes down a little softer than a plain fall, with a capped speed and time
+## to steer — and he TUMBLES: legs pedalling, arms windmilling, yelling.
 const AIR_FLIP_TIME := 0.42
-const GLIDE_GRAVITY := 1300.0
-const GLIDE_FALL := 420.0
+const GLIDE_GRAVITY := 1900.0
+const GLIDE_FALL := 620.0
+const YELLS := ["Whoa-oa-oa!", "Waaah!", "Yaaa-aa!", "Whoooa!", "Uh-oh!"]
 var _air_glide := false
+var _tumble := 0.0            ## 0..1: the cartoon fall after the double jump
+var _yelled := false
 ## Chimneys: between two close walls (bodies in group "kick_wall") he jumps
 ## from one to the other, Prince of Persia style. Holding into a wall slows
 ## his fall to a slide; jump kicks him up and across. Other walls don't count,
@@ -559,6 +563,18 @@ func _physics_process(delta: float) -> void:
 			velocity.y = minf(velocity.y + GLIDE_GRAVITY * delta, GLIDE_FALL)
 		else:
 			velocity.y += (GRAVITY_UP if velocity.y < 0.0 else GRAVITY_DOWN) * delta
+
+	# the tumble: once the somersault is done and he's falling, the cartoon fall
+	var tumbling := _air_glide and flip_t <= 0.0 and velocity.y > 60.0 and not is_on_floor()
+	_tumble = move_toward(_tumble, 1.0 if tumbling else 0.0, delta * (7.0 if tumbling else 12.0))
+	if tumbling and not _yelled:
+		_yelled = true
+		var pop := Treasure.FloatText.new()
+		pop.text = YELLS[randi() % YELLS.size()]
+		pop.position = global_position + Vector2(-30, -190)
+		get_parent().add_child.call_deferred(pop)
+	if not _air_glide:
+		_yelled = false
 
 	# chimney walls: cling and slide while holding into one
 	_wall_t = maxf(_wall_t - delta, 0.0)
@@ -1252,6 +1268,7 @@ func _paint() -> void:
 	var ph := _run_phase
 	var boxing := attacking > 0.0 and not has_stick and throwing <= 0.0
 	var wince := invuln > 0.8 and not dead
+	var tumble := _tumble if air else 0.0
 	# the anger: builds 0 -> 1 through the wind-up, then the snarl
 	var rage := 0.0
 	var roaring := false
@@ -1272,6 +1289,9 @@ func _paint() -> void:
 		var st := clampf(-velocity.y / 1600.0, -0.05, 0.09)
 		sx -= st * 0.6
 		sy += st
+		# tumbling: stretched by the rushing air, with a jelly wobble
+		sy += (0.07 + sin(anim_t * 19.0) * 0.03) * tumble
+		sx -= (0.04 + sin(anim_t * 19.0) * 0.02) * tumble
 	if fury >= 0.0:
 		if not roaring:
 			# hunched and gathering
@@ -1314,6 +1334,7 @@ func _paint() -> void:
 		lean = 0.06
 	if flip_t > 0.0:
 		lean = 0.5 * curl - 0.1 * open_k      # curled forward into the ball
+	lean = lerpf(lean, -0.08 + sin(anim_t * 11.0) * 0.17, tumble)   # rocking as he flails
 	if fury >= 0.0 and not roaring:
 		bob += 7.0 * rage
 	var shake := Vector2.ZERO
@@ -1345,6 +1366,11 @@ func _paint() -> void:
 		else:
 			foot_f = Vector2(30, -6)       # reaching for the ground
 			foot_b = Vector2(-24, -12)
+		if tumble > 0.0:
+			# running on thin air, like a cartoon who has just looked down
+			var pp := anim_t * 22.0
+			foot_f = foot_f.lerp(Vector2(28.0 + cos(pp) * 26.0, -22.0 + sin(pp) * 20.0), tumble)
+			foot_b = foot_b.lerp(Vector2(-18.0 + cos(pp + PI) * 26.0, -22.0 + sin(pp + PI) * 20.0), tumble)
 	elif not dead:
 		# eases between standing and full stride, so stopping does not pop
 		var w := clampf(speed_k * 4.0, 0.0, 1.0)
@@ -1361,6 +1387,13 @@ func _paint() -> void:
 			foot_b.x -= 8.0 * rage
 	_leg(hip_b, foot_b, bend)
 	_leg(hip_f, foot_f, bend)
+	if tumble > 0.0:
+		# wind streaks rushing up past him
+		for i in 5:
+			var q := fmod(anim_t * 3.2 + i * 0.37, 1.0)
+			var wx := -52.0 + i * 26.0 + sin(i * 2.3) * 6.0
+			var wy := -20.0 - q * 260.0
+			_ln(Vector2(wx, wy), Vector2(wx, wy - 46.0), Color(1, 1, 1, 0.75 * (1.0 - q) * tumble), 4.0)
 
 	# ---- everything above the waist leans and bobs as one piece
 	var upper := base * Transform2D(lean, Vector2(shake.x, -62.0 + bob + shake.y)) * Transform2D(0.0, Vector2(0, 62))
@@ -1439,18 +1472,40 @@ func _paint() -> void:
 			_oval(bp + Vector2(0, 4), 2.6, 5.5, Pal.KEY_BONE, 1.5)
 	if roaring:
 		_roar()
+	elif tumble > 0.5:
+		_yell()
 	else:
 		_mouth()
 	_oval(Vector2(4, -146), 8.0, 5.0, C_SK2, 3.0)
 	_cc(Vector2(1, -145), 1.4, C_MOUTH)
 	_cc(Vector2(7, -145), 1.4, C_MOUTH)
 	var blink := fmod(anim_t, 3.7) < 0.12
-	_eye(Vector2(-7, -151), wince, blink)
-	_eye(Vector2(15, -151), wince, blink)
+	if tumble > 0.5 and not wince:
+		# eyes like saucers
+		for ec in [Vector2(-7, -152), Vector2(15, -152)]:
+			_oval(ec, 7.5, 7.0, C_EYE, 3.0)
+			_cc(ec + Vector2(1.5 + sin(anim_t * 23.0), 1.0), 2.2, Color("1a0f08"))
+	else:
+		_eye(Vector2(-7, -151), wince, blink)
+		_eye(Vector2(15, -151), wince, blink)
 	# brows set in a permanent V: grumpy is his resting face
 	var inner := 9.0 if wince else 5.0
 	if fury >= 0.0:
 		inner = 12.0
+	if tumble > 0.5:
+		inner = -7.0                          # shot up in alarm
+	if tumble > 0.0:
+		# hair blown straight up, flapping
+		for k in 4:
+			var hx := -14.0 + k * 11.0
+			var fl := sin(anim_t * 30.0 + k * 1.7) * 5.0
+			_pg(PackedVector2Array([Vector2(hx - 6.0, -172), Vector2(hx + 6.0, -172), Vector2(hx + fl, -172.0 - 26.0 * tumble)]), C_HAIR)
+		# sweat flying off him
+		for k in 2:
+			var q := fmod(anim_t * 2.6 + k * 0.5, 1.0)
+			var side := -1.0 if k == 0 else 1.0
+			var dp := Vector2(4.0 + side * (30.0 + q * 34.0), -166.0 - q * 30.0 + q * q * 40.0)
+			_cc(dp, 4.0 * tumble * (1.0 - q * 0.5), Color("bfe6ff", 0.9 * (1.0 - q)))
 	_ln(Vector2(-18, -160), Vector2(-2, -160.0 + inner), C_HAIR, 8.0, true)
 	_ln(Vector2(10, -160.0 + inner), Vector2(26, -160), C_HAIR, 8.0, true)
 	_shape(PackedVector2Array(FRINGE), C_HAIR, 4.0)
@@ -1520,6 +1575,14 @@ func _paint() -> void:
 			hd = Vector2(34, -84)                                           # hugging the knees
 		_arm(sh, sh.lerp(hd, 0.5) + Vector2(10, 14), hd, 13.0, false)
 		_club(hd, hd + Vector2(-60, 40), 7.0, 22.0)
+		_dot(hd, 11.0, _skin)
+	elif tumble > 0.0 and throwing <= 0.0 and attacking <= 0.0:
+		# windmilling: the near arm whirls, the club whirling with it
+		var a := anim_t * 19.0
+		var hd := sh + Vector2(cos(a) * 54.0, sin(a) * 54.0 - 30.0)
+		_arm(sh, sh.lerp(hd, 0.5) + Vector2(sin(a) * 10.0, -cos(a) * 10.0), hd, 13.0, false)
+		if has_stick and not axe_out:
+			_club(hd, hd + Vector2.from_angle(a + 0.9) * 92.0, 7.0, 22.0)
 		_dot(hd, 11.0, _skin)
 	elif vine != null:
 		# hanging on: the near hand up on the vine, the club tucked under the arm
@@ -1647,6 +1710,8 @@ func _torch_arm(sh: Vector2, running: bool, air: bool, ph: float, k: float, rage
 		hd += Vector2(cos(ph) * 3.0 * k, -absf(sin(ph)) * 4.0 * k)
 	elif air:
 		hd += Vector2(2, -10)
+		# tumbling: the torch waved wildly overhead
+		hd += Vector2(sin(anim_t * 14.0) * 16.0, -30.0 + cos(anim_t * 14.0) * 8.0) * _tumble
 	else:
 		hd.y += sin(anim_t * 1.8) * 1.5
 	hd += Vector2(-4, -16) * rage          # thrust up as the anger builds
@@ -1940,6 +2005,11 @@ func _leg(hip: Vector2, foot: Vector2, bend: float) -> void:
 ## the far arm and +1 for the near one; running, the two swing out of phase,
 ## each paired with the opposite leg the way a real runner's are.
 func _pose_arm(sh: Vector2, side: float, running: bool, air: bool, phase: float, k: float) -> Array:
+	if air and _tumble > 0.3:
+		# windmilling, the other way round to the near arm
+		var a := anim_t * 19.0 + PI
+		var hd := sh + Vector2(cos(a) * 50.0, sin(a) * 50.0 - 28.0)
+		return [sh.lerp(hd, 0.5) + Vector2(sin(a) * 9.0, -cos(a) * 9.0), hd]
 	if air:
 		if velocity.y < -150.0:
 			return [sh + Vector2(20.0 * side, -18.0), sh + Vector2(24.0 * side, -44.0)]
@@ -1965,6 +2035,14 @@ func _eye(c: Vector2, wince: bool, blink: bool) -> void:
 	if not blink:
 		_cc(c + Vector2(1.6, 0.4), 2.6, Color("1a0f08"))
 		_cc(c + Vector2(0.8, -0.4), 0.9, Color.WHITE)
+
+
+## Mouth wide open in a yell, tongue waggling.
+func _yell() -> void:
+	var o := 1.0 + sin(anim_t * 17.0) * 0.12
+	_oval(Vector2(4, -134), 9.0 * o, 9.0 * o, C_MOUTH, 3.0)
+	_oval(Vector2(4 + sin(anim_t * 21.0) * 2.0, -129), 5.0, 3.5, Color("d9675e"), 2.0)
+	_rc(Rect2(-2, -143, 12, 3), C_EYE, true)
 
 
 ## Clenched teeth with the corners pulled down.
