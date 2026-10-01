@@ -10,9 +10,10 @@ extends RefCounted
 
 ## ================================================================ SKY ROCK
 class SkyRock extends StaticBody2D:
-	## A slab of pale stone hanging in the air. Land on it from above, jump up
+	## A little floating island: a grassy top over soil and rock that tapers to a
+	## point, roots hanging out underneath. Land on it from above, jump up
 	## through it from below. It glows along its lip, so it reads even in the
-	## Long Dark — and a lamp rock is also a real light there.
+	## Long Dark — and a lamp island (crystals at its tip) is a real light there.
 	var w := 120.0
 	var lamp := false
 	var has_pad := false
@@ -44,35 +45,76 @@ class SkyRock extends StaticBody2D:
 		var bt := Batch.new()
 		var rng := RandomNumberGenerator.new()
 		rng.seed = int(position.x) * 7 + int(position.y) * 3
-		# the body: a chunk of rock, ragged underneath, deeper in the middle
-		var deep := clampf(w * 0.42, 34.0, 62.0)
-		var body := PackedVector2Array([Vector2(0, 0), Vector2(w, 0)])
-		var n := maxi(int(w / 20.0), 3)
-		for i in range(n, -1, -1):
+		# a little floating island: a grassy cap, then soil and rock tapering to a
+		# ragged point underneath, with roots hanging out of it
+		var deep := clampf(w * 0.75, 50.0, 110.0)
+		var n := maxi(int(w / 16.0), 4)
+		var depth := PackedFloat32Array()
+		for i in n + 1:
 			var k := float(i) / n
-			var d := deep * (1.0 - pow(absf(k - 0.5) * 2.0, 1.8)) * rng.randf_range(0.78, 1.0)
-			body.append(Vector2(w * k, 10.0 + d))
-		bt.poly(body, Color("4c5675"))
-		var lit := PackedVector2Array([Vector2(0, 0), Vector2(w, 0)])
+			depth.append(deep * pow(1.0 - absf(k - 0.5) * 2.0, 0.75) * rng.randf_range(0.82, 1.0))
+		var tip_x := w * 0.5
+		var tip_d := 0.0
+		for i in n + 1:
+			if depth[i] > tip_d:
+				tip_d = depth[i]
+				tip_x = w * float(i) / n
+		var rock := PackedVector2Array([Vector2(-3, 4), Vector2(w + 3, 4)])
+		var soil := PackedVector2Array([Vector2(-3, 4), Vector2(w + 3, 4)])
 		for i in range(n, -1, -1):
-			var k2 := float(i) / n
-			lit.append(Vector2(w * k2, 6.0 + (deep * 0.55) * (1.0 - pow(absf(k2 - 0.5) * 2.0, 1.6))))
-		bt.poly(lit, Color("66729a"))
-		bt.rect(Rect2(0, 0, w, 9), Color("8b98b8"))
-		bt.rect(Rect2(0, 0, w, 4), Color("d6e4f7"))
-		# cracks, and a carved star on the face
-		for i in int(w / 45.0) + 1:
-			var cx := rng.randf_range(10.0, maxf(11.0, w - 10.0))
-			bt.line(Vector2(cx, 10), Vector2(cx + rng.randf_range(-7.0, 7.0), 10.0 + rng.randf_range(12.0, deep * 0.6)), Color("3a4260"), 1.6)
-		var sc := Vector2(w * 0.5, 14.0 + deep * 0.3)
-		bt.poly(PackedVector2Array([sc + Vector2(0, -7), sc + Vector2(2, -2), sc + Vector2(7, 0), sc + Vector2(2, 2), sc + Vector2(0, 7), sc + Vector2(-2, 2), sc + Vector2(-7, 0), sc + Vector2(-2, -2)]), Color("cfe0ff", 0.55))
-		# roots trailing down from the underside, with a small crystal at the end
-		for i in 2:
-			var rx := w * (0.28 + 0.44 * i) + rng.randf_range(-6.0, 6.0)
-			var ry := 12.0 + deep * 0.75
-			var rl := rng.randf_range(16.0, 30.0)
-			bt.polyline(PackedVector2Array([Vector2(rx, ry), Vector2(rx + 3.0, ry + rl * 0.5), Vector2(rx - 2.0, ry + rl)]), Color("3b4a52"), 2.0)
-			bt.poly(PackedVector2Array([Vector2(rx - 3.0 - 2.0, ry + rl), Vector2(rx - 2.0, ry + rl + 9.0), Vector2(rx + 1.0, ry + rl)]), Color("9fe6ff", 0.9))
+			var x := w * float(i) / n
+			rock.append(Vector2(x, 6.0 + depth[i]))
+			soil.append(Vector2(x, 6.0 + depth[i] * 0.42))
+		bt.poly(rock, Color("3e4660"))
+		bt.poly(soil, Color("4f3d2f"))
+		bt.polyline(soil.slice(2), Color("3a2c22"), 2.0)
+		# stones set in the rock, and in the soil
+		for i in int(w / 30.0) + 1:
+			var k := rng.randf_range(0.2, 0.8)
+			var sx := w * k
+			var sd := depth[int(round(k * n))]
+			bt.circle(Vector2(sx, 6.0 + sd * rng.randf_range(0.5, 0.75)), rng.randf_range(3.0, 5.5), Color("566079"), 8)
+			bt.circle(Vector2(w * rng.randf_range(0.1, 0.9), 6.0 + rng.randf_range(4.0, 9.0)), rng.randf_range(1.5, 2.5), Color("6b5643"), 6)
+		# roots hanging from the underside
+		for i in 3:
+			var k := 0.3 + 0.2 * i + rng.randf_range(-0.05, 0.05)
+			var rx := w * k
+			var ry := 4.0 + depth[int(round(k * n))]
+			var rl := rng.randf_range(16.0, 38.0)
+			bt.polyline(PackedVector2Array([Vector2(rx, ry), Vector2(rx + 4.0, ry + rl * 0.45), Vector2(rx - 2.0, ry + rl)]), Color("3b2f26"), 2.0)
+			bt.line(Vector2(rx + 3.0, ry + rl * 0.4), Vector2(rx + 9.0, ry + rl * 0.6), Color("3b2f26"), 1.2)
+		if lamp:
+			# a cluster of crystals at the tip: it lights the way
+			var c := Vector2(tip_x, 2.0 + tip_d)
+			bt.tri(c + Vector2(-7, 0), c + Vector2(-3, 18), c + Vector2(1, 0), Color("9fe6ff", 0.95))
+			bt.tri(c + Vector2(-1, 0), c + Vector2(4, 13), c + Vector2(8, 0), Color("c9f6ff", 0.95))
+		else:
+			# a few pebbles drifting under the point
+			bt.circle(Vector2(tip_x - 6.0, 14.0 + tip_d), 3.0, Color("4c5675"), 8)
+			bt.circle(Vector2(tip_x + 7.0, 24.0 + tip_d), 2.0, Color("4c5675"), 6)
+		# a vine trailing over the edge of the wider ones
+		if w >= 140.0:
+			var vx := w * 0.82
+			var vl := rng.randf_range(40.0, 64.0)
+			bt.polyline(PackedVector2Array([Vector2(vx, 4), Vector2(vx + 4.0, 4.0 + vl * 0.5), Vector2(vx, 4.0 + vl)]), Color("2c5236"), 2.0)
+			for j in 4:
+				var ly := 12.0 + j * vl / 4.5
+				bt.circle(Vector2(vx + (3.0 if j % 2 == 0 else -2.0), ly), 3.2, Color("3f7a48"), 6)
+		# the grass cap, curling over the edges
+		bt.rect(Rect2(-4, -2, w + 8, 9), Color("2f5a3a"))
+		bt.rect(Rect2(-4, -2, w + 8, 3), Color("5c9a5e"))
+		for i in int(w / 20.0) + 2:
+			var gx := -2.0 + rng.randf_range(0.0, w + 4.0)
+			bt.tri(Vector2(gx - 3.0, 6), Vector2(gx + 3.0, 6), Vector2(gx, 6.0 + rng.randf_range(4.0, 10.0)), Color("2f5a3a"))
+		for i in int(w / 13.0):
+			var tx := rng.randf_range(2.0, w - 2.0)
+			bt.tri(Vector2(tx - 2.0, -1), Vector2(tx + 2.0, -1), Vector2(tx + rng.randf_range(-2.0, 2.0), -rng.randf_range(4.0, 8.0)), Color("4f8a52"))
+		# a bush on the broad ones, out at one end
+		if w >= 160.0:
+			var bx := w * 0.12
+			bt.circle(Vector2(bx, -6), 9.0, Color("2c5236"), 10)
+			bt.circle(Vector2(bx + 10.0, -9), 8.0, Color("2c5236"), 10)
+			bt.circle(Vector2(bx + 3.0, -10), 4.0, Color("4a7d4f"), 8)
 		bt.draw(self)
 
 	func draw_glow(g: Node2D) -> void:
