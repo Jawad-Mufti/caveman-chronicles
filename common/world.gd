@@ -242,7 +242,8 @@ class RockPickup extends Area2D:
 
 	func _process(delta: float) -> void:
 		t += delta
-		queue_redraw()
+		if LevelBase.near_view(self):
+			queue_redraw()
 
 	func _draw() -> void:
 		_pen = Batch.new()
@@ -306,7 +307,8 @@ class Exit extends Area2D:
 
 	func _process(delta: float) -> void:
 		t += delta
-		queue_redraw()
+		if LevelBase.near_view(self):
+			queue_redraw()
 
 	func _draw() -> void:
 		_pen = Batch.new()
@@ -347,7 +349,8 @@ class BerryBush extends Area2D:
 
 	func _process(delta: float) -> void:
 		t += delta
-		queue_redraw()
+		if LevelBase.near_view(self):
+			queue_redraw()
 
 	func _draw() -> void:
 		_pen = Batch.new()
@@ -658,7 +661,8 @@ class StickPickup extends Area2D:
 
 	func _process(delta: float) -> void:
 		t += delta
-		queue_redraw()
+		if LevelBase.near_view(self):
+			queue_redraw()
 
 	func _draw() -> void:
 		_pen = Batch.new()
@@ -842,7 +846,8 @@ class Gem extends Area2D:
 
 	func _process(delta: float) -> void:
 		t += delta
-		queue_redraw()
+		if LevelBase.near_view(self):
+			queue_redraw()
 
 	func _draw() -> void:
 		_pen = Batch.new()

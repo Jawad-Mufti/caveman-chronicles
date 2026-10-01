@@ -528,7 +528,7 @@ class Wolf extends Critter:
 
 	## The eyes shine through the dark — a pair, as if the head were turned
 	## a little toward him. They flare in the crouch that comes before a leap.
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if dying > 0.0:
 			return
 		var f := float(dir)
@@ -583,7 +583,7 @@ class Bat extends Bestiary.Insect:
 		_fill(PackedVector2Array([Vector2(5.2, -7), Vector2(6.4, -1), Vector2(7.2, -7)]), Pal.TOOTH)
 		_st(Vector2.ZERO, 0.0, Vector2.ONE)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if dying > 0.0:
 			return
 		var f := _facing()
@@ -1044,7 +1044,7 @@ class Elder extends Area2D:
 			"fur": Pal.ELDER, "dark": Pal.ELDER_DARK, "face": Pal.ELDER_FACE})
 
 	## The gem shows through the dark, so it can be spotted from below.
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if not has_gem:
 			return
 		var c := global_position + Vector2(dir * 24.0, -76.0)

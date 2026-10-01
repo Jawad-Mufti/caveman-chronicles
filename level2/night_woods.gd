@@ -184,7 +184,7 @@ class Bonfire extends Area2D:
 		bt.draw(self)
 
 	## Unlit, the embers show through the dark: a beacon to walk toward.
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if lit:
 			return
 		var c := global_position + Vector2(0, -12)
@@ -1043,7 +1043,7 @@ class MoonPuff extends World.SpringBush:
 		b.draw(self)
 
 	## The glowing specks, and the spores that go up when it fires.
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		var c := 1.0 - squash * 0.5
 		for i in 7:
 			var p := global_position + Vector2(-24.0 + i * 8.0, (-30.0 + sin(i * 2.1) * 10.0) * c)
@@ -1137,7 +1137,7 @@ class FireflySwarm extends Node2D:
 	func light_strength() -> float:
 		return 0.0
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		var c := global_position + Vector2(sin(t * 0.7) * 24.0, cos(t * 0.9) * 12.0)
 		for i in 9:
 			var a := t * (0.8 + i * 0.07) + i * 0.7
@@ -1164,7 +1164,7 @@ class Watcher extends Node2D:
 			var near := player.global_position.distance_to(global_position) < 360.0
 			seen = move_toward(seen, 0.0 if near else 1.0, delta * (2.5 if near else 0.3))
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if seen <= 0.02:
 			return
 		var blink := 0.15 if fmod(t, 5.0) < 0.15 else 1.0
@@ -1498,7 +1498,7 @@ class Wind extends Node2D:
 		var q := PhysicsRayQueryParameters2D.create(p + Vector2(0, -40), p + Vector2(up * LEE, -40), 1)
 		return not get_world_2d().direct_space_state.intersect_ray(q).is_empty()
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if k <= 0.01 or player == null:
 			return
 		var px := player.global_position.x

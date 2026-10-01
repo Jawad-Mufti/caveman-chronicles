@@ -30,7 +30,7 @@ static func is_bone(kind: String) -> bool:
 ## A four-point glint for the glow layer, drawn around the origin and moved
 ## into place: far out (x > 20,000) a hair-thin diamond in world coordinates
 ## loses too much float precision to triangulate.
-static func glint(g: CanvasItem, at: Vector2, r: float, col: Color, both := true) -> void:
+static func glint(g, at: Vector2, r: float, col: Color, both := true) -> void:
 	g.draw_set_transform(at)
 	g.draw_colored_polygon(PackedVector2Array([Vector2(0, -r), Vector2(r * 0.25, 0), Vector2(0, r), Vector2(-r * 0.25, 0)]), col)
 	if both:
@@ -322,7 +322,7 @@ class Pickup extends Area2D:
 		b.draw(self)
 
 	## A soft glow so it reads in the dark, and now and then a sparkle.
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if _gone:
 			return
 		var glow: Color = (LOOK[kind] as Array)[3]
@@ -436,7 +436,7 @@ class Breakable extends Area2D:
 		level.call_deferred("add_child", p)
 
 	## Now and then something inside glints, so he looks twice.
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if hits <= 0:
 			return
 		var spark := fmod(_t * 0.5, 2.5)
@@ -569,7 +569,7 @@ class ShellTotem extends Area2D:
 			b.line(o + Vector2(-20, -20 + k * 7), o + Vector2(20, -20 + k * 7), Pal.CRAG_DARK, 2.0)
 		b.draw(self)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if hits <= 0:
 			return
 		var e := 0.6 + 0.4 * sin(t * 3.0)
@@ -667,7 +667,7 @@ class GoldenHare extends Critter:
 		_limb(Vector2(8, -6), Vector2(12 + k * 5.0, 0), 4.0, dark)
 		_st(Vector2.ZERO, 0.0, Vector2.ONE)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if not visible or dying > 0.0:
 			return
 		var c := global_position + Vector2(0, -16 - hop)

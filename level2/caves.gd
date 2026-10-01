@@ -368,7 +368,7 @@ class Cocoon extends Area2D:
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	## Something inside catches the light, just enough to make him look.
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if state != "hang":
 			return
 		var s := absf(sin(t * 0.9))
@@ -443,7 +443,7 @@ class Nest extends Area2D:
 			if p.y < 40.0:
 				draw_line(p, p + Vector2.from_angle(float(b[2]) * t) * 10.0, b[3], 3.0, true)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if open:
 			return
 		var s := absf(sin(t * 0.9))
@@ -521,7 +521,7 @@ class KeyItem extends Area2D:
 			pts.append(at + Vector2(10, 12) + Vector2.from_angle(-PI * 0.5 + 0.6 - 1.2 * i / 6.0) * 8.0)
 		c.draw_colored_polygon(pts, Pal.BANANA)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		var s := absf(sin(t * 1.5))
 		var c := global_position + Vector2(0, -14)
 		g.draw_circle(c, 12.0 + s * 5.0, Color(Pal.BANANA if real else Pal.BONE, 0.10 + 0.10 * s))
@@ -631,7 +631,7 @@ class Spider extends Critter:
 		_oval(Vector2(f * 8.0, -13), 7.5, 6.5, Pal.SPIDER)
 		_ln(Vector2(f * 13.0, -10), Vector2(f * 15.0, -5), Pal.BONE, 1.5, true)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if dying > 0.0:
 			return
 		var f := float(dir)
@@ -704,7 +704,7 @@ class Rat extends Critter:
 			_ln(Vector2(fx, -4 - bob), Vector2(fx, 0), Pal.RAT.darkened(0.3), 2.0)
 		_st(Vector2.ZERO, 0.0, Vector2.ONE)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if dying > 0.0:
 			return
 		g.draw_circle(global_position + Vector2(dir * 12.0, -11.0), 1.4, Color(Pal.EMBER_GLOW, 0.9))
@@ -800,7 +800,7 @@ class Snake extends Critter:
 		if state == "rear":
 			draw_string(ThemeDB.fallback_font, Vector2(d * 8.0 - 12.0, -24), "sss", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Pal.BONE)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if dying > 0.0:
 			return
 		var d := float(dir)

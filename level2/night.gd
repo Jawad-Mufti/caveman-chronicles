@@ -195,7 +195,9 @@ func _process(_delta: float) -> void:
 	_mat.set_shader_parameter("lights", packed)
 
 
-## Draws everything in the "glow" group on the layer above the dark.
+## Draws everything in the "glow" group on the layer above the dark — all of
+## it recorded into one Batch, so the whole layer is a single draw call (drawn
+## shape by shape it was one call per halo, sparkle and eye: 100+ a frame).
 class Glow extends Node2D:
 	func _process(_delta: float) -> void:
 		queue_redraw()
@@ -203,8 +205,11 @@ class Glow extends Node2D:
 	func _draw() -> void:
 		var cam := get_viewport().get_camera_2d()
 		var cx := cam.get_screen_center_position() if cam != null else Vector2.ZERO
+		var b := Batch.new()
 		for n in get_tree().get_nodes_in_group("glow"):
 			var n2 := n as Node2D
 			if n2 == null or absf(n2.global_position.x - cx.x) > 900.0:
 				continue
-			n2.draw_glow(self)
+			n2.draw_glow(b)
+			b.set_xf(Transform2D.IDENTITY)
+		b.draw(self)

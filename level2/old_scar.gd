@@ -1236,7 +1236,7 @@ func _head(b: Batch, at: Vector2, ang: float, jaw: float, cower: float, fur: Col
 
 
 ## Big amber eyes that burn through the dark, flaring in the tell.
-func draw_glow(g: Node2D) -> void:
+func draw_glow(g) -> void:   # g: the glow layer's Batch
 	if not visible or state == "wait":
 		return
 	var e := global_position + Vector2(float(dir) * _eye_at.x, _eye_at.y) * SIZE
@@ -1280,7 +1280,7 @@ class DecoyEyes extends Node2D:
 		if t > 3.0:
 			queue_free()
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		var blink := 0.1 if fmod(t, 1.1) < 0.12 else 1.0
 		var a := clampf(t / 0.3, 0.0, 1.0)
 		g.draw_circle(global_position, 12.0, Color(Pal.WOLF_EYE, 0.2 * a))

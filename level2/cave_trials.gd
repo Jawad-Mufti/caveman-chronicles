@@ -172,7 +172,7 @@ class Shelf extends StaticBody2D:
 		bt.rect(Rect2(0, 0, w, 4), Pal.CAVE_ROCK_LIGHT)
 		bt.draw(self)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		var tt := Time.get_ticks_msec() / 1000.0
 		var n := int(w / 22.0)
 		for i in n:
@@ -231,7 +231,7 @@ class GlowCap extends World.SpringBush:
 			b.line(centre + Vector2(gx, 0), centre + Vector2(gx * 0.7, 6.0 * c), tint.darkened(0.6), 1.5)
 		b.draw(self)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		var c := 1.0 - squash * 0.5
 		var pulse := 0.5 + 0.5 * sin(t * 1.8 + _phase)
 		var at := global_position + Vector2(0, -36.0 * c)
@@ -343,7 +343,7 @@ class EggSac extends Area2D:
 			b.circle(Vector2(wob + 7.0, -15.0), 4.0, Color(Pal.SPIDER, 0.75), 8)
 		b.draw(self)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if state == "open":
 			return
 		var pulse := 0.5 + 0.5 * sin(t * (9.0 if state == "wobble" else 1.6))
@@ -410,7 +410,7 @@ class Spiderling extends Critter:
 		_oval(Vector2(-f * 4.0, -10), 8.0, 6.5, Pal.SPIDER)
 		_oval(Vector2(f * 6.0, -8), 4.6, 4.0, Pal.SPIDER)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if dying > 0.0:
 			return
 		var f := float(dir)
@@ -538,7 +538,7 @@ class RatMound extends Node2D:
 				b.circle(Vector2(-60.0 - kk * 40.0, -6.0 - kk * 18.0), 4.0 * (1.0 - kk) + 1.0, Color(Pal.DUST, 0.55 * (1.0 - kk)), 8)
 		b.draw(self)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if state == "spent":
 			return
 		var blink := 0.6 + 0.4 * sin(t * 7.0)
@@ -649,7 +649,7 @@ class Crystals extends Node2D:
 			b.line(Vector2(x - w * 0.2, h * 0.2), tip + Vector2(0, -h * 0.1), Color(tint.lightened(0.6), 0.6), 1.3)
 		b.draw(self)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		var pulse := 0.5 + 0.5 * sin(t * 1.3)
 		var dirn := 1.0 if hanging else -1.0
 		var c := global_position + Vector2(0, 26.0 * dirn)

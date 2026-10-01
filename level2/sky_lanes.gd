@@ -117,7 +117,7 @@ class SkyRock extends StaticBody2D:
 			bt.circle(Vector2(bx + 3.0, -10), 4.0, Color("4a7d4f"), 8)
 		bt.draw(self)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		var tt := Time.get_ticks_msec() / 1000.0 + t
 		var o := global_position
 		# a soft halo, and a bright lip
@@ -179,7 +179,7 @@ class SkyCache extends Treasure.Breakable:
 		b.poly(PackedVector2Array([sc + Vector2(0, -12), sc + Vector2(3, -3), sc + Vector2(12, 0), sc + Vector2(3, 3), sc + Vector2(0, 12), sc + Vector2(-3, 3), sc + Vector2(-12, 0), sc + Vector2(-3, -3)]), Color("fff3c4"))
 		b.draw(self)
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		if hits <= 0:
 			return
 		var tt := Time.get_ticks_msec() / 1000.0 + _t
@@ -210,7 +210,7 @@ class StarMotes extends Node2D:
 			_seed.append([rng.randf_range(-width * 0.5, width * 0.5), rng.randf_range(-height * 0.5, height * 0.5),
 				rng.randf_range(0.0, TAU), rng.randf_range(0.25, 0.7), rng.randf_range(1.2, 2.6)])
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		var tt := Time.get_ticks_msec() / 1000.0
 		for s in _seed:
 			var ph: float = s[2]
@@ -231,7 +231,7 @@ class Beacon extends Node2D:
 	func _ready() -> void:
 		add_to_group("glow")
 
-	func draw_glow(g: Node2D) -> void:
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		var tt := Time.get_ticks_msec() / 1000.0
 		for i in 7:
 			var k := fmod(tt * 0.22 + i / 7.0, 1.0)
