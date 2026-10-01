@@ -37,6 +37,12 @@ const JUMP_BUFFER := 0.12     ## a jump press is remembered this long before lan
 const STOMP_BOUNCE := -430.0  ## pop up after crushing something underfoot
 const MAX_JUMPS := 2
 const AIR_JUMP := -520.0      ## weaker than the ground jump: a recovery, not a free second jump
+## Hercules-style: the second jump is a quick somersault, and after it he
+## drifts down slower with a capped speed, with time to steer the landing.
+const AIR_FLIP_TIME := 0.42
+const GLIDE_GRAVITY := 1300.0
+const GLIDE_FALL := 420.0
+var _air_glide := false
 const SWING_TIME := 0.26
 ## Bare-handed he throws a one-two: a jab off the lead hand, then a cross off
 ## the rear. Two separate strikes inside a single press.
@@ -531,13 +537,20 @@ func _physics_process(delta: float) -> void:
 		else:
 			var f := FRICTION if is_on_floor() else AIR_ACCEL * 0.5
 			velocity.x = move_toward(velocity.x, 0.0, f * delta)
+	# a launch stronger than the air jump (a Moonpuff, a Glowcap) ends the glide
+	if knock > 0.0 or velocity.y < AIR_JUMP - 60.0:
+		_air_glide = false
 	if not is_on_floor():
-		velocity.y += (GRAVITY_UP if velocity.y < 0.0 else GRAVITY_DOWN) * delta
+		if _air_glide and velocity.y >= 0.0:
+			velocity.y = minf(velocity.y + GLIDE_GRAVITY * delta, GLIDE_FALL)
+		else:
+			velocity.y += (GRAVITY_UP if velocity.y < 0.0 else GRAVITY_DOWN) * delta
 
 	# coyote time: full on the ground, draining in the air
 	if is_on_floor():
 		_coyote = COYOTE_TIME
 		_jumps_left = MAX_JUMPS
+		_air_glide = false
 	else:
 		_coyote = maxf(_coyote - delta, 0.0)
 		# walking off a ledge without jumping spends the ground jump
@@ -565,6 +578,14 @@ func _physics_process(delta: float) -> void:
 			velocity.y = AIR_JUMP
 			_jumps_left -= 1
 			_buffer = 0.0
+			flip_dir = signf(velocity.x) if absf(velocity.x) > 40.0 else float(facing)
+			flip_back = false
+			flip_turns = 1.0
+			flip_len = AIR_FLIP_TIME
+			flip_t = flip_len
+			_ghosts.clear()
+			_flipped = true
+			_air_glide = true
 
 	# variable height: releasing early cuts the jump short
 	if not jump_now and _jump_prev and velocity.y < 0.0:
@@ -807,6 +828,7 @@ func _let_go(vel: Vector2) -> void:
 		vine.let_go()
 	_last_vine = vine
 	vine = null
+	_air_glide = false
 	velocity = vel
 	_vine_cd = 0.45
 	_jumps_left = MAX_JUMPS - 1
