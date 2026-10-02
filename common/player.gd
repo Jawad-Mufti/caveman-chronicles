@@ -15,7 +15,8 @@ signal torch_out
 signal fire_released
 signal said(note: String)
 
-const SPEED := 300.0
+const SPEED := 280.0          ## walking and running on the ground
+const AIR_SPEED := 300.0      ## in the air: jumps carry as far as the level was built for
 ## Ramped instead of snapped, so direction changes read as weight rather than teleporting.
 const ACCEL := 2600.0
 const FRICTION := 2800.0
@@ -569,7 +570,7 @@ func _physics_process(delta: float) -> void:
 	if knock <= 0.0 and _kick_lock <= 0.0:
 		var a := ACCEL if is_on_floor() else AIR_ACCEL
 		if dir != 0.0:
-			velocity.x = move_toward(velocity.x, dir * SPEED, a * delta)
+			velocity.x = move_toward(velocity.x, dir * (SPEED if is_on_floor() else AIR_SPEED), a * delta)
 		else:
 			var f := FRICTION if is_on_floor() else AIR_ACCEL * 0.5
 			velocity.x = move_toward(velocity.x, 0.0, f * delta)
