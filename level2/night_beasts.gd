@@ -5,28 +5,30 @@ extends RefCounted
 
 
 class Wolf extends Critter:
-	## A pack hunter that obeys the light.
+	## A pack hunter that respects the light — but doesn't run from it.
 	##
-	## It paces just outside whatever light surrounds him and never walks into
-	## it. Every few seconds one wolf of the pack tests him: it crouches (eyes
-	## flare — the tell), then leaps. What happens when it arrives depends on
-	## how strong the light is around him at that moment:
-	##   torch at half or more, or beside a bonfire -> it yelps and recoils,
-	##       stunned for a beat: the moment to club it
-	##   torch below half -> the leap lands and bites
-	##   torch out and no fire near -> the pack stops testing and comes in
-	## So the torch is a defence that decays, not a force field — and hitting
-	## a wolf as it recoils is how the level teaches the sabre-tooth.
+	## The moment it sees him it charges: a short crouch (eyes flare — the
+	## tell), then the leap, aimed where he'll be when it lands. It doesn't back
+	## off as he comes on; it stands its ground and goes for him again and again,
+	## and two of a pack can come close together. What happens when a leap
+	## arrives depends on the light, and on which way he faces:
+	##   a strong light (torch at half or more, or a bonfire) held TOWARD it
+	##       -> it yelps and recoils, stunned for a beat: the moment to club it
+	##   his back to it, or the torch below half -> the leap lands and bites
+	##   torch out and no fire near -> the whole pack comes in
+	## It runs faster than he does, and if he turns to flee it gives chase. So
+	## the way through a pack is to face it and fight — and hitting a wolf as
+	## it recoils is how the level teaches the sabre-tooth.
 
 	## Only one wolf tests him at a time; shared across the whole pack.
 	static var _last_lunge_ms := -100000
 
 	const GRAV := 1720.0
-	const WALK := 165.0
+	const WALK := 230.0
 	const RETREAT := 340.0
-	const HUNT := 250.0
+	const HUNT := 310.0       ## faster than he runs: he can't simply outrun the pack
 	const PATROL := 72.0
-	const NOTICE := 460.0     ## he is noticed inside this, if he is on roughly its level
+	const NOTICE := 560.0     ## he is noticed inside this, if he is on roughly its level
 	const FORGET := 820.0     ## and forgotten again past this
 	const SIZE := 0.8         ## drawn at 0.8 of its design size
 
@@ -183,7 +185,7 @@ class Wolf extends Critter:
 	func _on_hit(from_dir: int) -> void:
 		position.x = clampf(position.x + from_dir * 16.0, left_x, right_x)
 		if hp > 0 and state != "recoil":
-			if randf() < 0.5:
+			if randf() < 0.75:
 				# it snaps straight back at him
 				state = "crouch"
 				timer = 0.45
@@ -255,6 +257,11 @@ class Wolf extends Critter:
 				if absf(dx) < NOTICE and absf(player.global_position.y - floor_y) < 160.0:
 					state = "stalk"
 					slot_t = 0.0
+					# it charges the moment it sees him: a short crouch (the tell), then the leap
+					if _level() and player.invuln <= 0.0:
+						_last_lunge_ms = Time.get_ticks_msec()
+						state = "crouch"
+						timer = 0.26
 			"stalk":
 				_stalk(dx, delta)
 			"crouch":
@@ -306,26 +313,44 @@ class Wolf extends Critter:
 		if _shelter() <= 0.0 and _level() and absf(dx) < 700.0:
 			state = "hunt"
 			return
+		# he's turned his back to run: it gives chase, light or no light, and
+		# leaps from close behind — the torch only scares it off when it's held
+		# toward it
+		var facing_it := player.facing == (1 if position.x > player.global_position.x else -1)
+		if not facing_it and _level() and absf(dx) < 560.0:
+			_move_to(player.global_position.x - signf(dx) * 60.0, HUNT, delta, false)
+			dir = 1 if dx > 0.0 else -1
+			if lunge_cd <= 0.0 and absf(dx) < 300.0 and player.invuln <= 0.0 \
+					and Time.get_ticks_msec() - _last_lunge_ms > 600:
+				_last_lunge_ms = Time.get_ticks_msec()
+				state = "crouch"
+				timer = 0.2
+			return
 		var tx := _edge_target()
 		if _lit_at(position.x):
-			# caught in the light: get out of it, or cower if cornered
-			var before := position.x
-			_move_to(tx, RETREAT, delta, false)
-			if absf(position.x - before) < 0.5:
-				state = "cower"
+			# caught in his light: it doesn't back off any more — it stands its
+			# ground, snarling, and goes for him as soon as it can
+			dir = 1 if dx > 0.0 else -1
+			if lunge_cd <= 0.0 and _level() and absf(dx) < 560.0 and player.invuln <= 0.0 \
+					and Time.get_ticks_msec() - _last_lunge_ms > 600:
+				_last_lunge_ms = Time.get_ticks_msec()
+				state = "crouch"
+				timer = 0.26
 			return
-		# a dead band, so it holds its spot instead of twitching after every step he takes
-		if absf(tx - position.x) > 18.0:
+		# a dead band, so it holds its spot instead of twitching after every step
+		# he takes — and it only ever closes in: as he comes on, it stands its ground
+		var closer := signf(tx - position.x) == signf(dx)
+		if absf(tx - position.x) > 18.0 and closer:
 			_move_to(tx, WALK, delta, true)
 		if _moving < 60.0:
 			dir = 1 if dx > 0.0 else -1
 		var px := player.global_position.x
-		if lunge_cd <= 0.0 and _level() and absf(dx) < 560.0 and absf(position.x - tx) < 60.0 \
+		if lunge_cd <= 0.0 and _level() and absf(dx) < 560.0 \
 				and px > left_x - 40.0 and px < right_x + 40.0 \
-				and Time.get_ticks_msec() - _last_lunge_ms > 1300 and player.invuln <= 0.0:
+				and Time.get_ticks_msec() - _last_lunge_ms > 600 and player.invuln <= 0.0:
 			_last_lunge_ms = Time.get_ticks_msec()
 			state = "crouch"
-			timer = 0.38
+			timer = 0.26
 
 	## In the dark he is simply prey: close in, and leap from close range.
 	## No turn-taking here — the pack comes in together.
@@ -344,14 +369,15 @@ class Wolf extends Critter:
 			timer = 0.24
 
 	func _leap(dx: float) -> void:
-		var land := clampf(player.global_position.x, left_x, right_x)
+		# it aims where he'll be when it comes down, not where he is
+		var land := clampf(player.global_position.x + player.velocity.x * 0.42, left_x, right_x)
 		var d := clampf(land - position.x, -470.0, 470.0)
 		if absf(d) < 30.0:
 			d = 30.0 * signf(dx if dx != 0.0 else 1.0)
 		vel = Vector2(d / 0.42, -430.0)
 		state = "lunge"
 		resolved = false
-		lunge_cd = randf_range(1.1, 1.8) if frenzy else (randf_range(0.8, 1.4) if _shelter() <= 0.0 else randf_range(2.2, 3.8))
+		lunge_cd = randf_range(1.1, 1.8) if frenzy else (randf_range(0.8, 1.4) if _shelter() <= 0.0 else randf_range(0.9, 1.6))
 
 	func _fly(delta: float) -> void:
 		vel.y += GRAV * delta
@@ -361,8 +387,10 @@ class Wolf extends Critter:
 			var ddy := absf((player.global_position.y - 30.0) - (position.y - 18.0))
 			if ddx < 58.0 and ddy < 70.0:
 				resolved = true
-				# only a strong light turns it now — and a frenzied one, nothing
-				if not frenzy and _shelter() >= 0.75:
+				# only a strong light HELD TOWARD it turns it now: running away, his
+				# back is to it and the bite lands. A frenzied one, nothing turns.
+				var facing_it := player.facing == (1 if position.x > player.global_position.x else -1)
+				if not frenzy and _shelter() >= 0.75 and facing_it:
 					_yelp()
 					return
 		if position.y >= floor_y and vel.y > 0.0:
