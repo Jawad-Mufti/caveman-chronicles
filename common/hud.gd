@@ -140,6 +140,10 @@ func _process(delta: float) -> void:
 		msg_time -= delta
 		if msg_time <= 0.0:
 			_msg.text = ""
+	# while someone is talking, hints move up out of the way of the dialogue box
+	var talking := get_tree().get_first_node_in_group("dialogue") != null
+	_msg.offset_top = -600.0 if talking else -96.0
+	_msg.offset_bottom = -544.0 if talking else -40.0
 	_hits.queue_redraw()
 	_berries.queue_redraw()
 	_boss.queue_redraw()

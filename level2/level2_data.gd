@@ -87,6 +87,13 @@ const STEPPE_LOOT := [
 	[12300.0, 570.0, "shell"], [12360.0, 480.0, "conch"], [12420.0, 570.0, "bone"],
 ]
 
+## ---------------------------------------------------------------- talking animals
+## Met in passing; the talk starts when he comes by (once).
+const MOSS_AT := Vector2(4075.0, 262.0)        ## the sloth's grip, under the fallen giant over the gorge
+const MOSS_MEET := [3880.0, 120.0]            ## [x, width] where the talk starts
+const NUTMEG_AT := Vector2(11200.0, 600.0)     ## the beaver by her dam, on the Steppe's far bank
+const NUTMEG_MEET := [11030.0, 110.0]
+
 ## The great tree: trunk centred here, and its branches as one-way platforms
 ## [x, top, width, grows from the left end?]. Left and right of the trunk in
 ## turn, 112 px apart; the long bough crosses the chasm; above it, the crown.

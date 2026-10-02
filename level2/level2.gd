@@ -57,6 +57,9 @@ var _gate: StaticBody2D
 var _fight := false
 var _scar_beaten := false
 var _met_toolmaker := false
+var moss: Friends.Moss
+var nutmeg: Friends.Nutmeg
+var _met_nutmeg := false     ## heard about the stolen stone: Old Bongo gets asked about it
 var _near_toolmaker := false
 var _bongo_helps := 0
 var _bongo_cd := 0.0
@@ -87,6 +90,7 @@ func _ready() -> void:
 	_build_sky_lanes()
 	_build_gorge()
 	_build_steppe()
+	_build_friends()
 	_build_boulder_run()
 	_build_long_dark()
 	_build_the_end()
@@ -616,21 +620,23 @@ func _meet_elder() -> void:
 	var lines: Array = []
 	if quest == "none" and not has_key:
 		lines = [
-			_bongo("Well, well. A hairless one, with a little sun on a stick. And he climbed all the way up my tree."),
-			["CAVEMAN", "Ugh."],
-			_bongo("Charming. I am Old Bongo, king of this tree. And I have a problem."),
+			_bongo("Well, well. A hairless one, with a little sun on a stick."),
+			_bongo("I am Old Bongo, king of this tree. And I have a problem."),
 		]
 		if monkey_kills > 0:
 			lines.append(_bongo("Also, you have been hitting my family. I saw that. Hmph."))
+		var answers := [
+			["Ugh. Deal.", [_bongo("A hairless one of few words. I like it.")]],
+			["...Banana?", [_bongo("Yes! A whole box of bananas! LOCKED!")]],
+		]
+		if _met_nutmeg:
+			answers.append(["Shiny stone... beaver's stone!", [_bongo("Beaver? What beaver? I know no beaver. Hmph."), _bongo("Ahem. Anyway.")]])
 		lines += [
-			_bongo("My banana box is locked, and I have lost the key. A whole box of bananas, and I cannot open it!"),
-			["CAVEMAN", "...Banana?"],
-			_bongo("Yes! Banana! You understand! Bring me my key, and this shiny stone is yours."),
-			_bongo("I lost it in one of the two caves below. One is in the foot of the mountain. The other is past the chasm."),
+			_bongo("My banana box is locked, and I lost the key! Bring it back, and this shiny stone is yours."),
+			{"choose": answers},
+			_bongo("I lost it in one of the two caves below: in the mountain's foot, or past the chasm."),
 			_bongo("It was dark. I was eating a banana, and then " + _clue()),
-			_bongo("I ran. I did not go back for the key. I am a king, not a fool."),
-			_bongo("Caves always tell you something at the door, if you look. Go on, hairless one."),
-			["CAVEMAN", "Hnn."],
+			_bongo("Caves always tell you something at the door. Go on, hairless one!"),
 		]
 		_talk(lines, func() -> void:
 			quest = "asked"
@@ -653,9 +659,18 @@ func _meet_elder() -> void:
 		lines += [
 			_bongo("Hairless one, you are smarter than you smell."),
 			_bongo("Bananas! Bananas for everyone!", _open_box),
-			_bongo("And the shiny stone, as I promised. A king keeps his word.", _give_gem),
-			_bongo("Go well. And keep that little sun burning. Something big walks the woods tonight — bigger than wolves."),
-			["CAVEMAN", "..."],
+		]
+		if _met_nutmeg:
+			# the beaver's stone: Bongo would rather not talk about it
+			lines.append({"choose": [
+				["Ugh. Thank you.", [_bongo("Manners! From a hairless one! Here — the shiny stone, as I promised.", _give_gem)]],
+				["That is beaver's stone!", [_bongo("...Beaver? Ahem. My nephew may have... borrowed it."),
+					_bongo("Take it, take it! And say nothing.", _give_gem)]],
+			]})
+		else:
+			lines.append(_bongo("And the shiny stone, as I promised. A king keeps his word.", _give_gem))
+		lines += [
+			_bongo("Go well. Keep that little sun burning: something big walks the woods tonight."),
 		]
 		_talk(lines, func() -> void:
 			quest = "done"
@@ -683,16 +698,15 @@ func _talk(lines: Array, after: Callable = Callable(), _speaker: Node = null) ->
 	var d := Dialogue.new()
 	d.lines = lines
 	d.player = player
+	var who_is := {"OLD BONGO": elder, "TOOLMAKER": toolmaker, "MOSS": moss, "NUTMEG": nutmeg}
 	d.line_started.connect(func(who: String) -> void:
-		if elder != null:
-			elder.speaking = who == "OLD BONGO"
-		if toolmaker != null:
-			toolmaker.speaking = who == "TOOLMAKER")
+		for nm in who_is:
+			if who_is[nm] != null:
+				who_is[nm].speaking = who == nm)
 	d.finished.connect(func() -> void:
-		if elder != null:
-			elder.speaking = false
-		if toolmaker != null:
-			toolmaker.speaking = false
+		for nm in who_is:
+			if who_is[nm] != null:
+				who_is[nm].speaking = false
 		if after.is_valid():
 			after.call())
 	add_child(d)
@@ -844,6 +858,60 @@ func _build_steppe() -> void:
 	_note(9840, "Mammoths! Big and gentle — but mind their feet. Their backs are broad and warm.", 5.0)
 	_note(10420, "The river runs deep and fast. The old bull wades it, to and fro. Hop on.", 5.0)
 	_note(11250, "Old bones, big as huts: a mammoth graveyard. And there, beyond it — the great tree.", 5.0)
+
+
+## The animals who talk: Moss over the gorge, Nutmeg by the Steppe's river.
+func _build_friends() -> void:
+	moss = Friends.Moss.new()
+	moss.position = MOSS_AT
+	add_child(moss)
+	var t1 := World.Trigger.new(Rect2(MOSS_MEET[0], -200, MOSS_MEET[1], 1200))
+	t1.tripped.connect(_meet_moss)
+	add_child(t1)
+	nutmeg = Friends.Nutmeg.new()
+	nutmeg.position = NUTMEG_AT
+	add_child(nutmeg)
+	var t2 := World.Trigger.new(Rect2(NUTMEG_MEET[0], -200, NUTMEG_MEET[1], 1200))
+	t2.tripped.connect(_meet_nutmeg)
+	add_child(t2)
+
+
+## A sloth, in no hurry. Just a chat.
+func _meet_moss() -> void:
+	if player.dead:
+		return
+	_talk([
+		["MOSS", "Ohhh... hello... down... there."],
+		["MOSS", "I'm Moss. I've been hanging here... since... Tuesday."],
+		{"choose": [
+			["What is Tuesday?", [["MOSS", "Nobody... knows. That's why... I like it."]]],
+			["Ugh. (waves)", [["", "Moss starts to wave back. It takes a while."], ["MOSS", "...There. Waved. Exhausting."]]],
+			["Need help?", [["MOSS", "Help? No... I'm busy. Busy... hanging."]]],
+		]},
+		["MOSS", "The vines... let go at the top of the swing. Or don't. I won't... watch."],
+		["", "Moss is asleep.", func() -> void: moss.asleep = true],
+	])
+
+
+## A beaver, furious: a monkey stole the red stone from her dam.
+func _meet_nutmeg() -> void:
+	if player.dead:
+		return
+	_talk([
+		["NUTMEG", "Hey! HEY! You! Did a monkey come past here? Little, greedy, giggly?"],
+		{"choose": [
+			["Monkey?", [["NUTMEG", "Yes, a MONKEY! He stole my red stone. Right out of my dam!"]]],
+			["Ugh. Many monkeys.", [["NUTMEG", "Not many! ONE! With MY red stone, from MY dam!"]]],
+		]},
+		["NUTMEG", "Best stone in the whole river. It glowed like a little sunset."],
+		["NUTMEG", "He hopped on the old bull's back, rode across the river — and LAUGHED at me!"],
+		{"choose": [
+			["Bad monkey.", [["NUTMEG", "The WORST monkey."]]],
+			["Heh. Funny.", [["NUTMEG", "It was NOT funny! ...Okay. A bit funny. But still!"]]],
+			["Where he go?", [["NUTMEG", "Up the great tree, to their old king. Monkeys bring him every shiny thing."]]],
+		]},
+		["NUTMEG", "If you find my stone, keep it. Better you than a monkey.", func() -> void: nutmeg.calm = true],
+	], func() -> void: _met_nutmeg = true)
 
 
 ## In the river: the current throws him back out on the near bank.
