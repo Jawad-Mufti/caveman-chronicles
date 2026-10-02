@@ -153,3 +153,25 @@ class Nutmeg extends Node2D:
 		for k in 3:
 			b.line(h + _v(-22, 6 + k * 3), h + _v(-34, 3 + k * 5), Color(1, 1, 1, 0.5), 1.0)
 		b.draw(self)
+
+
+## ================================================================ CREEK
+class Creek extends Node2D:
+	## The little creek Nutmeg has dammed: a strip of water over the ground,
+	## ankle-deep — he walks straight through it. Origin: its left edge.
+	var w := 70.0
+	var _t := 0.0
+
+	func _process(delta: float) -> void:
+		_t += delta
+		if NightWoods.near_view(self):
+			queue_redraw()
+
+	func _draw() -> void:
+		var b := Batch.new()
+		b.poly(PackedVector2Array([Vector2(-8, 600), Vector2(w + 8, 600), Vector2(w, 612), Vector2(0, 612)]), Color("23415e"))
+		b.rect(Rect2(0, 598, w, 3), Color("7fa6c9"))
+		for k in 3:
+			var x := fmod(k * 23.0 + _t * 30.0, w - 14.0)
+			b.line(Vector2(x, 604), Vector2(x + 12.0, 604), Color("9cc3e0", 0.6), 1.5)
+		b.draw(self)
