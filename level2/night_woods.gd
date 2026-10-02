@@ -583,6 +583,7 @@ class FallenLog extends StaticBody2D:
 	var _t := -1.0
 
 	func _ready() -> void:
+		add_to_group("unsafe_ground")   # it can break, burn or fall: never a place to set him down
 		collision_layer = 1
 		collision_mask = 0
 		_cs = CollisionShape2D.new()
@@ -755,6 +756,7 @@ class CrackedRock extends StaticBody2D:
 	var _hitbox: Area2D
 
 	func _ready() -> void:
+		add_to_group("unsafe_ground")   # it can break, burn or fall: never a place to set him down
 		collision_layer = 1
 		collision_mask = 0
 		add_to_group("cracked")
@@ -847,6 +849,7 @@ class PalisadeGate extends StaticBody2D:
 	var _cs: CollisionShape2D
 
 	func _ready() -> void:
+		add_to_group("unsafe_ground")   # it can break, burn or fall: never a place to set him down
 		collision_layer = 1
 		collision_mask = 0
 		_cs = CollisionShape2D.new()
@@ -1068,6 +1071,7 @@ class CrumbleRock extends StaticBody2D:
 	var _cs: CollisionShape2D
 
 	func _ready() -> void:
+		add_to_group("unsafe_ground")   # it can break, burn or fall: never a place to set him down
 		collision_layer = 1
 		collision_mask = 0
 		_cs = CollisionShape2D.new()

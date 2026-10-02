@@ -30,6 +30,13 @@ class Wolf extends Critter:
 	const PATROL := 72.0
 	const NOTICE := 560.0     ## he is noticed inside this, if he is on roughly its level
 	const FORGET := 820.0     ## and forgotten again past this
+	## He is in its reach only while his footing — where he last stood, so a
+	## jump doesn't count — is its own ground, give or take this much (the
+	## hollow's rim, 100 above the pack, still counts). Up on an outcrop, a sky
+	## island or a branch he is out of reach: it forgets him and goes back to
+	## pacing, rather than running about underneath him.
+	const REACH_UP := 105.0
+	static var _his_footing := 600.0
 	const SIZE := 0.8         ## drawn at 0.8 of its design size
 
 	var left_x := 0.0        ## the stretch of ground it is bound to
@@ -196,6 +203,9 @@ class Wolf extends Critter:
 				state = "flee"
 				timer = 0.5
 
+	func _in_reach() -> bool:
+		return absf(_his_footing - floor_y) <= REACH_UP
+
 	func _level() -> bool:
 		return absf(player.global_position.y - floor_y) < 60.0
 
@@ -248,13 +258,15 @@ class Wolf extends Critter:
 			if position.x < panic_end:
 				queue_free()
 			return
+		if player.is_on_floor():
+			_his_footing = player.global_position.y
 		var dx := player.global_position.x - position.x
 		if frenzy and state in ["patrol", "stalk", "cower"]:
 			state = "hunt"
 		match state:
 			"patrol":
 				_patrol(delta)
-				if absf(dx) < NOTICE and absf(player.global_position.y - floor_y) < 160.0:
+				if absf(dx) < NOTICE and _in_reach():
 					state = "stalk"
 					slot_t = 0.0
 					# it charges the moment it sees him: a short crouch (the tell), then the leap
@@ -267,7 +279,12 @@ class Wolf extends Critter:
 			"crouch":
 				dir = 1 if dx > 0.0 else -1
 				if timer <= 0.0:
-					_leap(dx)
+					if floor_y - player.global_position.y > 140.0:
+						# he has gone up out of reach (a bloom, a ledge) while it crouched: no leap
+						state = "stalk"
+						lunge_cd = 0.4
+					else:
+						_leap(dx)
 			"lunge":
 				damage = 1
 				_fly(delta)
@@ -302,7 +319,7 @@ class Wolf extends Critter:
 			pause = randf_range(1.0, 2.4)
 
 	func _stalk(dx: float, delta: float) -> void:
-		if absf(dx) > FORGET or absf(player.global_position.y - floor_y) > 260.0:
+		if absf(dx) > FORGET or not _in_reach():
 			state = "patrol"
 			pause = 0.6
 			return

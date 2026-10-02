@@ -143,7 +143,7 @@ func _process(_delta: float) -> void:
 			shake = 8.0 * (1.0 - clampf((player.fury - CaveMan.FURY_RELEASE) / 0.25, 0.0, 1.0))
 	cam.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake
 
-	if player.is_on_floor() and not player.dead:
+	if not player.dead and _standing_safe():
 		last_safe = player.global_position
 		last_safe_facing = player.facing
 	if player.global_position.y > fall_y and not player.dead:
@@ -158,10 +158,37 @@ func _process(_delta: float) -> void:
 ## put him in the air (a narrow ledge), in which case right where he stood.
 func _safe_spot() -> Vector2:
 	var spot := last_safe + Vector2(-58.0 * last_safe_facing, -10.0)
-	var q := PhysicsRayQueryParameters2D.create(spot + Vector2(0, -10), spot + Vector2(0, 60), 1)
-	if get_world_2d().direct_space_state.intersect_ray(q).is_empty():
+	if not (_solid_below(spot + Vector2(-16, 0)) and _solid_below(spot + Vector2(16, 0))):
 		spot = last_safe + Vector2(0, -10)
 	return spot
+
+
+## Ground that stays put: a static body that can't break, burn or fall away
+## (those join "unsafe_ground"). Moving things — a mammoth's back, a log on
+## the tar — are never static.
+static func _firm(body: Object) -> bool:
+	return body is StaticBody2D and not (body as Node).is_in_group("unsafe_ground")
+
+
+## Firm ground just under this point?
+func _solid_below(at: Vector2) -> bool:
+	var q := PhysicsRayQueryParameters2D.create(at + Vector2(0, -8), at + Vector2(0, 26), 1)
+	var hit := get_world_2d().direct_space_state.intersect_ray(q)
+	return not hit.is_empty() and _firm(hit["collider"])
+
+
+## Is he standing somewhere worth remembering as safe? On firm ground, and
+## with firm ground under both sides of him — not teetering on a lip (set
+## down there, he would slide straight back into the hole).
+func _standing_safe() -> bool:
+	if not player.is_on_floor():
+		return false
+	for i in player.get_slide_collision_count():
+		var c := player.get_slide_collision(i)
+		if c.get_normal().y < -0.7 and not _firm(c.get_collider()):
+			return false
+	var p := player.global_position
+	return _solid_below(p + Vector2(-16, 0)) and _solid_below(p + Vector2(16, 0))
 
 
 func _unhandled_input(event: InputEvent) -> void:
