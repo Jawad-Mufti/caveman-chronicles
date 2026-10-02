@@ -410,9 +410,21 @@ func _physics_process(delta: float) -> void:
 		eat_fig()
 	_fig_prev = fig_now
 	if dead:
-		if not is_on_floor():
-			velocity.y += GRAVITY_DOWN * delta
-			move_and_slide()
+		# the last pop into the air, the topple, and then flat on his back
+		_die_t += delta
+		anim_t += delta
+		velocity.y += GRAVITY_DOWN * delta
+		velocity.x = move_toward(velocity.x, 0.0, (FRICTION if is_on_floor() else AIR_ACCEL * 0.5) * delta)
+		move_and_slide()
+		if is_on_floor() and _die_t > DIE_TIME and not _starred:
+			_starred = true
+			var stars := Critter.Dizzy.new()
+			stars.life = 3.0
+			stars.radius = 22.0
+			stars.position = Vector2(-float(facing) * 58.0, -22.0)   # round his head, now he's on his back
+			add_child(stars)
+			FX.burst(get_parent(), global_position, "dust", float(facing))
+		queue_redraw()
 		return
 
 	anim_t += delta
@@ -736,7 +748,7 @@ func _process(delta: float) -> void:
 	if _embers != null:
 		_embers.position = _torch_tip
 		_embers.emitting = has_torch and torch_fuel > 0.05 and not dead
-	if invuln > 0.0 and fmod(invuln * 12.0, 1.0) < 0.5:
+	if invuln > 0.0 and not dead and fmod(invuln * 12.0, 1.0) < 0.5:
 		modulate.a = 0.35
 	else:
 		modulate.a = 1.0
@@ -951,8 +963,7 @@ func hurt(amount: int, from_x: float) -> void:
 	velocity = Vector2(away * 280.0, -340.0)
 	hp_changed.emit(hp)
 	if hp <= 0:
-		dead = true
-		died.emit()
+		_die()
 	elif berries > 0 and is_inside_tree():
 		get_tree().create_timer(0.45).timeout.connect(_auto_eat)
 
@@ -973,8 +984,7 @@ func respawn_at(spot: Vector2) -> void:
 	invuln = 1.3
 	hp_changed.emit(hp)
 	if hp <= 0:
-		dead = true
-		died.emit()
+		_die()
 
 
 func pick_up_stick() -> void:
@@ -1126,10 +1136,41 @@ func _release_fire() -> void:
 
 
 ## Back on his feet at a checkpoint, whole, torch full.
+## Down for good: the world slows right down, he's popped up into the air
+## with a yelp, and comes down flat on his back — X eyes, tongue out, stars
+## going round his head — until the level wakes him by the fire.
+const DIE_TIME := 0.55           ## how long the topple takes
+var _die_t := 0.0
+var _starred := false
+
+
+func _die() -> void:
+	dead = true
+	_die_t = 0.0
+	if vine != null:
+		_let_go(Vector2.ZERO)
+	velocity = Vector2(-float(facing) * 150.0, -380.0)
+	flip_t = 0.0
+	_tumble = 0.0
+	_spear = 0.0
+	if is_inside_tree():
+		Critter.slow_time(get_tree(), 1.3, 0.3)
+		var pop := Treasure.FloatText.new()
+		pop.text = "OOF!"
+		pop.position = global_position + Vector2(-16, -170)
+		get_parent().add_child.call_deferred(pop)
+	died.emit()
+
+
 func revive(spot: Vector2) -> void:
 	if vine != null:
 		_let_go(Vector2.ZERO)
 	dead = false
+	_die_t = 0.0
+	_starred = false
+	for c in get_children():
+		if c is Critter.Dizzy:
+			c.queue_free()
 	global_position = spot
 	velocity = Vector2.ZERO
 	knock = 0.0
@@ -1316,7 +1357,12 @@ func _paint() -> void:
 			var pop := 1.0 - clampf((fury - FURY_RELEASE) / 0.15, 0.0, 1.0)
 			sy += 0.06 * pop
 			sx -= 0.03 * pop
-	var rot := float(facing) * PI * 0.5 if dead else 0.0
+	# dead: he topples over backwards onto his back, with a little bounce at the end
+	var rot := 0.0
+	if dead:
+		var dk := clampf(_die_t / DIE_TIME, 0.0, 1.0)
+		var back_out := 1.0 + 2.2 * pow(dk - 1.0, 3.0) + 1.2 * pow(dk - 1.0, 2.0)
+		rot = -float(facing) * PI * 0.5 * back_out
 	var base := Transform2D(rot, Vector2(ART * facing * sx, ART * sy), 0.0, Vector2.ZERO)
 	var curl := 0.0                 ## 1 = curled into a ball; 0 = open
 	var open_k := 0.0               ## 1 = opened out for the landing
@@ -1492,6 +1538,8 @@ func _paint() -> void:
 			_oval(bp + Vector2(0, 4), 2.6, 5.5, Pal.KEY_BONE, 1.5)
 	if roaring:
 		_roar()
+	elif dead:
+		_dead_mouth()
 	elif tumble > 0.5:
 		_yell()
 	else:
@@ -1500,7 +1548,12 @@ func _paint() -> void:
 	_cc(Vector2(1, -145), 1.4, C_MOUTH)
 	_cc(Vector2(7, -145), 1.4, C_MOUTH)
 	var blink := fmod(anim_t, 3.7) < 0.12
-	if tumble > 0.5 and not wince:
+	if dead:
+		# X for eyes
+		for ec in [Vector2(-7, -151), Vector2(15, -151)]:
+			_ln(ec + Vector2(-5, -5), ec + Vector2(5, 5), C_OL, 3.0, true)
+			_ln(ec + Vector2(-5, 5), ec + Vector2(5, -5), C_OL, 3.0, true)
+	elif tumble > 0.5 and not wince:
 		# eyes like saucers
 		for ec in [Vector2(-7, -152), Vector2(15, -152)]:
 			_oval(ec, 7.5, 7.0, C_EYE, 3.0)
@@ -1514,6 +1567,8 @@ func _paint() -> void:
 		inner = 12.0
 	if tumble > 0.5:
 		inner = -7.0                          # shot up in alarm
+	if dead:
+		inner = 0.0                           # no more scowling
 	if tumble > 0.0:
 		# hair blown straight up, flapping
 		for k in 4:
@@ -2066,6 +2121,12 @@ func _eye(c: Vector2, wince: bool, blink: bool) -> void:
 	if not blink:
 		_cc(c + Vector2(1.6, 0.4), 2.6, Color("1a0f08"))
 		_cc(c + Vector2(0.8, -0.4), 0.9, Color.WHITE)
+
+
+## Out cold: mouth hanging open, tongue lolling out of the side.
+func _dead_mouth() -> void:
+	_oval(Vector2(4, -135), 8.0, 5.0, C_MOUTH, 3.0)
+	_oval(Vector2(10, -128), 4.5, 7.0, Color("d9675e"), 2.0, 0.3)
 
 
 ## Mouth wide open in a yell, tongue waggling.

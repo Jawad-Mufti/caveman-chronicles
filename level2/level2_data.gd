@@ -49,9 +49,12 @@ const WIND_ZONE := [5870.0, 7290.0]
 ## ledge, two more vines, two crumbling stepping stones, and the far side.
 const GORGE_TRUNK := [3990.0, 5460.0, 250.0]        ## [x0, x1, y]: the fallen giant
 ## The vines hang far apart: every swing needs a well-timed release, or it's
-## a long drop into the ravine.
-const GORGE_VINES := [[4200.0, 262.0, 255.0], [4500.0, 262.0, 255.0], [4940.0, 262.0, 255.0], [5250.0, 262.0, 255.0]]
-const GORGE_LEDGE := [4640.0, 520.0, 140.0]          ## a narrow resting ledge
+## a long drop into the ravine. 470 apart for vines 255 long, measured with
+## tools/vinereach: let go late, high in the forward swing, and he reaches the
+## next on his own (~450-510 px); let go mid-swing and he needs the air jump
+## too (~525-565); let go early and he falls short even with it (~410).
+const GORGE_VINES := [[4200.0, 262.0, 255.0], [4670.0, 262.0, 255.0], [5140.0, 262.0, 255.0]]
+const GORGE_LEDGE := [4880.0, 560.0, 120.0]          ## a narrow resting ledge, low: it catches a short jump
 const GORGE_CRUMBLES := []
 ## The mountain's silhouette, drawn behind the climb.
 const MOUNTAIN := [[5630, 1200], [5660, 560], [5820, 430], [6020, 330], [6220, 230], [6420, 110], [6620, 0],
@@ -242,7 +245,7 @@ const TINTS := [Color("5ee0d0"), Color("b084ff"), Color("ffb347"), Color("ff7fa8
 
 ## ---------------------------------------------------------------- the Long Dark
 ## [anchor x, anchor y, length]: the grip hangs at anchor y + length.
-const VINES := [[20800.0, 330.0, 190.0], [22060.0, 310.0, 230.0], [22330.0, 310.0, 230.0]]
+const VINES := [[20800.0, 330.0, 190.0], [21990.0, 310.0, 230.0], [22360.0, 310.0, 230.0]]
 ## [x, top y, width]: rotten rock over the second pit.
 const CRUMBLES := [[21330.0, 600.0, 80.0], [21460.0, 600.0, 80.0], [21590.0, 600.0, 80.0]]
 const FIREFLIES := [[20500.0, 520.0], [20800.0, 440.0], [21150.0, 520.0], [21500.0, 480.0], [21820.0, 520.0], [22170.0, 420.0]]
@@ -317,17 +320,17 @@ const SHELL_POINTS := [
 	[16485.0, 354.0], [16485.0, 130.0],                               # up the snag
 	[20660.0, 470.0], [20740.0, 520.0], [20860.0, 520.0], [20940.0, 470.0],   # the first vine's swing
 	[21370.0, 560.0], [21500.0, 560.0], [21630.0, 560.0],           # the crumbling bridge
-	[22020.0, 480.0], [22175.0, 520.0], [22340.0, 480.0],           # the two vines
+	[22100.0, 470.0], [22175.0, 440.0], [22250.0, 470.0],           # the two vines
 	# the Boulder Run: shells over the gaps (no time to stop for them!), bones on the way
 	[18680.0, 520.0, "shell"], [19170.0, 520.0, "shell"], [19715.0, 520.0, "shell"],
 	[18820.0, 560.0], [19000.0, 500.0], [19300.0, 560.0], [19460.0, 500.0], [19860.0, 560.0],
 	# the Hanging Gorge: along the swings, shells up at the top of them,
 	# and a tusk and a conch waiting on the resting ledge
-	[4290.0, 500.0], [4350.0, 520.0], [4410.0, 500.0],
-	[4600.0, 370.0, "shell"], [4630.0, 345.0, "shell"],
-	[4665.0, 494.0, "tusk"],
-	[5030.0, 500.0], [5095.0, 520.0], [5160.0, 500.0],
-	[5340.0, 370.0, "shell"], [5370.0, 345.0, "shell"],
+	[4400.0, 470.0], [4460.0, 440.0], [4520.0, 470.0],
+	[4740.0, 370.0, "shell"], [4770.0, 345.0, "shell"],
+	[4940.0, 534.0, "tusk"],
+	[4870.0, 470.0], [4930.0, 440.0], [4990.0, 470.0],
+	[5210.0, 370.0, "shell"], [5240.0, 345.0, "shell"],
 	[5480.0, 560.0], [5540.0, 560.0],
 	# up in the air over the path: a jump gets these...
 	[1090.0, 482.0], [1130.0, 472.0], [1170.0, 482.0],
