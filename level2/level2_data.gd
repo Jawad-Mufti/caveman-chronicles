@@ -10,7 +10,7 @@ const FALL_Y := 1020.0
 ## Reachability budget: a jump climbs ~133 px and carries ~227 px. Every step
 ## here asks for 100-125 up; the mountain's are the ones near the top of that.
 ## Ground runs: [x0, x1] at GROUND_Y.
-const FLOORS := [[0.0, 1500.0], [1640.0, 2600.0], [2760.0, 2900.0], [3350.0, 4060.0], [5420.0, 5680.0], [8750.0, 10500.0], [11000.0, 12780.0], [12980.0, 13120.0], [13540.0, 13660.0], [14180.0, 14650.0], [15990.0, 16300.0], [17900.0, 20400.0],
+const FLOORS := [[0.0, 1500.0], [1640.0, 2600.0], [2760.0, 2900.0], [3350.0, 4060.0], [5420.0, 5680.0], [8750.0, 10500.0], [11000.0, 12780.0], [12980.0, 13120.0], [13540.0, 13660.0], [14180.0, 14650.0], [16900.0, 17150.0], [19340.0, 20400.0],
 	[21120.0, 23620.0], [23730.0, 24100.0], [24230.0, 24640.0], [24780.0, 24940.0], [25100.0, 25600.0], [26000.0, 26300.0], [26700.0, 26950.0], [27400.0, LEVEL_W]]
 ## The hollow where the pack waits: [x, floor y, width].
 const HOLLOW := [2900.0, 700.0, 450.0]
@@ -108,33 +108,39 @@ const TAR_LOOT := [                                ## [x, y, kind]; ids "t0", "t
 ]
 
 ## ---------------------------------------------------------------- Thunder Canyon
-## Past Nutmeg's creek, before the great tree: a deep canyon where the ropes
-## MOVE, then cliffs in a storm. Falling in costs a heart, as any pit does.
-##   Puffball Drift (14650-15990): vines under puffballs drifting to and fro;
-##     they meet now and then — wait for the gap to close, then swap
-##   a rock pillar (15990-16300) to stand on
-##   Pterosaur Express (16300-17900): faster, dipping; ride one, and swap in
-##     mid-air to the next where their paths overlap
-##   the rest ledge, with a fire (17900-18300)
-##   Thunder Cliffs (18300-19600): steps up and down; a storm rolls boulders
-##     down them at him — jump them. The Weeping Cave's mouth is in their foot.
-## Carriers: [x0, x1, height, speed, phase 0..1, vine length]
-## Neighbours keep time: same span and speed, so they meet at their shared
-## ends every 10 s (a 40 px gap) — that's the moment to swap.
-const PUFFS := [[14780.0, 15130.0, 230.0, 70.0, 0.5, 200.0], [15170.0, 15520.0, 220.0, 70.0, 0.0, 200.0],
-	[15560.0, 15910.0, 230.0, 70.0, 0.5, 200.0]]
-## The two pterosaurs take the same time round (9.6 s), and cross mid-canyon
-## (x 17100) — the first heading on, the second coming back: swap there.
-const PTEROS := [[16390.0, 17160.0, 240.0, 160.0, 0.461, 200.0], [16960.0, 17800.0, 200.0, 175.0, 0.917, 210.0]]
-const THUNDER_STEPS := [[18400.0, 520.0, 200.0], [18600.0, 440.0, 200.0], [18800.0, 360.0, 400.0],
-	[19200.0, 440.0, 200.0], [19400.0, 520.0, 200.0]]         ## [x, top, w]
-const STORM := [18300.0, 19700.0, 19150.0, 18320.0, 2.6]       ## [felt from x, to x, boulder starts at x, ends at x, every s]
-const CANYON_LOOT := [                                          ## [x, y, kind]; ids "n0", "n1"...
-	[14900.0, 380.0, "shell"], [15330.0, 380.0, "shell"], [15750.0, 380.0, "shell"],
-	[16210.0, 570.0, "bone"],
-	[16700.0, 470.0, "shell"], [17000.0, 470.0, "shell"], [17300.0, 420.0, "shell"], [17500.0, 420.0, "conch"],
-	[18100.0, 570.0, "bone"],
-	[18900.0, 330.0, "shell"], [19000.0, 330.0, "conch"], [19100.0, 330.0, "shell"],
+## Past Nutmeg's creek, before the great tree: a deep canyon. Falling in costs
+## a heart, as any pit does.
+##   Sky Stones (14650-16900): flying rocks with vines, each in its own space —
+##     drifting, bobbing or circling. They share one beat (STONE_BEAT s), and
+##     their closest moments come in a wave along the line: each one swings
+##     close to the next (130-150 px) every half beat. They never touch.
+##   a rest ledge with a fire (16900-17150)
+##   floating rocks at different heights (17280-19290), some bobbing; once he
+##     is on the second, bats dive straight down at him (a shadow warns)
+##   a rock outcrop at the end (19380-19600): the Weeping Cave's mouth is in
+##     its far face, by the great tree
+## Sky Stones: [kind, x, y, amp, vine length, look]
+const SKY_STONES := [
+	["drift", 14850.0, 230.0, 60.0, 200.0, 0], ["orbit", 15100.0, 210.0, 60.0, 200.0, 1],
+	["bob", 15300.0, 240.0, 30.0, 200.0, 2], ["drift", 15510.0, 230.0, 70.0, 200.0, 0],
+	["orbit", 15790.0, 220.0, 70.0, 200.0, 1], ["drift", 16050.0, 240.0, 60.0, 190.0, 2],
+	["bob", 16250.0, 230.0, 30.0, 200.0, 0], ["orbit", 16450.0, 230.0, 60.0, 200.0, 1],
+	["drift", 16720.0, 230.0, 60.0, 200.0, 2],
+]
+const STONE_BEAT := 6.0
+## Floating rocks to hop across: [x, top, w, bob]
+const FLOAT_ROCKS := [[17280.0, 520.0, 130.0, 0.0], [17500.0, 460.0, 110.0, 8.0], [17700.0, 400.0, 120.0, 0.0],
+	[17910.0, 460.0, 110.0, 10.0], [18120.0, 380.0, 130.0, 0.0], [18340.0, 320.0, 110.0, 8.0],
+	[18540.0, 400.0, 120.0, 0.0], [18760.0, 470.0, 110.0, 10.0], [18970.0, 410.0, 130.0, 0.0],
+	[19180.0, 500.0, 110.0, 0.0]]
+const BAT_SKY := [17280.0, 19300.0, 1.7]       ## [from x, to x, a dive every s]
+const CANYON_OUTCROP := [19380.0, 500.0, 220.0]  ## [x, top, w]: the Weeping Cave is in its far face
+const CANYON_LOOT := [                          ## [x, y, kind]; ids "n0", "n1"...
+	[14975.0, 430.0, "shell"], [15230.0, 430.0, "shell"], [15410.0, 430.0, "shell"], [15650.0, 420.0, "conch"],
+	[15920.0, 430.0, "shell"], [16150.0, 430.0, "shell"], [16350.0, 430.0, "shell"], [16590.0, 430.0, "bone"],
+	[17040.0, 570.0, "bone"],
+	[17345.0, 490.0, "shell"], [17755.0, 370.0, "shell"], [18185.0, 350.0, "conch"], [18395.0, 290.0, "shell"],
+	[19035.0, 380.0, "shell"], [19490.0, 470.0, "bone"],
 ]
 
 ## ---------------------------------------------------------------- talking animals
@@ -173,7 +179,7 @@ const BONFIRES := [[520.0, GROUND_Y, true], [1720.0, GROUND_Y, false], [3560.0, 
 	[7410.0, -278.0, false], [19830.0, GROUND_Y, false], [21270.0, GROUND_Y, false],
 	[32470.0, 700.0, false], [34290.0, 700.0, false], [36140.0, 600.0, false], [37300.0, 600.0, false],   # old hearths in the caves
 	[8960.0, GROUND_Y, false],   # the mountain's foot, before the Steppe
-	[18000.0, GROUND_Y, false]]  # the rest ledge in Thunder Canyon
+	[17020.0, GROUND_Y, false]]  # the rest ledge in Thunder Canyon
 ## [x, y, bundles of wood in it]
 const DEAD_TREES := [[1260.0, GROUND_Y, 2], [2400.0, 400.0, 1], [2855.0, GROUND_Y, 2], [6830.0, -52.0, 2], [19990.0, GROUND_Y, 2]]
 ## Loose bundles already on the ground: the crevice stash.
@@ -209,7 +215,7 @@ const CAVE_A_ROCK := [
 	[33410.0, 150.0, 1160.0, 30.0, "roof"],            # the chasm and the chamber: very high
 ]
 const CAVE_A_IN := Vector2(31470, 600)
-const CAVE_A_DOOR := [19600.0, GROUND_Y, -1, "webs"]   # in the foot of the Thunder Cliffs, by the great tree
+const CAVE_A_DOOR := [19600.0, GROUND_Y, -1, "webs"]   # in the far face of the canyon's last outcrop, by the great tree
 const CAVE_A_WEBS := [[31840.0, 600.0, 180.0], [34430.0, 380.0, 200.0]]
 ## [x, roof y, floor y, left, right]
 const SPIDERS := [[32080.0, 470.0, 700.0, 31910.0, 32240.0], [32600.0, 470.0, 700.0, 32440.0, 32690.0],

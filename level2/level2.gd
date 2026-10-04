@@ -500,7 +500,7 @@ func _build_cave(bounds: Rect2, rock: Array, entry: Vector2, door: Array, which:
 func _door_lines(which: int) -> Array:
 	var here := key_cave == which
 	if which == 0:
-		var lines := [["", "A cave under the Thunder Cliffs. Cold air breathes out of it."]]
+		var lines := [["", "A cave in the rock by the great tree. Cold air breathes out of it."]]
 		if here:
 			lines.append(["", "Webs hang across the mouth — but they are torn, and a half-eaten banana is stuck in one."])
 			lines.append(["", "Small hand-prints go in. None come out."])
@@ -639,7 +639,7 @@ func _meet_elder() -> void:
 			_bongo("I lost the key to my banana box in a cave. Fetch it, and this shiny stone is yours."),
 			{"choose": answers},
 			_bongo("It was dark, I was eating a banana, and then " + _clue()),
-			_bongo("Two caves: one under the Thunder Cliffs, one past the chasm. Their doors give clues. GO!"),
+			_bongo("Two caves: one in the rock by my tree, one past the chasm. Their doors give clues. GO!"),
 		]
 		_talk(lines, func() -> void:
 			quest = "asked"
@@ -863,46 +863,57 @@ func _build_tar_pits() -> void:
 	_note(12640, "Tar pits! The logs sink — keep hopping!", 5.0)
 
 
-## Thunder Canyon: puffballs and pterosaurs carrying vines, a rest ledge, and
-## the Thunder Cliffs with their storm.
+## Thunder Canyon: the Sky Stones with their vines, the rest ledge, the
+## floating rocks with the bats above them, and the outcrop with the cave.
 func _build_canyon() -> void:
-	for pf in PUFFS:
-		var puff := Canyon.Puffball.new()
-		puff.x0 = pf[0]
-		puff.x1 = pf[1]
-		puff.position = Vector2(pf[0], pf[2])
-		puff.speed = pf[3]
-		puff.phase = pf[4]
-		puff.vine_len = pf[5]
-		add_child(puff)
-	for pt in PTEROS:
-		var ptero := Canyon.Pterosaur.new()
-		ptero.x0 = pt[0]
-		ptero.x1 = pt[1]
-		ptero.position = Vector2(pt[0], pt[2])
-		ptero.speed = pt[3]
-		ptero.phase = pt[4]
-		ptero.vine_len = pt[5]
-		add_child(ptero)
-	for s in THUNDER_STEPS:
-		add_child(NightWoods.Crag.new(Rect2(s[0], s[1], s[2], GROUND_Y + 240.0 - float(s[1]))))
-	var storm := Canyon.Storm.new()
-	storm.x0 = STORM[0]
-	storm.x1 = STORM[1]
-	storm.spawn = Vector2(STORM[2], 330.0)
-	storm.end_x = STORM[3]
-	storm.every = STORM[4]
-	storm.steps = THUNDER_STEPS
-	storm.player = player
-	add_child(storm)
+	# Stone k is at its nearest-left at t = k * beat/2 and its farthest-right
+	# half a beat later — just as stone k+1 comes nearest-left: a wave.
+	for k in SKY_STONES.size():
+		var s: Array = SKY_STONES[k]
+		var stone := Canyon.SkyStone.new()
+		stone.kind = s[0]
+		stone.position = Vector2(s[1], s[2])
+		stone.amp = s[3]
+		stone.vine_len = s[4]
+		stone.look = s[5]
+		stone.period = STONE_BEAT
+		match stone.kind:
+			"drift":
+				stone.beat = -PI * 0.5 - k * PI
+			"orbit":
+				stone.beat = PI - k * PI
+			_:
+				stone.beat = -k * PI
+		add_child(stone)
+	var rocks: Array = []
+	for r in FLOAT_ROCKS:
+		var rock := Canyon.FloatRock.new()
+		rock.position = Vector2(r[0], r[1])
+		rock.w = r[2]
+		rock.bob = r[3]
+		add_child(rock)
+		rocks.append(rock)
+	var sky := Canyon.BatSky.new()
+	sky.x0 = BAT_SKY[0]
+	sky.x1 = BAT_SKY[1]
+	sky.every = BAT_SKY[2]
+	sky.rocks = rocks
+	sky.player = player
+	sky.level = self
+	add_child(sky)
+	add_child(NightWoods.Crag.new(Rect2(CANYON_OUTCROP[0], CANYON_OUTCROP[1], CANYON_OUTCROP[2], GROUND_Y + 240.0 - float(CANYON_OUTCROP[1]))))
 	for i in CANYON_LOOT.size():
 		var l: Array = CANYON_LOOT[i]
 		_treasure(l[2], "n%d" % i, Vector2(l[0], l[1]))
-	_note(14620, "A canyon! Ride the puffballs' vines across.", 4.0)
-	_note(16250, "Pterosaurs! Catch a ride — swap mid-air!", 4.0)
-	_note(17950, "Phew. A fire. Rest your legs.", 3.0)
-	_note(18320, "THUNDER! Jump the boulders — or hug the wall!", 4.0)
-	_note(19550, "The great tree! At last.", 3.5)
+	_note(14620, "Flying rocks! Ride their vines — they keep a rhythm.", 4.5)
+	_note(16920, "Phew. A fire. Rest.", 3.0)
+	_note(17200, "Floating rocks! Hop across — and watch the sky.", 4.0)
+	_note(19320, "The great tree! At last.", 3.5)
+
+
+## The bats start on him over the floating rocks.
+func _bats_begin() -> void:
+	hud.say("BATS! Watch for their shadows — keep moving!", 3.5)
 
 
 ## In the tar: stuck fast, then hauled out on the near bank.

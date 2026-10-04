@@ -904,10 +904,11 @@ func _swing(delta: float, dir: float) -> void:
 		or Input.is_physical_key_pressed(KEY_UP) or touch["jump"]
 	if jump_now and not _jump_prev:
 		var tangent := Vector2(cos(_vine_a), -sin(_vine_a)) * _vine_w * length
-		# a vine on something that moves (a puffball, a pterosaur): he keeps its speed too
+		# a vine on something that moves (a flying rock): he keeps its speed too,
+		# and kicks off it the way he faces
 		var carry = vine.get("carry")
 		if carry is Vector2:
-			tangent += carry
+			tangent += carry + Vector2(float(facing) * 90.0, 0.0)
 		_let_go(tangent + Vector2(0, -320))
 		# off the vine with a somersault, turning the way he's flying
 		flip_dir = signf(velocity.x) if absf(velocity.x) > 40.0 else float(facing)
