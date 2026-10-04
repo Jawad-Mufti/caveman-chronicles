@@ -380,7 +380,7 @@ const SKY_LANES := [
 		"rocks": [[940.0, 300.0, 190.0, 0], [1200.0, 280.0, 120.0, 0], [1370.0, 250.0, 110.0, 0], [1560.0, 310.0, 140.0, 1], [1780.0, 70.0, 170.0, 0]],
 		"cache": [4, ["shell", "shell", "shell", "shell", "conch", "bone", "bone", "bone"]],
 		"motes": [1100.0, 1700.0],
-		"note": [690.0, "Pale stones float in the sky: a road above the road. The bloom throws him up.", 5.0],
+		"note": [690.0, "Stepping stones in the sky! The bloom bounces you up.", 5.0],
 	},
 	{
 		"name": "Silver Stair",           # the far side: over the wolves and the outcrop, to before the boulder run
@@ -390,7 +390,7 @@ const SKY_LANES := [
 		"cache": [2, ["shell", "shell", "shell", "shell", "conch", "tusk", "bone", "bone"]],
 		"bat": [17590.0, 70.0],
 		"motes": [16900.0, 17500.0, 18000.0],
-		"note": [16560.0, "Stones in the sky again: a silver stair. The bloom throws him up.", 4.5],
+		"note": [16560.0, "More sky islands! Bounce up on the bloom.", 4.5],
 	},
 	{
 		"name": "Starlit Road",           # the Long Dark: glowing stones over the three pits, down to the toolmaker's fire
@@ -400,7 +400,7 @@ const SKY_LANES := [
 		"cache": [8, ["shell", "shell", "shell", "shell", "shell", "conch", "conch", "tusk", "bone", "bone"]],
 		"bat": [21650.0, 150.0],
 		"motes": [20800.0, 21500.0, 22100.0],
-		"note": [20440.0, "Glowing stones over the pits, like dropped stars. A bloom lifts him to them.", 5.0],
+		"note": [20440.0, "Glowing islands, like fallen stars. Bloom up!", 5.0],
 	},
 	{
 		"name": "Mammoth Sky",            # the Steppe: off the split rock, over the herd and the river, down past the graveyard
@@ -409,7 +409,7 @@ const SKY_LANES := [
 			[10680.0, 40.0, 120.0, 0], [10900.0, 110.0, 110.0, 0], [11110.0, 200.0, 130.0, 0], [11330.0, 330.0, 140.0, 0]],
 		"cache": [3, ["shell", "shell", "shell", "shell", "conch", "conch", "tusk", "bone", "bone"]],
 		"motes": [9900.0, 10500.0, 11100.0],
-		"note": [9560.0, "Little islands in the sky, over the herd and the river. The bloom throws him up.", 5.0],
+		"note": [9560.0, "Islands over the herd! Bloom up for a mammoth-free ride.", 5.0],
 	},
 ]
 

@@ -109,7 +109,7 @@ func _ready() -> void:
 	_build_hud(true)
 	_wire_player()
 	wind.first_gust.connect(func() -> void:
-		hud.say("Wind! In the air it carries him. Hold INTO it to brace — or get behind rock.", 5.0))
+		hud.say("WIND! Lean into it — or hide behind a rock.", 5.0))
 	# the guide first (once per save), then the story begins
 	if not GameState.seen.has("level2"):
 		var guide := Guide.new()
@@ -258,15 +258,15 @@ func _build_critters() -> void:
 			bat.roam_x = b[2]
 		add_child(bat)
 
-	_note(980, "Eyes. They will not cross strong light — keep the torch above the notch.", 4.5)
-	_note(1170, "A dead tree, dry as bone. Club it for wood.", 3.5)
-	_note(2700, "Three of them down there. This is what fire is for.", 4.0)
-	_note(3800, "A gorge — and old vines hanging from a fallen giant. Jump to a vine, swing, and let go at the top!", 5.0)
-	_note(5500, "The only way on is up.", 3.0)
+	_note(980, "Eyes in the dark. Bright fire keeps them back.", 4.5)
+	_note(1170, "Dead tree. Dry as a bone. Bonk it for wood!", 3.5)
+	_note(2700, "Three wolves down there. Time for FIRE.", 4.0)
+	_note(3800, "Vines over a gorge! Swing high — let go at the TOP.", 5.0)
+	_note(5500, "Only one way now: UP.", 3.0)
 	_spot(Rect2(5860, 620, 240, 110), "A crack in the rock — and someone's stash in it.", "crevice")
 	_spot(Rect2(7170, -480, 80, 90), "From up here, the whole valley. And something glints, high in the great tree.", "lookout")
-	_note(14940, "Monkeys, up in the great tree. Leave them be and they leave him be.", 4.5)
-	_note(16180, "A dead snag, right by the fire. Its branches go all the way back up to the bough.", 4.5)
+	_note(14940, "Monkeys! Leave them alone, they leave YOU alone.", 4.5)
+	_note(16180, "A dead snag: a ladder back up to the bough.", 4.5)
 
 
 func _build_tree_life() -> void:
@@ -399,12 +399,12 @@ func _build_cave_trials() -> void:
 	fall.rattled.connect(func() -> void:
 		hud.say("Dust trickles down. The roof is letting go — watch the floor: shadows come first.", 4.0))
 	add_child(fall)
-	_note(27715, "The Weeping Hall. Drops shake loose here. Keep moving under them — don't wait.", 4.5)
-	_note(28105, "Silk sacs, and something in them is moving. Hit one from afar and it only pops.", 4.5)
-	_note(28415, "A pale cap, glowing on a pillar. Land on it and it throws him high.", 4.0)
-	_note(31110, "Scratching, from the mound ahead. A lot of it.", 3.5)
-	_note(31465, "A bridge of old ribs. It gives way — and something hisses from the pillar.", 4.5)
-	_note(31835, "The roof is rattling.", 3.0)
+	_note(27715, "Dripping rocks above. Don't stand still!", 4.5)
+	_note(28105, "Wriggly silk sacs. Pop them from far away.", 4.5)
+	_note(28415, "A glowing mushroom. Jump on it. WHEEE!", 4.0)
+	_note(31110, "Scritch... scratch... scritch... LOTS of somethings.", 3.5)
+	_note(31465, "A bridge of old ribs. It creaks. Something hisses.", 4.5)
+	_note(31835, "The roof is rattling. RUN!", 3.0)
 
 
 ## The sky lanes: see SKY_LANES. Loot is added with the rest of the treasure.
@@ -834,10 +834,10 @@ func _build_steppe() -> void:
 		bones.position = Vector2(g[0], GROUND_Y)
 		bones.size = g[1]
 		add_child(bones)
-	_note(9000, "A split rock. Two walls, close together: jump at one — then jump again, off it to the other. Up and up!", 5.5)
-	_note(9840, "Mammoths! Big and gentle — but mind their feet. Their backs are broad and warm.", 5.0)
-	_note(10420, "The river runs deep and fast. The old bull wades it, to and fro. Hop on.", 5.0)
-	_note(11250, "Old bones, big as huts: a mammoth graveyard. And there, beyond it — the great tree.", 5.0)
+	_note(9000, "Two walls, close together. Bounce wall to wall — up, up, UP!", 5.5)
+	_note(9840, "Mammoths! Mind the feet. Ride the backs.", 5.0)
+	_note(10420, "Too deep to swim. The old bull wades across — hop on!", 5.0)
+	_note(11250, "A mammoth graveyard. Bones as big as huts. Spooky.", 5.0)
 
 
 ## The Tar Pits: pools of tar, logs that sink under him, a boulder stuck fast.
@@ -859,13 +859,13 @@ func _build_tar_pits() -> void:
 	for i in TAR_LOOT.size():
 		var l: Array = TAR_LOOT[i]
 		_treasure(l[2], "t%d" % i, Vector2(l[0], l[1]))
-	_note(12640, "Tar pits! Black, sticky, bubbling. The logs float — but only for a moment. Keep moving!", 5.0)
+	_note(12640, "Tar pits! The logs sink — keep hopping!", 5.0)
 
 
 ## In the tar: stuck fast, then hauled out on the near bank.
 func _on_tar(bank: float) -> void:
 	player.respawn_at(Vector2(bank - 40.0, GROUND_Y - 10.0))
-	hud.say("Stuck in the tar! He hauls himself out — sticky, and cross.", 3.0)
+	hud.say("Stuck in the tar! Out he comes — sticky and grumpy.", 3.0)
 
 
 ## The animals who talk: Moss over the gorge, Nutmeg by her creek past the tar pits.
@@ -932,7 +932,7 @@ func _again(lines: Array) -> void:
 ## In the river: the current throws him back out on the near bank.
 func _on_swept() -> void:
 	player.respawn_at(Vector2(RIVER[0] - 40.0, GROUND_Y - 10.0))
-	hud.say("Brr! Too deep, too fast — the river throws him back out.", 3.0)
+	hud.say("Brr! Too deep — the river spits him back out.", 3.0)
 
 
 func _build_gorge() -> void:
@@ -1069,7 +1069,7 @@ func _build_the_end() -> void:
 	arena_bongo.visible = false
 	add_child(arena_bongo)
 	player.died.connect(_on_died_in_fight)
-	_note(21900, "Firelight ahead, under the rocks. Someone lives out here.", 3.0)
+	_note(21900, "Firelight under the rocks. Someone lives here.", 3.0)
 
 
 ## ---------------------------------------------------------------- the Three Fires
@@ -1097,7 +1097,7 @@ func _build_trial() -> void:
 	_trial_gate = NightWoods.PalisadeGate.new()
 	_trial_gate.position = Vector2(TRIAL_GATE_X, GROUND_Y)
 	add_child(_trial_gate)
-	_note(TRIAL_ROCK.x - 140.0, "A boulder, split with old cracks. Something heavy could break it.", 3.5)
+	_note(TRIAL_ROCK.x - 140.0, "A cracked boulder. Something heavy could smash it.", 3.5)
 
 
 func _on_trial_fire() -> void:
