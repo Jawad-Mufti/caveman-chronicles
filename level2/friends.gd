@@ -175,3 +175,27 @@ class Creek extends Node2D:
 			var x := fmod(k * 23.0 + _t * 30.0, w - 14.0)
 			b.line(Vector2(x, 604), Vector2(x + 12.0, 604), Color("9cc3e0", 0.6), 1.5)
 		b.draw(self)
+
+
+## ================================================================ TALK PROMPT
+class TalkPrompt extends Node2D:
+	## A little speech bubble with an "E" in it, bobbing over whoever he can
+	## talk to. Drawn on the glow layer, so it shows in the dark too.
+	var shown := false
+	var _t := 0.0
+
+	func _ready() -> void:
+		add_to_group("glow")
+
+	func _process(delta: float) -> void:
+		_t += delta
+
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
+		if not shown:
+			return
+		var c := global_position + Vector2(0, sin(_t * 4.0) * 3.0)
+		g.draw_circle(c, 15.0, Color("23201c", 0.85))
+		g.draw_colored_polygon(PackedVector2Array([c + Vector2(-5, 11), c + Vector2(5, 11), c + Vector2(-2, 22)]), Color("23201c", 0.85))
+		g.draw_circle(c, 12.5, Color("e8e0cd", 0.95))
+		g.draw_colored_polygon(PackedVector2Array([c + Vector2(-3, 10), c + Vector2(3, 10), c + Vector2(-1, 18)]), Color("e8e0cd", 0.95))
+		g.draw_string(ThemeDB.fallback_font, c + Vector2(-5, 6), "E", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("b9772f"))

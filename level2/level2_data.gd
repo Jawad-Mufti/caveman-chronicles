@@ -108,11 +108,9 @@ const TAR_LOOT := [                                ## [x, y, kind]; ids "t0", "t
 ]
 
 ## ---------------------------------------------------------------- talking animals
-## Met in passing; the talk starts when he comes by (once).
+## Met in passing: a bubble shows over them when he's close; E (or TALK) to talk.
 const MOSS_AT := Vector2(4075.0, 262.0)        ## the sloth's grip, under the fallen giant over the gorge
-const MOSS_MEET := [3880.0, 120.0]            ## [x, width] where the talk starts
 const NUTMEG_AT := Vector2(14440.0, 600.0)     ## the beaver by her dam on a little creek, past the tar pits
-const NUTMEG_MEET := [14220.0, 110.0]
 const CREEK := [14300.0, 70.0]                ## [x, width]: the little creek she has dammed
 
 ## The great tree: trunk centred here, and its branches as one-way platforms

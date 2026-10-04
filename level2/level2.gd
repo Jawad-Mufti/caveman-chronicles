@@ -96,6 +96,7 @@ func _ready() -> void:
 	_build_long_dark()
 	_build_the_end()
 	_build_treasure()
+	_build_talkers()
 	night = Night.new()
 	night.table = DARKNESS
 	night.player = player
@@ -618,61 +619,48 @@ func _clue() -> String:
 
 
 func _meet_elder() -> void:
+	if quest == "done":
+		_again(["OLD BONGO:  \"Go well, hairless one. Mind the big one.\"", "OLD BONGO:  \"A king never forgets a favour. Or a smell.\"",
+			"OLD BONGO:  \"Banana? ...No. Mine.\""])
+		return
 	var lines: Array = []
 	if quest == "none" and not has_key:
-		lines = [
-			_bongo("Well, well. A hairless one, with a little sun on a stick."),
-			_bongo("I am Old Bongo, king of this tree. And I have a problem."),
-		]
+		lines = [_bongo("HALT! Who climbs the royal tree? ...Oh. A hairless one. With a tiny sun.")]
 		if monkey_kills > 0:
-			lines.append(_bongo("Also, you have been hitting my family. I saw that. Hmph."))
+			lines.append(_bongo("You've been hitting my family. I'm keeping a list."))
 		var answers := [
-			["Ugh. Deal.", [_bongo("A hairless one of few words. I like it.")]],
-			["...Banana?", [_bongo("Yes! A whole box of bananas! LOCKED!")]],
+			["Ugh. Deal.", [_bongo("Few words. I like you already.")]],
+			["...Banana?", [_bongo("A WHOLE box of them. Locked. It's a royal tragedy.")]],
 		]
 		if _met_nutmeg:
-			answers.append(["Shiny stone... beaver's stone!", [_bongo("Beaver? What beaver? I know no beaver. Hmph."), _bongo("Ahem. Anyway.")]])
+			answers.append(["That's beaver's stone!", [_bongo("Beaver? Never heard of her. ...Moving on!")]])
 		lines += [
-			_bongo("My banana box is locked, and I lost the key! Bring it back, and this shiny stone is yours."),
+			_bongo("I lost the key to my banana box in a cave. Fetch it, and this shiny stone is yours."),
 			{"choose": answers},
-			_bongo("I lost it in one of the two caves below: in the mountain's foot, or past the chasm."),
-			_bongo("It was dark. I was eating a banana, and then " + _clue()),
-			_bongo("Caves always tell you something at the door. Go on, hairless one!"),
+			_bongo("It was dark, I was eating a banana, and then " + _clue()),
+			_bongo("Two caves: one in the mountain's foot, one past the chasm. Their doors give clues. GO!"),
 		]
 		_talk(lines, func() -> void:
 			quest = "asked"
 			hud.set_quest("Find Old Bongo's key — in one of the two caves"))
 	elif not has_key:
 		var short := "so many legs" if key_cave == 0 else "no legs at all"
-		_talk([_bongo("No key? It is in one of the caves below. Where the thing with " + short + " lives.")])
+		_talk([_bongo("No key yet? It's in the cave where the thing with " + short + " lives. Shoo!")])
 	else:
 		if quest == "none":
-			lines = [
-				_bongo("Well, well. A hairless one, with a little sun on a stick. And — wait."),
-				_bongo("Is that... MY KEY? The key to my banana box? You found it before I even asked!"),
-				["CAVEMAN", "Ugh."],
-			]
+			lines = [_bongo("HALT! Who — wait. Is that MY KEY? I didn't even ask yet!")]
 		else:
-			lines = [
-				_bongo("Is that... it is! MY KEY!"),
-				["CAVEMAN", "Ugh!"],
-			]
-		lines += [
-			_bongo("Hairless one, you are smarter than you smell."),
-			_bongo("Bananas! Bananas for everyone!", _open_box),
-		]
+			lines = [_bongo("Is that... MY KEY! Hairless one, you smell terrible and I love you.")]
+		lines.append(_bongo("BANANAS FOR EVERYONE!", _open_box))
 		if _met_nutmeg:
 			# the beaver's stone: Bongo would rather not talk about it
 			lines.append({"choose": [
-				["Ugh. Thank you.", [_bongo("Manners! From a hairless one! Here — the shiny stone, as I promised.", _give_gem)]],
-				["That is beaver's stone!", [_bongo("...Beaver? Ahem. My nephew may have... borrowed it."),
-					_bongo("Take it, take it! And say nothing.", _give_gem)]],
+				["Ugh. Thank you.", [_bongo("Manners! Here — the shiny stone, as promised.", _give_gem)]],
+				["Beaver's stone!", [_bongo("...My nephew BORROWED it. Take it! Shh!", _give_gem)]],
 			]})
 		else:
-			lines.append(_bongo("And the shiny stone, as I promised. A king keeps his word.", _give_gem))
-		lines += [
-			_bongo("Go well. Keep that little sun burning: something big walks the woods tonight."),
-		]
+			lines.append(_bongo("And the shiny stone. A king keeps his word.", _give_gem))
+		lines.append(_bongo("Now go. Something big is awake tonight. Bigger than me. Hard to believe."))
 		_talk(lines, func() -> void:
 			quest = "done"
 			has_key = false
@@ -716,16 +704,7 @@ func _talk(lines: Array, after: Callable = Callable(), _speaker: Node = null) ->
 func _update_elder(delta: float) -> void:
 	if player.dead or player.talking or player.fury >= 0.0:
 		return
-	var d := player.global_position - elder.global_position
-	var near := absf(d.x) < 190.0 and absf(d.y) < 30.0 and player.is_on_floor()
-	if near and not _near_elder:
-		_near_elder = true
-		if quest == "done":
-			hud.say("OLD BONGO:  \"Go well, hairless one. Mind the big one.\"", 3.0)
-		else:
-			_meet_elder()
-	elif not near and absf(d.x) > 280.0:
-		_near_elder = false
+	# (talking to him is his choice now: see _update_talkers)
 	# from the bough, a voice from above
 	_callout_t -= delta
 	var on_bough := absf(player.global_position.y - 42.0) < 12.0 and player.global_position.x > 15400.0
@@ -890,6 +869,8 @@ func _on_tar(bank: float) -> void:
 
 
 ## The animals who talk: Moss over the gorge, Nutmeg by her creek past the tar pits.
+## Nobody starts talking on their own: a bubble shows over them when he's
+## close, and E (or TALK) starts it.
 func _build_friends() -> void:
 	var creek := Friends.Creek.new()
 	creek.position = Vector2(CREEK[0], 0)
@@ -898,53 +879,54 @@ func _build_friends() -> void:
 	moss = Friends.Moss.new()
 	moss.position = MOSS_AT
 	add_child(moss)
-	var t1 := World.Trigger.new(Rect2(MOSS_MEET[0], -200, MOSS_MEET[1], 1200))
-	t1.tripped.connect(_meet_moss)
-	add_child(t1)
 	nutmeg = Friends.Nutmeg.new()
 	nutmeg.position = NUTMEG_AT
 	add_child(nutmeg)
-	var t2 := World.Trigger.new(Rect2(NUTMEG_MEET[0], -200, NUTMEG_MEET[1], 1200))
-	t2.tripped.connect(_meet_nutmeg)
-	add_child(t2)
 
 
-## A sloth, in no hurry. Just a chat.
+var _moss_met := false
+var _talk_again := 0           ## cycles the "again" lines
+
+
+## A sloth, in no hurry. Short — she'd never manage a long one.
 func _meet_moss() -> void:
-	if player.dead:
+	if _moss_met:
+		_again(["Moss, asleep:  \"Zzz... Tuesday... zzz\"", "Moss, asleep:  \"Mmm... five more minutes... or years...\"",
+			"Moss snores like a very small volcano."])
 		return
+	_moss_met = true
 	_talk([
-		["MOSS", "Ohhh... hello... down... there."],
-		["MOSS", "I'm Moss. I've been hanging here... since... Tuesday."],
+		["MOSS", "...Oh. A visitor. I'll say hello... tomorrow."],
 		{"choose": [
-			["What is Tuesday?", [["MOSS", "Nobody... knows. That's why... I like it."]]],
-			["Ugh. (waves)", [["", "Moss starts to wave back. It takes a while."], ["MOSS", "...There. Waved. Exhausting."]]],
-			["Need help?", [["MOSS", "Help? No... I'm busy. Busy... hanging."]]],
+			["Hello?", [["MOSS", "...Too fast. My ears are still... on \"Hel\"."]]],
+			["What you doing?", [["MOSS", "Hanging. It's a full-time job. No... breaks."]]],
+			["(poke her)", [["MOSS", "...Ow. I'll feel that... next week."]]],
 		]},
-		["MOSS", "The vines... let go at the top of the swing. Or don't. I won't... watch."],
-		["", "Moss is asleep.", func() -> void: moss.asleep = true],
+		["MOSS", "Tip: vines... let go at the TOP. ...Zzz.", func() -> void: moss.asleep = true],
 	])
 
 
 ## A beaver, furious: a monkey stole the red stone from her dam.
 func _meet_nutmeg() -> void:
-	if player.dead:
+	if _met_nutmeg:
+		_again(["NUTMEG:  \"Still cross. VERY cross.\"", "NUTMEG:  \"See that monkey? Give him a look. A HARD one.\"",
+			"NUTMEG:  \"My dam. My rules. No monkeys.\""])
 		return
 	_talk([
-		["NUTMEG", "Hey! HEY! You! Did a monkey come past here? Little, greedy, giggly?"],
+		["NUTMEG", "A MONKEY stole my glowing red stone! Out of MY dam! Then rode off on a mammoth — LAUGHING!"],
 		{"choose": [
-			["Monkey?", [["NUTMEG", "Yes, a MONKEY! He stole my red stone. Right out of my dam!"]]],
-			["Ugh. Many monkeys.", [["NUTMEG", "Not many! ONE! With MY red stone, from MY dam!"]]],
+			["Bad monkey.", [["NUTMEG", "The WORST. I'm making up a song about how bad he is."]]],
+			["Heh. Funny.", [["NUTMEG", "NOT funny! ...Okay. On a mammoth. A bit funny."]]],
+			["Where he go?", [["NUTMEG", "Up the great tree. Monkeys take every shiny thing to their king."]]],
 		]},
-		["NUTMEG", "Best stone in the whole river. It glowed like a little sunset."],
-		["NUTMEG", "He rode off across the river on the old bull, skipped over the tar pits — and LAUGHED at me!"],
-		{"choose": [
-			["Bad monkey.", [["NUTMEG", "The WORST monkey."]]],
-			["Heh. Funny.", [["NUTMEG", "It was NOT funny! ...Okay. A bit funny. But still!"]]],
-			["Where he go?", [["NUTMEG", "Up the great tree, to their old king. Monkeys bring him every shiny thing."]]],
-		]},
-		["NUTMEG", "If you find my stone, keep it. Better you than a monkey.", func() -> void: nutmeg.calm = true],
+		["NUTMEG", "Find my stone? Keep it. Anyone's better than a monkey.", func() -> void: nutmeg.calm = true],
 	], func() -> void: _met_nutmeg = true)
+
+
+## A short line for talking to someone again — a different one each time.
+func _again(lines: Array) -> void:
+	hud.say(lines[_talk_again % lines.size()], 3.0)
+	_talk_again += 1
 
 
 ## In the river: the current throws him back out on the near bank.
@@ -1129,34 +1111,74 @@ func _on_trial_fire() -> void:
 
 
 func _update_toolmaker() -> void:
-	if player.dead or player.talking or player.fury >= 0.0 or _fight:
+	pass       # (talking to him is his choice now: see _update_talkers)
+
+
+## The Toolmaker: short and gruff, then his shop. After that, just the shop.
+func _meet_toolmaker() -> void:
+	if _met_toolmaker:
+		hud.say("TOOLMAKER:  \"Back again? Let's see your shells.\"", 2.0)
+		_open_shop()
 		return
-	var d := absf(player.global_position.x - toolmaker.global_position.x)
-	var near := d < 150.0 and absf(player.global_position.y - toolmaker.global_position.y) < 40.0 and player.is_on_floor()
-	if near and not _near_toolmaker:
-		_near_toolmaker = true
-		if not _met_toolmaker:
-			_met_toolmaker = true
-			var lines := [
-				["TOOLMAKER", "Hm? A live one. Most who walk the Long Dark end up as his supper."],
-				["CAVEMAN", "Ugh?"],
-				["TOOLMAKER", "Old Scar. The sabre-tooth. He took this arm, forty winters ago."],
-				["TOOLMAKER", "His clearing is just past my fire. He fears one thing: fire in his face. Hold your torch toward him when he leaps."],
-				["TOOLMAKER", "And light the two old stone bowls. Their fire will keep him off you — and relight your torch when he roars it out."],
-			]
-			lines.append(["TOOLMAKER", "Past my fire, three old bowls stand before the stakes of his clearing. Light all three, and the way opens."])
-			if gem_found and GameState.gems.get("level2", "") == "found":
-				lines.append(["TOOLMAKER", "Wait... what's that you carry? A FIRESTONE?! Boy, I've waited forty winters to see one of those."])
-				lines.append(["TOOLMAKER", "Pick it from my wares. Pay me nothing. Some things are worth more than shells."])
-			else:
-				lines.append(["TOOLMAKER", "If you had a Firestone, I could make you something he'd fear... but you don't. Pity."])
-			lines.append(["TOOLMAKER", "I trade, too. Shells for my work. Let's see what you've got."])
-			_talk(lines, _open_shop, toolmaker)
-		else:
-			hud.say("TOOLMAKER:  \"Back again? Let's see your shells.\"", 2.0)
-			_open_shop()
-	elif not near and d > 260.0:
-		_near_toolmaker = false
+	_met_toolmaker = true
+	var lines := [
+		["TOOLMAKER", "A live one! Most who walk the Long Dark end up as Old Scar's supper."],
+		{"choose": [
+			["Ugh. Not supper.", [["TOOLMAKER", "Ha! Good. Supper never talks back."]]],
+			["Old Scar?", [["TOOLMAKER", "The sabre-tooth. He took my arm. I took his tooth. We're even-ish."]]],
+		]},
+		["TOOLMAKER", "He hates fire in his face: hold your torch at him when he leaps. Light the three bowls past my fire and the way opens."],
+	]
+	if gem_found and GameState.gems.get("level2", "") == "found":
+		lines.append(["TOOLMAKER", "Wait — a FIRESTONE?! Forty winters I've waited. Pick it from my wares. Free."])
+	else:
+		lines.append(["TOOLMAKER", "Bring me a Firestone and I'll make you something HE'S scared of. Now — shells?"])
+	_talk(lines, _open_shop, toolmaker)
+
+
+## ---------------------------------------------------------------- talking
+## Nobody starts talking on their own: when he's close to someone he can
+## talk to, a bubble with an "E" bobs over them, and E (or TALK on a touch
+## screen) starts the talk. [node, reach x, reach y, bubble offset, start]
+var _talkers: Array = []
+var _prompt: Friends.TalkPrompt
+var _talk_key := false
+
+
+func _build_talkers() -> void:
+	_prompt = Friends.TalkPrompt.new()
+	add_child(_prompt)
+	_talkers = [
+		[moss, 190.0, 420.0, Vector2(-34, 120), _meet_moss],
+		[nutmeg, 150.0, 60.0, Vector2(-10, -122), _meet_nutmeg],
+		[elder, 190.0, 30.0, Vector2(0, -118), _meet_elder],
+		[toolmaker, 150.0, 40.0, Vector2(0, -150), _meet_toolmaker],
+	]
+
+
+func _update_talkers() -> void:
+	var press: bool = Input.is_physical_key_pressed(KEY_E) or player.touch.get("talk", false)
+	var fresh := press and not _talk_key
+	_talk_key = press
+	_prompt.shown = false
+	if player.dead or player.talking or player.fury >= 0.0 or _fight or not player.is_on_floor():
+		return
+	var best: Array = []
+	var best_d := INF
+	for t in _talkers:
+		var n: Node2D = t[0]
+		if n == null or not is_instance_valid(n):
+			continue
+		var d := player.global_position - n.global_position
+		if absf(d.x) < float(t[1]) and absf(d.y) < float(t[2]) and absf(d.x) < best_d:
+			best = t
+			best_d = absf(d.x)
+	if best.is_empty():
+		return
+	_prompt.shown = true
+	_prompt.global_position = (best[0] as Node2D).global_position + (best[3] as Vector2)
+	if fresh:
+		(best[4] as Callable).call()
 
 
 ## ---------------------------------------------------------------- the shop
@@ -1797,6 +1819,7 @@ func _on_bonfire(fire: NightWoods.Bonfire) -> void:
 
 
 func _process(delta: float) -> void:
+	_update_talkers()
 	super._process(delta)
 	_told_out = maxf(_told_out - delta, 0.0)
 	hud.set_torch(player.has_torch, player.torch_fuel)

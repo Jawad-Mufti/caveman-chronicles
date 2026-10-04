@@ -358,6 +358,7 @@ func add_touch_controls(player: CaveMan, with_fire: bool = false) -> void:
 		["JUMP", Vector2(1000, 560), "jump"],
 		["HIT", Vector2(1140, 560), "attack"],
 		["THROW", Vector2(1010, 420), "throw"],
+		["TALK", Vector2(870, 560), "talk"],
 	]
 	if with_fire:
 		specs.append(["FIRE", Vector2(1140, 280), "fire"])

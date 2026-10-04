@@ -189,7 +189,7 @@ var _vine_a := 0.0        ## angle from straight down
 var _vine_w := 0.0        ## angular speed
 var _vine_cd := 0.0       ## brief no-regrab of the vine he just let go of
 var _last_vine: Node2D = null
-var touch := {"left": false, "right": false, "jump": false, "attack": false, "heal": false, "throw": false, "fire": false}
+var touch := {"left": false, "right": false, "jump": false, "attack": false, "heal": false, "throw": false, "fire": false, "talk": false}
 
 var _jump_prev := false
 var _attack_prev := false
