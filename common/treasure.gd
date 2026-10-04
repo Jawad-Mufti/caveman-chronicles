@@ -368,6 +368,7 @@ class Breakable extends Area2D:
 	var level_id := ""
 	var id := ""
 	var hits := 2
+	var land := Vector2.INF         ## if set, what pops out arcs down onto this spot (± a little)
 	var _given := 0
 	var _shake := 0.0
 	var _base := Vector2.ZERO
@@ -377,12 +378,12 @@ class Breakable extends Area2D:
 		collision_layer = 4          # his swing and his rocks find it
 		collision_mask = 0
 		monitoring = false
-		hits = {"log": 2, "mound": 3, "pot": 1, "stash": 2}.get(kind, 2)
+		hits = {"log": 2, "mound": 3, "pot": 1, "stash": 2, "hoard": 3}.get(kind, 2)
 		add_to_group("glow")
 		_t = randf() * 5.0
 		var cs := CollisionShape2D.new()
 		var sh := RectangleShape2D.new()
-		sh.size = {"log": Vector2(70, 36), "mound": Vector2(50, 70), "pot": Vector2(34, 40), "stash": Vector2(74, 40)}.get(kind, Vector2(60, 40))
+		sh.size = {"log": Vector2(70, 36), "mound": Vector2(50, 70), "pot": Vector2(34, 40), "stash": Vector2(74, 40), "hoard": Vector2(60, 54)}.get(kind, Vector2(60, 40))
 		cs.shape = sh
 		cs.position = Vector2(0, -sh.size.y * 0.5)
 		add_child(cs)
@@ -393,15 +394,17 @@ class Breakable extends Area2D:
 			return
 		hits -= 1
 		_shake = 0.25
+		queue_redraw()
 		# out comes a share of what's inside with every hit — the rest at the end
-		var total_hits: int = {"log": 2, "mound": 3, "pot": 1, "stash": 2}.get(kind, 2)
+		var total_hits: int = {"log": 2, "mound": 3, "pot": 1, "stash": 2, "hoard": 3}.get(kind, 2)
 		var share: int = contents.size() - _given if hits == 0 else maxi(1, contents.size() / (total_hits + 1))
-		if kind == "stash" and hits > 0:
+		var big := kind == "stash" or kind == "hoard"
+		if big and hits > 0:
 			share = 1
 		for n in share:
 			if _given >= contents.size():
 				break
-			_pop(_given, from_dir, kind == "stash" and hits == 0)
+			_pop(_given, from_dir, big and hits == 0)
 			_given += 1
 		var dust := Critter.DeathPop.new()
 		dust.dust = true
@@ -424,12 +427,20 @@ class Breakable extends Area2D:
 		p.level_id = level_id
 		p.id = tid
 		p.position = global_position + Vector2(0, -30)
-		if fountain:
+		if land.x < INF:
+			# up and over, down onto the safe spot below (gravity 1400, as Pickup._fly)
+			var tt := randf_range(0.55, 0.65)       # a low arc: under any branch overhead
+			var to := land + Vector2(randf_range(-10, 10), -14)
+			p.vel = Vector2((to.x - p.position.x) / tt, (to.y - p.position.y - 700.0 * tt * tt) / tt)
+			p.floor_y = land.y
+			p._bounced = true                    # no hop: it stays on the spot
+		elif fountain:
 			# a fountain: high, and spreading out both ways
 			p.vel = Vector2(randf_range(-150, 150), randf_range(-700, -520))
 		else:
 			p.vel = Vector2(randf_range(-110, 110) - from_dir * 30.0, randf_range(-440, -320))
-		p.floor_y = global_position.y
+		if land.x == INF:
+			p.floor_y = global_position.y
 		var level := get_parent()
 		if level.has_method("_on_treasure_popped"):
 			level._on_treasure_popped(p)
@@ -442,7 +453,7 @@ class Breakable extends Area2D:
 		var spark := fmod(_t * 0.5, 2.5)
 		if spark < 0.4:
 			var k := sin(spark / 0.4 * PI)
-			var off: Vector2 = {"log": Vector2(34, -18), "mound": Vector2(4, -40), "pot": Vector2(0, -34), "stash": Vector2(0, -30)}.get(kind, Vector2(0, -20))
+			var off: Vector2 = {"log": Vector2(34, -18), "mound": Vector2(4, -40), "pot": Vector2(0, -34), "stash": Vector2(0, -30), "hoard": Vector2(0, -30)}.get(kind, Vector2(0, -20))
 			var c := global_position + off
 			var r := 9.0 * k
 			if r < 1.5:
@@ -458,6 +469,29 @@ class Breakable extends Area2D:
 	func _draw() -> void:
 		var b := Batch.new()
 		match kind:
+			"hoard":
+				# a fat woven basket, tied shut, shells peeking out of the top
+				var body := PackedVector2Array([Vector2(-22, 0), Vector2(-30, -16), Vector2(-30, -36), Vector2(-24, -46),
+					Vector2(24, -46), Vector2(30, -36), Vector2(30, -16), Vector2(22, 0)])
+				b.poly(body, Color("b07a3c"))
+				for k in 4:
+					var y := -8.0 - k * 10.0
+					b.line(Vector2(-28, y), Vector2(28, y), Color("7d5226"), 3.0)
+				for k in 7:
+					var x := -24.0 + k * 8.0
+					b.line(Vector2(x, -2), Vector2(x + (2.0 if k % 2 == 0 else -2.0), -44), Color("d4a05c", 0.7), 2.0)
+				b.circle(Vector2(-12, -48), 7.0, Color("f2c6d6"), 10)
+				b.circle(Vector2(4, -50), 8.0, Color("ffe0a8"), 10)
+				b.circle(Vector2(16, -47), 6.0, Color("f2c6d6"), 10)
+				b.rect(Rect2(-26, -50, 52, 5), Color("7d5226"))
+				b.line(Vector2(-14, -50), Vector2(0, -62), Color("7a5a32"), 3.0)
+				b.line(Vector2(14, -50), Vector2(0, -62), Color("7a5a32"), 3.0)
+				if hits < 3:
+					# cracked open a bit more with each whack
+					b.line(Vector2(-8, -40), Vector2(2, -26), Color("3b2614"), 3.0)
+					b.line(Vector2(2, -26), Vector2(-4, -12), Color("3b2614"), 3.0)
+				if hits < 2:
+					b.line(Vector2(14, -38), Vector2(22, -20), Color("3b2614"), 3.0)
 			"log", "stash":
 				b.quad(Vector2(-36, -2), Vector2(-32, -34), Vector2(34, -32), Vector2(36, 0), Pal.BARK)
 				b.line(Vector2(-30, -26), Vector2(30, -25), Pal.BARK_DARK, 3.0)

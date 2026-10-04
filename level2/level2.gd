@@ -860,7 +860,17 @@ func _build_tar_pits() -> void:
 	for i in TAR_LOOT.size():
 		var l: Array = TAR_LOOT[i]
 		_treasure(l[2], "t%d" % i, Vector2(l[0], l[1]))
-	_note(12640, "Tar pits! The logs sink — keep hopping!", 5.0)
+	for gy in TAR_GEYSERS:
+		var g := TarPits.Geyser.new()
+		g.position = Vector2(gy[0], 0)
+		g.offset = gy[1]
+		add_child(g)
+	var snap := TarPits.Snapper.new()
+	snap.x0 = TAR_SNAPPER[0]
+	snap.x1 = TAR_SNAPPER[1]
+	add_child(snap)
+	_note(12640, "Tar pits! Logs sink, tar spouts — keep hopping!", 5.0)
+	_note(13600, "Yellow eyes in the tar... don't stand still!", 4.0)
 
 
 ## Thunder Canyon: the Sky Stones with their vines, the rest ledge, the
@@ -913,7 +923,7 @@ func _build_canyon() -> void:
 
 ## The bats start on him over the floating rocks.
 func _bats_begin() -> void:
-	hud.say("BATS! Watch for their shadows — keep moving!", 3.5)
+	hud.say("BATS! When one screeches, jump its swoop — or bonk it!", 3.5)
 
 
 ## In the tar: stuck fast, then hauled out on the near bank.
@@ -1727,15 +1737,33 @@ func _build_treasure() -> void:
 			add_child(pot)
 			for c in pot.contents:
 				_count_treasure(c)
-	for i in STASHES.size():
+	for row in HOARDS:
+		var id: String = row[0]
+		var stuff: Array = STASH if id.begins_with("x") else HOARD
+		var ground := Vector2(row[1], row[2])
+		var land := Vector2(row[8], row[2])
+		var rope: float = row[3]
 		var box := Treasure.Breakable.new()
-		box.kind = "stash"
-		box.contents = STASH
+		box.kind = "hoard"
+		box.contents = stuff
 		box.level_id = "level2"
-		box.id = "x%d" % i
-		box.position = Vector2(STASHES[i][0], STASHES[i][1])
+		box.id = id
+		box.land = land
+		box.position = ground + Vector2(0, -HOARD_RISE)
 		add_child(box)
-		for c in STASH:
+		var h := Hoards.Hoard.new()
+		h.level = self
+		h.box = box
+		h.rope = rope
+		h.period = 2.6 * sqrt(rope / 200.0)
+		h.swing = deg_to_rad(row[4])
+		h.guards = row[5]
+		h.prop = row[6]
+		h.drift = row[7]
+		h.root_y = TarPits.SURFACE
+		h.position = ground + Vector2(0, -HOARD_RISE - rope - 50.0)
+		add_child(h)
+		for c in stuff:
 			_count_treasure(c)
 	for i in TOTEMS.size():
 		var totem := Treasure.ShellTotem.new()

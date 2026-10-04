@@ -100,6 +100,8 @@ const TAR_POOLS := [[12780.0, 12980.0], [13120.0, 13540.0], [13660.0, 14180.0]] 
 const TAR_LOGS := [[12880.0, 110.0], [13220.0, 100.0], [13450.0, 100.0],           ## [centre x, width]
 	[13760.0, 100.0], [13880.0, 100.0], [14000.0, 100.0], [14100.0, 90.0]]
 const TAR_ROCKS := [[13305.0, 540.0, 70.0]]        ## a boulder stuck fast in the middle pool: [x, top, w]
+const TAR_GEYSERS := [[12830.0, 0.0], [13525.0, 1.1], [13690.0, 2.2]]   ## [x, start offset s]: wait on firm ground for each to blow
+const TAR_SNAPPER := [13660.0, 14180.0]          ## the croc's pool: [left bank, right bank]
 const TAR_LOOT := [                                ## [x, y, kind]; ids "t0", "t1"...
 	[12880.0, 545.0, "shell"], [13050.0, 570.0, "tusk"],
 	[13220.0, 545.0, "shell"], [13340.0, 490.0, "conch"], [13450.0, 545.0, "shell"],
@@ -133,7 +135,7 @@ const FLOAT_ROCKS := [[17280.0, 520.0, 130.0, 0.0], [17500.0, 460.0, 110.0, 8.0]
 	[17910.0, 460.0, 110.0, 10.0], [18120.0, 380.0, 130.0, 0.0], [18340.0, 320.0, 110.0, 8.0],
 	[18540.0, 400.0, 120.0, 0.0], [18760.0, 470.0, 110.0, 10.0], [18970.0, 410.0, 130.0, 0.0],
 	[19180.0, 500.0, 110.0, 0.0]]
-const BAT_SKY := [17280.0, 19300.0, 1.7]       ## [from x, to x, a dive every s]
+const BAT_SKY := [17280.0, 19300.0, 1.5]       ## [from x, to x, s between attacks]
 const CANYON_OUTCROP := [19380.0, 500.0, 220.0]  ## [x, top, w]: the Weeping Cave is in its far face
 const CANYON_LOOT := [                          ## [x, y, kind]; ids "n0", "n1"...
 	[14975.0, 430.0, "shell"], [15230.0, 430.0, "shell"], [15410.0, 430.0, "shell"], [15650.0, 420.0, "conch"],
@@ -454,9 +456,19 @@ const SKY_LANES := [
 const POTS_LATE := [[36420.0, 540.0, 2]]
 ## Shell Totems: carved faces that spit two shells per hit, six hits.
 const TOTEMS := [[2470.0, 600.0], [8000.0, -30.0], [26070.0, 600.0], [37620.0, 600.0]]
-## Monkey stashes: a log marked with a red X — a fountain of treasure.
+## Hanging hoards (Hoards.Hoard): a basket on a rope, swinging, guarded by dragonflies.
+## [id, rope x, ground y, rope, swing degrees, guards, prop, drift, land x]. The basket's
+## bottom swings 150 px over the ground (one good jump); its shells arc down onto
+## that ground. "x0"/"x1" were the monkeys' stashes (same ids, same STASH inside).
 const STASH := ["bone", "shell", "bone", "shell", "bone", "shell", "bone", "shell", "bone", "shell", "tusk", "conch", "conch"]
-const STASHES := [[20320.0, 600.0], [20170.0, -418.0]]
+const HOARD := ["shell", "shell", "shell", "conch", "shell", "shell", "shell", "conch"]
+const HOARDS := [
+	["x0", 20540.0, 600.0, 352.0, 24.0, 2, "", 0.0, 20370.0],     # from the long bough, out over the chasm
+	["x1", 20170.0, -418.0, 200.0, 30.0, 2, "bough", 0.0, 20170.0],
+	["h0", 13340.0, 540.0, 210.0, 38.0, 2, "snag", 0.0, 13340.0],      # over the boulder in the middle tar pool
+	["h1", 18185.0, 380.0, 190.0, 30.0, 2, "stone", 50.0, 18185.0],    # over a floating rock, among the bats
+]
+const HOARD_RISE := 150.0
 ## Golden Hares: [left x, right x, start x, ground y] — catch one for a shower of treasure.
 const HARES := [[3380.0, 3960.0, 3800.0, 600.0], [19760.0, 20400.0, 20260.0, 600.0], [21120.0, 21580.0, 21400.0, 600.0]]
 const HARE_VALUE := 18

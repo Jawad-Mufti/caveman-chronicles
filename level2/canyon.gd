@@ -5,7 +5,7 @@
 ##                the next just when he wants to jump (they never touch)
 ##   (a rest ledge with a fire)
 ##   Floating rocks at different heights to hop across — and once he's on his
-##   way, bats dive straight down at him from the sky
+##   way, bats screech, dive and swoop across at him (pairs, later)
 class_name Canyon
 extends RefCounted
 
@@ -201,54 +201,81 @@ class FloatRock extends AnimatableBody2D:
 
 ## ================================================================ DIVE BATS
 class DiveBat extends Area2D:
-	## A bat that drops straight down out of the sky onto a rock — a shadow on
-	## the rock and a screech mark above are the warning — then flaps back up.
-	## A bonk with the club sends it tumbling away.
+	## A big red-and-violet bat. It shows up high above him and SCREECHES
+	## (rings of sound; a dashed line glows where it will strike), then dives
+	## at a slant, hooks at the bottom and swoops flat across at his chest
+	## height, then climbs away. Jump over the swoop, or bonk it with the club.
 	signal done
-	var x := 0.0
-	var top := -260.0            ## where it falls from (above the screen)
-	var bottom := 820.0          ## and to
-	var warn := 0.7
-	var mark_y := 600.0          ## where the shadow shows (the rock under it)
-	var state := "warn"          ## warn, dive, climb, bonked
+	var x := 0.0                 ## the spot it strikes at (his x a moment from now)
+	var y := 600.0               ## his feet there
+	var dir := 1.0               ## which way it swoops
+	var warn := 0.75
+	var state := "warn"          ## warn, dive, swoop, climb, bonked
 	var _t := 0.0
+	var _st := 0.0
 	var _vel := Vector2.ZERO
+	var _start := Vector2.ZERO
+	var _pivot := Vector2.ZERO
+	var _trail: Array = []
+
+	const DIVE := 1150.0
+	const SWOOP := 900.0
+	const SWOOP_TIME := 0.42
+	const CHEST := 40.0          ## swoop line: this far above his feet
 
 	func _ready() -> void:
 		collision_layer = 4          # his swing finds it
 		collision_mask = 2
 		var cs := CollisionShape2D.new()
 		var sh := RectangleShape2D.new()
-		sh.size = Vector2(34, 40)
+		sh.size = Vector2(40, 34)
 		cs.shape = sh
 		add_child(cs)
-		position = Vector2(x, top)
+		_pivot = Vector2(x - dir * 110.0, y - CHEST)
+		_start = Vector2(x - dir * 280.0, y - 330.0)
+		position = _start
+		z_index = 4
 		add_to_group("glow")
 
 	func take_hit(_dmg: int, from_dir: int) -> void:
 		if state == "bonked" or state == "warn":
 			return
 		state = "bonked"
+		_st = 0.0
 		_vel = Vector2(from_dir * 420.0, -380.0)
 		var pop := Treasure.FloatText.new()
 		pop.text = "BONK!"
 		pop.position = global_position + Vector2(-18, -30)
 		get_parent().add_child(pop)
+		FX.burst(get_parent(), global_position, "sparks")
 
 	func _physics_process(delta: float) -> void:
 		_t += delta
+		_st += delta
 		match state:
 			"warn":
-				if _t >= warn:
+				position = _start + Vector2(sin(_t * 9.0) * 6.0, sin(_t * 13.0) * 3.0)
+				if _st >= warn:
 					state = "dive"
+					_st = 0.0
 			"dive":
-				position.y += 1050.0 * delta
-				if position.y >= bottom:
+				var to := _pivot - position
+				var step := DIVE * delta
+				if to.length() <= step:
+					position = _pivot
+					state = "swoop"
+					_st = 0.0
+				else:
+					position += to.normalized() * step
+			"swoop":
+				# flat across his chest, a little dip in the middle
+				position = Vector2(_pivot.x + dir * SWOOP * _st, _pivot.y + sin(_st / SWOOP_TIME * PI) * 10.0)
+				if _st >= SWOOP_TIME:
 					state = "climb"
+					_st = 0.0
 			"climb":
-				position.y -= 520.0 * delta
-				position.x += sin(_t * 9.0) * 2.0
-				if position.y <= top:
+				position += Vector2(dir * 520.0, -560.0) * delta
+				if _st > 1.0:
 					done.emit()
 					queue_free()
 					return
@@ -256,58 +283,105 @@ class DiveBat extends Area2D:
 				_vel.y += 900.0 * delta
 				position += _vel * delta
 				rotation += 12.0 * delta
-				if _t > 3.0 or position.y > bottom + 200.0:
+				if _st > 2.0:
 					done.emit()
 					queue_free()
 					return
-		if state in ["dive", "climb"]:
+		if state in ["dive", "swoop", "climb"]:
+			_trail.push_front(position)
+			if _trail.size() > 7:
+				_trail.pop_back()
 			var p := get_tree().get_first_node_in_group("player") as CaveMan
 			if p != null and not p.dead and overlaps_body(p):
-				p.hurt(1, global_position.x)
+				var hp0 := p.hp
+				p.hurt(1, global_position.x - dir * 30.0)
+				if p.hp < hp0 and not p.dead:
+					p.velocity = Vector2(dir * 90.0, -420.0)     # bowled up, not off the rock
+		elif _trail.size() > 0:
+			_trail.pop_back()
 		queue_redraw()
 
 	func _draw() -> void:
-		if state == "warn":
-			return
 		var b := Batch.new()
-		var flap := sin(_t * 30.0) * 0.6 if state != "dive" else 0.0
-		var col := Color("3a2f3a")
-		# wings folded tight when diving, beating when climbing
+		var body := Color("5a1f4a")
+		var wing := Color("c2307a")
+		var f := dir
+		var tuck := state == "dive"
+		var glide := state == "swoop"
+		var flap := 0.0 if tuck else sin(_t * (34.0 if state == "warn" else 26.0))
+		# wings: swept back in the dive, spread flat in the swoop, beating otherwise
 		for s in [-1.0, 1.0]:
-			var tip := Vector2(s * (14.0 if state == "dive" else 30.0), -14.0 - flap * 14.0 * s * s)
-			b.tri(Vector2(s * 4.0, -4), tip, Vector2(s * 10.0, 8), col)
-		b.circle(Vector2(0, 0), 9.0, col, 10)
-		b.tri(Vector2(-6, -6), Vector2(-4, -15), Vector2(-1, -7), col)
-		b.tri(Vector2(6, -6), Vector2(4, -15), Vector2(1, -7), col)
+			var tip: Vector2
+			var mid: Vector2
+			if tuck:
+				tip = Vector2(-f * 34.0, s * 10.0 - 4.0)
+				mid = Vector2(-f * 16.0, s * 14.0)
+			elif glide:
+				tip = Vector2(s * 46.0 - f * 8.0, -6.0)      # spread wide, gliding flat out
+				mid = Vector2(s * 26.0 - f * 4.0, 2.0)
+			else:
+				tip = Vector2(s * 40.0, -18.0 - flap * 16.0)
+				mid = Vector2(s * 22.0, -4.0 - flap * 8.0)
+			b.poly(PackedVector2Array([Vector2(s * 4.0, -6), tip, mid + Vector2(0, 8), Vector2(s * 6.0, 8)]), wing)
+			b.line(Vector2(s * 4.0, -6), tip, body, 2.0)
+			b.line(mid, mid + Vector2(0, 8), body, 1.5)
+		b.circle(Vector2.ZERO, 11.0, body, 12)
+		b.circle(Vector2(0, 4), 7.0, Color("7a2d62"), 10)
+		b.tri(Vector2(-7, -7), Vector2(-6, -19), Vector2(-1, -9), body)
+		b.tri(Vector2(7, -7), Vector2(6, -19), Vector2(1, -9), body)
+		b.circle(Vector2(-4, -2), 2.6, Color("ffe14a"), 6)
+		b.circle(Vector2(4, -2), 2.6, Color("ffe14a"), 6)
+		if state == "warn":
+			# mouth wide open: SCREEEE
+			b.circle(Vector2(0, 5), 4.0, Color("2a0a1e"), 8)
+			b.tri(Vector2(-3, 2), Vector2(-1, 6), Vector2(-2, 2), Color.WHITE)
+			b.tri(Vector2(3, 2), Vector2(1, 6), Vector2(2, 2), Color.WHITE)
 		b.draw(self)
 
-	## The warning, drawn over the dark: a growing shadow on the rock, a screech
-	## mark high above; then the bat's red eyes as it comes.
+	## Through the dark: the screech rings and the glowing strike line before it
+	## comes; the yellow eyes, and a streak of magenta behind it as it strikes.
 	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		var o := global_position
-		if state == "warn" or (state == "dive" and o.y < mark_y - 40.0):
-			var k := clampf(_t / warn, 0.0, 1.0)
-			g.draw_circle(Vector2(x, mark_y - 2.0), 10.0 + 14.0 * k, Color(0.1, 0.0, 0.1, 0.55))
-			if state == "warn":
-				g.draw_string(ThemeDB.fallback_font, Vector2(x - 6, mark_y - 150.0), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(1, 0.5, 0.4, 0.4 + 0.6 * k))
-		if state != "warn":
-			g.draw_circle(o + Vector2(-3, -2), 1.8, Color("ff6a5a"))
-			g.draw_circle(o + Vector2(3, -2), 1.8, Color("ff6a5a"))
+		if state == "warn":
+			var k := clampf(_st / warn, 0.0, 1.0)
+			for i in 3:
+				var q := fmod(_t * 2.2 + i / 3.0, 1.0)
+				var r := 16.0 + q * 60.0
+				var a := Color(1.0, 0.4, 0.8, 0.6 * (1.0 - q))
+				var prev := o + Vector2(r, 0)
+				for j in range(1, 13):
+					var nxt := o + Vector2.from_angle(j * TAU / 12.0) * r
+					g.draw_line(prev, nxt, a, 2.0)
+					prev = nxt
+			# where it will strike: down to the hook, then flat across his chest
+			var c := Color(1.0, 0.3, 0.45, 0.2 + 0.6 * k)
+			var end := _pivot + Vector2(dir * SWOOP * SWOOP_TIME, 0)
+			for i in 9:
+				var a2 := _pivot.lerp(end, i / 9.0)
+				g.draw_line(a2, a2 + Vector2(dir * 18.0, 0), c, 4.0)
+			g.draw_string(ThemeDB.fallback_font, Vector2(x - 6.0, y - CHEST - 50.0), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(1, 0.5, 0.6, 0.4 + 0.6 * k))
+		for i in _trail.size():
+			var q2: float = 1.0 - float(i) / 7.0
+			g.draw_circle(_trail[i], 12.0 * q2, Color(0.9, 0.2, 0.6, 0.4 * q2))
+		g.draw_circle(o + Vector2(-4, -2), 2.4, Color("fff36a"))
+		g.draw_circle(o + Vector2(4, -2), 2.4, Color("fff36a"))
 
 
 class BatSky extends Node:
 	## Over the floating rocks: once he has hopped onto a rock past the first,
-	## bats start dropping on him — one at a time, every few seconds, onto the
-	## rock he stands on (or toward where he's heading). Moving on is the defence.
+	## the bats come — one at a time at first, then in pairs from both sides.
+	## Each strikes at where he'll be a moment from now. Keep moving, jump the
+	## swoops, bonk the slow ones.
 	var x0 := 0.0
 	var x1 := 0.0
-	var every := 1.7
+	var every := 1.6
 	var rocks: Array = []        ## the FloatRocks, left to right
 	var player: CaveMan
 	var level: Node2D
 	var started := false
+	var sent := 0
 	var _next := 0.6
-	var _bat: DiveBat = null
+	var _bats: Array = []
 
 	func _rock_under(x: float) -> FloatRock:
 		for r in rocks:
@@ -315,6 +389,17 @@ class BatSky extends Node:
 			if x >= fr.global_position.x - 10.0 and x <= fr.global_position.x + fr.w + 10.0:
 				return fr
 		return null
+
+	func _send(aim: float, dir: float, warn: float) -> void:
+		var r := _rock_under(aim)
+		var bat := DiveBat.new()
+		bat.x = clampf(aim, x0, x1)
+		bat.y = r.global_position.y if r != null and player.is_on_floor() else player.global_position.y
+		bat.dir = dir
+		bat.warn = warn
+		level.add_child(bat)
+		_bats.append(bat)
+		sent += 1
 
 	func _physics_process(delta: float) -> void:
 		if player == null or player.dead or player.talking:
@@ -329,19 +414,16 @@ class BatSky extends Node:
 				if level.has_method("_bats_begin"):
 					level._bats_begin()
 			return
-		if _bat != null and is_instance_valid(_bat):
+		_bats = _bats.filter(func(b): return is_instance_valid(b))
+		if not _bats.is_empty():
 			return
 		_next -= delta
 		if _next > 0.0:
 			return
 		_next = every
-		# aim at where he'll be a moment from now, on the rock under that
-		var aim := px + player.velocity.x * 0.5
-		var r := _rock_under(aim)
-		var bat := DiveBat.new()
-		bat.x = clampf(aim, x0, x1)
-		bat.mark_y = r.global_position.y if r != null else player.global_position.y
-		bat.top = player.global_position.y - 520.0
-		bat.bottom = player.global_position.y + 260.0
-		level.add_child(bat)
-		_bat = bat
+		var aim := px + player.velocity.x * 0.55
+		var dir := 1.0 if sent % 2 == 0 else -1.0
+		_send(aim, dir, 0.75)
+		if sent >= 4 and sent % 3 != 0:
+			# a second one, from the other side, a beat later
+			_send(aim + player.velocity.x * 0.35, -dir, 1.1)
