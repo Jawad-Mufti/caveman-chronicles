@@ -181,7 +181,8 @@ const BONFIRES := [[520.0, GROUND_Y, true], [1720.0, GROUND_Y, false], [3560.0, 
 	[7410.0, -278.0, false], [19830.0, GROUND_Y, false], [21270.0, GROUND_Y, false],
 	[32470.0, 700.0, false], [34290.0, 700.0, false], [36140.0, 600.0, false], [37300.0, 600.0, false],   # old hearths in the caves
 	[8960.0, GROUND_Y, false],   # the mountain's foot, before the Steppe
-	[17020.0, GROUND_Y, false]]  # the rest ledge in Thunder Canyon
+	[17020.0, GROUND_Y, false],  # the rest ledge in Thunder Canyon
+	[22980.0, GROUND_Y, false]]  # before the Boulder Run: caught by the boulder, he wakes here
 ## [x, y, bundles of wood in it]
 const DEAD_TREES := [[1260.0, GROUND_Y, 2], [2400.0, 400.0, 1], [2855.0, GROUND_Y, 2], [6830.0, -52.0, 2], [19990.0, GROUND_Y, 2]]
 ## Loose bundles already on the ground: the crevice stash.
@@ -295,7 +296,8 @@ const SNUFF_AT := 25350.0         ## the roar, and the dark
 ## A boulder on a crumbling ledge breaks loose as he passes beneath it and
 ## rolls after him down the pass: over fallen logs (it smashes them), across
 ## gaps, until it plunges into the ravine at the end — and the crash shakes a
-## stash loose from the cliff. Caught, or fallen, he starts the run again.
+## stash loose from the cliff. Caught, he is flattened (dead: he wakes by the
+## fire just before the pass); fallen into a gap, he starts the run again.
 const RUN_START := 23240.0
 const RUN_TRIGGER := 23330.0
 const RUN_LEDGE := Vector2(23110.0, 520.0)

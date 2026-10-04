@@ -73,6 +73,11 @@ func _build_hud(with_fire: bool = false) -> void:
 	hud.set_bones(GameState.bones)
 	hud.fig_tapped.connect(func() -> void: player.eat_fig())
 	player.ate_fig.connect(func() -> void: hud.set_figs(GameState.figs))
+	player.sun_changed.connect(func(c: float, left: float) -> void:
+		hud.set_sun(GameState.abilities.has("sunfire"), c, left))
+	hud.set_sun(GameState.abilities.has("sunfire"), player.sun_charge, player.sun_t)
+	hud.sun_tapped.connect(func() -> void: player.start_sunfire())
+	hud.menu_tapped.connect(open_menu)
 	if DisplayServer.is_touchscreen_available():
 		hud.add_touch_controls(player, with_fire)
 
@@ -195,3 +200,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if (event as InputEventKey).physical_keycode == KEY_R:
 			get_tree().reload_current_scene()
+		elif (event as InputEventKey).physical_keycode in [KEY_ESCAPE, KEY_TAB, KEY_M]:
+			open_menu()
+
+
+## The Camp Menu (Esc, Tab, M, or the tent at the top): save, shelter, abilities.
+func open_menu() -> void:
+	if player == null or player.dead or player.talking:
+		return
+	if get_tree().get_first_node_in_group("camp_menu") != null:
+		return
+	var m := CampMenu.new()
+	m.player = player
+	m.level_name = title
+	add_child(m)

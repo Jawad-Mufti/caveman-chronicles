@@ -220,7 +220,8 @@ func _build_world() -> void:
 		fire.lit = b[2]
 		fire.visited.connect(_on_bonfire.bind(fire))
 		fire.kindled.connect(func() -> void:
-			hud.say("The embers catch. If he falls now, he wakes here.", 3.5))
+			hud.say("The embers catch. If he falls now, he wakes here.", 3.5)
+			_learn_sunfire.call_deferred())
 		add_child(fire)
 
 	for tr in DEAD_TREES:
@@ -751,7 +752,7 @@ func _update_boulder_run(_delta: float) -> void:
 			_run_on = true
 			_boulder.release()
 			shake(10.0, 0.5)
-			hud.say("CRACK! The ledge gives way — a BOULDER! RUN!!", 3.5)
+			hud.say("CRACK! A BOULDER! RUN — if it catches you, you're flat!", 3.5)
 		return
 	if player.dead:
 		_reset_run(false)
@@ -768,14 +769,33 @@ func _update_boulder_run(_delta: float) -> void:
 		shake(clampf(1.0 - gap / 700.0, 0.0, 1.0) * 6.0 + 1.0, 0.08)
 		# caught!
 		if absf(gap) < NightWoods.RollingBoulder.R + 12.0 and p.y > _boulder.position.y - NightWoods.RollingBoulder.R - 50.0:
-			_reset_run(true)
+			_flattened()
 			return
 	# fell into one of the gaps
 	if p.y > GROUND_Y + 90.0 and p.x > RUN_START and p.x < RUN_RAVINE[0]:
 		_reset_run(true)
 
 
-## Flattened, or fallen: back to the start of the pass, boulder back on its ledge.
+## Caught by the boulder: no second chances — it rolls right over him. He
+## wakes by the last fire (the one before the pass, if he lit it).
+func _flattened() -> void:
+	shake(16.0, 0.6)
+	var pop := Treasure.FloatText.new()
+	pop.text = "SQUASH!!"
+	pop.position = player.global_position + Vector2(-40, -120)
+	add_child(pop)
+	player.invuln = 0.0
+	player.fury = -1.0
+	if player.sun_t > 0.0:
+		player.end_sunfire()          # not even the sun stops a boulder
+	player.hurt(player.hp, _boulder.position.x)
+	_run_on = false
+	_boulder.reset()
+	for log in _run_logs:
+		log.restore()
+
+
+## Fallen into a gap: back to the start of the pass, boulder back on its ledge.
 func _reset_run(hurt: bool) -> void:
 	_run_on = false
 	_boulder.reset()
@@ -1918,3 +1938,21 @@ func _process(delta: float) -> void:
 	_update_toolmaker()
 	_update_boulder_run(delta)
 	_update_fight(delta)
+
+
+## The first cold fire he lights himself: the flame leaps into HIM. SUNFIRE
+## is his for good, and the sun starts full so he can try it at once.
+func _learn_sunfire() -> void:
+	if not GameState.learn("sunfire"):
+		return
+	player.sun_charge = 1.0
+	player.sun_changed.emit(player.sun_charge, player.sun_t)
+	var card := ItemGet.new()
+	card.title = "SUNFIRE"
+	card.line = "The fire leaps into him! When the SUN up top is full, press Q (or tap the sun): 30 seconds of fire in both fists — faster, stronger, burning blows, and THROW hurls fireballs (hold it for a stream). Fill the sun by hitting beasts, grabbing shells and sitting by fires."
+	card.icon = func(c: Control) -> void:
+		var b := Batch.new()
+		Abilities.draw_symbol(b, "sunfire", Vector2.ZERO, 70.0, Abilities.GOLD, Time.get_ticks_msec() / 1000.0)
+		b.draw(c)
+	card.player = player
+	add_child(card)

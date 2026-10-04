@@ -126,6 +126,18 @@ var slam_t := 0.0               ## > 0 just after a slam: the hammer down on the
 var slam_cd := 0.0
 var showing_off := 0.0          ## > 0: holding a new treasure up high (set by the level)
 var _attack_held := 0.0
+## SUNFIRE (see Sunfire): seconds of it left, and how full the sun is (0..1).
+signal sun_changed(charge: float, left: float)
+var sun_t := 0.0
+var sun_charge := 0.0
+var _sun_prev := false
+var _shot_cd := 0.0
+var _shot_hand := 0
+var _stream_t := 0.0
+var _sun_sparks: Array = []    ## [world pos, vel, life]: embers shed as he moves
+var _sun_spark_in := 0.0
+var _hands: Array = []         ## where his hands were drawn this frame (his local space)
+var _head_at := Vector2(0, -64)
 ## His costume. The fire-discovery set: wolf_hood, ember_paint, bear_cloak,
 ## firekeeper (and the older wolf_pelt, war_paint, bone_necklace, plain).
 var skin := "plain"
@@ -472,6 +484,8 @@ func _physics_process(delta: float) -> void:
 		if torch_fuel <= 0.0:
 			torch_out.emit()
 
+	_update_sun(delta)
+
 	# The fire: a burst of visible anger, THEN the flame. He cannot be hurt
 	# through it — it is the button you press when swarmed, so a wind-up that
 	# could be punished would be a trap — and he cannot steer, jump or strike:
@@ -568,14 +582,14 @@ func _physics_process(delta: float) -> void:
 
 	_kick_lock = maxf(_kick_lock - delta, 0.0)
 	if knock <= 0.0 and _kick_lock <= 0.0:
-		var a := ACCEL if is_on_floor() else AIR_ACCEL
+		var a := (ACCEL if is_on_floor() else AIR_ACCEL) * _sun_mul()
 		if dir != 0.0:
-			velocity.x = move_toward(velocity.x, dir * (SPEED if is_on_floor() else AIR_SPEED), a * delta)
+			velocity.x = move_toward(velocity.x, dir * (SPEED if is_on_floor() else AIR_SPEED) * _sun_mul(), a * delta)
 		else:
 			var f := FRICTION if is_on_floor() else AIR_ACCEL * 0.5
 			velocity.x = move_toward(velocity.x, 0.0, f * delta)
 	# a launch stronger than the air jump (a Moonpuff, a Glowcap) ends the glide
-	if knock > 0.0 or velocity.y < AIR_JUMP - 60.0:
+	if knock > 0.0 or velocity.y < AIR_JUMP * _jump_mul() - 60.0:
 		_air_glide = false
 	if not is_on_floor():
 		if _air_glide and velocity.y >= 0.0:
@@ -651,13 +665,15 @@ func _physics_process(delta: float) -> void:
 			_wall_t = 0.0
 			_buffer = 0.0
 			FX.burst(get_parent(), global_position + Vector2(_wall_dir * 13.0, -30.0), "dust", float(-_wall_dir))
+			if GameState.learn("wallkick"):
+				said.emit("WALL KICK learned! (see Abilities in the camp menu)")
 		elif _coyote > 0.0 and _jumps_left == MAX_JUMPS:
-			velocity.y = JUMP
+			velocity.y = JUMP * _jump_mul()
 			_jumps_left -= 1
 			_buffer = 0.0
 			_coyote = 0.0
 		elif _jumps_left > 0:
-			velocity.y = AIR_JUMP
+			velocity.y = AIR_JUMP * _jump_mul()
 			_jumps_left -= 1
 			_buffer = 0.0
 			flip_dir = signf(velocity.x) if absf(velocity.x) > 40.0 else float(facing)
@@ -688,6 +704,8 @@ func _physics_process(delta: float) -> void:
 		else:
 			attack_cd = 0.46
 			attacking = PUNCH_TIME
+		if sun_t > 0.0:
+			attack_cd *= 0.55          # burning fists are quick fists
 		_punch_beat = 0
 		_swing_hits.clear()
 	_attack_prev = attack_now
@@ -706,7 +724,13 @@ func _physics_process(delta: float) -> void:
 	var throw_now: bool = Input.is_physical_key_pressed(KEY_K) \
 		or Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) \
 		or touch["throw"]
-	if throw_now and not _throw_prev:
+	if sun_t > 0.0:
+		# SUNFIRE: fireballs as fast as he taps — or a stream while it is held
+		if throw_now:
+			_stream_t -= delta
+			if (not _throw_prev or _stream_t <= 0.0) and shoot_fireball():
+				_stream_t = Sunfire.STREAM_GAP
+	elif throw_now and not _throw_prev:
 		throw_rock()
 	_throw_prev = throw_now
 
@@ -781,6 +805,8 @@ func _apply_swing() -> void:
 			var dust := SmashDust.new()
 			dust.position = global_position + Vector2(facing * 86.0, 0)
 			level.add_child(dust)
+	if sun_t > 0.0:
+		dmg += Sunfire.HIT_BONUS
 	for area in _hitbox.get_overlapping_areas():
 		if not area.has_method("take_hit"):
 			continue
@@ -791,7 +817,21 @@ func _apply_swing() -> void:
 		var flings := _swing_kind == "homerun" and has_stick and "fling" in area
 		if flings:
 			area.fling = 2.4
-		area.take_hit(dmg, facing)
+		var crit := area is Critter
+		var at := (area as Node2D).global_position
+		if sun_t > 0.0 and crit:
+			(area as Critter).burned(dmg, global_position)     # a burning blow
+		else:
+			area.take_hit(dmg, facing)
+		if crit:
+			add_sun(Sunfire.GAIN_HIT)
+		if sun_t > 0.0:
+			var boom := Sunfire.Impact.new()
+			boom.position = at + Vector2(-facing * 6.0, -30.0)
+			boom.size = 1.4
+			get_parent().add_child(boom)
+		if not is_instance_valid(area):
+			continue
 		if has_stick:
 			FX.burst(get_parent(), (area as Node2D).global_position + Vector2(-facing * 10.0, -34.0), "sparks", float(facing))
 		if flings and is_instance_valid(area):
@@ -957,6 +997,15 @@ func launch(vy: float) -> void:
 func hurt(amount: int, from_x: float) -> void:
 	if invuln > 0.0 or dead or fury >= 0.0 or talking:
 		return
+	if sun_t > 0.0:
+		# the fire takes it: a flare, a little shove, no harm
+		invuln = 0.5
+		var flare := Sunfire.Impact.new()
+		flare.position = global_position + Vector2(0, -40)
+		flare.size = 1.8
+		get_parent().add_child(flare)
+		velocity.x = signf(global_position.x - from_x + 0.01) * 220.0
+		return
 	hp -= amount
 	invuln = 1.1
 	knock = 0.25
@@ -1081,6 +1130,8 @@ func give_torch() -> void:
 
 
 func relight(amount: float = 1.0) -> void:
+	if amount >= 1.0:
+		add_sun(Sunfire.GAIN_FIRE * get_physics_process_delta_time())     # sitting by a fire fills the sun
 	if has_torch:
 		torch_fuel = maxf(torch_fuel, amount)
 
@@ -1093,6 +1144,9 @@ func light_radius() -> float:
 
 ## For Night: where the flame is (x, y), how far it reaches (z), how warm (w).
 func light() -> Vector4:
+	if sun_t > 0.0 and not dead:
+		var sr := 430.0 * (1.0 + 0.04 * sin(anim_t * 9.0))
+		return Vector4(global_position.x, global_position.y - 40.0, sr, 1.0)
 	var r := light_radius()
 	if r <= 0.0:
 		return Vector4.ZERO
@@ -1107,6 +1161,8 @@ func light() -> Vector4:
 
 ## How much the light protects him. The wolves read this, not the radius.
 func light_strength() -> float:
+	if sun_t > 0.0 and not dead:
+		return 1.0
 	return torch_fuel if has_torch and not dead else 0.0
 
 
@@ -1152,6 +1208,8 @@ var _starred := false
 
 func _die() -> void:
 	dead = true
+	if sun_t > 0.0:
+		end_sunfire()
 	_die_t = 0.0
 	if vine != null:
 		_let_go(Vector2.ZERO)
@@ -1337,6 +1395,10 @@ func _paint() -> void:
 		rage = clampf(fury / FURY_RELEASE, 0.0, 1.0)
 		roaring = fury >= FURY_RELEASE
 	_skin = C_SKIN.lerp(Pal.EMBER, 0.22 * rage) if rage > 0.0 else C_SKIN
+	_hands.clear()
+	if sun_t > 0.0:
+		_skin = _skin.lerp(Sunfire.GOLD, 0.3 + 0.12 * sin(anim_t * 9.0))
+		_paint_sun_aura()
 
 	# ---- whole-body squash and stretch, pivoting on his feet so they stay planted
 	var sx := 1.0
@@ -1593,6 +1655,8 @@ func _paint() -> void:
 	if skin == "war_paint":
 		_rc(Rect2(-12, -161, 36, 3.5), Pal.EMBER)
 	_costume_head()
+	if _bb != null:
+		_head_at = _bb.xf * Vector2(4, -168)
 	_soot_face()
 	if fury >= 0.0:
 		_rage_marks(rage, roaring)
@@ -1787,6 +1851,8 @@ func _paint() -> void:
 		_arm(sh, na[0], na[1], 10.0, true)
 
 	_st(Vector2.ZERO, 0.0, Vector2.ONE)
+	if sun_t > 0.0:
+		_paint_sun_flames()
 
 
 ## The torch arm. Held up and behind his head so the light falls on both
@@ -2281,6 +2347,8 @@ func _leaf(a: Vector2, length: float, width: float, ang: float, col: Color) -> v
 
 
 func _arm(sh: Vector2, el: Vector2, hd: Vector2, bicep: float, fist: bool) -> void:
+	if _bb != null:
+		_hands.append(_bb.xf * hd)
 	_limb([sh, el, hd], [16.0, 16.0])
 	_oval((sh + el) * 0.5, sh.distance_to(el) * 0.46, bicep, _skin, 3.5, (el - sh).angle())
 	_seg_hair(el, hd, 3)
@@ -2364,3 +2432,159 @@ func _quad(a: Vector2, c: Vector2, b: Vector2, n: int = 8, with_start: bool = fa
 		var tq := float(i) / n
 		out.append(a.lerp(c, tq).lerp(c.lerp(b, tq), tq))
 	return out
+
+
+## ------------------------------------------------------------------ SUNFIRE
+## Learned once (GameState "sunfire"); the sun fills as he fights, finds
+## shells and sits by fires; Q (or SUN) lets it out when it's full.
+func sun_ready() -> bool:
+	return GameState.abilities.has("sunfire") and sun_charge >= 1.0 and sun_t <= 0.0
+
+
+func add_sun(amount: float) -> void:
+	if sun_t > 0.0 or not GameState.abilities.has("sunfire") or sun_charge >= 1.0:
+		return
+	sun_charge = minf(sun_charge + amount, 1.0)
+	if sun_charge >= 1.0:
+		said.emit("The sun is FULL! Press Q (or SUN) for SUNFIRE!")
+	sun_changed.emit(sun_charge, sun_t)
+
+
+func start_sunfire() -> bool:
+	if dead or talking or not sun_ready():
+		return false
+	sun_t = Sunfire.DURATION
+	sun_charge = 0.0
+	fury = -1.0
+	slam_charge = -1.0
+	invuln = maxf(invuln, 0.6)
+	velocity.y = minf(velocity.y, -300.0)       # a hop as it bursts out of him
+	add_to_group("light")
+	add_to_group("glow")
+	var level := get_parent()
+	var ig := Sunfire.Ignite.new()
+	ig.position = global_position + Vector2(0, -40)
+	level.add_child(ig)
+	var w := Sunfire.Word.new()
+	w.position = global_position + Vector2(0, -150)
+	level.add_child(w)
+	if level.has_method("shake"):
+		level.shake(9.0, 0.4)
+	Critter.slow_time(get_tree(), 0.45, 0.35)
+	relight(1.0)
+	sun_changed.emit(sun_charge, sun_t)
+	return true
+
+
+func end_sunfire() -> void:
+	sun_t = 0.0
+	if not has_torch:
+		remove_from_group("light")
+	remove_from_group("glow")
+	_sun_sparks.clear()
+	FX.burst(get_parent(), global_position + Vector2(0, -40), "smoke")
+	var pop := Treasure.FloatText.new()
+	pop.text = "phew..."
+	pop.position = global_position + Vector2(-24, -110)
+	get_parent().add_child(pop)
+	sun_changed.emit(sun_charge, sun_t)
+
+
+## Every physics frame: the key, the clock, the embers he sheds.
+func _update_sun(delta: float) -> void:
+	var now: bool = Input.is_physical_key_pressed(KEY_Q) or touch.get("sun", false)
+	if now and not _sun_prev:
+		if not start_sunfire() and GameState.abilities.has("sunfire") and sun_t <= 0.0:
+			said.emit("The sun isn't full yet: hit beasts, grab shells, sit by a fire.")
+	_sun_prev = now
+	_shot_cd = maxf(_shot_cd - delta, 0.0)
+	for s in _sun_sparks:
+		s[2] = float(s[2]) - delta
+		s[1] = (s[1] as Vector2) + Vector2(0, -60) * delta
+		s[0] = (s[0] as Vector2) + (s[1] as Vector2) * delta
+	_sun_sparks = _sun_sparks.filter(func(s): return float(s[2]) > 0.0)
+	if sun_t <= 0.0:
+		return
+	sun_t = maxf(sun_t - delta, 0.0)
+	if has_torch:
+		torch_fuel = 1.0
+	_sun_spark_in -= delta
+	if _sun_spark_in <= 0.0:
+		_sun_spark_in = 0.03 if absf(velocity.x) > 60.0 else 0.08
+		var at := global_position + Vector2(randf_range(-14, 14), randf_range(-70, -10))
+		_sun_sparks.append([at, Vector2(-velocity.x * 0.25 + randf_range(-30, 30), randf_range(-90, -20)), randf_range(0.35, 0.7)])
+	if sun_t <= 0.0:
+		end_sunfire()
+	elif Engine.get_physics_frames() % 6 == 0:
+		sun_changed.emit(sun_charge, sun_t)
+
+
+func _sun_mul() -> float:
+	return Sunfire.SPEED_MUL if sun_t > 0.0 else 1.0
+
+
+func _jump_mul() -> float:
+	return Sunfire.JUMP_MUL if sun_t > 0.0 else 1.0
+
+
+## A fireball from alternating fists, straight out the way he faces.
+func shoot_fireball() -> bool:
+	if dead or _shot_cd > 0.0 or sun_t <= 0.0:
+		return false
+	_shot_cd = Sunfire.SHOT_GAP
+	_shot_hand = 1 - _shot_hand
+	throwing = 0.14
+	var fb := Sunfire.Fireball.new()
+	fb.position = global_position + Vector2(26.0 * facing, -48.0 + _shot_hand * 10.0)
+	fb.vel = Vector2(1000.0 * facing + velocity.x * 0.3, (_shot_hand * 2.0 - 1.0) * 18.0)
+	get_parent().add_child(fb)
+	return true
+
+
+## The aura, under everything: a gold halo breathing round him, and turning rays.
+func _paint_sun_aura() -> void:
+	var c := Vector2(0, -38)
+	var warn := sun_t < Sunfire.WARN and fmod(sun_t * 6.0, 1.0) < 0.5
+	var a := 0.35 if warn else 1.0
+	var pulse := 1.0 + 0.06 * sin(anim_t * 8.0)
+	for i in 3:
+		_cc(c, (62.0 - i * 14.0) * pulse, Color(Sunfire.GOLD, (0.08 + i * 0.06) * a))
+	for i in 10:
+		var ang := i * TAU / 10.0 + anim_t * 1.6
+		var p0 := c + Vector2.from_angle(ang) * 30.0
+		var p1 := c + Vector2.from_angle(ang) * (66.0 + 10.0 * sin(anim_t * 7.0 + i)) * pulse
+		_ln(p0, p1, Color(Sunfire.WHITE_HOT, 0.22 * a), 4.0)
+
+
+## Fire in both fists and in his hair; the embers he sheds.
+func _paint_sun_flames() -> void:
+	var warn := sun_t < Sunfire.WARN and fmod(sun_t * 6.0, 1.0) < 0.5
+	var a := 0.45 if warn else 1.0
+	for i in _hands.size():
+		var h: Vector2 = _hands[i]
+		_bb.circle(h, 9.0, Color(Sunfire.HOT, 0.8 * a), 12)
+		Sunfire.flame(_bb, h + Vector2(0, 4), 26.0, anim_t * 1.3 + i * 2.1, a)
+	for k in 3:
+		var hx := (k - 1) * 7.0
+		Sunfire.flame(_bb, _head_at + Vector2(hx, 4), 16.0 + 6.0 * float(k == 1), anim_t + k * 1.7, 0.85 * a)
+	for s in _sun_sparks:
+		var q: float = clampf(float(s[2]) / 0.7, 0.0, 1.0)
+		_bb.circle(to_local(s[0]), 3.0 * q + 0.8, Color(Sunfire.GOLD, q), 6)
+
+
+## Through the dark: his halo, the fists' glow, the embers.
+func draw_glow(g) -> void:   # g: the glow layer's Batch
+	if sun_t <= 0.0 or dead:
+		return
+	var o := global_position + Vector2(0, -38)
+	var warn := sun_t < Sunfire.WARN and fmod(sun_t * 6.0, 1.0) < 0.5
+	var a := 0.4 if warn else 1.0
+	g.draw_circle(o, 90.0 + 8.0 * sin(anim_t * 8.0), Color(1.0, 0.8, 0.3, 0.16 * a))
+	g.draw_circle(o, 48.0, Color(1.0, 0.85, 0.45, 0.18 * a))
+	for h in _hands:
+		g.draw_circle(to_global(h), 15.0, Color(1.0, 0.55, 0.15, 0.3 * a))
+		g.draw_circle(to_global(h), 5.0, Color(1.0, 0.95, 0.7, 0.7 * a))
+	g.draw_circle(to_global(_head_at), 16.0, Color(1.0, 0.6, 0.2, 0.45 * a))
+	for s in _sun_sparks:
+		var q: float = clampf(float(s[2]) / 0.7, 0.0, 1.0)
+		g.draw_circle(s[0], 2.5, Color(1.0, 0.85, 0.4, q))

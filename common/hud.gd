@@ -33,6 +33,13 @@ var _card: Label
 var _card_sub: Label
 var shells := 0
 var _shell_bump := 0.0
+signal sun_tapped
+signal menu_tapped
+var _sun: Control
+var _menu: Control
+var sun_charge := 0.0
+var sun_left := 0.0
+var _sun_t := 0.0
 
 
 func _ready() -> void:
@@ -128,6 +135,26 @@ func _ready() -> void:
 	_card_sub.modulate.a = 0.0
 	add_child(_card_sub)
 
+	# the SUN: fills as he fights; full, it blazes — tap it (or Q) for SUNFIRE
+	_sun = Control.new()
+	_sun.position = Vector2(372, 26)
+	_sun.size = Vector2(76, 76)
+	_sun.visible = false
+	_sun.draw.connect(_draw_sun)
+	_sun.gui_input.connect(func(e: InputEvent) -> void:
+		if (e is InputEventMouseButton or e is InputEventScreenTouch) and e.pressed:
+			sun_tapped.emit())
+	add_child(_sun)
+	# the camp menu: a little fire under a hide tent, top middle
+	_menu = Control.new()
+	_menu.position = Vector2(604, 6)
+	_menu.size = Vector2(72, 44)
+	_menu.draw.connect(_draw_menu_button)
+	_menu.gui_input.connect(func(e: InputEvent) -> void:
+		if (e is InputEventMouseButton or e is InputEventScreenTouch) and e.pressed:
+			menu_tapped.emit())
+	add_child(_menu)
+
 	_fade = ColorRect.new()
 	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_fade.color = Color(0, 0, 0, 0)
@@ -136,6 +163,10 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_sun_t += delta
+	if _sun.visible and (sun_left > 0.0 or sun_charge >= 1.0):
+		_sun.queue_redraw()
+	_menu.queue_redraw()
 	if msg_time > 0.0:
 		msg_time -= delta
 		if msg_time <= 0.0:
@@ -362,6 +393,7 @@ func add_touch_controls(player: CaveMan, with_fire: bool = false) -> void:
 	]
 	if with_fire:
 		specs.append(["FIRE", Vector2(1140, 280), "fire"])
+		specs.append(["SUN", Vector2(1140, 140), "sun"])
 	for s in specs:
 		var b := Button.new()
 		b.text = s[0]
@@ -374,3 +406,74 @@ func add_touch_controls(player: CaveMan, with_fire: bool = false) -> void:
 		b.button_down.connect(func() -> void: player.touch[key] = true)
 		b.button_up.connect(func() -> void: player.touch[key] = false)
 		add_child(b)
+
+
+## ------------------------------------------------------------------ SUNFIRE
+func set_sun(on: bool, charge: float, left: float) -> void:
+	_sun.visible = on
+	sun_charge = charge
+	sun_left = left
+	_sun.queue_redraw()
+
+
+## The sun: a disc that fills from the bottom as it charges, rays round it.
+## Full, it blazes and turns, with a Q on it. Burning, a ring of fire counts
+## the seconds down.
+func _draw_sun() -> void:
+	var b := Batch.new()
+	var c := Vector2(38, 38)
+	var t := _sun_t
+	var gold := Sunfire.GOLD
+	var on := sun_left > 0.0
+	var full := sun_charge >= 1.0 and not on
+	var spin := t * (2.5 if on else (1.0 if full else 0.2))
+	var swell := 1.0 + (0.1 * sin(t * 8.0) if full or on else 0.0)
+	# rays: only as many lit as it is full
+	for i in 12:
+		var lit := on or full or float(i) / 12.0 < sun_charge
+		var a := i * TAU / 12.0 + spin
+		var r0 := 20.0
+		var r1 := (31.0 + (4.0 if i % 2 == 0 else 0.0)) * swell
+		var side := Vector2.from_angle(a + PI * 0.5) * 3.5
+		var col := gold if lit else Color(0.35, 0.3, 0.25, 0.8)
+		b.tri(c + Vector2.from_angle(a) * r0 + side, c + Vector2.from_angle(a) * r1, c + Vector2.from_angle(a) * r0 - side, col)
+	b.circle(c, 20.0, Color(0.16, 0.1, 0.06, 0.9), 24)
+	# the disc fills from the bottom
+	var k := 1.0 if on or full else sun_charge
+	if k > 0.0:
+		var pts := PackedVector2Array()
+		var top := 18.0 - 36.0 * k
+		for i in 25:
+			var a2 := i * TAU / 24.0
+			var p := c + Vector2.from_angle(a2) * 18.0
+			p.y = maxf(p.y, c.y + top)
+			pts.append(p)
+		b.poly(pts, Sunfire.HOT if not full and not on else gold)
+	if on:
+		# the burning ring: the seconds left
+		var left := sun_left / Sunfire.DURATION
+		var warn := sun_left < Sunfire.WARN and fmod(sun_left * 6.0, 1.0) < 0.5
+		b.arc(c, 25.0, -PI * 0.5, -PI * 0.5 + TAU * left, 32, Sunfire.RED if warn else Sunfire.WHITE_HOT, 4.0)
+		for j in 3:
+			Sunfire.flame(b, c + Vector2(-8.0 + j * 8.0, -20.0), 10.0, t * 1.3 + j)
+	b.circle(c + Vector2(-6, -3), 2.5, Color(0.3, 0.12, 0.0), 6)
+	b.circle(c + Vector2(6, -3), 2.5, Color(0.3, 0.12, 0.0), 6)
+	b.arc(c + Vector2(0, 3), 6.0, 0.4, PI - 0.4, 8, Color(0.3, 0.12, 0.0), 2.0)
+	b.draw(_sun)
+	if full:
+		var f := ThemeDB.fallback_font
+		_sun.draw_string(f, Vector2(30, 74), "Q", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1, 0.95, 0.8, 0.6 + 0.4 * sin(t * 8.0)))
+	elif on:
+		_sun.draw_string(ThemeDB.fallback_font, Vector2(24, 76), "%d" % ceili(sun_left), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Sunfire.WHITE_HOT)
+
+
+## The camp button: a hide tent with a little fire, and the word.
+func _draw_menu_button() -> void:
+	var b := Batch.new()
+	b.circle(Vector2(36, 22), 21.0, Color(0, 0, 0, 0.35), 20)
+	b.tri(Vector2(18, 32), Vector2(36, 8), Vector2(54, 32), Color("b07a4a"))
+	b.tri(Vector2(30, 32), Vector2(36, 18), Vector2(42, 32), Color("3a2414"))
+	b.line(Vector2(34, 6), Vector2(38, 2), Color("6b4a2a"), 2.0)
+	Sunfire.flame(b, Vector2(36, 33), 8.0, _sun_t * 1.4, 0.9)
+	b.draw(_menu)
+	_menu.draw_string(ThemeDB.fallback_font, Vector2(14, 44), "MENU  Esc", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(Pal.BONE, 0.7))

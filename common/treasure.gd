@@ -236,6 +236,7 @@ class Pickup extends Area2D:
 			GameState.bones += v
 		else:
 			GameState.take(level_id, id, v)
+		(b as CaveMan).add_sun(Sunfire.GAIN_SHELL)
 		collected.emit(kind, v)
 		var pop := FloatText.new()
 		pop.text = "+%d" % v

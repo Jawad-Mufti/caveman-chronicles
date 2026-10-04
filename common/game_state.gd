@@ -28,6 +28,7 @@ static var figs := 0                   ## roast figs in his pouch
 ## currency: each is found only once per save.
 static var bones := 0
 static var seen := {}                  ## guides already shown, by level
+static var abilities: Array = []       ## learned once and kept: "wallkick", "sunfire"
 static var _loaded := false
 
 
@@ -57,6 +58,7 @@ static func ensure_loaded() -> void:
 	figs = int(d.get("figs", 0))
 	bones = int(d.get("bones", 0))
 	seen = d.get("seen", {})
+	abilities = d.get("abilities", [])
 	# an older save that forged the Firestone before weapons were kept
 	if str(gems.get("level2", "")) == "forged" and not weapons.has("hammer"):
 		weapons.append("hammer")
@@ -69,7 +71,7 @@ static func save() -> void:
 		return
 	f.store_string(JSON.stringify({"shells": shells, "upgrades": upgrades, "skins": skins, "skin": skin,
 		"gems": gems, "taken": taken, "trophies": trophies, "weapons": weapons, "weapon": weapon, "figs": figs, "bones": bones,
-		"seen": seen}))
+		"seen": seen, "abilities": abilities}))
 
 
 ## A fresh start: everything back to nothing, on disk too.
@@ -86,6 +88,7 @@ static func reset() -> void:
 	figs = 0
 	bones = 0
 	seen = {}
+	abilities = []
 	_loaded = true
 	save()
 
@@ -132,3 +135,12 @@ static func apply_to(p: CaveMan) -> void:
 	p.skin = skin
 	p.axe = weapon == "axe"
 	p.hammer = weapon == "hammer"
+
+
+## Learn an ability for good (saved at once). True if it is new.
+static func learn(id: String) -> bool:
+	if abilities.has(id):
+		return false
+	abilities.append(id)
+	save()
+	return true
