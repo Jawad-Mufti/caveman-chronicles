@@ -91,6 +91,7 @@ func _ready() -> void:
 	_build_gorge()
 	_build_steppe()
 	_build_tar_pits()
+	_build_canyon()
 	_build_friends()
 	_build_boulder_run()
 	_build_long_dark()
@@ -265,8 +266,8 @@ func _build_critters() -> void:
 	_note(5500, "Only one way now: UP.", 3.0)
 	_spot(Rect2(5860, 620, 240, 110), "A crack in the rock — and someone's stash in it.", "crevice")
 	_spot(Rect2(7170, -480, 80, 90), "From up here, the whole valley. And something glints, high in the great tree.", "lookout")
-	_note(14940, "Monkeys! Leave them alone, they leave YOU alone.", 4.5)
-	_note(16180, "A dead snag: a ladder back up to the bough.", 4.5)
+	_note(19940, "Monkeys! Leave them alone, they leave YOU alone.", 4.5)
+	_note(21180, "A dead snag: a ladder back up to the bough.", 4.5)
 
 
 func _build_tree_life() -> void:
@@ -399,12 +400,12 @@ func _build_cave_trials() -> void:
 	fall.rattled.connect(func() -> void:
 		hud.say("Dust trickles down. The roof is letting go — watch the floor: shadows come first.", 4.0))
 	add_child(fall)
-	_note(27715, "Dripping rocks above. Don't stand still!", 4.5)
-	_note(28105, "Wriggly silk sacs. Pop them from far away.", 4.5)
-	_note(28415, "A glowing mushroom. Jump on it. WHEEE!", 4.0)
-	_note(31110, "Scritch... scratch... scritch... LOTS of somethings.", 3.5)
-	_note(31465, "A bridge of old ribs. It creaks. Something hisses.", 4.5)
-	_note(31835, "The roof is rattling. RUN!", 3.0)
+	_note(32715, "Dripping rocks above. Don't stand still!", 4.5)
+	_note(33105, "Wriggly silk sacs. Pop them from far away.", 4.5)
+	_note(33415, "A glowing mushroom. Jump on it. WHEEE!", 4.0)
+	_note(36110, "Scritch... scratch... scritch... LOTS of somethings.", 3.5)
+	_note(36465, "A bridge of old ribs. It creaks. Something hisses.", 4.5)
+	_note(36835, "The roof is rattling. RUN!", 3.0)
 
 
 ## The sky lanes: see SKY_LANES. Loot is added with the rest of the treasure.
@@ -499,7 +500,7 @@ func _build_cave(bounds: Rect2, rock: Array, entry: Vector2, door: Array, which:
 func _door_lines(which: int) -> Array:
 	var here := key_cave == which
 	if which == 0:
-		var lines := [["", "A cave in the foot of the mountain. Cold air breathes out of it."]]
+		var lines := [["", "A cave under the Thunder Cliffs. Cold air breathes out of it."]]
 		if here:
 			lines.append(["", "Webs hang across the mouth — but they are torn, and a half-eaten banana is stuck in one."])
 			lines.append(["", "Small hand-prints go in. None come out."])
@@ -638,7 +639,7 @@ func _meet_elder() -> void:
 			_bongo("I lost the key to my banana box in a cave. Fetch it, and this shiny stone is yours."),
 			{"choose": answers},
 			_bongo("It was dark, I was eating a banana, and then " + _clue()),
-			_bongo("Two caves: one in the mountain's foot, one past the chasm. Their doors give clues. GO!"),
+			_bongo("Two caves: one under the Thunder Cliffs, one past the chasm. Their doors give clues. GO!"),
 		]
 		_talk(lines, func() -> void:
 			quest = "asked"
@@ -707,7 +708,7 @@ func _update_elder(delta: float) -> void:
 	# (talking to him is his choice now: see _update_talkers)
 	# from the bough, a voice from above
 	_callout_t -= delta
-	var on_bough := absf(player.global_position.y - 42.0) < 12.0 and player.global_position.x > 15400.0
+	var on_bough := absf(player.global_position.y - 42.0) < 12.0 and player.global_position.x > 20400.0
 	if quest == "none" and on_bough and _callouts < 3 and _callout_t <= 0.0:
 		_callouts += 1
 		_callout_t = 10.0
@@ -862,6 +863,48 @@ func _build_tar_pits() -> void:
 	_note(12640, "Tar pits! The logs sink — keep hopping!", 5.0)
 
 
+## Thunder Canyon: puffballs and pterosaurs carrying vines, a rest ledge, and
+## the Thunder Cliffs with their storm.
+func _build_canyon() -> void:
+	for pf in PUFFS:
+		var puff := Canyon.Puffball.new()
+		puff.x0 = pf[0]
+		puff.x1 = pf[1]
+		puff.position = Vector2(pf[0], pf[2])
+		puff.speed = pf[3]
+		puff.phase = pf[4]
+		puff.vine_len = pf[5]
+		add_child(puff)
+	for pt in PTEROS:
+		var ptero := Canyon.Pterosaur.new()
+		ptero.x0 = pt[0]
+		ptero.x1 = pt[1]
+		ptero.position = Vector2(pt[0], pt[2])
+		ptero.speed = pt[3]
+		ptero.phase = pt[4]
+		ptero.vine_len = pt[5]
+		add_child(ptero)
+	for s in THUNDER_STEPS:
+		add_child(NightWoods.Crag.new(Rect2(s[0], s[1], s[2], GROUND_Y + 240.0 - float(s[1]))))
+	var storm := Canyon.Storm.new()
+	storm.x0 = STORM[0]
+	storm.x1 = STORM[1]
+	storm.spawn = Vector2(STORM[2], 330.0)
+	storm.end_x = STORM[3]
+	storm.every = STORM[4]
+	storm.steps = THUNDER_STEPS
+	storm.player = player
+	add_child(storm)
+	for i in CANYON_LOOT.size():
+		var l: Array = CANYON_LOOT[i]
+		_treasure(l[2], "n%d" % i, Vector2(l[0], l[1]))
+	_note(14620, "A canyon! Ride the puffballs' vines across.", 4.0)
+	_note(16250, "Pterosaurs! Catch a ride — swap mid-air!", 4.0)
+	_note(17950, "Phew. A fire. Rest your legs.", 3.0)
+	_note(18320, "THUNDER! Jump the boulders — or hug the wall!", 4.0)
+	_note(19550, "The great tree! At last.", 3.5)
+
+
 ## In the tar: stuck fast, then hauled out on the near bank.
 func _on_tar(bank: float) -> void:
 	player.respawn_at(Vector2(bank - 40.0, GROUND_Y - 10.0))
@@ -989,9 +1032,9 @@ func _update_long_dark() -> void:
 		for i in 3:
 			var wolf := NightBeasts.Wolf.new()
 			wolf.panic = true
-			wolf.panic_end = 17360.0
-			wolf.left_x = 16700.0
-			wolf.right_x = 20700.0
+			wolf.panic_end = 22360.0
+			wolf.left_x = 21700.0
+			wolf.right_x = 25700.0
 			wolf.position = Vector2(x + 720.0 + i * 70.0, GROUND_Y)
 			add_child(wolf)
 		hud.say("The wolves come running — straight past him. They're running FROM something.", 4.5)
@@ -1069,7 +1112,7 @@ func _build_the_end() -> void:
 	arena_bongo.visible = false
 	add_child(arena_bongo)
 	player.died.connect(_on_died_in_fight)
-	_note(21900, "Firelight under the rocks. Someone lives here.", 3.0)
+	_note(26900, "Firelight under the rocks. Someone lives here.", 3.0)
 
 
 ## ---------------------------------------------------------------- the Three Fires

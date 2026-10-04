@@ -4,14 +4,14 @@ extends LevelBase
 ## its bare name. Treasure ids are by index: never insert into the old loot tables.
 
 const GROUND_Y := 600.0
-const LEVEL_W := 25300.0
+const LEVEL_W := 30300.0
 const FALL_Y := 1020.0
 
 ## Reachability budget: a jump climbs ~133 px and carries ~227 px. Every step
 ## here asks for 100-125 up; the mountain's are the ones near the top of that.
 ## Ground runs: [x0, x1] at GROUND_Y.
-const FLOORS := [[0.0, 1500.0], [1640.0, 2600.0], [2760.0, 2900.0], [3350.0, 4060.0], [5420.0, 5680.0], [8750.0, 10500.0], [11000.0, 12780.0], [12980.0, 13120.0], [13540.0, 13660.0], [14180.0, 15400.0],
-	[16120.0, 18620.0], [18730.0, 19100.0], [19230.0, 19640.0], [19780.0, 19940.0], [20100.0, 20600.0], [21000.0, 21300.0], [21700.0, 21950.0], [22400.0, LEVEL_W]]
+const FLOORS := [[0.0, 1500.0], [1640.0, 2600.0], [2760.0, 2900.0], [3350.0, 4060.0], [5420.0, 5680.0], [8750.0, 10500.0], [11000.0, 12780.0], [12980.0, 13120.0], [13540.0, 13660.0], [14180.0, 14650.0], [15990.0, 16300.0], [17900.0, 20400.0],
+	[21120.0, 23620.0], [23730.0, 24100.0], [24230.0, 24640.0], [24780.0, 24940.0], [25100.0, 25600.0], [26000.0, 26300.0], [26700.0, 26950.0], [27400.0, LEVEL_W]]
 ## The hollow where the pack waits: [x, floor y, width].
 const HOLLOW := [2900.0, 700.0, 450.0]
 const LEDGES := [
@@ -37,7 +37,7 @@ const CRAGS := [
 	# the way down, in steps
 	[7710.0, -155.0, 190.0, 1355.0], [7900.0, -30.0, 190.0, 1230.0], [8090.0, 95.0, 190.0, 1105.0],
 	[8280.0, 220.0, 190.0, 980.0], [8470.0, 345.0, 190.0, 855.0], [8660.0, 470.0, 90.0, 730.0],
-	[17050.0, 490.0, 250.0, 710.0],     # the far-side outcrop: the Rattling Cave's mouth is in its far face
+	[22050.0, 490.0, 250.0, 710.0],     # the far-side outcrop: the Rattling Cave's mouth is in its far face
 ]
 ## Boulders to shelter behind, [x, surface y]. The wind blows down the climb
 ## (from the right), so the lee is the left side.
@@ -107,6 +107,36 @@ const TAR_LOOT := [                                ## [x, y, kind]; ids "t0", "t
 	[13760.0, 545.0, "shell"], [13880.0, 545.0, "shell"], [14000.0, 545.0, "bone"], [14100.0, 545.0, "shell"],
 ]
 
+## ---------------------------------------------------------------- Thunder Canyon
+## Past Nutmeg's creek, before the great tree: a deep canyon where the ropes
+## MOVE, then cliffs in a storm. Falling in costs a heart, as any pit does.
+##   Puffball Drift (14650-15990): vines under puffballs drifting to and fro;
+##     they meet now and then — wait for the gap to close, then swap
+##   a rock pillar (15990-16300) to stand on
+##   Pterosaur Express (16300-17900): faster, dipping; ride one, and swap in
+##     mid-air to the next where their paths overlap
+##   the rest ledge, with a fire (17900-18300)
+##   Thunder Cliffs (18300-19600): steps up and down; a storm rolls boulders
+##     down them at him — jump them. The Weeping Cave's mouth is in their foot.
+## Carriers: [x0, x1, height, speed, phase 0..1, vine length]
+## Neighbours keep time: same span and speed, so they meet at their shared
+## ends every 10 s (a 40 px gap) — that's the moment to swap.
+const PUFFS := [[14780.0, 15130.0, 230.0, 70.0, 0.5, 200.0], [15170.0, 15520.0, 220.0, 70.0, 0.0, 200.0],
+	[15560.0, 15910.0, 230.0, 70.0, 0.5, 200.0]]
+## The two pterosaurs take the same time round (9.6 s), and cross mid-canyon
+## (x 17100) — the first heading on, the second coming back: swap there.
+const PTEROS := [[16390.0, 17160.0, 240.0, 160.0, 0.461, 200.0], [16960.0, 17800.0, 200.0, 175.0, 0.917, 210.0]]
+const THUNDER_STEPS := [[18400.0, 520.0, 200.0], [18600.0, 440.0, 200.0], [18800.0, 360.0, 400.0],
+	[19200.0, 440.0, 200.0], [19400.0, 520.0, 200.0]]         ## [x, top, w]
+const STORM := [18300.0, 19700.0, 19150.0, 18320.0, 2.6]       ## [felt from x, to x, boulder starts at x, ends at x, every s]
+const CANYON_LOOT := [                                          ## [x, y, kind]; ids "n0", "n1"...
+	[14900.0, 380.0, "shell"], [15330.0, 380.0, "shell"], [15750.0, 380.0, "shell"],
+	[16210.0, 570.0, "bone"],
+	[16700.0, 470.0, "shell"], [17000.0, 470.0, "shell"], [17300.0, 420.0, "shell"], [17500.0, 420.0, "conch"],
+	[18100.0, 570.0, "bone"],
+	[18900.0, 330.0, "shell"], [19000.0, 330.0, "conch"], [19100.0, 330.0, "shell"],
+]
+
 ## ---------------------------------------------------------------- talking animals
 ## Met in passing: a bubble shows over them when he's close; E (or TALK) to talk.
 const MOSS_AT := Vector2(4075.0, 262.0)        ## the sloth's grip, under the fallen giant over the gorge
@@ -116,99 +146,100 @@ const CREEK := [14300.0, 70.0]                ## [x, width]: the little creek sh
 ## The great tree: trunk centred here, and its branches as one-way platforms
 ## [x, top, width, grows from the left end?]. Left and right of the trunk in
 ## turn, 112 px apart; the long bough crosses the chasm; above it, the crown.
-const TREE_X := 15220.0
+const TREE_X := 20220.0
 const BRANCHES := [
-	[15030.0, 490.0, 130.0, false], [15280.0, 378.0, 130.0, true], [15020.0, 266.0, 140.0, false],
-	[15280.0, 154.0, 120.0, true],
-	[15260.0, 42.0, 900.0, true],        # the long bough, over the chasm to the far side
-	[15040.0, -70.0, 130.0, false], [15280.0, -183.0, 120.0, true], [15050.0, -296.0, 120.0, false],
-	[15130.0, -408.0, 230.0, true],      # the crown
+	[20030.0, 490.0, 130.0, false], [20280.0, 378.0, 130.0, true], [20020.0, 266.0, 140.0, false],
+	[20280.0, 154.0, 120.0, true],
+	[20260.0, 42.0, 900.0, true],        # the long bough, over the chasm to the far side
+	[20040.0, -70.0, 130.0, false], [20280.0, -183.0, 120.0, true], [20050.0, -296.0, 120.0, false],
+	[20130.0, -408.0, 230.0, true],      # the crown
 	# the dead snag on the far side: the way back up to the bough
-	[16300.0, 490.0, 110.0, false], [16430.0, 378.0, 110.0, true], [16300.0, 266.0, 110.0, false],
-	[16430.0, 154.0, 110.0, true], [16220.0, 42.0, 190.0, false],
+	[21300.0, 490.0, 110.0, false], [21430.0, 378.0, 110.0, true], [21300.0, 266.0, 110.0, false],
+	[21430.0, 154.0, 110.0, true], [21220.0, 42.0, 190.0, false],
 ]
-const SNAG_X := 16415.0
+const SNAG_X := 21415.0
 ## The troop: [x, y, habit, hanging]
 const MONKEYS := [
-	[15360.0, 378.0, 0, false],
-	[15060.0, 280.0, 0, true],            # hanging under a branch by its tail
-	[15490.0, 42.0, 0, false], [15710.0, 42.0, 1, false], [15940.0, 42.0, 0, false],
-	[15340.0, -183.0, 1, false],
+	[20360.0, 378.0, 0, false],
+	[20060.0, 280.0, 0, true],            # hanging under a branch by its tail
+	[20490.0, 42.0, 0, false], [20710.0, 42.0, 1, false], [20940.0, 42.0, 0, false],
+	[20340.0, -183.0, 1, false],
 ]
 ## Old Bongo sits at the top of the crown, beside his banana box.
-const ELDER_AT := Vector2(15320, -408)
+const ELDER_AT := Vector2(20320, -408)
 
 ## [x, y, lit at start]
 const BONFIRES := [[520.0, GROUND_Y, true], [1720.0, GROUND_Y, false], [3560.0, GROUND_Y, false],
-	[7410.0, -278.0, false], [14830.0, GROUND_Y, false], [16270.0, GROUND_Y, false],
-	[27470.0, 700.0, false], [29290.0, 700.0, false], [31140.0, 600.0, false], [32300.0, 600.0, false],   # old hearths in the caves
-	[8960.0, GROUND_Y, false]]   # the mountain's foot, before the Steppe
+	[7410.0, -278.0, false], [19830.0, GROUND_Y, false], [21270.0, GROUND_Y, false],
+	[32470.0, 700.0, false], [34290.0, 700.0, false], [36140.0, 600.0, false], [37300.0, 600.0, false],   # old hearths in the caves
+	[8960.0, GROUND_Y, false],   # the mountain's foot, before the Steppe
+	[18000.0, GROUND_Y, false]]  # the rest ledge in Thunder Canyon
 ## [x, y, bundles of wood in it]
-const DEAD_TREES := [[1260.0, GROUND_Y, 2], [2400.0, 400.0, 1], [2855.0, GROUND_Y, 2], [6830.0, -52.0, 2], [14990.0, GROUND_Y, 2]]
+const DEAD_TREES := [[1260.0, GROUND_Y, 2], [2400.0, 400.0, 1], [2855.0, GROUND_Y, 2], [6830.0, -52.0, 2], [19990.0, GROUND_Y, 2]]
 ## Loose bundles already on the ground: the crevice stash.
-const WOOD := [[5900.0, 720.0], [6070.0, 720.0], [27600.0, 700.0], [32430.0, 600.0]]
+const WOOD := [[5900.0, 720.0], [6070.0, 720.0], [32600.0, 700.0], [37430.0, 600.0]]
 ## [left, right, start_x, floor_y]. Kept clear of the bonfires' light.
 const WOLVES := [
 	[1000.0, 1490.0, 1330.0, GROUND_Y], [1000.0, 1490.0, 1450.0, GROUND_Y],
 	[2040.0, 2590.0, 2420.0, GROUND_Y], [2040.0, 2590.0, 2540.0, GROUND_Y],
 	[2915.0, 3335.0, 3120.0, 700.0], [2915.0, 3335.0, 3220.0, 700.0], [2915.0, 3335.0, 3310.0, 700.0],
-	[16590.0, 17000.0, 16750.0, GROUND_Y], [16590.0, 17000.0, 16900.0, GROUND_Y],
+	[21590.0, 22000.0, 21750.0, GROUND_Y], [21590.0, 22000.0, 21900.0, GROUND_Y],
 ]
 const BAT_HOVER := 70.0
 ## [x, the surface this bat belongs to]
-const BATS := [[1880.0, GROUND_Y], [2360.0, 400.0], [6435.0, 172.0], [7155.0, -165.0], [27335.0, 700.0], [28540.0, 700.0, 240.0]]
-const ROCK_PILES := [[760.0, GROUND_Y], [2130.0, 490.0], [2785.0, GROUND_Y], [6930.0, -52.0], [14900.0, GROUND_Y], [26600.0, 600.0], [28060.0, 700.0], [31220.0, 600.0]]
-const BERRIES := [[1030.0, 500.0], [2425.0, 400.0], [5970.0, 720.0], [7160.0, -398.0], [27700.0, 700.0], [32400.0, 600.0], [29060.0, 700.0], [31180.0, 600.0]]
+const BATS := [[1880.0, GROUND_Y], [2360.0, 400.0], [6435.0, 172.0], [7155.0, -165.0], [32335.0, 700.0], [33540.0, 700.0, 240.0]]
+const ROCK_PILES := [[760.0, GROUND_Y], [2130.0, 490.0], [2785.0, GROUND_Y], [6930.0, -52.0], [19900.0, GROUND_Y], [31600.0, 600.0], [33060.0, 700.0], [36220.0, 600.0]]
+const BERRIES := [[1030.0, 500.0], [2425.0, 400.0], [5970.0, 720.0], [7160.0, -398.0], [32700.0, 700.0], [37400.0, 600.0], [34060.0, 700.0], [36180.0, 600.0]]
 
 ## ---------------------------------------------------------------- caves
 ## Each cave: its camera bounds, its rock [x, y, w, h, kind], where he comes in,
 ## and its doorway outside [x, y, which way he walks in, "webs" | "skin"].
-const CAVE_A := Rect2(26300, 150, 3370, 800)      # the Weeping Cave
+const CAVE_A := Rect2(31300, 150, 3370, 800)      # the Weeping Cave
 const CAVE_A_ROCK := [
-	[26300.0, 150.0, 100.0, 800.0, "wall"], [29570.0, 150.0, 100.0, 800.0, "wall"],
-	[26400.0, 600.0, 500.0, 350.0, "floor"], [26900.0, 700.0, 350.0, 250.0, "floor"],
-	[27420.0, 700.0, 990.0, 250.0, "floor"],           # after the pit: the old hearth, the Weeping Hall, the nursery
-	[28650.0, 700.0, 120.0, 250.0, "floor"],           # the pillar in the Glowcap Chasm
-	[29010.0, 700.0, 340.0, 250.0, "floor"],           # the far side of the chasm, and under the stairs
-	[29070.0, 590.0, 100.0, 18.0, "floor"], [29220.0, 480.0, 100.0, 18.0, "floor"],
-	[29350.0, 380.0, 220.0, 570.0, "floor"],           # the cocoon chamber
-	[26400.0, 150.0, 500.0, 270.0, "roof"], [26900.0, 150.0, 860.0, 320.0, "roof"],
-	[27760.0, 150.0, 340.0, 180.0, "roof"],            # the Weeping Hall: a high roof, to hang stalactites from
-	[28100.0, 150.0, 310.0, 270.0, "roof"],            # the nursery: lower
-	[28410.0, 150.0, 1160.0, 30.0, "roof"],            # the chasm and the chamber: very high
+	[31300.0, 150.0, 100.0, 800.0, "wall"], [34570.0, 150.0, 100.0, 800.0, "wall"],
+	[31400.0, 600.0, 500.0, 350.0, "floor"], [31900.0, 700.0, 350.0, 250.0, "floor"],
+	[32420.0, 700.0, 990.0, 250.0, "floor"],           # after the pit: the old hearth, the Weeping Hall, the nursery
+	[33650.0, 700.0, 120.0, 250.0, "floor"],           # the pillar in the Glowcap Chasm
+	[34010.0, 700.0, 340.0, 250.0, "floor"],           # the far side of the chasm, and under the stairs
+	[34070.0, 590.0, 100.0, 18.0, "floor"], [34220.0, 480.0, 100.0, 18.0, "floor"],
+	[34350.0, 380.0, 220.0, 570.0, "floor"],           # the cocoon chamber
+	[31400.0, 150.0, 500.0, 270.0, "roof"], [31900.0, 150.0, 860.0, 320.0, "roof"],
+	[32760.0, 150.0, 340.0, 180.0, "roof"],            # the Weeping Hall: a high roof, to hang stalactites from
+	[33100.0, 150.0, 310.0, 270.0, "roof"],            # the nursery: lower
+	[33410.0, 150.0, 1160.0, 30.0, "roof"],            # the chasm and the chamber: very high
 ]
-const CAVE_A_IN := Vector2(26470, 600)
-const CAVE_A_DOOR := [8750.0, GROUND_Y, -1, "webs"]
-const CAVE_A_WEBS := [[26840.0, 600.0, 180.0], [29430.0, 380.0, 200.0]]
+const CAVE_A_IN := Vector2(31470, 600)
+const CAVE_A_DOOR := [19600.0, GROUND_Y, -1, "webs"]   # in the foot of the Thunder Cliffs, by the great tree
+const CAVE_A_WEBS := [[31840.0, 600.0, 180.0], [34430.0, 380.0, 200.0]]
 ## [x, roof y, floor y, left, right]
-const SPIDERS := [[27080.0, 470.0, 700.0, 26910.0, 27240.0], [27600.0, 470.0, 700.0, 27440.0, 27690.0],
-	[29410.0, 180.0, 380.0, 29360.0, 29560.0], [27950.0, 330.0, 700.0, 27770.0, 28090.0]]
-const COCOON := [29510.0, 180.0, 380.0]
+const SPIDERS := [[32080.0, 470.0, 700.0, 31910.0, 32240.0], [32600.0, 470.0, 700.0, 32440.0, 32690.0],
+	[34410.0, 180.0, 380.0, 34360.0, 34560.0], [32950.0, 330.0, 700.0, 32770.0, 33090.0]]
+const COCOON := [34510.0, 180.0, 380.0]
 
-const CAVE_B := Rect2(30100, 150, 2840, 800)      # the Rattling Cave
+const CAVE_B := Rect2(35100, 150, 2840, 800)      # the Rattling Cave
 const CAVE_B_ROCK := [
-	[30100.0, 150.0, 100.0, 800.0, "wall"], [32840.0, 150.0, 100.0, 800.0, "wall"],
-	[30200.0, 600.0, 400.0, 350.0, "floor"], [30600.0, 510.0, 90.0, 440.0, "floor"],   # a pillar, with a snake in it
-	[30690.0, 600.0, 410.0, 350.0, "floor"],
-	[31100.0, 600.0, 280.0, 350.0, "floor"],           # the Stampede Alley
-	[31380.0, 540.0, 80.0, 410.0, "floor"],            # the rat mound, with the burrow in its face
-	[31600.0, 510.0, 80.0, 440.0, "floor"],            # the Rattle Pit's pillar: another snake
-	[31830.0, 600.0, 1010.0, 350.0, "floor"],          # the rockfall run, then the old hearth and on to the hoard
-	[32560.0, 490.0, 110.0, 18.0, "floor"], [32700.0, 380.0, 140.0, 18.0, "floor"],   # up to the hoard
-	[30200.0, 150.0, 400.0, 180.0, "roof"], [30600.0, 150.0, 120.0, 180.0, "roof"],
-	[30720.0, 150.0, 340.0, 370.0, "roof"],            # the crawl tunnel: no room to jump
-	[31060.0, 150.0, 1780.0, 60.0, "roof"],
+	[35100.0, 150.0, 100.0, 800.0, "wall"], [37840.0, 150.0, 100.0, 800.0, "wall"],
+	[35200.0, 600.0, 400.0, 350.0, "floor"], [35600.0, 510.0, 90.0, 440.0, "floor"],   # a pillar, with a snake in it
+	[35690.0, 600.0, 410.0, 350.0, "floor"],
+	[36100.0, 600.0, 280.0, 350.0, "floor"],           # the Stampede Alley
+	[36380.0, 540.0, 80.0, 410.0, "floor"],            # the rat mound, with the burrow in its face
+	[36600.0, 510.0, 80.0, 440.0, "floor"],            # the Rattle Pit's pillar: another snake
+	[36830.0, 600.0, 1010.0, 350.0, "floor"],          # the rockfall run, then the old hearth and on to the hoard
+	[37560.0, 490.0, 110.0, 18.0, "floor"], [37700.0, 380.0, 140.0, 18.0, "floor"],   # up to the hoard
+	[35200.0, 150.0, 400.0, 180.0, "roof"], [35600.0, 150.0, 120.0, 180.0, "roof"],
+	[35720.0, 150.0, 340.0, 370.0, "roof"],            # the crawl tunnel: no room to jump
+	[36060.0, 150.0, 1780.0, 60.0, "roof"],
 ]
-const CAVE_B_IN := Vector2(30270, 600)
+const CAVE_B_IN := Vector2(35270, 600)
 ## In the outcrop's far face: he sees it behind him once he has climbed over.
-const CAVE_B_DOOR := [17300.0, GROUND_Y, -1, "skin"]
+const CAVE_B_DOOR := [22300.0, GROUND_Y, -1, "skin"]
 ## [left, right, start x, floor y]
-const RATS := [[30320.0, 30580.0, 30420.0, 600.0], [30320.0, 30580.0, 30520.0, 600.0],
-	[30700.0, 31040.0, 30800.0, 600.0], [30700.0, 31040.0, 30950.0, 600.0],
-	[32400.0, 32820.0, 32480.0, 600.0], [32400.0, 32820.0, 32700.0, 600.0]]
+const RATS := [[35320.0, 35580.0, 35420.0, 600.0], [35320.0, 35580.0, 35520.0, 600.0],
+	[35700.0, 36040.0, 35800.0, 600.0], [35700.0, 36040.0, 35950.0, 600.0],
+	[37400.0, 37820.0, 37480.0, 600.0], [37400.0, 37820.0, 37700.0, 600.0]]
 ## [hole x, hole y, facing]
-const SNAKES := [[30600.0, 580.0, -1], [32840.0, 580.0, -1], [31600.0, 580.0, -1]]
-const NEST := [32770.0, 380.0]
+const SNAKES := [[35600.0, 580.0, -1], [37840.0, 580.0, -1], [36600.0, 580.0, -1]]
+const NEST := [37770.0, 380.0]
 
 ## ---------------------------------------------------------------- the longer caves
 ## Each cave is two-thirds longer than it was, and the new stretch is made of
@@ -218,68 +249,68 @@ const NEST := [32770.0, 380.0]
 ## on a dawdler), the nursery (egg sacs: pop them from afar, or they hatch), and
 ## the Glowcap Chasm (a mushroom on a pillar, a bat, and a high shelf).
 ## [x, the roof's underside, length]
-const HALL_STALACTITES := [[27800.0, 330.0, 96.0], [27870.0, 330.0, 112.0], [27940.0, 330.0, 92.0], [28010.0, 330.0, 108.0], [28075.0, 330.0, 94.0]]
+const HALL_STALACTITES := [[32800.0, 330.0, 96.0], [32870.0, 330.0, 112.0], [32940.0, 330.0, 92.0], [33010.0, 330.0, 108.0], [33075.0, 330.0, 94.0]]
 ## [x, floor y]: the nursery's sacs; the nursery's own limits are below
-const EGG_SACS := [[28200.0, 700.0], [28290.0, 700.0], [28370.0, 700.0]]
-const NURSERY := [28110.0, 28400.0]
+const EGG_SACS := [[33200.0, 700.0], [33290.0, 700.0], [33370.0, 700.0]]
+const NURSERY := [33110.0, 33400.0]
 ## [x, floor y, tint]: glowing mushrooms (tint 0 teal, 1 violet)
-const GLOWCAPS := [[28710.0, 700.0, 0]]
+const GLOWCAPS := [[33710.0, 700.0, 0]]
 ## [x, y, width]: a one-way shelf in the air over the chasm
-const CAVE_SHELVES := [[28830.0, 470.0, 120.0]]
+const CAVE_SHELVES := [[33830.0, 470.0, 120.0]]
 ## The Rattling Cave: the Stampede Alley (a burrow that empties out at him),
 ## the Rattle Pit (rib bridge, a snake pillar), the Rockfall Run.
-const STAMPEDE := [31380.0, 600.0]                   # the burrow's mouth, in the mound's face
-const STAMPEDE_ZONE := [31110.0, 30760.0]            # [where it wakes, where the rats are gone]
-const BONE_SLABS := [[31470.0, 600.0, 80.0], [31720.0, 600.0, 80.0]]
-const ROCKFALL_XS := [32070.0, 32160.0, 32250.0]
+const STAMPEDE := [36380.0, 600.0]                   # the burrow's mouth, in the mound's face
+const STAMPEDE_ZONE := [36110.0, 35760.0]            # [where it wakes, where the rats are gone]
+const BONE_SLABS := [[36470.0, 600.0, 80.0], [36720.0, 600.0, 80.0]]
+const ROCKFALL_XS := [37070.0, 37160.0, 37250.0]
 ## [x, y, hanging from the roof?, tint]: glowing crystal (0 teal, 1 violet, 2 amber, 3 rose)
 const CRYSTALS := [
-	[27520.0, 700.0, false, 0], [27745.0, 330.0, true, 0], [28140.0, 420.0, true, 3], [28330.0, 700.0, false, 3],
-	[28480.0, 180.0, true, 1], [28760.0, 700.0, false, 1], [28950.0, 180.0, true, 0], [29290.0, 180.0, true, 1],
-	[30440.0, 600.0, false, 2], [31090.0, 210.0, true, 2], [31300.0, 210.0, true, 2], [31440.0, 540.0, false, 3],
-	[31660.0, 210.0, true, 2], [32020.0, 600.0, false, 2], [32480.0, 210.0, true, 3], [32780.0, 210.0, true, 2],
+	[32520.0, 700.0, false, 0], [32745.0, 330.0, true, 0], [33140.0, 420.0, true, 3], [33330.0, 700.0, false, 3],
+	[33480.0, 180.0, true, 1], [33760.0, 700.0, false, 1], [33950.0, 180.0, true, 0], [34290.0, 180.0, true, 1],
+	[35440.0, 600.0, false, 2], [36090.0, 210.0, true, 2], [36300.0, 210.0, true, 2], [36440.0, 540.0, false, 3],
+	[36660.0, 210.0, true, 2], [37020.0, 600.0, false, 2], [37480.0, 210.0, true, 3], [37780.0, 210.0, true, 2],
 ]
 const TINTS := [Color("5ee0d0"), Color("b084ff"), Color("ffb347"), Color("ff7fa8")]
 
 ## ---------------------------------------------------------------- the Long Dark
 ## [anchor x, anchor y, length]: the grip hangs at anchor y + length.
-const VINES := [[20800.0, 330.0, 190.0], [21990.0, 310.0, 230.0], [22360.0, 310.0, 230.0]]
+const VINES := [[25800.0, 330.0, 190.0], [26990.0, 310.0, 230.0], [27360.0, 310.0, 230.0]]
 ## [x, top y, width]: rotten rock over the second pit.
-const CRUMBLES := [[21330.0, 600.0, 80.0], [21460.0, 600.0, 80.0], [21590.0, 600.0, 80.0]]
-const FIREFLIES := [[20500.0, 520.0], [20800.0, 440.0], [21150.0, 520.0], [21500.0, 480.0], [21820.0, 520.0], [22170.0, 420.0]]
+const CRUMBLES := [[26330.0, 600.0, 80.0], [26460.0, 600.0, 80.0], [26590.0, 600.0, 80.0]]
+const FIREFLIES := [[25500.0, 520.0], [25800.0, 440.0], [26150.0, 520.0], [26500.0, 480.0], [26820.0, 520.0], [27170.0, 420.0]]
 ## eyes in the trees, watching
-const WATCHERS := [[17650.0, 430.0], [20400.0, 400.0], [21220.0, 380.0], [21950.0, 390.0]]
-const CLAW_MARKS := [[17850.0, 470.0], [21080.0, 460.0]]
-const PANIC_AT := 17650.0          ## the wolves come running past here
-const SNUFF_AT := 20350.0         ## the roar, and the dark
+const WATCHERS := [[22650.0, 430.0], [25400.0, 400.0], [26220.0, 380.0], [26950.0, 390.0]]
+const CLAW_MARKS := [[22850.0, 470.0], [26080.0, 460.0]]
+const PANIC_AT := 22650.0          ## the wolves come running past here
+const SNUFF_AT := 25350.0         ## the roar, and the dark
 ## ---------------------------------------------------------------- the Boulder Run
 ## A boulder on a crumbling ledge breaks loose as he passes beneath it and
 ## rolls after him down the pass: over fallen logs (it smashes them), across
 ## gaps, until it plunges into the ravine at the end — and the crash shakes a
 ## stash loose from the cliff. Caught, or fallen, he starts the run again.
-const RUN_START := 18240.0
-const RUN_TRIGGER := 18330.0
-const RUN_LEDGE := Vector2(18110.0, 520.0)
-const RUN_LOGS := [18930.0, 19380.0, 19540.0]
-const RUN_RAVINE := [19940.0, 20100.0]
+const RUN_START := 23240.0
+const RUN_TRIGGER := 23330.0
+const RUN_LEDGE := Vector2(23110.0, 520.0)
+const RUN_LOGS := [23930.0, 24380.0, 24540.0]
+const RUN_RAVINE := [24940.0, 25100.0]
 const RUN_STASH := ["shell", "shell", "shell", "shell", "conch", "tusk", "bone", "bone", "bone", "bone"]
 
 ## ---------------------------------------------------------------- the end
-const TOOLMAKER_AT := Vector2(22760, 600)
-const CAMP_AT := Vector2(22700, 600)       ## his home under the overhang
+const TOOLMAKER_AT := Vector2(27760, 600)
+const CAMP_AT := Vector2(27700, 600)       ## his home under the overhang
 ## The Three Fires: a trial between his home and the clearing. A cracked
 ## boulder bars the way; a pack of wolves waits in the dark; three stone bowls
 ## must all burn — then the old palisade across the path burns down.
-const TRIAL_ROCK := Vector2(23170, 600)
-const TRIAL_BOWLS := [[23340.0, 600.0], [23590.0, 480.0], [23830.0, 600.0]]
-const TRIAL_LEDGE := [23520.0, 480.0, 140.0]
-const TRIAL_WOLVES := [[23260.0, 23900.0, 23460.0], [23260.0, 23900.0, 23700.0], [23260.0, 23900.0, 23880.0]]
-const TRIAL_GATE_X := 23950.0
-const ARENA := Rect2(24000, -900, 1300, 2100)
-const BRAZIERS := [[24120.0, 600.0], [24960.0, 600.0]]
-const LAIR_X := 25150.0           ## his lair's mouth, in the rock at the far end
-const ARENA_LEDGES := [[24300.0, 480.0, 140.0], [24860.0, 480.0, 140.0]]
-const BONGO_PERCH := Vector2(24070, 330)
+const TRIAL_ROCK := Vector2(28170, 600)
+const TRIAL_BOWLS := [[28340.0, 600.0], [28590.0, 480.0], [28830.0, 600.0]]
+const TRIAL_LEDGE := [28520.0, 480.0, 140.0]
+const TRIAL_WOLVES := [[28260.0, 28900.0, 28460.0], [28260.0, 28900.0, 28700.0], [28260.0, 28900.0, 28880.0]]
+const TRIAL_GATE_X := 28950.0
+const ARENA := Rect2(29000, -900, 1300, 2100)
+const BRAZIERS := [[29120.0, 600.0], [29960.0, 600.0]]
+const LAIR_X := 30150.0           ## his lair's mouth, in the rock at the far end
+const ARENA_LEDGES := [[29300.0, 480.0, 140.0], [29860.0, 480.0, 140.0]]
+const BONGO_PERCH := Vector2(29070, 330)
 
 ## ---------------------------------------------------------------- treasure
 ## Two kinds of find, in a fair mix. SHELLS (shell 1, conch 5, amber 25) are
@@ -299,11 +330,11 @@ const SHELL_ROWS := [
 	[3060.0, 3190.0, 700.0, 5],     # down in the hollow, with the pack
 	[6405.0, 6465.0, 172.0, 2],     # the narrow ledge with the bat
 	[7125.0, 7185.0, -165.0, 2],    # the other narrow ledge
-	[17140.0, 17210.0, 490.0, 3],     # on top of the outcrop
-	[26560.0, 26640.0, 600.0, 3],   # Weeping Cave: by the rock pile
-	[27490.0, 27570.0, 700.0, 3],   # Weeping Cave: past the pit, by the old hearth
-	[30615.0, 30675.0, 510.0, 3],   # Rattling Cave: on the snake's pillar
-	[32310.0, 32390.0, 600.0, 3],   # Rattling Cave: by the old hearth
+	[22140.0, 22210.0, 490.0, 3],     # on top of the outcrop
+	[31560.0, 31640.0, 600.0, 3],   # Weeping Cave: by the rock pile
+	[32490.0, 32570.0, 700.0, 3],   # Weeping Cave: past the pit, by the old hearth
+	[35615.0, 35675.0, 510.0, 3],   # Rattling Cave: on the snake's pillar
+	[37310.0, 37390.0, 600.0, 3],   # Rattling Cave: by the old hearth
 ]
 ## Single shells: arcs over jumps and swings, trails up the trees, and a
 ## column above each Moonpuff on the way down the mountain.
@@ -313,15 +344,15 @@ const SHELL_POINTS := [
 	[7760.0, -395.0], [7760.0, -455.0], [7760.0, -515.0, "shell"],           # Moonpuff 1
 	[8140.0, -145.0], [8140.0, -205.0], [8140.0, -265.0, "shell"],           # Moonpuff 2
 	[8520.0, 105.0], [8520.0, 45.0], [8520.0, -15.0, "shell"],               # Moonpuff 3
-	[15095.0, 466.0], [15345.0, 354.0], [15090.0, 242.0], [15340.0, 130.0],   # up the great tree
-	[15105.0, -94.0], [15335.0, -207.0], [15110.0, -320.0, "shell"],            # on up to Bongo
-	[16485.0, 354.0], [16485.0, 130.0],                               # up the snag
-	[20660.0, 470.0], [20740.0, 520.0], [20860.0, 520.0], [20940.0, 470.0],   # the first vine's swing
-	[21370.0, 560.0], [21500.0, 560.0], [21630.0, 560.0],           # the crumbling bridge
-	[22100.0, 470.0], [22175.0, 440.0], [22250.0, 470.0],           # the two vines
+	[20095.0, 466.0], [20345.0, 354.0], [20090.0, 242.0], [20340.0, 130.0],   # up the great tree
+	[20105.0, -94.0], [20335.0, -207.0], [20110.0, -320.0, "shell"],            # on up to Bongo
+	[21485.0, 354.0], [21485.0, 130.0],                               # up the snag
+	[25660.0, 470.0], [25740.0, 520.0], [25860.0, 520.0], [25940.0, 470.0],   # the first vine's swing
+	[26370.0, 560.0], [26500.0, 560.0], [26630.0, 560.0],           # the crumbling bridge
+	[27100.0, 470.0], [27175.0, 440.0], [27250.0, 470.0],           # the two vines
 	# the Boulder Run: shells over the gaps (no time to stop for them!), bones on the way
-	[18680.0, 520.0, "shell"], [19170.0, 520.0, "shell"], [19715.0, 520.0, "shell"],
-	[18820.0, 560.0], [19000.0, 500.0], [19300.0, 560.0], [19460.0, 500.0], [19860.0, 560.0],
+	[23680.0, 520.0, "shell"], [24170.0, 520.0, "shell"], [24715.0, 520.0, "shell"],
+	[23820.0, 560.0], [24000.0, 500.0], [24300.0, 560.0], [24460.0, 500.0], [24860.0, 560.0],
 	# the Hanging Gorge: along the swings, shells up at the top of them,
 	# and a tusk and a conch waiting on the resting ledge
 	[4400.0, 470.0], [4460.0, 440.0], [4520.0, 470.0],
@@ -332,37 +363,37 @@ const SHELL_POINTS := [
 	[5480.0, 560.0], [5540.0, 560.0],
 	# up in the air over the path: a jump gets these...
 	[1090.0, 482.0], [1130.0, 472.0], [1170.0, 482.0],
-	[16720.0, 482.0], [16760.0, 472.0],
-	[22490.0, 478.0],
-	[26700.0, 478.0], [26740.0, 470.0],
+	[21720.0, 482.0], [21760.0, 472.0],
+	[27490.0, 478.0],
+	[31700.0, 478.0], [31740.0, 470.0],
 	# ...and these, higher, need the double jump
 	[3420.0, 352.0, "shell"], [3460.0, 342.0, "shell"], [3500.0, 352.0, "shell"],
-	[14890.0, 348.0, "shell"], [14930.0, 342.0, "shell"],
-	[21790.0, 348.0, "shell"], [21830.0, 342.0, "shell"],
+	[19890.0, 348.0, "shell"], [19930.0, 342.0, "shell"],
+	[26790.0, 348.0, "shell"], [26830.0, 342.0, "shell"],
 ]
 ## Conches (5): out-of-the-way spots.
 const CONCHES := [
 	[4715.0, 490.0],
 	[1000.0, 470.0], [2400.0, 370.0], [3310.0, 670.0], [6080.0, 690.0], [7680.0, -300.0], [8140.0, -320.0],
-	[15150.0, -430.0], [16360.0, 20.0], [17180.0, 460.0], [20930.0, 430.0], [29170.0, 670.0], [29530.0, 350.0],
-	[32740.0, 570.0], [32600.0, 460.0],
+	[20150.0, -430.0], [21360.0, 20.0], [22180.0, 460.0], [25930.0, 430.0], [34170.0, 670.0], [34530.0, 350.0],
+	[37740.0, 570.0], [37600.0, 460.0],
 ]
 ## [x, y, secret]: amber (25), one in each secret place.
-const AMBERS := [[6030.0, 690.0, "crevice"], [7220.0, -420.0, "lookout"], [29450.0, 350.0, "weeping"], [32810.0, 350.0, "rattling"]]
+const AMBERS := [[6030.0, 690.0, "crevice"], [7220.0, -420.0, "lookout"], [34450.0, 350.0, "weeping"], [37810.0, 350.0, "rattling"]]
 ## [x, surface y, "log" | "mound", contents]: the treasure boxes.
 const LOG := ["bone", "shell", "bone", "shell", "bone", "shell", "bone"]
 const MOUND := ["bone", "shell", "bone", "shell", "bone", "shell", "tusk", "conch"]
 const BREAKABLES := [
 	[640.0, 600.0, "log", LOG], [1950.0, 600.0, "mound", MOUND], [3480.0, 600.0, "log", LOG],
-	[7580.0, -278.0, "mound", MOUND], [16800.0, 600.0, "log", LOG],
-	[21180.0, 600.0, "mound", MOUND], [22490.0, 600.0, "log", LOG],
-	[27050.0, 700.0, "log", LOG], [32490.0, 600.0, "mound", MOUND],
+	[7580.0, -278.0, "mound", MOUND], [21800.0, 600.0, "log", LOG],
+	[26180.0, 600.0, "mound", MOUND], [27490.0, 600.0, "log", LOG],
+	[32050.0, 700.0, "log", LOG], [37490.0, 600.0, "mound", MOUND],
 ]
 ## Clay pots, in little groups: one smack each, a few shells. [x, surface y, how many]
 const POTS := [
 	[5520.0, 600.0, 2],
-	[330.0, 600.0, 2], [2170.0, 490.0, 2], [3640.0, 600.0, 3], [7490.0, -278.0, 2], [15170.0, 600.0, 2],
-	[16180.0, 600.0, 2], [20520.0, 600.0, 2], [22620.0, 600.0, 3], [26500.0, 600.0, 2], [30300.0, 600.0, 2],
+	[330.0, 600.0, 2], [2170.0, 490.0, 2], [3640.0, 600.0, 3], [7490.0, -278.0, 2], [20170.0, 600.0, 2],
+	[21180.0, 600.0, 2], [25520.0, 600.0, 2], [27620.0, 600.0, 3], [31500.0, 600.0, 2], [35300.0, 600.0, 2],
 ]
 ## ---------------------------------------------------------------- the sky lanes
 ## Optional roads of floating stone above the ground road. Each starts with a
@@ -384,23 +415,23 @@ const SKY_LANES := [
 	},
 	{
 		"name": "Silver Stair",           # the far side: over the wolves and the outcrop, to before the boulder run
-		"pad": [16610.0, 600.0],
-		"rocks": [[16740.0, 300.0, 190.0, 0], [17010.0, 290.0, 110.0, 1], [17260.0, 40.0, 160.0, 0], [17490.0, 80.0, 110.0, 0],
-			[17680.0, 130.0, 110.0, 0], [17860.0, 210.0, 110.0, 0], [18010.0, 330.0, 80.0, 0]],
+		"pad": [21610.0, 600.0],
+		"rocks": [[21740.0, 300.0, 190.0, 0], [22010.0, 290.0, 110.0, 1], [22260.0, 40.0, 160.0, 0], [22490.0, 80.0, 110.0, 0],
+			[22680.0, 130.0, 110.0, 0], [22860.0, 210.0, 110.0, 0], [23010.0, 330.0, 80.0, 0]],
 		"cache": [2, ["shell", "shell", "shell", "shell", "conch", "tusk", "bone", "bone"]],
-		"bat": [17590.0, 70.0],
-		"motes": [16900.0, 17500.0, 18000.0],
-		"note": [16560.0, "More sky islands! Bounce up on the bloom.", 4.5],
+		"bat": [22590.0, 70.0],
+		"motes": [21900.0, 22500.0, 23000.0],
+		"note": [21560.0, "More sky islands! Bounce up on the bloom.", 4.5],
 	},
 	{
 		"name": "Starlit Road",           # the Long Dark: glowing stones over the three pits, down to the toolmaker's fire
-		"pad": [20480.0, 600.0],
-		"rocks": [[20560.0, 290.0, 150.0, 2], [20790.0, 220.0, 100.0, 0], [20990.0, 230.0, 110.0, 2], [21170.0, 300.0, 140.0, 1],
-			[21480.0, 120.0, 130.0, 2], [21690.0, 150.0, 100.0, 0], [21840.0, 190.0, 100.0, 2], [21990.0, 270.0, 130.0, 1], [22330.0, 160.0, 140.0, 2]],
+		"pad": [25480.0, 600.0],
+		"rocks": [[25560.0, 290.0, 150.0, 2], [25790.0, 220.0, 100.0, 0], [25990.0, 230.0, 110.0, 2], [26170.0, 300.0, 140.0, 1],
+			[26480.0, 120.0, 130.0, 2], [26690.0, 150.0, 100.0, 0], [26840.0, 190.0, 100.0, 2], [26990.0, 270.0, 130.0, 1], [27330.0, 160.0, 140.0, 2]],
 		"cache": [8, ["shell", "shell", "shell", "shell", "shell", "conch", "conch", "tusk", "bone", "bone"]],
-		"bat": [21650.0, 150.0],
-		"motes": [20800.0, 21500.0, 22100.0],
-		"note": [20440.0, "Glowing islands, like fallen stars. Bloom up!", 5.0],
+		"bat": [26650.0, 150.0],
+		"motes": [25800.0, 26500.0, 27100.0],
+		"note": [25440.0, "Glowing islands, like fallen stars. Bloom up!", 5.0],
 	},
 	{
 		"name": "Mammoth Sky",            # the Steppe: off the split rock, over the herd and the river, down past the graveyard
@@ -414,14 +445,14 @@ const SKY_LANES := [
 ]
 
 ## More pots, for the longer caves: [x, surface y, how many]. Their own ids.
-const POTS_LATE := [[31420.0, 540.0, 2]]
+const POTS_LATE := [[36420.0, 540.0, 2]]
 ## Shell Totems: carved faces that spit two shells per hit, six hits.
-const TOTEMS := [[2470.0, 600.0], [8000.0, -30.0], [21070.0, 600.0], [32620.0, 600.0]]
+const TOTEMS := [[2470.0, 600.0], [8000.0, -30.0], [26070.0, 600.0], [37620.0, 600.0]]
 ## Monkey stashes: a log marked with a red X — a fountain of treasure.
 const STASH := ["bone", "shell", "bone", "shell", "bone", "shell", "bone", "shell", "bone", "shell", "tusk", "conch", "conch"]
-const STASHES := [[15320.0, 600.0], [15170.0, -418.0]]
+const STASHES := [[20320.0, 600.0], [20170.0, -418.0]]
 ## Golden Hares: [left x, right x, start x, ground y] — catch one for a shower of treasure.
-const HARES := [[3380.0, 3960.0, 3800.0, 600.0], [14760.0, 15400.0, 15260.0, 600.0], [16120.0, 16580.0, 16400.0, 600.0]]
+const HARES := [[3380.0, 3960.0, 3800.0, 600.0], [19760.0, 20400.0, 20260.0, 600.0], [21120.0, 21580.0, 21400.0, 600.0]]
 const HARE_VALUE := 18
 ## Moonpuffs: bounce bushes on the mountain's way down, where he lands
 ## coming off each step.
@@ -431,32 +462,32 @@ const SECRETS := ["crevice", "lookout", "weeping", "rattling"]
 ## "v1"...), separate from the old tables, so nothing already found moves.
 const CAVE_LOOT := [
 	# the Weeping Hall: a trail under the stalactites (run, don't linger)
-	[27830.0, 676.0, "shell"], [27905.0, 676.0, "bone"], [27975.0, 676.0, "shell"], [28045.0, 676.0, "bone"],
+	[32830.0, 676.0, "shell"], [32905.0, 676.0, "bone"], [32975.0, 676.0, "shell"], [33045.0, 676.0, "bone"],
 	# the nursery
-	[28130.0, 676.0, "bone"], [28245.0, 676.0, "shell"], [28330.0, 676.0, "bone"],
+	[33130.0, 676.0, "bone"], [33245.0, 676.0, "shell"], [33330.0, 676.0, "bone"],
 	# the Glowcap Chasm: an arc over the first gap, a column up the bounce, the shelf, an arc down
-	[28490.0, 560.0, "shell"], [28540.0, 530.0, "shell"], [28590.0, 560.0, "shell"],
-	[28710.0, 520.0, "shell"], [28710.0, 450.0, "shell"], [28710.0, 385.0, "shell"],
-	[28890.0, 440.0, "conch"], [28845.0, 440.0, "tusk"], [28935.0, 440.0, "shell"],
-	[28990.0, 570.0, "shell"], [29030.0, 625.0, "shell"], [29070.0, 676.0, "bone"],
+	[33490.0, 560.0, "shell"], [33540.0, 530.0, "shell"], [33590.0, 560.0, "shell"],
+	[33710.0, 520.0, "shell"], [33710.0, 450.0, "shell"], [33710.0, 385.0, "shell"],
+	[33890.0, 440.0, "conch"], [33845.0, 440.0, "tusk"], [33935.0, 440.0, "shell"],
+	[33990.0, 570.0, "shell"], [34030.0, 625.0, "shell"], [34070.0, 676.0, "bone"],
 	# the Stampede Alley
-	[31190.0, 576.0, "shell"], [31250.0, 576.0, "bone"], [31320.0, 576.0, "shell"], [31420.0, 500.0, "shell"],
+	[36190.0, 576.0, "shell"], [36250.0, 576.0, "bone"], [36320.0, 576.0, "shell"], [36420.0, 500.0, "shell"],
 	# the Rattle Pit: over the slabs, and a conch on the snake's pillar
-	[31510.0, 560.0, "shell"], [31640.0, 476.0, "conch"], [31760.0, 560.0, "shell"], [31560.0, 520.0, "bone"],
+	[36510.0, 560.0, "shell"], [36640.0, 476.0, "conch"], [36760.0, 560.0, "shell"], [36560.0, 520.0, "bone"],
 	# the Rockfall Run: greedy, under the rocks
-	[32000.0, 576.0, "bone"], [32070.0, 576.0, "shell"], [32160.0, 576.0, "bone"], [32250.0, 576.0, "shell"],
+	[37000.0, 576.0, "bone"], [37070.0, 576.0, "shell"], [37160.0, 576.0, "bone"], [37250.0, 576.0, "shell"],
 ]
 ## [x, darkness]. Dusk at the camp, darkest in the woods, thinner on the
 ## mountain where the moon reaches, dark again under the great tree.
 const DARKNESS := [[0.0, 0.26], [700.0, 0.40], [1500.0, 0.62], [2600.0, 0.72], [3600.0, 0.74],
 	[3950.0, 0.64], [4300.0, 0.50], [5400.0, 0.50], [5800.0, 0.60],                       # the gorge: the last light of dusk
 	[6000.0, 0.62], [6700.0, 0.56], [7400.0, 0.50], [8300.0, 0.60],
-	[8800.0, 0.60], [9200.0, 0.64], [9800.0, 0.54], [10700.0, 0.48], [11500.0, 0.56], [12400.0, 0.64], [13400.0, 0.62],   # the Steppe: open sky, a bright river
-	[14800.0, 0.70], [15300.0, 0.64],
-	[16200.0, 0.72], [17700.0, 0.76], [18150.0, 0.70], [20150.0, 0.72], [20300.0, 0.86], [20400.0, 0.92], [22350.0, 0.92],   # the Long Dark
-	[22500.0, 0.74], [23050.0, 0.76], [23150.0, 0.88], [23950.0, 0.88],                   # his home; the Three Fires
-	[24000.0, 0.82], [25300.0, 0.82],                                                     # the clearing
-	[26250.0, 0.92], [33050.0, 0.92]]   # the caves: near black
+	[8800.0, 0.60], [9200.0, 0.64], [9800.0, 0.54], [10700.0, 0.48], [11500.0, 0.56], [12400.0, 0.64], [13400.0, 0.62], [15400.0, 0.56], [17000.0, 0.58], [18300.0, 0.70], [19400.0, 0.72],   # the Steppe: open sky, a bright river
+	[19800.0, 0.70], [20300.0, 0.64],
+	[21200.0, 0.72], [22700.0, 0.76], [23150.0, 0.70], [25150.0, 0.72], [25300.0, 0.86], [25400.0, 0.92], [27350.0, 0.92],   # the Long Dark
+	[27500.0, 0.74], [28050.0, 0.76], [28150.0, 0.88], [28950.0, 0.88],                   # his home; the Three Fires
+	[29000.0, 0.82], [30300.0, 0.82],                                                     # the clearing
+	[31250.0, 0.92], [38050.0, 0.92]]   # the caves: near black
 
 
 ## ---------------------------------------------------------------- the shop
