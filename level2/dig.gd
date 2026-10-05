@@ -17,7 +17,8 @@ const AIR := 0
 const DIRT := 1
 const STONE := 2
 const CLAY := 3
-const HITS := {DIRT: 1, STONE: 3, CLAY: 2}
+const CRUST := 4                ## the baked top of the Dig: only a MEGA STOMP breaks it
+const HITS := {DIRT: 1, STONE: 3, CLAY: 2, CRUST: 99}
 
 
 ## ================================================================ GRID
@@ -112,6 +113,13 @@ class DigGrid extends Node2D:
 		var i := idx(c)
 		var kind := cells[i]
 		var at := Vector2(c) * TILE + Vector2(TILE, TILE) * 0.5
+		if kind == CRUST:
+			_spark(at, Color("c9a06e"), 4)
+			var p := get_tree().get_first_node_in_group("player") as CaveMan
+			if p != null and _clang <= 0.0:
+				_clang = 2.0
+				p.said.emit("Baked hard as a pot. It wants a MEGA STOMP: double-jump, then T.")
+			return
 		if kind == CLAY and not GameState.has_item("shovel"):
 			_spark(at, Color("c9b49a"), 4)
 			if _clang <= 0.0:
@@ -151,6 +159,20 @@ class DigGrid extends Node2D:
 		dug.emit(kind)
 		queue_redraw()
 
+	## The crust breaks (a MEGA STOMP on the mound): its middle blocks go.
+	func open_crust(from_col: int, to_col: int) -> void:
+		for x in range(from_col, to_col + 1):
+			var i := idx(Vector2i(x, 0))
+			if cells[i] != CRUST:
+				continue
+			cells[i] = AIR
+			if _shapes.size() > i and _shapes[i] != null:
+				(_shapes[i] as Node).queue_free()
+				_shapes[i] = null
+			_spark(Vector2(x * TILE + TILE * 0.5, TILE * 0.5), Color("9a7048"), 8)
+		queue_redraw()
+
+
 	func _spark(at: Vector2, col: Color, n: int) -> void:
 		for k in n:
 			_chunks.append([at, Vector2(randf_range(-160, 160), randf_range(-260, -60)), randf_range(0.35, 0.7), col])
@@ -177,7 +199,7 @@ class DigGrid extends Node2D:
 				b.rect(Rect2(p, Vector2(TILE, TILE)), Color("140e0b"))
 				continue
 			rng.seed = i * 7919 + 13
-			var base: Color = {DIRT: Color("6e4a2f"), STONE: Color("77706a"), CLAY: Color("8f4a33")}.get(kind, Color("6e4a2f"))
+			var base: Color = {DIRT: Color("6e4a2f"), STONE: Color("77706a"), CLAY: Color("8f4a33"), CRUST: Color("9a7048")}.get(kind, Color("6e4a2f"))
 			base = base.lerp(base.lightened(0.12), rng.randf())
 			b.rect(Rect2(p, Vector2(TILE, TILE)), base)
 			b.rect(Rect2(p, Vector2(TILE, 6)), base.lightened(0.12))
@@ -188,6 +210,11 @@ class DigGrid extends Node2D:
 				STONE:
 					b.ellipse(p + Vector2(20, 22), 15, 12, base.darkened(0.25), rng.randf_range(-0.4, 0.4))
 					b.ellipse(p + Vector2(17, 18), 9, 6, base.lightened(0.2))
+				CRUST:
+					# baked hard: a grassy top, deep cracks
+					b.rect(Rect2(p, Vector2(TILE, 7)), Color("4f9a4c"))
+					b.line(p + Vector2(6, 12), p + Vector2(18, 30), Color("4a3220"), 2.0)
+					b.line(p + Vector2(18, 30), p + Vector2(34, 22), Color("4a3220"), 2.0)
 				CLAY:
 					for k in 3:
 						var y := 10.0 + k * 10.0
@@ -510,3 +537,324 @@ class Painting extends Node2D:
 		var pulse := 0.5 + 0.5 * sin(_t * 1.5)
 		g.draw_circle(global_position + Vector2(-110, -120), 30.0, Color(1.0, 0.5, 0.35, 0.10 + 0.08 * pulse))
 		g.draw_circle(global_position + Vector2(10, 60), 50.0, Color(1.0, 0.6, 0.4, 0.06))
+
+
+## ================================================================ THE GULPER
+class Gulper extends Area2D:
+	## An earth-shark the size of a mammoth's leg bone, in a den off the shaft.
+	## It SWIMS through the floor (a fin cutting the dirt, the ground bulging),
+	## comes under him, the dirt spits and cracks... and it BURSTS out in an arc,
+	## a round mouth full of rings of teeth, and dives back in — where its head
+	## jams in the ground for a moment. That's when to hit it. Six hits.
+	signal defeated(at: Vector2)
+	const HP := 6
+	const SWIM := 210.0
+	const TELL := 0.7
+	const ARC := 0.8                  ## seconds for the lunge
+	const STUCK := 1.7
+	var floor_y := 1160.0
+	var x0 := 12040.0
+	var x1 := 12530.0
+	var state := "sleep"             ## sleep, swim, tell, lunge, stuck, dive, dead
+	var hp := HP
+	var _t := 0.0
+	var _st := 0.0
+	var _x := 12300.0                ## where it is along the floor
+	var _from := 0.0
+	var _to := 0.0
+	var _dir := 1.0
+	var _head := Vector2.ZERO        ## world: where its head is now
+	var _flinch := 0.0
+	var _shape: CollisionShape2D
+
+	func _ready() -> void:
+		collision_layer = 4          # his swing finds it (it only counts while stuck)
+		collision_mask = 0
+		monitoring = false
+		_shape = CollisionShape2D.new()
+		var c := CircleShape2D.new()
+		c.radius = 44.0
+		_shape.shape = c
+		add_child(_shape)
+		add_to_group("glow")
+		_x = (x0 + x1) * 0.5
+		z_index = 3
+
+	func wake() -> void:
+		if state == "sleep":
+			state = "swim"
+			_st = 0.0
+
+	func reset() -> void:
+		if state == "dead":
+			return
+		state = "sleep"
+		hp = HP
+		_x = (x0 + x1) * 0.5
+
+	func take_hit(_dmg: int, _from_dir: int) -> void:
+		if state != "stuck" or _flinch > 0.0:
+			return
+		hp -= 1
+		_flinch = 0.25
+		var pop := Treasure.FloatText.new()
+		pop.text = "GRAAH!" if hp > 0 else "GRRRK..."
+		pop.position = _head + Vector2(-30, -90)
+		get_parent().add_child(pop)
+		FX.burst(get_parent(), _head + Vector2(0, -20), "dust")
+		if hp <= 0:
+			state = "dead"
+			_st = 0.0
+			var lvl := get_parent()
+			if lvl.has_method("shake"):
+				lvl.shake(14.0, 1.0)
+
+	func _player() -> CaveMan:
+		return get_tree().get_first_node_in_group("player") as CaveMan
+
+	func _physics_process(delta: float) -> void:
+		_t += delta
+		_st += delta
+		_flinch = maxf(_flinch - delta, 0.0)
+		var p := _player()
+		match state:
+			"sleep":
+				_head = Vector2(_x, floor_y + 60.0)
+			"swim":
+				# under the floor, toward him
+				if p != null:
+					var d := clampf(p.global_position.x, x0, x1) - _x
+					_x += clampf(d, -SWIM * delta, SWIM * delta)
+					if absf(d) > 2.0:
+						_dir = signf(d)
+					if absf(d) < 30.0 and _st > 1.2:
+						state = "tell"
+						_st = 0.0
+				_head = Vector2(_x, floor_y + 30.0)
+			"tell":
+				if _st >= TELL:
+					state = "lunge"
+					_st = 0.0
+					_from = _x - _dir * 20.0     # it bursts out right under him: the tell says MOVE
+					_to = clampf(_x + _dir * 220.0, x0, x1)
+					var lvl := get_parent()
+					if lvl.has_method("shake"):
+						lvl.shake(9.0, 0.3)
+			"lunge":
+				var k := clampf(_st / ARC, 0.0, 1.0)
+				_head = Vector2(lerpf(_from, _to, k), floor_y - sin(k * PI) * 240.0)
+				if p != null and not p.dead and p.global_position.distance_to(_head + Vector2(0, 20)) < 64.0:
+					var side := 1.0 if p.global_position.x >= _head.x else -1.0
+					p.hurt_toss(1, _head.x, Vector2(side * 320.0, -380.0))
+				if k >= 1.0:
+					state = "stuck"
+					_st = 0.0
+					_x = _to
+					FX.burst(get_parent(), Vector2(_to, floor_y), "dust")
+			"stuck":
+				_head = Vector2(_x, floor_y - 8.0)
+				if _st >= STUCK:
+					state = "dive"
+					_st = 0.0
+			"dive":
+				_head = Vector2(_x, floor_y + 30.0 * minf(_st / 0.4, 1.0))
+				if _st > 0.5:
+					state = "swim"
+					_st = 0.0
+					_dir = -_dir
+			"dead":
+				_head = Vector2(_x, floor_y - 8.0 + 60.0 * clampf((_st - 0.8) / 0.8, 0.0, 1.0))
+				if _st > 1.8 and _st - get_physics_process_delta_time() <= 1.8:
+					defeated.emit(Vector2(_x, floor_y))
+		_shape.position = _head - global_position + Vector2(0, -10)
+		_shape.disabled = state != "stuck"
+		if LevelBase.near_view(self):
+			queue_redraw()
+
+	## Its body along the arc behind the head (while out of the ground).
+	func _body() -> PackedVector2Array:
+		var pts := PackedVector2Array()
+		if state == "lunge":
+			var k := clampf(_st / ARC, 0.0, 1.0)
+			for i in 9:
+				var q := maxf(k - i * 0.07, 0.0)
+				pts.append(Vector2(lerpf(_from, _to, q), floor_y - sin(q * PI) * 240.0))
+		elif state in ["stuck", "dead"]:
+			# head jammed in the dirt, the body arched up behind it, tail thrashing
+			var sink := clampf((_st - 0.8) / 0.8, 0.0, 1.0) if state == "dead" else 0.0
+			for i in 9:
+				var q2 := i / 8.0
+				var x := _x - _dir * q2 * 200.0
+				var arch := sin(q2 * PI) * 130.0 * (1.0 - sink) + sin(_t * 10.0 + i) * 6.0 * q2
+				pts.append(Vector2(x, floor_y - arch))
+		return pts
+
+	func _draw() -> void:
+		var b := Batch.new()
+		var o := global_position
+		var skin := Color("39404a")
+		var belly := Color("c97b3c")
+		if state in ["swim", "tell", "sleep"]:
+			# under the floor: a fin cutting the dirt, the ground bulging
+			if state != "sleep":
+				var fx := _x - o.x
+				var fy := floor_y - o.y
+				b.tri(Vector2(fx - 14, fy + 2), Vector2(fx + _dir * 6.0, fy - 34), Vector2(fx + 18, fy + 2), skin)
+				for i in 4:
+					var q := fmod(_t * 3.0 + i * 0.25, 1.0)
+					b.circle(Vector2(fx - _dir * (20.0 + q * 60.0), fy - 2.0), 4.0 * (1.0 - q), Color("6e4a2f"), 6)
+			if state == "tell":
+				var k := _st / TELL
+				var tx := _x - o.x
+				var ty := floor_y - o.y
+				b.ellipse(Vector2(tx, ty), 40.0 + 30.0 * k, 8.0, Color("3a2617"))
+				for i in 6:
+					var a := -PI * (0.15 + 0.14 * i)
+					b.line(Vector2(tx, ty), Vector2(tx, ty) + Vector2.from_angle(a) * (20.0 + 50.0 * k), Color("8a6a48"), 3.0)
+		var body := _body()
+		if body.size() > 1:
+			var local := PackedVector2Array()
+			for pt in body:
+				local.append(pt - o)
+			for i in local.size() - 1:
+				var w := 40.0 - i * 3.5
+				b.line(local[i], local[i + 1], skin, w)
+				b.line(local[i] + Vector2(0, w * 0.25), local[i + 1] + Vector2(0, w * 0.25), belly, w * 0.35)
+			var tail: Vector2 = local[local.size() - 1]
+			b.tri(tail, tail + Vector2(-_dir * 30.0, -22.0), tail + Vector2(-_dir * 30.0, 22.0), skin)
+		if state in ["lunge", "stuck", "dead"]:
+			# the head: a round mouth, rings of teeth, little burning eyes
+			var h := _head - o
+			var r := 44.0
+			b.circle(h, r + 4.0, Color("1d2228"), 24)
+			b.circle(h, r, skin, 24)
+			b.circle(h, r * 0.72, Color("5a1418"), 22)
+			for ring in 3:
+				var rr := r * (0.68 - ring * 0.18)
+				for i in 12:
+					var a2 := i * TAU / 12.0 + ring * 0.26 + (_t * 2.0 if state == "lunge" else 0.0)
+					var base := h + Vector2.from_angle(a2) * rr
+					b.tri(base + Vector2.from_angle(a2 + 1.6) * 5.0, base - Vector2.from_angle(a2) * 12.0, base + Vector2.from_angle(a2 - 1.6) * 5.0, Color("efe6d0"))
+			b.circle(h, r * 0.16, Color("1a0608"), 12)
+			for s in [-1.0, 1.0]:
+				b.circle(h + Vector2(s * 30.0, -32.0), 5.0, Color("ffb347"), 8)
+			if _flinch > 0.0:
+				b.circle(h, r + 10.0, Color(1, 1, 1, _flinch * 2.0), 24)
+		b.draw(self)
+
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
+		if state in ["lunge", "stuck", "dead"]:
+			for s in [-1.0, 1.0]:
+				g.draw_circle(_head + Vector2(s * 30.0, -32.0), 8.0, Color(1.0, 0.6, 0.2, 0.7))
+		elif state == "tell":
+			g.draw_circle(Vector2(_x, floor_y), 40.0 + 30.0 * (_st / TELL), Color(1.0, 0.5, 0.2, 0.2))
+
+
+## ================================================================ DEN SEAL
+class DenSeal extends StaticBody2D:
+	## Rocks that crash down across the den's mouth: the trap is shut until the
+	## Gulper is beaten.
+	var size := Vector2(30, 80)
+	var _cs: CollisionShape2D
+	var shut := false
+
+	func _ready() -> void:
+		collision_layer = 1
+		collision_mask = 0
+		_cs = CollisionShape2D.new()
+		var sh := RectangleShape2D.new()
+		sh.size = size
+		_cs.shape = sh
+		_cs.position = size * 0.5
+		add_child(_cs)
+		set_shut(false)
+
+	func set_shut(on: bool) -> void:
+		shut = on
+		_cs.set_deferred("disabled", not on)
+		visible = on
+
+	func _draw() -> void:
+		var b := Batch.new()
+		for i in 4:
+			b.ellipse(Vector2(size.x * 0.5 + (i % 2) * 6.0 - 3.0, 10.0 + i * 20.0), 18.0, 13.0, Color("5f5850"))
+			b.ellipse(Vector2(size.x * 0.5 + (i % 2) * 6.0 - 6.0, 6.0 + i * 20.0), 9.0, 5.0, Color("8d857a"))
+		b.draw(self)
+
+
+## ================================================================ CLAW MARKS
+class ClawMarks extends Node2D:
+	## Deep scratches and an old skull on the shaft wall, where the den is
+	## behind the earth: "something big lives in there".
+	var _t := 0.0
+
+	func _ready() -> void:
+		z_index = 0
+		add_to_group("glow")
+
+	func _process(delta: float) -> void:
+		_t += delta
+
+	func _draw() -> void:
+		var b := Batch.new()
+		for i in 4:
+			var x := -24.0 + i * 12.0
+			b.line(Vector2(x, -30), Vector2(x + 14.0, 30), Color("1a0f0a"), 4.0)
+			b.line(Vector2(x + 1.0, -28), Vector2(x + 14.0, 28), Color("6a4a30"), 1.5)
+		b.circle(Vector2(30, 34), 11.0, Color("d8cdb2"), 12)
+		b.circle(Vector2(26, 32), 3.0, Color("1a0f0a"), 6)
+		b.circle(Vector2(34, 32), 3.0, Color("1a0f0a"), 6)
+		b.line(Vector2(18, 42), Vector2(44, 46), Color("d8cdb2"), 4.0)
+		b.draw(self)
+
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
+		g.draw_circle(global_position + Vector2(30, 34), 18.0, Color(0.9, 0.85, 0.7, 0.10 + 0.06 * sin(_t * 1.5)))
+
+
+## ================================================================ TEETH
+class TeethPickup extends Area2D:
+	signal picked
+	var _t := 0.0
+
+	func _ready() -> void:
+		collision_layer = 0
+		collision_mask = 2
+		var cs := CollisionShape2D.new()
+		var c := CircleShape2D.new()
+		c.radius = 28.0
+		cs.shape = c
+		cs.position = Vector2(0, -30)
+		add_child(cs)
+		add_to_group("glow")
+		body_entered.connect(func(b: Node) -> void:
+			if b is CaveMan:
+				picked.emit()
+				queue_free())
+
+	func _process(delta: float) -> void:
+		_t += delta
+		if LevelBase.near_view(self):
+			queue_redraw()
+
+	func _draw() -> void:
+		var b := Batch.new()
+		for i in 10:
+			var a := i * TAU / 10.0 + _t * 0.5
+			b.tri(Vector2(0, -30) + Vector2.from_angle(a + 0.12) * 16.0, Vector2(0, -30) + Vector2.from_angle(a) * (44.0 + 6.0 * sin(_t * 3.0 + i)),
+				Vector2(0, -30) + Vector2.from_angle(a - 0.12) * 16.0, Color(1.0, 0.85, 0.6, 0.25))
+		Dig.draw_teeth(b, Vector2(0, -30 + sin(_t * 2.0) * 4.0), 1.0)
+		b.draw(self)
+
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
+		g.draw_circle(global_position + Vector2(0, -30), 34.0, Color(1.0, 0.9, 0.7, 0.3))
+
+
+## The Gulper's teeth: three great curved fangs on a cord (also on its card).
+static func draw_teeth(b: Batch, c: Vector2, s: float) -> void:
+	b.polyline(PackedVector2Array([c + Vector2(-26, -14) * s, c + Vector2(0, -4) * s, c + Vector2(26, -14) * s]), Color("8a6a48"), 3.0 * s)
+	for i in 3:
+		var x := (-16.0 + i * 16.0) * s
+		var top := c + Vector2(x, -8.0 * s + absf(float(i) - 1.0) * -4.0 * s)
+		var tip := top + Vector2((float(i) - 1.0) * 6.0, 34.0 + (6.0 if i == 1 else 0.0)) * s
+		b.tri(top + Vector2(-7, 0) * s, tip, top + Vector2(7, 0) * s, Color("efe6d0"))
+		b.tri(top + Vector2(-2, 0) * s, tip, top + Vector2(7, 0) * s, Color("c9bfa6"))

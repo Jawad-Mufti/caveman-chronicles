@@ -19,8 +19,9 @@ static func _player(n: Node) -> CaveMan:
 
 ## ================================================================ BURROW
 class Burrow extends Node2D:
+	## The mound on top of the Dig's crust. A MEGA STOMP on it breaks the crust
+	## open (the level opens the blocks under it); then it is just a broken rim.
 	signal opened
-	signal entered
 	var open := false
 	var _t := 0.0
 	var _cooldown := 1.0
@@ -63,23 +64,19 @@ class Burrow extends Node2D:
 			s[0] = (s[0] as Vector2) + (s[1] as Vector2) * delta
 			s[2] = float(s[2]) - delta
 		_shards = _shards.filter(func(s): return float(s[2]) > 0.0)
-		if open and _cooldown <= 0.0:
-			var p := Underground._player(self)
-			if p != null and not p.dead and p.is_on_floor() and absf(p.global_position.x - global_position.x) < 24.0 \
-					and absf(p.global_position.y - global_position.y) < 8.0:
-				_cooldown = 2.0
-				entered.emit()
 		if LevelBase.near_view(self):
 			queue_redraw()
 
 	func _draw() -> void:
 		var b := Batch.new()
 		if open:
-			b.ellipse(Vector2(0, 2), 40, 10, Color("0b0706"))
-			b.ellipse(Vector2(0, 0), 34, 6, Color("1a100b"))
+			# the broken rim of the crust, and roots hanging into the dark
+			for s in [-1.0, 1.0]:
+				b.tri(Vector2(s * 82.0, 0), Vector2(s * 66.0, -10), Vector2(s * 56.0, 2), Color("9a7048"))
+				b.tri(Vector2(s * 70.0, 0), Vector2(s * 58.0, -6), Vector2(s * 44.0, 3), Color("7a5536"))
 			for i in 4:
-				var x := -24.0 + i * 16.0
-				b.line(Vector2(x, 0), Vector2(x + sin(_t + i) * 3.0, 18.0 + (i % 2) * 8.0), Color("3a2617"), 2.0)
+				var x := -60.0 + i * 40.0
+				b.line(Vector2(x, 2), Vector2(x + sin(_t + i) * 3.0, 22.0 + (i % 2) * 10.0), Color("3a2617"), 2.0)
 		else:
 			# a mound of dry earth, crusted and cracked; something looks out
 			var mound := PackedVector2Array()
@@ -462,3 +459,89 @@ class Angler extends Area2D:
 			for s in [-1.0, 1.0]:
 				if fmod(_t * 0.7 + s, 3.0) > 0.2:
 					g.draw_circle(o + Vector2(s * 20.0, 10), 3.0, Color(1, 0.95, 0.6, 0.35))
+
+
+## ================================================================ UPDRAFT
+class Updraft extends Node2D:
+	## A chimney of warm air rising out of the deep: step into it and he floats
+	## up, all the way to the ground above (through the root mat over its
+	## mouth), steering left and right as he goes. Motes and glow show it.
+	const LIFT := -620.0
+	var x0 := 0.0
+	var x1 := 100.0
+	var top := 0.0
+	var bottom := 1000.0
+	var _t := 0.0
+	var _motes: Array = []
+
+	func _ready() -> void:
+		position = Vector2(x0, top)        # (it works in world space; drawing subtracts this)
+		z_index = 1
+		add_to_group("glow")
+		for i in 26:
+			_motes.append([randf_range(x0, x1), randf_range(top, bottom), randf_range(80, 160)])
+
+	func _physics_process(delta: float) -> void:
+		_t += delta
+		var p := Underground._player(self)
+		if p != null and not p.dead:
+			var at := p.global_position
+			if at.x > x0 and at.x < x1 and at.y > top and at.y < bottom + 4.0:
+				p.velocity.y = move_toward(p.velocity.y, LIFT, 2600.0 * delta)
+				p.launch(p.velocity.y)            # keeps his jumps fresh, no tumbling
+		for m in _motes:
+			m[1] = float(m[1]) - float(m[2]) * delta
+			if float(m[1]) < top:
+				m[1] = bottom
+				m[0] = randf_range(x0, x1)
+		if LevelBase.near_view(self):
+			queue_redraw()
+
+	func _draw() -> void:
+		var b := Batch.new()
+		var w := x1 - x0
+		for i in 3:
+			var sx := x0 + w * (0.25 + 0.25 * i)
+			var pts := PackedVector2Array()
+			for j in 12:
+				var y := lerpf(bottom, top, j / 11.0)
+				pts.append(Vector2(sx + sin(_t * 2.0 + j * 0.8 + i) * 10.0, y) - position)
+			b.polyline(pts, Color(1.0, 0.85, 0.6, 0.12), 6.0)
+		for m in _motes:
+			b.circle(Vector2(m[0], m[1]) - position, 2.0, Color(1.0, 0.85, 0.55, 0.7), 6)
+		b.draw(self)
+
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
+		for m in _motes:
+			var p := Vector2(m[0], m[1])
+			if absf(p.x - global_position.x) < 2000.0:
+				g.draw_circle(p, 4.0, Color(1.0, 0.8, 0.45, 0.45))
+
+
+## ================================================================ LID
+class Lid extends StaticBody2D:
+	## A mat of roots over an updraft's mouth, on the ground: he walks on it;
+	## from below, the rising air carries him up through it.
+	var w := 120.0
+
+	func _ready() -> void:
+		collision_layer = 1
+		collision_mask = 0
+		var cs := CollisionShape2D.new()
+		var sh := RectangleShape2D.new()
+		sh.size = Vector2(w, 12)
+		cs.shape = sh
+		cs.position = Vector2(w * 0.5, 6)
+		cs.one_way_collision = true
+		add_child(cs)
+		add_to_group("unsafe_ground")
+
+	func _draw() -> void:
+		var b := Batch.new()
+		b.rect(Rect2(0, 0, w, 10), Color("2a1c12"))
+		for i in int(w / 14.0):
+			var x := 6.0 + i * 14.0
+			b.line(Vector2(x, 0), Vector2(x + 10.0, 10), Color("5e452f"), 3.0)
+			b.line(Vector2(x + 10.0, 0), Vector2(x, 10), Color("4a3220"), 2.0)
+		b.rect(Rect2(0, -2, w, 3), Color("4f9a4c"))
+		b.draw(self)

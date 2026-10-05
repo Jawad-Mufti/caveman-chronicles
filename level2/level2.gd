@@ -45,7 +45,7 @@ var monkey_kills := 0
 var _near_elder := false
 var _callouts := 0
 var _callout_t := 0.0
-var _region := 0             ## 0 the woods, 1 the Weeping Cave, 2 the Rattling Cave, 3 the fight, 4 the Root Hollows, 5 the Dig
+var _region := 0             ## 0 the woods (and the underground below it), 1 the Weeping Cave, 2 the Rattling Cave, 3 the fight
 var _moving := false
 var _mouths: Array = []
 
@@ -89,8 +89,7 @@ func _ready() -> void:
 	_build_cave_trials()
 	_build_sky_lanes()
 	_build_sky_lanes_2()
-	_build_deep()
-	_build_dig()
+	_build_under()
 	_build_windy()
 	_build_gorge()
 	_build_steppe()
@@ -560,10 +559,6 @@ func _move_player(at: Vector2, facing: int) -> void:
 
 
 func _region_at(x: float) -> int:
-	if x >= DIG.position.x:
-		return 5
-	if x >= DEEP.position.x:
-		return 4
 	if x >= CAVE_B.position.x:
 		return 2
 	if x >= CAVE_A.position.x:
@@ -581,12 +576,6 @@ func _apply_region(r: int) -> void:
 		rect = CAVE_B
 	elif r == 3:
 		rect = Rect2(ARENA.position.x, cam_top, ARENA.size.x, 1200 - cam_top)
-	elif r == 4:
-		rect = DEEP
-	elif r == 5:
-		rect = DIG
-	# the Dig goes far deeper than any pit: no "fell" there
-	fall_y = DIG.end.y + 100.0 if r == 5 else FALL_Y
 	cam.limit_left = int(rect.position.x)
 	cam.limit_right = int(rect.end.x)
 	cam.limit_top = int(rect.position.y)
@@ -1965,6 +1954,7 @@ func _on_bonfire(fire: NightWoods.Bonfire) -> void:
 
 func _process(delta: float) -> void:
 	_update_talkers()
+	_update_under()
 	super._process(delta)
 	_told_out = maxf(_told_out - delta, 0.0)
 	hud.set_torch(player.has_torch, player.torch_fuel)
@@ -2066,167 +2056,6 @@ func _relic(r: Array) -> void:
 	add_child(relic)
 
 
-## The Root Hollows: the burrow in the graveyard, and the world under it.
-var _burrow: Underground.Burrow
-
-
-func _build_deep() -> void:
-	_burrow = Underground.Burrow.new()
-	_burrow.position = Vector2(DEEP_BURROW, GROUND_Y)
-	_burrow.open = GameState.is_taken("level2", "burrow0")
-	_burrow.opened.connect(func() -> void:
-		GameState.take("level2", "burrow0", 0)
-		hud.say("It caves in... there's a way DOWN. Walk into the hole!", 4.0))
-	_burrow.entered.connect(_enter_dig)
-	add_child(_burrow)
-	_note(DEEP_BURROW - 220.0, "Eyes blink inside that mound... it would take a MEGA STOMP to break.", 4.5)
-	var back := Caves.CaveBackdrop.new()
-	back.rect = DEEP
-	add_child(back)
-	for r in DEEP_ROCK:
-		add_child(Caves.CaveRock.new(Rect2(r[0], r[1], r[2], r[3]), r[4]))
-	for w in DEEP_WORMS:
-		var worms := Underground.GlowWorms.new()
-		worms.position = Vector2(w[0], w[1])
-		worms.width = w[2]
-		worms.reach = w[3]
-		add_child(worms)
-	var angler := Underground.Angler.new()
-	angler.position = Vector2(DEEP_ANGLER[0], DEEP_ANGLER[1])
-	angler.drop = DEEP_ANGLER[2]
-	add_child(angler)
-	var snail := Underground.CrystalSnail.new()
-	snail.x0 = DEEP_SNAIL[0]
-	snail.x1 = DEEP_SNAIL[1]
-	snail.position = Vector2((DEEP_SNAIL[0] + DEEP_SNAIL[1]) * 0.5, DEEP_SNAIL[2])
-	snail.holding = not GameState.is_taken("level2", "r3")
-	snail.cracked.connect(func(at: Vector2) -> void:
-		_relic.call_deferred([at.x, at.y, "glow_crystal", "r3"]))
-	add_child(snail)
-	for r in DEEP_RELICS:
-		_relic(r)
-	for i in DEEP_LOOT.size():
-		var l: Array = DEEP_LOOT[i]
-		_treasure(l[2], "u%d" % i, Vector2(l[0], l[1]))
-	var out := Caves.CaveExit.new()
-	out.position = Vector2(DEEP.end.x - 20.0, 640.0)      # against the end wall, like the caves
-	out.side = 1
-	out.player = player
-	out.left.connect(_leave_deep)
-	add_child(out)
-
-
-func _enter_deep() -> void:
-	if _moving:
-		return
-	_moving = true
-	hud.through_black(func() -> void:
-		_move_player(DEEP_IN, 1)
-		_secrets["hollows"] = true
-		hud.say("The Root Hollows. Something glows down here...", 3.0)
-	)
-
-
-func _leave_deep() -> void:
-	if _moving:
-		return
-	_moving = true
-	hud.through_black(func() -> void:
-		_move_player(DEEP_OUT, 1)
-	)
-
-
-## ---------------------------------------------------------------- the Dig
-func _build_dig() -> void:
-	var back := Caves.CaveBackdrop.new()
-	back.rect = DIG
-	add_child(back)
-	for r in DIG_ROCK:
-		add_child(Caves.CaveRock.new(Rect2(r[0], r[1], r[2], r[3]), r[4]))
-	# the earth: dirt, some stones, the Sun Stone's hollow, packed clay, and
-	# a few blocks with something in them
-	var grid := Dig.DigGrid.new()
-	var cols: int = DIG_GRID[2]
-	var rows: int = DIG_GRID[3]
-	grid.cols = cols
-	grid.rows = rows
-	grid.position = Vector2(DIG_GRID[0], DIG_GRID[1])
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 4242
-	var cells := PackedInt32Array()
-	cells.resize(cols * rows)
-	var free_dirt: Array = []
-	for y in rows:
-		for x in cols:
-			var kind := Dig.DIRT
-			if y >= DIG_CLAY[0] and y <= DIG_CLAY[1]:
-				kind = Dig.CLAY
-			elif y >= DIG_POCKET[0] and y <= DIG_POCKET[1] and x >= DIG_POCKET[2] and x <= DIG_POCKET[3]:
-				kind = Dig.AIR
-			elif y >= 2 and rng.randf() < 0.18:
-				kind = Dig.STONE
-			cells[y * cols + x] = kind
-			if kind == Dig.DIRT and y >= 2 and y < DIG_CLAY[0] - 1:
-				free_dirt.append(y * cols + x)
-	grid.cells = cells
-	for i in DIG_LOOT.size():
-		var at: int = free_dirt[(i * 37 + 11) % free_dirt.size()]
-		while grid.loot.has(at):
-			at = free_dirt[(free_dirt.find(at) + 1) % free_dirt.size()]
-		grid.loot[at] = [DIG_LOOT[i], "dg%d" % i]
-		_count_treasure(DIG_LOOT[i])
-	grid.clay_needs_shovel.connect(func() -> void:
-		if not GameState.has_item("shovel"):
-			GameState.open_mystery("shovel")
-		hud.say("Packed clay, hard as stone. A SHOVEL could cut it... and there are old paintings on the wall.", 4.5))
-	# the clue: someone painted where the shovel went
-	var painting := Dig.Painting.new()
-	painting.position = Vector2(43170, DIG_GRID[1] + DIG_CLAY[0] * Dig.TILE - 120.0)
-	add_child(painting)
-	add_child(grid)
-	# the Sun Stone, in its hollow
-	var stone := Dig.SunStone.new()
-	stone.position = Vector2(DIG_GRID[0] + (DIG_POCKET[2] + DIG_POCKET[3] + 1) * Dig.TILE * 0.5, DIG_GRID[1] + (DIG_POCKET[1] + 1) * Dig.TILE)
-	stone.spent = GameState.abilities.has("sunfire")
-	stone.taken.connect(_learn_sunfire)
-	add_child(stone)
-	# ways out: up at the top, the root tunnel above the clay, and the passage
-	# at the bottom into the Root Hollows
-	for e in [[DIG_IN.y, -1], [DIG_GRID[1] + DIG_CLAY[0] * Dig.TILE, -1]]:
-		var up := Caves.CaveExit.new()
-		up.position = Vector2(42550.0, e[0])
-		up.side = e[1]
-		up.player = player
-		up.left.connect(_leave_dig)
-		add_child(up)
-	var down := Caves.CaveExit.new()
-	down.position = Vector2(DIG.end.x - 20.0, 2080.0)
-	down.side = 1
-	down.player = player
-	down.left.connect(_enter_deep)
-	add_child(down)
-
-
-func _enter_dig() -> void:
-	if _moving:
-		return
-	_moving = true
-	hud.through_black(func() -> void:
-		_move_player(DIG_IN, 1)
-		_secrets["dig"] = true
-		hud.say("Earth all the way down. Hold DOWN and HIT to dig!", 4.0)
-	)
-
-
-func _leave_dig() -> void:
-	if _moving:
-		return
-	_moving = true
-	hud.through_black(func() -> void:
-		_move_player(Vector2(DEEP_BURROW + 70.0, GROUND_Y), 1)
-	)
-
-
 ## The windy heights over the Moon Garden, and the bramble with the shovel.
 func _build_windy() -> void:
 	for r in WINDY_ROCKS:
@@ -2279,6 +2108,203 @@ func _got_shovel() -> void:
 	card.icon = func(c: Control) -> void:
 		var b := Batch.new()
 		Dig.draw_shovel(b, Vector2.ZERO, 2.2)
+		b.draw(c)
+	card.player = player
+	add_child(card)
+
+
+## ---------------------------------------------------------------- underground
+## The Dig, the Gulper's den, the Root Hollows and the two updrafts — all in
+## the world, under the graveyard and the Tar Pits (see the UNDER tables).
+var _burrow: Underground.Burrow
+var _grid: Dig.DigGrid
+var _gulper: Dig.Gulper
+var _seal: Dig.DenSeal
+
+
+func _build_under() -> void:
+	var back := Caves.CaveBackdrop.new()
+	back.rect = UNDER
+	add_child(back)
+	for r in UNDER_ROCK:
+		add_child(Caves.CaveRock.new(Rect2(r[0], r[1], r[2], r[3]), r[4]))
+	# the shaft: crust, dirt, stones, the Sun Stone's hollow, packed clay
+	var cols: int = DIG_GRID[2]
+	var rows: int = DIG_GRID[3]
+	_grid = Dig.DigGrid.new()
+	_grid.cols = cols
+	_grid.rows = rows
+	_grid.position = Vector2(DIG_GRID[0], DIG_GRID[1])
+	var crust_open := GameState.is_taken("level2", "burrow0")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	var cells := PackedInt32Array()
+	cells.resize(cols * rows)
+	var free_dirt: Array = []
+	for y in rows:
+		for x in cols:
+			var kind := Dig.DIRT
+			if y == 0:
+				kind = Dig.AIR if crust_open and x >= 2 and x <= 5 else Dig.CRUST
+			elif y >= DIG_CLAY[0] and y <= DIG_CLAY[1]:
+				kind = Dig.CLAY
+			elif y >= DIG_POCKET[0] and y <= DIG_POCKET[1] and x >= DIG_POCKET[2] and x <= DIG_POCKET[3]:
+				kind = Dig.AIR
+			elif y >= 2 and rng.randf() < 0.18:
+				kind = Dig.STONE
+			cells[y * cols + x] = kind
+			if kind == Dig.DIRT and y >= 2 and y < DIG_CLAY[0] - 1:
+				free_dirt.append(y * cols + x)
+	_grid.cells = cells
+	for i in DIG_LOOT.size():
+		var at: int = free_dirt[(i * 37 + 11) % free_dirt.size()]
+		while _grid.loot.has(at):
+			at = free_dirt[(free_dirt.find(at) + 1) % free_dirt.size()]
+		_grid.loot[at] = [DIG_LOOT[i], "dg%d" % i]
+		_count_treasure(DIG_LOOT[i])
+	_grid.clay_needs_shovel.connect(func() -> void:
+		if not GameState.has_item("shovel"):
+			GameState.open_mystery("shovel")
+		hud.say("Packed clay, hard as stone. A SHOVEL could cut it... and there are old paintings on the wall.", 4.5))
+	add_child(_grid)
+	# the mound on the crust: a MEGA STOMP opens the shaft
+	_burrow = Underground.Burrow.new()
+	_burrow.position = Vector2(float(DIG_GRID[0]) + cols * Dig.TILE * 0.5, GROUND_Y)
+	_burrow.open = crust_open
+	_burrow.opened.connect(func() -> void:
+		GameState.take("level2", "burrow0", 0)
+		_grid.open_crust(2, 5)
+		hud.say("The crust breaks! Earth all the way down: hold DOWN and HIT to dig.", 4.5))
+	add_child(_burrow)
+	var hint := World.Trigger.new(Rect2(_burrow.position.x - 260.0, 100, 60, 900))
+	hint.tripped.connect(func() -> void:
+		if not _burrow.open:
+			hud.say("Eyes blink inside that mound... it would take a MEGA STOMP to break.", 4.5))
+	add_child(hint)
+	# the Sun Stone, in its hollow
+	var stone := Dig.SunStone.new()
+	stone.position = Vector2(float(DIG_GRID[0]) + (DIG_POCKET[2] + DIG_POCKET[3] + 1) * Dig.TILE * 0.5, float(DIG_GRID[1]) + (DIG_POCKET[1] + 1) * Dig.TILE)
+	stone.spent = GameState.abilities.has("sunfire")
+	stone.taken.connect(_learn_sunfire)
+	add_child(stone)
+	# the painting by the clay, on the shaft's right wall: where the shovel went
+	var painting := Dig.Painting.new()
+	painting.position = Vector2(float(DIG_GRID[0]) + cols * Dig.TILE + 150.0, float(DIG_GRID[1]) + DIG_CLAY[0] * Dig.TILE - 120.0)
+	add_child(painting)
+	# the den, off the shaft: claw marks show where; a short dig sideways
+	var marks := Dig.ClawMarks.new()
+	marks.position = Vector2(float(DIG_GRID[0]) + cols * Dig.TILE - 30.0, DEN_PASSAGE[1] + 30.0)
+	add_child(marks)
+	var passage := Dig.DigGrid.new()
+	passage.cols = DEN_PASSAGE[2]
+	passage.rows = DEN_PASSAGE[3]
+	passage.position = Vector2(DEN_PASSAGE[0], DEN_PASSAGE[1])
+	var pc := PackedInt32Array()
+	pc.resize(passage.cols * passage.rows)
+	pc.fill(Dig.DIRT)
+	passage.cells = pc
+	add_child(passage)
+	var den_back := Caves.CaveBackdrop.new()
+	den_back.rect = DEN
+	add_child(den_back)
+	_seal = Dig.DenSeal.new()
+	_seal.position = Vector2(DEN.position.x - 10.0, DEN_PASSAGE[1])
+	add_child(_seal)
+	if not GameState.has_item("gulper_teeth"):
+		_gulper = Dig.Gulper.new()
+		_gulper.position = Vector2(DEN.get_center().x, DEN.end.y)   # near_view needs it in the den
+		_gulper.floor_y = DEN.end.y
+		_gulper.x0 = DEN.position.x + 30.0
+		_gulper.x1 = DEN.end.x - 30.0
+		_gulper.defeated.connect(_on_gulper_beaten)
+		add_child(_gulper)
+	# the updrafts, and the root mats over their mouths
+	for u in UPDRAFTS:
+		var up := Underground.Updraft.new()
+		up.x0 = u[0]
+		up.x1 = u[1]
+		up.top = u[2]
+		up.bottom = u[3]
+		add_child(up)
+	for l in LIDS:
+		var lid := Underground.Lid.new()
+		lid.position = Vector2(l[0], GROUND_Y)
+		lid.w = l[1]
+		add_child(lid)
+	# the Root Hollows
+	for w in DEEP_WORMS:
+		var worms := Underground.GlowWorms.new()
+		worms.position = Vector2(w[0], w[1])
+		worms.width = w[2]
+		worms.reach = w[3]
+		add_child(worms)
+	var angler := Underground.Angler.new()
+	angler.position = Vector2(DEEP_ANGLER[0], DEEP_ANGLER[1])
+	angler.drop = DEEP_ANGLER[2]
+	add_child(angler)
+	var snail := Underground.CrystalSnail.new()
+	snail.x0 = DEEP_SNAIL[0]
+	snail.x1 = DEEP_SNAIL[1]
+	snail.position = Vector2((DEEP_SNAIL[0] + DEEP_SNAIL[1]) * 0.5, DEEP_SNAIL[2])
+	snail.holding = not GameState.is_taken("level2", "r3")
+	snail.cracked.connect(func(at: Vector2) -> void:
+		_relic.call_deferred([at.x, at.y, "glow_crystal", "r3"]))
+	add_child(snail)
+	for r in DEEP_RELICS:
+		_relic(r)
+	for i in DEEP_LOOT.size():
+		var l2: Array = DEEP_LOOT[i]
+		_treasure(l2[2], "u%d" % i, Vector2(l2[0], l2[1]))
+
+
+## Every frame: under the ground the camera may go deep and there is no
+## "fell" (it is a long way down on purpose); and the den's trap.
+func _update_under() -> void:
+	if player == null or _region != 0:
+		return
+	var p := player.global_position
+	var under := p.x > UNDER.position.x and p.x < UNDER.end.x
+	cam.limit_bottom = int(UNDER.end.y) if under else 1200
+	fall_y = UNDER.end.y + 200.0 if under else FALL_Y
+	if _gulper == null or not is_instance_valid(_gulper) or _gulper.state == "dead":
+		return
+	var inside := DEN.grow(-20.0).has_point(p + Vector2(0, -20)) and not player.dead
+	if inside and _gulper.state == "sleep":
+		# the trap: rocks crash down behind him, and it wakes
+		_seal.set_shut(true)
+		_gulper.wake()
+		shake(12.0, 0.6)
+		hud.title_card("THE GULPER", "it swims in the earth — hit it when it's stuck!")
+		hud.say("CRASH! The way out is blocked...", 3.0)
+	elif player.dead or not DEN.grow(60.0).has_point(p):
+		if _seal.shut:
+			_seal.set_shut(false)
+			_gulper.reset()
+			hud.set_boss(-1.0)
+	if _seal.shut:
+		hud.set_boss(float(_gulper.hp) / Dig.Gulper.HP)
+
+
+func _on_gulper_beaten(at: Vector2) -> void:
+	_seal.set_shut(false)
+	hud.set_boss(-1.0)
+	hud.say("The rocks shift... the way out is open.", 3.0)
+	var teeth := Dig.TeethPickup.new()
+	teeth.position = at + Vector2(0, -6)
+	teeth.picked.connect(_got_teeth)
+	add_child.call_deferred(teeth)
+
+
+func _got_teeth() -> void:
+	GameState.give_item("gulper_teeth")
+	if _gulper != null and is_instance_valid(_gulper):
+		_gulper.queue_free()
+	var card := ItemGet.new()
+	card.title = "GULPER TEETH"
+	card.line = "Sharper than flint, harder than stone. A toolmaker could make something FIERCE out of these."
+	card.icon = func(c: Control) -> void:
+		var b := Batch.new()
+		Dig.draw_teeth(b, Vector2.ZERO, 2.4)
 		b.draw(c)
 	card.player = player
 	add_child(card)

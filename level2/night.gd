@@ -74,6 +74,8 @@ var moon := Vector2(1010, 104)
 var moon_r := 70.0
 ## Moonlight from above: 1 outdoors, 0 underground.
 var sky_lift := 1.0
+const UNDER_Y := 760.0          ## below this he is under the ground
+const UNDER_DARK := 0.9         ## how dark it gets, deep down
 
 var _mat: ShaderMaterial
 var _rect: ColorRect
@@ -174,13 +176,17 @@ func shelter_at(p: Vector2) -> float:
 
 
 func _process(_delta: float) -> void:
+	var under := 0.0
 	if player != null:
-		ambient = clampf((darkness_at(player.global_position.x) + extra) * DARK_SCALE, 0.0, 0.97)
+		# underground (the Dig, the Hollows) it darkens with depth, and the moon is gone
+		under = clampf((player.global_position.y - UNDER_Y) / 500.0, 0.0, 1.0)
+		var d := lerpf(darkness_at(player.global_position.x), UNDER_DARK, under)
+		ambient = clampf((d + extra) * DARK_SCALE, 0.0, 0.97)
 	var xf := get_viewport().get_canvas_transform()
 	var zoom := xf.get_scale().x
 	var view := get_viewport().get_visible_rect().size
 	var packed: Array[Vector4] = []
-	packed.append(Vector4(moon.x, moon.y, moon_r, 0.0))
+	packed.append(Vector4(moon.x, moon.y, moon_r * (1.0 - under), 0.0))
 	for l in _l:
 		if packed.size() >= MAX_LIGHTS:
 			break
@@ -194,7 +200,7 @@ func _process(_delta: float) -> void:
 		packed.append(Vector4.ZERO)
 	_mat.set_shader_parameter("view_size", view)
 	_mat.set_shader_parameter("ambient", ambient)
-	_mat.set_shader_parameter("sky_lift", sky_lift)
+	_mat.set_shader_parameter("sky_lift", sky_lift * (1.0 - under))
 	_mat.set_shader_parameter("count", used)
 	_mat.set_shader_parameter("lights", packed)
 

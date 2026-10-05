@@ -10,7 +10,7 @@ const FALL_Y := 1020.0
 ## Reachability budget: a jump climbs ~133 px and carries ~227 px. Every step
 ## here asks for 100-125 up; the mountain's are the ones near the top of that.
 ## Ground runs: [x0, x1] at GROUND_Y.
-const FLOORS := [[0.0, 1500.0], [1640.0, 2600.0], [2760.0, 2900.0], [3350.0, 4060.0], [5420.0, 5680.0], [8750.0, 10500.0], [11000.0, 12780.0], [12980.0, 13120.0], [13540.0, 13660.0], [14180.0, 14650.0], [16900.0, 17150.0], [19340.0, 20400.0],
+const FLOORS := [[0.0, 1500.0], [1640.0, 2600.0], [2760.0, 2900.0], [3350.0, 4060.0], [5420.0, 5680.0], [8750.0, 10500.0], [11000.0, 11300.0], [11480.0, 11570.0], [11890.0, 12780.0], [12980.0, 13120.0], [13540.0, 13660.0], [14300.0, 14650.0], [16900.0, 17150.0], [19340.0, 20400.0],
 	[21120.0, 23620.0], [23730.0, 24100.0], [24230.0, 24640.0], [24780.0, 24940.0], [25100.0, 25600.0], [26000.0, 26300.0], [26700.0, 26950.0], [27400.0, LEVEL_W]]
 ## The hollow where the pack waits: [x, floor y, width].
 const HOLLOW := [2900.0, 700.0, 450.0]
@@ -574,58 +574,60 @@ const SKY_LANES_2 := [
 	},
 ]
 
-## The Root Hollows: underground, under the middle of the level. In through
-## a crusted burrow in the Steppe graveyard (STOMP it open), out by a root
-## stair near the Tar Pits. A camera region of its own, like the caves.
-const DEEP := Rect2(38400, 150, 3000, 800)
-const DEEP_BURROW := 11650.0            ## the mound, between the graveyard skeletons (clear of the rune seal at 12200)
-const DEEP_IN := Vector2(38520, 700)
-const DEEP_OUT := Vector2(12640, 600)   ## back up into the night, before the tar
-const DEEP_ROCK := [                     ## [x, y, w, h, kind]
-	[38400.0, 700.0, 800.0, 250.0, "floor"],
-	[38820.0, 590.0, 110.0, 22.0, "floor"], [38980.0, 470.0, 130.0, 22.0, "floor"],   # up to the amber nook
-	[39200.0, 780.0, 300.0, 170.0, "floor"],                                          # a step down; then a pit
-	[39620.0, 780.0, 380.0, 170.0, "floor"],                                          # under the glow-worms
-	[40000.0, 740.0, 700.0, 210.0, "floor"],                                          # the angler's hall
-	[40700.0, 700.0, 400.0, 250.0, "floor"],                                          # the snail's garden
-	[41100.0, 640.0, 300.0, 310.0, "floor"],                                          # the root stair out
-	[38400.0, 150.0, 3000.0, 160.0, "roof"],
-	[38400.0, 310.0, 420.0, 80.0, "roof"],
-	[40150.0, 310.0, 420.0, 150.0, "roof"],                                           # low: the angler hides in it
-	[38380.0, 150.0, 40.0, 800.0, "wall"], [41380.0, 150.0, 40.0, 800.0, "wall"],   # the ends: solid rock
-]
-const DEEP_WORMS := [[38480.0, 390.0, 300.0, 200.0], [39640.0, 310.0, 340.0, 465.0]]   ## [x, roof y, width, reach]
-const DEEP_ANGLER := [40360.0, 460.0, 230.0]       ## [x, roof y, how far its lure hangs]
-const DEEP_SNAIL := [40740.0, 41060.0, 700.0]      ## [from x, to x, floor y]; it carries "r3"
-const DEEP_RELICS := [[39045.0, 440.0, "amber_bug", "r4"], [40640.0, 700.0, "ivory", "r5"]]
-const DEEP_LOOT := [                                ## [x, y, kind]; ids "u0", "u1"...
-	[38620.0, 670.0, "shell"], [38700.0, 670.0, "shell"], [38875.0, 560.0, "shell"], [39030.0, 440.0, "conch"],
-	[39300.0, 750.0, "shell"], [39560.0, 700.0, "shell"], [39700.0, 750.0, "bone"], [39900.0, 750.0, "shell"],
-	[40100.0, 710.0, "shell"], [40500.0, 710.0, "conch"], [40800.0, 670.0, "shell"], [41000.0, 670.0, "shell"],
-	[41250.0, 610.0, "bone"],
-]
-
-## The Dig: the way down to the Root Hollows, through the burrow (a MEGA STOMP
-## breaks its crust). A column of earth to dig through, Terraria-style: DOWN +
-## HIT digs below, HIT digs ahead. The Sun Stone (SUNFIRE) waits halfway down;
-## a layer of packed clay near the bottom needs the SHOVEL; under it, a passage
-## to the Hollows. A root tunnel in the left wall, just above the clay, climbs
-## back out to the graveyard. Its own camera region (5).
-const DIG := Rect2(42000, 0, 1700, 2400)
-const DIG_GRID := [42690.0, 360.0, 8, 40]     ## [x, y, columns, rows] of 40-px blocks
-const DIG_POCKET := [20, 21, 2, 5]            ## rows 20-21, columns 2-5: the Sun Stone's hollow
-const DIG_CLAY := [35, 37]                    ## rows of packed clay
-const DIG_IN := Vector2(42870, 360)           ## the middle of a block: he digs straight down
-const DIG_ROCK := [                            ## [x, y, w, h, kind]
-	[42000.0, 0.0, 1700.0, 220.0, "roof"],
-	[42000.0, 220.0, 550.0, 2180.0, "wall"],
-	[42550.0, 360.0, 140.0, 1280.0, "wall"], [42550.0, 1760.0, 140.0, 640.0, "wall"],   # the gap between: the root tunnel out
-	[43010.0, 360.0, 140.0, 1600.0, "wall"],
-	[43150.0, 220.0, 550.0, 1740.0, "wall"],
-	[42690.0, 2080.0, 1010.0, 320.0, "floor"],                                          # the passage to the Hollows
-	[43680.0, 1900.0, 20.0, 200.0, "wall"],
-]
+## ---------------------------------------------------------------- underground
+## Under the Steppe graveyard and the Tar Pits, right below the ground he walks
+## on: no doors, the world just goes on down.
+##   The Dig     a column of earth in the graveyard ground (x 11570-11890).
+##               Its crust is baked hard: a MEGA STOMP breaks it. Then DOWN +
+##               HIT digs down, HIT digs ahead; stones take three blows; packed
+##               CLAY near the bottom needs the SHOVEL. The Sun Stone (SUNFIRE)
+##               sits in a hollow halfway down. Under the clay it breaks through
+##               into the Root Hollows' first hall.
+##   The den     off the shaft, behind bones and claw marks in the wall: dig
+##               sideways, and the rocks fall in behind him — THE GULPER.
+##   The Root Hollows  the halls under the Tar Pits.
+##   Updrafts    two chimneys of warm, rising air float him back up to the
+##               ground: one beside the shaft (the root tunnel above the clay
+##               leads into it), one at the Hollows' far end (up at the creek).
+const UNDER := Rect2(11000, 840, 3700, 1560)       ## everything down here (camera, darkness, no "fell")
+const DIG_GRID := [11570.0, 600.0, 8, 27]          ## [x, y, columns, rows] of 40-px blocks; row 0 is the crust
+const DIG_POCKET := [15, 16, 2, 5]                 ## rows 15-16, columns 2-5: the Sun Stone's hollow
+const DIG_CLAY := [21, 22]                         ## rows of packed clay
 const DIG_LOOT := ["shell", "shell", "shell", "conch", "shell", "shell", "tusk", "shell", "conch", "shell"]   ## ids "dg0"...
+const DEN_PASSAGE := [11890.0, 1080.0, 3, 2]       ## a short dig sideways, off the shaft, into the den
+const DEN := Rect2(12010, 880, 550, 280)           ## THE GULPER's den
+const UNDER_ROCK := [                               ## [x, y, w, h, kind]
+	[11000.0, 840.0, 300.0, 660.0, "wall"],                                          # under the ground, west of the updraft
+	[11480.0, 840.0, 90.0, 510.0, "wall"], [11480.0, 1450.0, 90.0, 50.0, "wall"],     # between the updraft and the shaft (the root tunnel in between)
+	[11890.0, 840.0, 120.0, 240.0, "wall"], [11890.0, 1160.0, 120.0, 340.0, "wall"],  # round the passage to the den
+	[12010.0, 840.0, 770.0, 40.0, "roof"], [12010.0, 1160.0, 770.0, 340.0, "floor"], [12560.0, 880.0, 220.0, 280.0, "wall"],
+	[12780.0, 840.0, 1400.0, 660.0, "wall"],                                         # under the tar
+	[14300.0, 840.0, 40.0, 660.0, "wall"], [14340.0, 840.0, 310.0, 660.0, "wall"],    # under the creek, east of its updraft
+	# the Root Hollows
+	[11300.0, 2050.0, 800.0, 250.0, "floor"],
+	[11720.0, 1940.0, 110.0, 22.0, "floor"], [11880.0, 1820.0, 130.0, 22.0, "floor"],   # up to the amber nook
+	[12100.0, 2130.0, 300.0, 170.0, "floor"],                                          # a step down; then a pit
+	[12520.0, 2130.0, 380.0, 170.0, "floor"],                                          # under the glow-worms
+	[12900.0, 2090.0, 700.0, 210.0, "floor"],                                          # the angler's hall
+	[13600.0, 2050.0, 400.0, 250.0, "floor"],                                          # the snail's garden
+	[14000.0, 1990.0, 300.0, 310.0, "floor"],                                          # the far end: the second updraft
+	[11480.0, 1500.0, 90.0, 160.0, "roof"], [11890.0, 1500.0, 2290.0, 160.0, "roof"],
+	[11890.0, 1660.0, 120.0, 80.0, "roof"],
+	[13050.0, 1660.0, 420.0, 150.0, "roof"],                                           # low: the angler hides in it
+	[11260.0, 1500.0, 40.0, 800.0, "wall"], [14280.0, 1500.0, 40.0, 800.0, "wall"],
+]
+const UPDRAFTS := [[11300.0, 11480.0, 520.0, 2050.0], [14180.0, 14280.0, 520.0, 1990.0]]   ## [x0, x1, top, bottom]
+const LIDS := [[11300.0, 180.0], [14180.0, 120.0]]   ## root mats over the updrafts, on the ground: [x, width]
+const DEEP_WORMS := [[11900.0, 1740.0, 110.0, 200.0], [12540.0, 1660.0, 340.0, 465.0]]   ## [x, roof y, width, reach]
+const DEEP_ANGLER := [13260.0, 1810.0, 230.0]       ## [x, roof y, how far its lure hangs]
+const DEEP_SNAIL := [13640.0, 13960.0, 2050.0]      ## [from x, to x, floor y]; it carries "r3"
+const DEEP_RELICS := [[11945.0, 1790.0, "amber_bug", "r4"], [13540.0, 2050.0, "ivory", "r5"]]
+const DEEP_LOOT := [                                ## [x, y, kind]; ids "u0", "u1"...
+	[11520.0, 2020.0, "shell"], [11600.0, 2020.0, "shell"], [11775.0, 1910.0, "shell"], [11930.0, 1790.0, "conch"],
+	[12200.0, 2100.0, "shell"], [12460.0, 2050.0, "shell"], [12600.0, 2100.0, "bone"], [12800.0, 2100.0, "shell"],
+	[13000.0, 2060.0, "shell"], [13400.0, 2060.0, "conch"], [13700.0, 2020.0, "shell"], [13900.0, 2020.0, "shell"],
+	[14150.0, 1960.0, "bone"],
+]
 
 ## The windy heights: up from the Moon Garden, before the gorge's first rope.
 ## Gusts blow here (only up in the sky); at the top, the bramble with the
