@@ -32,14 +32,6 @@ static func _cam_x(n: Node) -> float:
 	return cam.get_screen_center_position().x if cam != null else 0.0
 
 
-static func _ellipse(b: Batch, c: Vector2, rx: float, ry: float, col: Color, rot := 0.0) -> void:
-	var pts := PackedVector2Array()
-	for i in 14:
-		var a := i * TAU / 14.0
-		pts.append(c + Vector2(cos(a) * rx, sin(a) * ry).rotated(rot))
-	b.poly(pts, col)
-
-
 ## ================================================================ GROUND
 class Ground extends World.Slab:
 	var crystals: Array = []        ## [local pos, size, colour index]
@@ -132,9 +124,9 @@ class Ground extends World.Slab:
 			var r := rng.randf_range(4, 9)
 			var col: Color = PEBBLES[rng.randi() % PEBBLES.size()]
 			var rot := rng.randf_range(-0.6, 0.6)
-			Turf._ellipse(b, c, r + 1.5, r * 0.7 + 1.5, OUTLINE, rot)
-			Turf._ellipse(b, c, r, r * 0.7, col, rot)
-			Turf._ellipse(b, c + Vector2(-r * 0.25, -r * 0.2), r * 0.45, r * 0.25, col.lightened(0.3), rot)
+			b.ellipse(c, r + 1.5, r * 0.7 + 1.5, OUTLINE, rot)
+			b.ellipse(c, r, r * 0.7, col, rot)
+			b.ellipse(c + Vector2(-r * 0.25, -r * 0.2), r * 0.45, r * 0.25, col.lightened(0.3), rot)
 		# fossils: an ammonite, a fish, an old bone — here and there
 		var fx := rng.randf_range(80, 260)
 		var kind := rng.randi() % 3
@@ -147,7 +139,7 @@ class Ground extends World.Slab:
 					for j in 30:
 						var a := j * 0.42
 						sp.append(fc + Vector2.from_angle(a) * (2.0 + j * 0.55))
-					Turf._ellipse(b, fc, 19, 18, Color(OUTLINE, 0.5))
+					b.ellipse(fc, 19, 18, Color(OUTLINE, 0.5))
 					b.polyline(sp, bone, 3.0)
 				1:
 					b.line(fc + Vector2(-22, 0), fc + Vector2(18, 0), bone, 3.0)
@@ -319,6 +311,7 @@ class Blades extends Node2D:
 			if _wave_t > 0.7:
 				_wave_t = -1.0
 		var wave_k := clampf(1.0 - _wave_t / 0.7, 0.0, 1.0) * _wave_amp
+		var damp := exp(-7.0 * delta)
 		for i in range(i0, i1):
 			var bx := _x[i]
 			var wind := sin(t * 1.7 + bx * 0.045) * 0.1 + sin(t * 0.6 + bx * 0.011) * 0.07
@@ -333,7 +326,7 @@ class Blades extends Node2D:
 					_vel[i] += signf(bx - _wave_x) * 14.0 * wave_k
 			# a spring, so it overshoots and wobbles back
 			_vel[i] += (target - _bend[i]) * 160.0 * delta
-			_vel[i] *= exp(-7.0 * delta)
+			_vel[i] *= damp
 			_bend[i] += _vel[i] * delta
 		if front:
 			_update_flora(delta, px, near, running, p)
@@ -407,7 +400,9 @@ class Blades extends Node2D:
 			var tip := mid + Vector2(sin(a), -cos(a)) * hgt * 0.45
 			var col: Color = GREENS[_col[i]]
 			col = col.darkened(shade)
-			b.poly(PackedVector2Array([base + Vector2(-2.4, 0), mid + Vector2(-1.4, 0), tip, mid + Vector2(1.4, 0), base + Vector2(2.4, 0)]), col)
+			# a quad up to the bend and a triangle to the tip: no triangulating needed
+			b.quad(base + Vector2(-2.4, 0), mid + Vector2(-1.4, 0), mid + Vector2(1.4, 0), base + Vector2(2.4, 0), col)
+			b.tri(mid + Vector2(-1.4, 0), tip, mid + Vector2(1.4, 0), col)
 			if front and i % 3 == 0:
 				b.line(base + Vector2(0.6, -1), mid, col.lightened(0.25), 1.0)
 		if front:

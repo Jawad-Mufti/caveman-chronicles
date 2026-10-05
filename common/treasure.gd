@@ -201,6 +201,7 @@ class Pickup extends Area2D:
 	var level_id := ""
 	var id := ""
 	var vel := Vector2.ZERO        ## for pieces popped out of something
+	const GRAVITY := 1400.0
 	var floor_y := INF             ## the ground where it came from (its safety net)
 	var t := 0.0
 	var _base_y := 0.0
@@ -260,11 +261,18 @@ class Pickup extends Area2D:
 			position.y = _base_y + sin(t * 2.2) * 3.0
 			scale.x = maxf(0.2, absf(cos(t * 2.0)))
 
+	## Sent flying so it comes down on `to` after `tt` seconds, with no hop on
+	## landing (so it stays where it was aimed). `floor_y`: the ground there.
+	func aim_at(to: Vector2, tt: float, ground_y: float) -> void:
+		vel = Vector2((to.x - position.x) / tt, (to.y - position.y - 0.5 * GRAVITY * tt * tt) / tt)
+		floor_y = ground_y
+		_bounced = true
+
 	## One step of flight, checked against the world (layer 1: ground, rock,
 	## walls, ledges, branches) with a ray from where it was to where it's going.
 	func _fly(delta: float) -> void:
 		_flight += delta
-		vel.y = minf(vel.y + 1400.0 * delta, 1100.0)
+		vel.y = minf(vel.y + GRAVITY * delta, 1100.0)
 		var from := global_position
 		var to := from + vel * delta
 		var q := PhysicsRayQueryParameters2D.create(from, to, 1)
@@ -390,6 +398,14 @@ class Breakable extends Area2D:
 		add_child(cs)
 		_base = position
 
+	## Carried by something that moves it (a swinging hoard): where it rests,
+	## and how it is tilted. A whack still shakes it about that spot.
+	func carry_to(at: Vector2, rot: float) -> void:
+		_base = at
+		if _shake <= 0.0:
+			position = at
+		rotation = rot
+
 	func take_hit(_dmg: int, from_dir: int) -> void:
 		if hits <= 0:
 			return
@@ -429,12 +445,8 @@ class Breakable extends Area2D:
 		p.id = tid
 		p.position = global_position + Vector2(0, -30)
 		if land.x < INF:
-			# up and over, down onto the safe spot below (gravity 1400, as Pickup._fly)
-			var tt := randf_range(0.55, 0.65)       # a low arc: under any branch overhead
-			var to := land + Vector2(randf_range(-10, 10), -14)
-			p.vel = Vector2((to.x - p.position.x) / tt, (to.y - p.position.y - 700.0 * tt * tt) / tt)
-			p.floor_y = land.y
-			p._bounced = true                    # no hop: it stays on the spot
+			# up and over, down onto the safe spot below — a low arc, under any branch overhead
+			p.aim_at(land + Vector2(randf_range(-10, 10), -14), randf_range(0.55, 0.65), land.y)
 		elif fountain:
 			# a fountain: high, and spreading out both ways
 			p.vel = Vector2(randf_range(-150, 150), randf_range(-700, -520))

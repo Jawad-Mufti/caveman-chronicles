@@ -200,10 +200,7 @@ class Geyser extends Node2D:
 				var d := p.global_position - global_position
 				var side := 1.0 if d.x >= 0.0 else -1.0
 				if absf(d.x) < WIDTH + 13.0 and p.global_position.y > jet_top() and p.global_position.y - 64.0 < SURFACE:
-					var hp0 := p.hp
-					p.hurt(1, global_position.x - side * 40.0)
-					if p.hp < hp0 and not p.dead:
-						p.velocity = Vector2(side * 70.0, -760.0)      # tossed sky-high (he can steer back down)
+					p.hurt_toss(1, global_position.x - side * 40.0, Vector2(side * 70.0, -760.0))      # tossed sky-high (he can steer back down)
 		if NightWoods.near_view(self):
 			queue_redraw()
 
@@ -343,10 +340,7 @@ class Snapper extends Area2D:
 					_shape.set_deferred("disabled", false)
 			"snap":
 				if over and p.global_position.y > SURFACE - 70.0 and absf(p.global_position.x - position.x) < 48.0 and _st > 0.04:
-					var hp0 := p.hp
-					p.hurt(1, position.x - float(p.facing) * 30.0)
-					if p.hp < hp0 and not p.dead:
-						p.velocity = Vector2(float(p.facing) * 80.0, -800.0)    # CHOMP — and up he goes
+					p.hurt_toss(1, position.x - float(p.facing) * 30.0, Vector2(float(p.facing) * 80.0, -800.0))    # CHOMP — and up he goes
 				if _st > 0.45:
 					state = "sink"
 					_st = 0.0

@@ -25,14 +25,6 @@ const PINK := Color("ff5fd8")
 const WHITE := Color("ffffff")
 
 
-static func ellipse(b: Batch, c: Vector2, rx: float, ry: float, col: Color) -> void:
-	var pts := PackedVector2Array()
-	for i in 16:
-		var a := i * TAU / 16.0
-		pts.append(c + Vector2(cos(a) * rx, sin(a) * ry))
-	b.poly(pts, col)
-
-
 static func tint(level: int, t: float) -> Color:
 	if level >= 2:
 		return Color.from_hsv(fmod(t * 0.9, 1.0), 0.55, 1.0).lerp(GOLD, 0.35)
@@ -279,11 +271,8 @@ class Spot extends Node2D:
 			pk.position = global_position + Vector2(0, -16)
 			# a fountain that comes down on the grass either side of the hole
 			var side := -1.0 if i % 2 == 0 else 1.0
-			var tt := randf_range(0.45, 0.55)        # a low hop: never up onto a ledge overhead
-			var to := global_position + Vector2(side * randf_range(36, 80), -14)
-			pk.vel = Vector2((to.x - pk.position.x) / tt, (to.y - pk.position.y - 700.0 * tt * tt) / tt)
-			pk.floor_y = global_position.y
-			pk._bounced = true
+			# a low hop: never up onto a ledge overhead
+			pk.aim_at(global_position + Vector2(side * randf_range(36, 80), -14), randf_range(0.45, 0.55), global_position.y)
 			if lvl.has_method("_on_treasure_popped"):
 				lvl._on_treasure_popped(pk)
 			lvl.add_child.call_deferred(pk)
@@ -304,8 +293,8 @@ class Spot extends Node2D:
 		var sh := Vector2(sin(_shake * 80.0) * 3.0 * (_shake / 0.4), 0)
 		if broken:
 			# the hole where it was, broken bits round its rim
-			Stomp.ellipse(b, Vector2(0, 4), 34, 9, Color("120b08"))
-			Stomp.ellipse(b, Vector2(0, 2), 30, 6, Color("2a1a12"))
+			b.ellipse(Vector2(0, 4), 34, 9, Color("120b08"))
+			b.ellipse(Vector2(0, 2), 30, 6, Color("2a1a12"))
 			for i in 5:
 				var x := -30.0 + i * 15.0
 				b.tri(Vector2(x - 5, 0), Vector2(x, -5 - (i % 2) * 3.0), Vector2(x + 6, 0), Color("6f675e"))
@@ -328,9 +317,9 @@ class Spot extends Node2D:
 		else:
 			# a round rune-seal: gold veins and a spiral, breathing light
 			var pulse := 0.5 + 0.5 * sin(_t * 2.2)
-			Stomp.ellipse(b, Vector2(0, 0) + sh, 46, 13, Color("1c130d"))
-			Stomp.ellipse(b, Vector2(0, -2) + sh, 43, 11, Color("5d5866"))
-			Stomp.ellipse(b, Vector2(0, -4) + sh, 38, 8, Color("7a7486"))
+			b.ellipse(Vector2(0, 0) + sh, 46, 13, Color("1c130d"))
+			b.ellipse(Vector2(0, -2) + sh, 43, 11, Color("5d5866"))
+			b.ellipse(Vector2(0, -4) + sh, 38, 8, Color("7a7486"))
 			var vein := Color(GOLD, 0.6 + 0.4 * pulse)
 			for i in 6:
 				var a := i * TAU / 6.0 + 0.3

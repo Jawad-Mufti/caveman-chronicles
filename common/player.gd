@@ -2,6 +2,19 @@ class_name CaveMan
 extends CharacterBody2D
 ## The caveman. He never changes across the game, only what he holds.
 ## Origin is at his feet. Drawn as a flat charcoal silhouette.
+##
+## Where things are (search for the "## ----" headers):
+##   constants + state       movement, jumps, weapons, torch, fury, SUNFIRE, STOMP vars
+##   _physics_process        one frame of him: death, timers, fire, hammer charge, walking,
+##                           vines, wall-kick, jumps, attack, throw, _update_stomp, move
+##   weapons                 swings, _apply_swing (every hit lands here), specials
+##   vines                   swinging and letting go
+##   hurt / hurt_toss / die   being hit (Sunfire absorbs, the stomp is untouchable)
+##   torch                   fuel, light() for Night, wood and fire
+##   drawing                 _paint(): the whole rig in design units, one draw call
+##   costumes                skins and their extra pieces
+##   SUNFIRE                 the 30-second power (effects: common/sunfire.gd)
+##   STOMP                   the meteor stomp (effects: common/stomp.gd)
 
 signal hp_changed(hp: int)
 signal died
@@ -127,7 +140,6 @@ var slam_cd := 0.0
 var showing_off := 0.0          ## > 0: holding a new treasure up high (set by the level)
 var _attack_held := 0.0
 ## SUNFIRE (see Sunfire): seconds of it left, and how full the sun is (0..1).
-signal sun_changed(charge: float, left: float)
 var sun_t := 0.0
 var sun_charge := 0.0
 var _sun_prev := false
@@ -1034,6 +1046,18 @@ func hurt(amount: int, from_x: float) -> void:
 		_die()
 	elif berries > 0 and is_inside_tree():
 		get_tree().create_timer(0.45).timeout.connect(_auto_eat)
+
+
+## Hurt, and — if the hit landed — thrown along `toss` instead of the usual
+## knock-back (hazards that bowl him UP rather than sideways off a ledge:
+## geysers, the snapper, swooping bats, guard flies). True if it landed.
+func hurt_toss(amount: int, from_x: float, toss: Vector2) -> bool:
+	var before := hp
+	hurt(amount, from_x)
+	if hp < before and not dead:
+		velocity = toss
+		return true
+	return false
 
 
 ## Put back on solid ground after a fall. Costs one health point, but applies
@@ -2465,7 +2489,6 @@ func add_sun(amount: float) -> void:
 	sun_charge = minf(sun_charge + amount, 1.0)
 	if sun_charge >= 1.0:
 		said.emit("The sun is FULL! Press Q (or SUN) for SUNFIRE!")
-	sun_changed.emit(sun_charge, sun_t)
 
 
 func start_sunfire() -> bool:
@@ -2490,7 +2513,6 @@ func start_sunfire() -> bool:
 		level.shake(9.0, 0.4)
 	Critter.slow_time(get_tree(), 0.45, 0.35)
 	relight(1.0)
-	sun_changed.emit(sun_charge, sun_t)
 	return true
 
 
@@ -2505,7 +2527,6 @@ func end_sunfire() -> void:
 	pop.text = "phew..."
 	pop.position = global_position + Vector2(-24, -110)
 	get_parent().add_child(pop)
-	sun_changed.emit(sun_charge, sun_t)
 
 
 ## Every physics frame: the key, the clock, the embers he sheds.
@@ -2535,8 +2556,6 @@ func _update_sun(delta: float) -> void:
 		_sun_sparks.append([at, Vector2(-velocity.x * 0.25 + randf_range(-30, 30), randf_range(-90, -20)), randf_range(0.35, 0.7)])
 	if sun_t <= 0.0:
 		end_sunfire()
-	elif Engine.get_physics_frames() % 6 == 0:
-		sun_changed.emit(sun_charge, sun_t)
 
 
 func _sun_mul() -> float:

@@ -39,6 +39,8 @@ var player: CaveMan          ## for the ability circles
 var _bar: Control
 var _menu: Control
 var _sun_t := 0.0
+var _shown: Array = []          ## what the meters last drew (see _process)
+var _shells_shown := -1
 
 
 func _ready() -> void:
@@ -171,14 +173,20 @@ func _process(delta: float) -> void:
 	var talking := get_tree().get_first_node_in_group("dialogue") != null
 	_msg.offset_top = -600.0 if talking else -150.0
 	_msg.offset_bottom = -544.0 if talking else -94.0
-	_hits.queue_redraw()
-	_berries.queue_redraw()
-	_boss.queue_redraw()
-	_torch.queue_redraw()
-	# extra hearts push the torch meter along
-	_torch.position.x = 186.0 + maxf(0.0, max_hp - 5) * 30.0
-	_shell_bump = maxf(_shell_bump - delta, 0.0)
-	_shells.queue_redraw()
+	# the meters are redrawn only when what they show has changed
+	var shown := [hp, max_hp, berries, max_berries, rocks, gem, wood, torch_on, snappedf(torch_fuel, 0.004), boss_ratio]
+	if shown != _shown:
+		_shown = shown
+		_hits.queue_redraw()
+		_berries.queue_redraw()
+		_boss.queue_redraw()
+		_torch.queue_redraw()
+		# extra hearts push the torch meter along
+		_torch.position.x = 186.0 + maxf(0.0, max_hp - 5) * 30.0
+	if _shell_bump > 0.0 or shells != _shells_shown:
+		_shell_bump = maxf(_shell_bump - delta, 0.0)
+		_shells_shown = shells
+		_shells.queue_redraw()
 
 
 func say(text: String, seconds: float = 4.0) -> void:
@@ -378,7 +386,7 @@ func _draw_boss() -> void:
 	_boss.draw_rect(Rect2(0, 6, w, 12), Pal.OCHRE, false, 2.0)
 
 
-func add_touch_controls(man: CaveMan, _with_fire: bool = false) -> void:
+func add_touch_controls(man: CaveMan) -> void:
 	var specs := [
 		["<", Vector2(30, 560), "left"],
 		[">", Vector2(170, 560), "right"],

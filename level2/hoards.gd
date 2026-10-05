@@ -64,10 +64,7 @@ class Hoard extends Node2D:
 
 	func _place_box() -> void:
 		var at := global_position + Vector2(sin(_angle), cos(_angle)) * (rope + 50.0)
-		box._base = at
-		if box._shake <= 0.0:
-			box.position = at
-		box.rotation = -_angle
+		box.carry_to(at, -_angle)
 
 	func _physics_process(delta: float) -> void:
 		_t += delta
@@ -270,11 +267,8 @@ class GuardFly extends Area2D:
 					queue_free()
 					return
 		if state in ["patrol", "aim", "dart", "back"] and p != null and not p.dead and overlaps_body(p):
-			var hp0 := p.hp
-			p.hurt(1, global_position.x)
-			if p.hp < hp0 and not p.dead:
-				var away := 1.0 if p.global_position.x >= global_position.x else -1.0
-				p.velocity = Vector2(away * 90.0, -420.0)     # bumped up, not off his perch
+			var away := 1.0 if p.global_position.x >= global_position.x else -1.0
+			p.hurt_toss(1, global_position.x, Vector2(away * 90.0, -420.0))     # bumped up, not off his perch
 		if NightWoods.near_view(self):
 			queue_redraw()
 

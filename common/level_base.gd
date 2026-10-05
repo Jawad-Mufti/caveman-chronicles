@@ -24,13 +24,29 @@ var _shake_time := 0.0
 var checkpoint := Vector2.ZERO
 
 
+static var _cam_frame := -1
+static var _cam_vp: Viewport = null
+static var _cam_ok := false
+static var _cam_c := Vector2.ZERO
+
+
 ## Is this node near what the camera can see? Things that animate only need
 ## redrawing (or moving) then.
+## Hundreds of things ask this every frame, so the camera centre is looked up
+## once per frame (per viewport) and shared.
 static func near_view(n: Node2D, margin: float = 800.0) -> bool:
-	var cam := n.get_viewport().get_camera_2d()
-	if cam == null:
+	var vp := n.get_viewport()
+	var f := Engine.get_process_frames()
+	if f != _cam_frame or vp != _cam_vp:
+		_cam_frame = f
+		_cam_vp = vp
+		var cam := vp.get_camera_2d()
+		_cam_ok = cam != null
+		if _cam_ok:
+			_cam_c = cam.get_screen_center_position()
+	if not _cam_ok:
 		return true
-	var c := cam.get_screen_center_position()
+	var c := _cam_c
 	return absf(n.global_position.x - c.x) < margin + 640.0 and absf(n.global_position.y - c.y) < margin + 360.0
 
 
@@ -53,7 +69,7 @@ func _build_player(start: Vector2) -> void:
 
 
 ## Call after _build_player: the HUD listens to him.
-func _build_hud(with_fire: bool = false) -> void:
+func _build_hud() -> void:
 	hud = Hud.new()
 	hud.title = title
 	add_child(hud)
@@ -77,7 +93,7 @@ func _build_hud(with_fire: bool = false) -> void:
 	hud.ability_tapped.connect(use_ability)
 	hud.menu_tapped.connect(open_menu)
 	if DisplayServer.is_touchscreen_available():
-		hud.add_touch_controls(player, with_fire)
+		hud.add_touch_controls(player)
 
 
 func set_checkpoint(at: Vector2) -> void:

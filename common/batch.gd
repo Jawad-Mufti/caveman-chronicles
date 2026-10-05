@@ -92,6 +92,20 @@ func quad(a: Vector2, b: Vector2, c: Vector2, d: Vector2, col: Color, cols: Pack
 	_add(PackedVector2Array([a, b, c, a, c, d]), col)
 
 
+## An ellipse (optionally turned), as a fan of triangles round its centre.
+func ellipse(c: Vector2, rx: float, ry: float, col: Color, rot: float = 0.0, segments: int = 16) -> void:
+	var pts := PackedVector2Array()
+	var prev := c + Vector2(rx, 0).rotated(rot)
+	for i in range(1, segments + 1):
+		var a := i * TAU / segments
+		var p := c + Vector2(cos(a) * rx, sin(a) * ry).rotated(rot)
+		pts.append(c)
+		pts.append(prev)
+		pts.append(p)
+		prev = p
+	_add(pts, col)
+
+
 func rect(r: Rect2, col: Color) -> void:
 	quad(r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y), col)
 

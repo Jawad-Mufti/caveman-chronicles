@@ -47,6 +47,8 @@ var _desc: Label
 var _keys: Label
 var _how: Label
 var _was_paused := false
+var _flash := 0.0           ## > 0: just put in a slot; < 0: just taken out
+var _counter := ""          ## "n / m unlocked", worked out while drawing the wall
 
 
 func _ready() -> void:
@@ -126,7 +128,6 @@ func _carry() -> void:
 	_show_ability()
 
 
-var _flash := 0.0           ## > 0: just put in a slot; < 0: just taken out
 
 
 func _close() -> void:
@@ -631,7 +632,6 @@ func _symbol_tutorial(b: Batch, c: Vector2, r: float, col: Color, t: float) -> v
 	b.tri(c + Vector2(0.84, -0.48) * r, c + Vector2(0.62, -0.62) * r, c + Vector2(0.7, -0.36) * r, Color(col, 0.8))
 
 
-var _counter := ""
 
 
 ## The shelter: just a dream for now — the outline of a hut, in bones.

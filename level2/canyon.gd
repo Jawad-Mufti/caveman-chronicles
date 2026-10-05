@@ -293,10 +293,7 @@ class DiveBat extends Area2D:
 				_trail.pop_back()
 			var p := get_tree().get_first_node_in_group("player") as CaveMan
 			if p != null and not p.dead and overlaps_body(p):
-				var hp0 := p.hp
-				p.hurt(1, global_position.x - dir * 30.0)
-				if p.hp < hp0 and not p.dead:
-					p.velocity = Vector2(dir * 90.0, -420.0)     # bowled up, not off the rock
+				p.hurt_toss(1, global_position.x - dir * 30.0, Vector2(dir * 90.0, -420.0))     # bowled up, not off the rock
 		elif _trail.size() > 0:
 			_trail.pop_back()
 		queue_redraw()

@@ -8,11 +8,7 @@ extends RefCounted
 ## Is this node near what the camera can see? Things that animate only need
 ## redrawing then; off screen they would be redrawn for nobody.
 static func near_view(n: Node2D, margin: float = 800.0) -> bool:
-	var cam := n.get_viewport().get_camera_2d()
-	if cam == null:
-		return true
-	var c := cam.get_screen_center_position()
-	return absf(n.global_position.x - c.x) < margin + 640.0 and absf(n.global_position.y - c.y) < margin + 360.0
+	return LevelBase.near_view(n, margin)      # one rule for both levels
 
 
 ## A teardrop of flame: round at the base, drawn up to a swaying point.

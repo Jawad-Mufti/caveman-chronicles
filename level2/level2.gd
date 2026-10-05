@@ -107,7 +107,7 @@ func _ready() -> void:
 	wind.x1 = WIND_ZONE[1]
 	wind.player = player
 	add_child(wind)
-	_build_hud(true)
+	_build_hud()
 	_wire_player()
 	wind.first_gust.connect(func() -> void:
 		hud.say("WIND! Lean into it — or hide behind a rock.", 5.0))
@@ -1958,7 +1958,6 @@ func _learn_sunfire() -> void:
 	if not GameState.learn("sunfire"):
 		return
 	player.sun_charge = 1.0
-	player.sun_changed.emit(player.sun_charge, player.sun_t)
 	var card := ItemGet.new()
 	card.title = "SUNFIRE"
 	card.line = "The fire leaps into him! It is one of his two ABILITIES now — its circle is at the bottom of the screen. When it shines, press Q (or tap it): 30 seconds of fire in both fists — faster, stronger, burning blows, and THROW hurls fireballs (hold it for a stream). Fill the sun by hitting beasts, grabbing shells and sitting by fires."
