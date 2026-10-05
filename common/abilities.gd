@@ -1,34 +1,61 @@
 class_name Abilities
 extends RefCounted
-## Everything he can do, as the Camp Menu shows it: a carved symbol for each,
-## what it does, the keys, and how a locked one is earned. The symbols are
-## drawn in code in ONE colour (plus a darker shade of it for depth), so all
-## the unlocked ones glow the same sun-gold and the locked ones the same slate.
+## What he can do, as the Camp Menu shows it — two different things:
+##   POWERS   abilities: big, spent and recharged. He carries TWO at a time
+##            (picked in the menu); their circles sit at the bottom of the
+##            screen, shining while ready, dark while spent.
+##   MOVES    special moves: always his once learned — the TUTORIAL shows how.
+## Every one has a carved symbol drawn in code. In the menu the unlocked ones
+## all glow the same gold and the locked ones are slate; on the HUD each power
+## burns in its own colour.
 
-const GOLD := Color("ffc845")          ## every unlocked symbol
+const GOLD := Color("ffc845")          ## every unlocked symbol in the menu
 const SLATE := Color("5b6070")         ## every locked one
+const SLOTS := 2
 
-## [id, name, what it does, keys, how to unlock it]
-const LIST := [
-	["strike", "CLUB SWING", "Whack whatever is in reach. Tap again quickly for a combo.", "J  or  HIT", ""],
-	["throw", "STONE TOSS", "Pick up rocks and throw them at things that bite back.", "K  or  THROW", ""],
-	["leap", "HERCULES LEAP", "Jump again in mid-air: a somersault, then the spear pose and a softer fall.", "SPACE  twice", ""],
-	["homerun", "HOME RUN", "Hold HIT to wind up the club, let go: beasts go flying.", "hold  J", "Find a club."],
-	["torch", "TORCH", "Holds back the dark — and the wolves. Feed it at every bonfire.", "always lit", "Take a burning branch from a fire."],
-	["firering", "FIRE RING", "Burn two bundles of wood: a ring of flame bursts out around him.", "F  or  FIRE", "Carry a torch."],
-	["wallkick", "WALL KICK", "Between two close walls: slide down one, kick across to the other.", "hold toward wall + SPACE", "Climb the split rock on the Mammoth Steppe."],
-	["slam", "HAMMER SLAM", "Raise the Firestone Hammer and SLAM: a wave of fire rolls along the ground.", "hold  J", "Forge the Firestone Hammer."],
-	["axe", "AXE THROW", "Hurl the stone axe; it spins out and comes back to his hand.", "hold  J", "Trade for the stone axe."],
-	["sunfire", "SUNFIRE", "Fire in both fists for 30 seconds! Faster, stronger, burning blows — and fireballs.", "Q  or  SUN  when the sun is full", "Light a cold fire with your own torch."],
-	["spear", "SPEAR THROW", "The broken fang becomes a spear. Throw it far, and fetch it back.", "?", "Level 3."],
-	["beast", "BEAST FRIEND", "Something big wants to be his friend...", "?", "Who knows?"],
+## [id, name, what it does, key, how to unlock it, its own colour]
+const POWERS := [
+	["sunfire", "SUNFIRE", "Fire in both fists for 30 seconds! Faster, stronger, burning blows — and fireballs. Then the sun must fill again: hit beasts, grab shells, sit by fires.", "Q", "Light a cold fire with your own torch.", Color("ffb020")],
+	["firering", "FIRE RING", "He gets angry... and a ring of flame bursts out around him: it burns what's close and scares off the rest. Costs two bundles of dry wood.", "F", "Carry a torch.", Color("ff4a2a")],
+	["thunderclap", "THUNDER CLAP", "One clap of his hands and the ground shakes: every beast around falls down dizzy.", "?", "A later age.", Color("5ad1ff")],
+	["stoneskin", "STONE SKIN", "Skin like granite for a while: nothing can hurt him.", "?", "A later age.", Color("9ad06a")],
+	["spiritowl", "SPIRIT OWL", "An owl of light flies ahead and shows the way through the dark.", "?", "A later age.", Color("b48cff")],
+	["beast", "BEAST FRIEND", "Call a mammoth friend to charge through everything.", "?", "Who knows?", Color("ff7ab8")],
 ]
+
+## [id, name, how to do it, keys, how to unlock it]
+const MOVES := [
+	["strike", "CLUB SWING", "Whack whatever is in reach. Tap again quickly for a combo.", "J  or  HIT", ""],
+	["throw", "STONE TOSS", "Pick up rocks on the way, then throw them at things that bite back.", "K  or  THROW", ""],
+	["leap", "HERCULES LEAP", "Jump, then jump again in mid-air: a somersault, then the spear pose and a softer fall.", "SPACE  twice", ""],
+	["stomp", "METEOR STOMP", "Jump, then press T: he spins into a ball and drops like a meteor — STOMP! Beasts go flat and cracked slabs in the ground break open. Double-jump first for a MEGA STOMP: the only thing that breaks a gold rune seal.", "jump + T  ·  double jump + T", ""],
+	["homerun", "HOME RUN", "Hold HIT to wind up the club... let go: beasts go flying.", "hold  J", "Find a club."],
+	["wallkick", "WALL KICK", "Between two close walls: hold toward a wall to slide, jump to kick across to the other.", "hold toward wall + SPACE", "Climb the split rock on the Mammoth Steppe."],
+	["torch", "TORCH", "Holds back the dark — and the wolves. It burns down: feed it at every bonfire.", "always lit", "Take a burning branch from a fire."],
+	["slam", "HAMMER SLAM", "Hold HIT to raise the Firestone Hammer, let go: SLAM! A wave of fire rolls along the ground.", "hold  J", "Forge the Firestone Hammer."],
+	["axe", "AXE THROW", "Hold HIT, let go: the stone axe spins out and comes back to his hand.", "hold  J", "Trade for the stone axe."],
+	["spear", "SPEAR THROW", "The broken fang becomes a spear. Throw it far, and fetch it back.", "?", "Level 3."],
+]
+
+
+static func row(id: String) -> Array:
+	for r in POWERS + MOVES:
+		if r[0] == id:
+			return r
+	return []
+
+
+static func colour(id: String) -> Color:
+	for r in POWERS:
+		if r[0] == id:
+			return r[5]
+	return GOLD
 
 
 ## Is it his yet? Some come with the level, some are learned once and saved.
 static func unlocked(id: String, p: CaveMan) -> bool:
 	match id:
-		"strike", "throw", "leap":
+		"strike", "throw", "leap", "stomp":
 			return true
 		"homerun":
 			return p == null or p.has_stick
@@ -41,6 +68,42 @@ static func unlocked(id: String, p: CaveMan) -> bool:
 		"wallkick", "sunfire":
 			return GameState.abilities.has(id)
 	return false
+
+
+## The two powers he carries. Until he picks for himself, the first ones he
+## has unlocked fill the slots.
+static func slots(p: CaveMan) -> Array:
+	var out: Array = []
+	if GameState.equip_picked:
+		for id in GameState.equipped:
+			if unlocked(id, p) and out.size() < SLOTS:
+				out.append(id)
+		return out
+	for r in POWERS:
+		if unlocked(r[0], p) and out.size() < SLOTS:
+			out.append(r[0])
+	return out
+
+
+static func is_equipped(id: String, p: CaveMan) -> bool:
+	return slots(p).has(id)
+
+
+## Put a power in a slot, or take it out. Full: the newest goes in, the
+## oldest comes out. Returns what happened, for the menu to say.
+static func toggle(id: String, p: CaveMan) -> String:
+	if not unlocked(id, p):
+		return "locked"
+	var now := slots(p)
+	if now.has(id):
+		now.erase(id)
+		GameState.set_equipped(now)
+		return "off"
+	now.append(id)
+	if now.size() > SLOTS:
+		now.pop_front()
+	GameState.set_equipped(now)
+	return "on"
 
 
 ## The carved symbol, centred on c, about 2r across, all in one colour.
@@ -147,6 +210,54 @@ static func draw_symbol(b: Batch, id: String, c: Vector2, r: float, col: Color, 
 				var f := c + Vector2(s2 * 40.0, 22.0) * k
 				b.circle(f, 9.0 * k, col, 12)
 				_flame(b, f + Vector2(0, -6) * k, 18.0 * k, col, t * 1.4 + s2)
+		"stomp":
+			# a foot coming down like a meteor onto a cracking slab
+			var drop := fmod(t * 0.9, 1.0)
+			var fy := lerpf(-40.0, 4.0, minf(drop / 0.45, 1.0))
+			var foot := c + Vector2(0, fy) * k
+			for i in 3:
+				b.line(foot + Vector2(-10.0 + i * 10.0, -14.0) * k, foot + Vector2(-10.0 + i * 10.0, -40.0) * k, Color(col, 0.5), 3.0 * k)
+			b.poly(PackedVector2Array([foot + Vector2(-16, -12) * k, foot + Vector2(10, -12) * k, foot + Vector2(22, 0) * k,
+				foot + Vector2(22, 8) * k, foot + Vector2(-16, 8) * k]), col)
+			for i in 3:
+				b.circle(foot + Vector2(14.0 + i * 3.0, -2.0 - i * 3.0) * k, 3.0 * k, col, 8)
+			b.rect(Rect2(c + Vector2(-40, 14) * k, Vector2(80, 10) * k), dk)
+			if drop > 0.45:
+				var q := (drop - 0.45) / 0.55
+				for s in [-1.0, 1.0]:
+					b.arc(c + Vector2(s * 20.0, 14.0) * k, (10.0 + 24.0 * q) * k, PI, TAU, 8, Color(col, 1.0 - q), 3.0 * k)
+					b.line(c + Vector2(s * 6.0, 18.0) * k, c + Vector2(s * (14.0 + 20.0 * q), 22.0) * k, dk, 2.0 * k)
+		"thunderclap":
+			# two hands meeting, a lightning bolt between, shock arcs
+			for s in [-1.0, 1.0]:
+				var hc := c + Vector2(s * 26.0, 6.0) * k
+				b.circle(hc, 14.0 * k, col, 14)
+				for f in 3:
+					b.line(hc + Vector2(s * -4.0, -8.0 + f * 7.0) * k, hc + Vector2(s * -18.0, -12.0 + f * 7.0) * k, col, 5.0 * k)
+			b.poly(PackedVector2Array([c + Vector2(4, -44) * k, c + Vector2(-8, -8) * k, c + Vector2(2, -8) * k, c + Vector2(-6, 22) * k,
+				c + Vector2(10, -16) * k, c + Vector2(0, -16) * k]), col.lightened(0.3))
+			for i in 2:
+				b.arc(c + Vector2(0, 6) * k, (44.0 + i * 10.0 + fmod(t * 20.0, 10.0)) * k, PI * 1.15, PI * 1.85, 10, Color(col, 0.7 - i * 0.3), 3.0 * k)
+		"stoneskin":
+			# a shield of stone plates, a crack of light down it
+			var sh := PackedVector2Array([c + Vector2(-36, -38) * k, c + Vector2(36, -38) * k, c + Vector2(32, 10) * k, c + Vector2(0, 44) * k, c + Vector2(-32, 10) * k])
+			b.poly(sh, dk)
+			b.poly(PackedVector2Array([c + Vector2(-30, -32) * k, c + Vector2(30, -32) * k, c + Vector2(26, 8) * k, c + Vector2(0, 36) * k, c + Vector2(-26, 8) * k]), col)
+			for p in [Vector2(-14, -16), Vector2(12, -18), Vector2(-4, 6), Vector2(14, 12)]:
+				b.circle(c + p * k, 6.0 * k, dk, 8)
+			b.polyline(PackedVector2Array([c + Vector2(0, -30) * k, c + Vector2(-6, -8) * k, c + Vector2(4, 8) * k, c + Vector2(0, 30) * k]), Color(1, 1, 1, 0.4 + 0.3 * sin(t * 4.0)), 2.0 * k)
+		"spiritowl":
+			# an owl with wide glowing eyes, wings spread
+			var flap := sin(t * 4.0) * 6.0
+			for s in [-1.0, 1.0]:
+				b.poly(PackedVector2Array([c + Vector2(s * 12, -6) * k, c + Vector2(s * 48, -18 - flap) * k, c + Vector2(s * 40, 6) * k, c + Vector2(s * 14, 18) * k]), dk)
+			b.circle(c, 24.0 * k, col, 18)
+			b.tri(c + Vector2(-20, -16) * k, c + Vector2(-14, -34) * k, c + Vector2(-6, -20) * k, col)
+			b.tri(c + Vector2(20, -16) * k, c + Vector2(14, -34) * k, c + Vector2(6, -20) * k, col)
+			for s2 in [-1.0, 1.0]:
+				b.circle(c + Vector2(s2 * 10, -4) * k, 8.0 * k, dk, 12)
+				b.circle(c + Vector2(s2 * 10, -4) * k, 4.0 * k, col.lightened(0.5), 10)
+			b.tri(c + Vector2(-4, 4) * k, c + Vector2(4, 4) * k, c + Vector2(0, 12) * k, dk)
 		"spear":
 			b.line(c + Vector2(-40, 40) * k, c + Vector2(30, -30) * k, col, w)
 			b.tri(c + Vector2(26, -22) * k, c + Vector2(44, -44) * k, c + Vector2(22, -38) * k, col)

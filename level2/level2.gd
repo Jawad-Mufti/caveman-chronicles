@@ -195,8 +195,8 @@ func _build_world() -> void:
 	add_child(snag)
 
 	for seg in FLOORS:
-		add_child(World.Slab.new(Rect2(seg[0], GROUND_Y, seg[1] - seg[0], 240)))
-	add_child(World.Slab.new(Rect2(HOLLOW[0], HOLLOW[1], HOLLOW[2], 140)))
+		add_child(Turf.Ground.new(Rect2(seg[0], GROUND_Y, seg[1] - seg[0], 240)))     # living turf
+	add_child(Turf.Ground.new(Rect2(HOLLOW[0], HOLLOW[1], HOLLOW[2], 140)))
 	for l in LEDGES:
 		add_child(World.Slab.new(Rect2(l[0], l[1], l[2], 22)))
 	for c in CRAGS:
@@ -1757,6 +1757,18 @@ func _build_treasure() -> void:
 			add_child(pot)
 			for c in pot.contents:
 				_count_treasure(c)
+	for i in STOMP_SPOTS.size():
+		var sp := Stomp.Spot.new()
+		sp.kind = STOMP_SPOTS[i][1]
+		sp.contents = STOMP_SEAL if sp.kind == "seal" else STOMP_CRACK
+		sp.level_id = "level2"
+		sp.id = "g%d" % i
+		sp.position = Vector2(STOMP_SPOTS[i][0], GROUND_Y)
+		add_child(sp)
+		for c in sp.contents:
+			_count_treasure(c)
+	_note(STOMP_SPOTS[0][0] - 160.0, "A cracked slab in the ground... Jump, then press T to STOMP it!", 5.0)
+	_note(STOMP_SPOTS[2][0] - 180.0, "A gold rune seal! Only a MEGA STOMP breaks it: double-jump, THEN T.", 5.0)
 	for row in HOARDS:
 		var id: String = row[0]
 		var stuff: Array = STASH if id.begins_with("x") else HOARD
@@ -1949,7 +1961,7 @@ func _learn_sunfire() -> void:
 	player.sun_changed.emit(player.sun_charge, player.sun_t)
 	var card := ItemGet.new()
 	card.title = "SUNFIRE"
-	card.line = "The fire leaps into him! When the SUN up top is full, press Q (or tap the sun): 30 seconds of fire in both fists — faster, stronger, burning blows, and THROW hurls fireballs (hold it for a stream). Fill the sun by hitting beasts, grabbing shells and sitting by fires."
+	card.line = "The fire leaps into him! It is one of his two ABILITIES now — its circle is at the bottom of the screen. When it shines, press Q (or tap it): 30 seconds of fire in both fists — faster, stronger, burning blows, and THROW hurls fireballs (hold it for a stream). Fill the sun by hitting beasts, grabbing shells and sitting by fires."
 	card.icon = func(c: Control) -> void:
 		var b := Batch.new()
 		Abilities.draw_symbol(b, "sunfire", Vector2.ZERO, 70.0, Abilities.GOLD, Time.get_ticks_msec() / 1000.0)

@@ -33,12 +33,11 @@ var _card: Label
 var _card_sub: Label
 var shells := 0
 var _shell_bump := 0.0
-signal sun_tapped
+signal ability_tapped(id: String)
 signal menu_tapped
-var _sun: Control
+var player: CaveMan          ## for the ability circles
+var _bar: Control
 var _menu: Control
-var sun_charge := 0.0
-var sun_left := 0.0
 var _sun_t := 0.0
 
 
@@ -78,8 +77,8 @@ func _ready() -> void:
 
 	_msg = Label.new()
 	_msg.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	_msg.offset_top = -96
-	_msg.offset_bottom = -40
+	_msg.offset_top = -150
+	_msg.offset_bottom = -94
 	_msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_msg.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_msg.add_theme_font_size_override("font_size", 26)
@@ -135,16 +134,14 @@ func _ready() -> void:
 	_card_sub.modulate.a = 0.0
 	add_child(_card_sub)
 
-	# the SUN: fills as he fights; full, it blazes — tap it (or Q) for SUNFIRE
-	_sun = Control.new()
-	_sun.position = Vector2(372, 26)
-	_sun.size = Vector2(76, 76)
-	_sun.visible = false
-	_sun.draw.connect(_draw_sun)
-	_sun.gui_input.connect(func(e: InputEvent) -> void:
-		if (e is InputEventMouseButton or e is InputEventScreenTouch) and e.pressed:
-			sun_tapped.emit())
-	add_child(_sun)
+	# the two powers he carries: circles at the bottom, shining while ready
+	_bar = Control.new()
+	_bar.position = Vector2(540, 610)
+	_bar.size = Vector2(200, 110)
+	_bar.visible = false
+	_bar.draw.connect(_draw_bar)
+	_bar.gui_input.connect(_bar_input)
+	add_child(_bar)
 	# the camp menu: a little fire under a hide tent, top middle
 	_menu = Control.new()
 	_menu.position = Vector2(604, 6)
@@ -164,8 +161,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_sun_t += delta
-	if _sun.visible and (sun_left > 0.0 or sun_charge >= 1.0):
-		_sun.queue_redraw()
+	_update_bar(delta)
 	_menu.queue_redraw()
 	if msg_time > 0.0:
 		msg_time -= delta
@@ -173,8 +169,8 @@ func _process(delta: float) -> void:
 			_msg.text = ""
 	# while someone is talking, hints move up out of the way of the dialogue box
 	var talking := get_tree().get_first_node_in_group("dialogue") != null
-	_msg.offset_top = -600.0 if talking else -96.0
-	_msg.offset_bottom = -544.0 if talking else -40.0
+	_msg.offset_top = -600.0 if talking else -150.0
+	_msg.offset_bottom = -544.0 if talking else -94.0
 	_hits.queue_redraw()
 	_berries.queue_redraw()
 	_boss.queue_redraw()
@@ -382,7 +378,7 @@ func _draw_boss() -> void:
 	_boss.draw_rect(Rect2(0, 6, w, 12), Pal.OCHRE, false, 2.0)
 
 
-func add_touch_controls(player: CaveMan, with_fire: bool = false) -> void:
+func add_touch_controls(man: CaveMan, _with_fire: bool = false) -> void:
 	var specs := [
 		["<", Vector2(30, 560), "left"],
 		[">", Vector2(170, 560), "right"],
@@ -390,10 +386,9 @@ func add_touch_controls(player: CaveMan, with_fire: bool = false) -> void:
 		["HIT", Vector2(1140, 560), "attack"],
 		["THROW", Vector2(1010, 420), "throw"],
 		["TALK", Vector2(870, 560), "talk"],
+		["STOMP", Vector2(870, 420), "stomp"],
 	]
-	if with_fire:
-		specs.append(["FIRE", Vector2(1140, 280), "fire"])
-		specs.append(["SUN", Vector2(1140, 140), "sun"])
+	# the powers are tapped on their circles at the bottom (see _draw_bar)
 	for s in specs:
 		var b := Button.new()
 		b.text = s[0]
@@ -403,68 +398,143 @@ func add_touch_controls(player: CaveMan, with_fire: bool = false) -> void:
 		b.add_theme_font_size_override("font_size", 24)
 		b.focus_mode = Control.FOCUS_NONE
 		var key: String = s[2]
-		b.button_down.connect(func() -> void: player.touch[key] = true)
-		b.button_up.connect(func() -> void: player.touch[key] = false)
+		b.button_down.connect(func() -> void: man.touch[key] = true)
+		b.button_up.connect(func() -> void: man.touch[key] = false)
 		add_child(b)
 
 
-## ------------------------------------------------------------------ SUNFIRE
-func set_sun(on: bool, charge: float, left: float) -> void:
-	_sun.visible = on
-	sun_charge = charge
-	sun_left = left
-	_sun.queue_redraw()
+## ------------------------------------------------------------------ ABILITIES
+## The two powers he carries, at the bottom of the screen: a circle each, in
+## its own colour. READY, it shines — a breathing glow, a spark running round
+## the rim. USED, it bursts in rings and blazes while the power runs. SPENT, it
+## goes dark and a thin arc shows it filling again (the sun's charge, or the
+## wood for the fire ring) until it is ready and shines once more.
+const BAR_C := [Vector2(600, 668), Vector2(680, 668)]
+const BAR_R := 31.0
+var _bar_was: Array = ["", ""]     ## each circle's last state, to catch "just used" / "just ready"
+var _bar_pop: Array = [0.0, 0.0]   ## > 0: the burst when it was used
+var _bar_ready: Array = [0.0, 0.0] ## > 0: the flash when it became ready again
 
 
-## The sun: a disc that fills from the bottom as it charges, rays round it.
-## Full, it blazes and turns, with a Q on it. Burning, a ring of fire counts
-## the seconds down.
-func _draw_sun() -> void:
+## What a power is doing right now: "on" (running), "ready", or "spent";
+## and how full it is (0..1) when spent.
+func _power_state(id: String) -> Array:
+	if player == null:
+		return ["spent", 0.0]
+	match id:
+		"sunfire":
+			if player.sun_t > 0.0:
+				return ["on", player.sun_t / Sunfire.DURATION]
+			if player.sun_charge >= 1.0:
+				return ["ready", 1.0]
+			return ["spent", player.sun_charge]
+		"firering":
+			if player.fury >= 0.0:
+				return ["on", 1.0 - player.fury / CaveMan.FURY_TIME]
+			if player.wood >= CaveMan.FIRE_COST:
+				return ["ready", 1.0]
+			return ["spent", float(player.wood) / CaveMan.FIRE_COST]
+	return ["spent", 0.0]
+
+
+func _update_bar(delta: float) -> void:
+	var ids := Abilities.slots(player) if player != null else []
+	_bar.visible = not ids.is_empty()
+	for i in 2:
+		_bar_pop[i] = maxf(float(_bar_pop[i]) - delta, 0.0)
+		_bar_ready[i] = maxf(float(_bar_ready[i]) - delta, 0.0)
+		var st := ""
+		if i < ids.size():
+			st = str(_power_state(ids[i])[0])
+		if st == "on" and _bar_was[i] != "on" and _bar_was[i] != "":
+			_bar_pop[i] = 0.6
+		if st == "ready" and _bar_was[i] in ["spent", "on"]:
+			_bar_ready[i] = 0.8
+		_bar_was[i] = st
+	_bar.queue_redraw()
+
+
+func _bar_input(e: InputEvent) -> void:
+	if not ((e is InputEventMouseButton or e is InputEventScreenTouch) and e.pressed):
+		return
+	var at: Vector2 = e.position + _bar.position
+	var ids := Abilities.slots(player)
+	for i in ids.size():
+		if at.distance_to(BAR_C[i]) < BAR_R + 8.0:
+			ability_tapped.emit(ids[i])
+
+
+func _draw_bar() -> void:
 	var b := Batch.new()
-	var c := Vector2(38, 38)
+	var ids := Abilities.slots(player) if player != null else []
+	var o := -_bar.position
 	var t := _sun_t
-	var gold := Sunfire.GOLD
-	var on := sun_left > 0.0
-	var full := sun_charge >= 1.0 and not on
-	var spin := t * (2.5 if on else (1.0 if full else 0.2))
-	var swell := 1.0 + (0.1 * sin(t * 8.0) if full or on else 0.0)
-	# rays: only as many lit as it is full
-	for i in 12:
-		var lit := on or full or float(i) / 12.0 < sun_charge
-		var a := i * TAU / 12.0 + spin
-		var r0 := 20.0
-		var r1 := (31.0 + (4.0 if i % 2 == 0 else 0.0)) * swell
-		var side := Vector2.from_angle(a + PI * 0.5) * 3.5
-		var col := gold if lit else Color(0.35, 0.3, 0.25, 0.8)
-		b.tri(c + Vector2.from_angle(a) * r0 + side, c + Vector2.from_angle(a) * r1, c + Vector2.from_angle(a) * r0 - side, col)
-	b.circle(c, 20.0, Color(0.16, 0.1, 0.06, 0.9), 24)
-	# the disc fills from the bottom
-	var k := 1.0 if on or full else sun_charge
-	if k > 0.0:
-		var pts := PackedVector2Array()
-		var top := 18.0 - 36.0 * k
-		for i in 25:
-			var a2 := i * TAU / 24.0
-			var p := c + Vector2.from_angle(a2) * 18.0
-			p.y = maxf(p.y, c.y + top)
-			pts.append(p)
-		b.poly(pts, Sunfire.HOT if not full and not on else gold)
-	if on:
-		# the burning ring: the seconds left
-		var left := sun_left / Sunfire.DURATION
-		var warn := sun_left < Sunfire.WARN and fmod(sun_left * 6.0, 1.0) < 0.5
-		b.arc(c, 25.0, -PI * 0.5, -PI * 0.5 + TAU * left, 32, Sunfire.RED if warn else Sunfire.WHITE_HOT, 4.0)
-		for j in 3:
-			Sunfire.flame(b, c + Vector2(-8.0 + j * 8.0, -20.0), 10.0, t * 1.3 + j)
-	b.circle(c + Vector2(-6, -3), 2.5, Color(0.3, 0.12, 0.0), 6)
-	b.circle(c + Vector2(6, -3), 2.5, Color(0.3, 0.12, 0.0), 6)
-	b.arc(c + Vector2(0, 3), 6.0, 0.4, PI - 0.4, 8, Color(0.3, 0.12, 0.0), 2.0)
-	b.draw(_sun)
-	if full:
-		var f := ThemeDB.fallback_font
-		_sun.draw_string(f, Vector2(30, 74), "Q", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1, 0.95, 0.8, 0.6 + 0.4 * sin(t * 8.0)))
-	elif on:
-		_sun.draw_string(ThemeDB.fallback_font, Vector2(24, 76), "%d" % ceili(sun_left), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Sunfire.WHITE_HOT)
+	for i in 2:
+		var c: Vector2 = BAR_C[i] + o
+		if i >= ids.size():
+			# an empty slot: a faint ring, waiting for a power
+			b.arc(c, BAR_R, 0.0, TAU, 32, Color(1, 1, 1, 0.18), 2.0)
+			continue
+		var id: String = ids[i]
+		var col := Abilities.colour(id)
+		var s: Array = _power_state(id)
+		var st: String = s[0]
+		var k: float = s[1]
+		match st:
+			"ready":
+				# shining: a breathing glow, rays, and a spark running round the rim
+				var br := 0.5 + 0.5 * sin(t * 4.0 + i)
+				for g in 3:
+					b.circle(c, BAR_R + 6.0 + g * 5.0 + br * 4.0, Color(col, 0.12 - g * 0.03), 28)
+				for r in 8:
+					var a := r * TAU / 8.0 + t * 0.8
+					b.tri(c + Vector2.from_angle(a + 0.12) * (BAR_R + 2.0), c + Vector2.from_angle(a) * (BAR_R + 12.0 + 4.0 * br), c + Vector2.from_angle(a - 0.12) * (BAR_R + 2.0), Color(col, 0.55))
+				b.circle(c, BAR_R, Color("2a1a12"), 28)
+				b.arc(c, BAR_R, 0.0, TAU, 32, col, 3.5)
+				Abilities.draw_symbol(b, id, c, BAR_R * 0.7, col, t * 1.5)
+				var sp := c + Vector2.from_angle(t * 3.0) * BAR_R
+				b.quad(sp + Vector2(0, -7), sp + Vector2(2, 0), sp + Vector2(0, 7), sp + Vector2(-2, 0), Color.WHITE)
+				b.quad(sp + Vector2(-7, 0), sp + Vector2(0, 2), sp + Vector2(7, 0), sp + Vector2(0, -2), Color.WHITE)
+			"on":
+				# blazing: white-hot core, its colour all round, a ring of time
+				for g in 2:
+					b.circle(c, BAR_R + 10.0 + g * 6.0 + 3.0 * sin(t * 12.0), Color(col, 0.22 - g * 0.08), 28)
+				b.circle(c, BAR_R, col.darkened(0.45), 28)
+				b.circle(c, BAR_R * 0.82, col.darkened(0.2), 28)
+				Abilities.draw_symbol(b, id, c, BAR_R * 0.72 * (1.0 + 0.06 * sin(t * 14.0)), Color("fff3c4"), t * 3.0)
+				b.arc(c, BAR_R + 3.0, -PI * 0.5, -PI * 0.5 + TAU * k, 40, Color("fff3c4"), 4.0)
+				for f in 4:
+					var fa := -PI * 0.5 + (f - 1.5) * 0.45
+					Sunfire.flame(b, c + Vector2.from_angle(fa) * BAR_R, 12.0, t * 1.4 + f * 1.3, 0.9)
+			_:
+				# spent: dark and still, filling back up
+				b.circle(c, BAR_R, Color(0.08, 0.07, 0.08, 0.85), 28)
+				b.arc(c, BAR_R, 0.0, TAU, 32, Color(0.35, 0.35, 0.38), 2.0)
+				Abilities.draw_symbol(b, id, c, BAR_R * 0.7, col.darkened(0.6).lerp(Color(0.3, 0.3, 0.33), 0.5), 0.0)
+				if k > 0.0:
+					b.arc(c, BAR_R, -PI * 0.5, -PI * 0.5 + TAU * k, 40, Color(col, 0.75), 3.5)
+		# just used: rings racing out in its colour
+		var pop: float = _bar_pop[i]
+		if pop > 0.0:
+			var q := 1.0 - pop / 0.6
+			b.arc(c, BAR_R + q * 70.0, 0.0, TAU, 36, Color(col, 1.0 - q), 6.0 * (1.0 - q) + 1.0)
+			b.arc(c, BAR_R + q * 40.0, 0.0, TAU, 36, Color(1, 1, 1, 0.8 * (1.0 - q)), 3.0)
+		# ready again: a white flash
+		var rd: float = _bar_ready[i]
+		if rd > 0.0:
+			b.circle(c, BAR_R + 4.0, Color(1, 1, 1, 0.5 * rd / 0.8), 28)
+	b.draw(_bar)
+	var f2 := ThemeDB.fallback_font
+	for i in ids.size():
+		var row := Abilities.row(ids[i])
+		var key: String = row[3]
+		var c2: Vector2 = BAR_C[i] + o + Vector2(BAR_R * 0.62, BAR_R * 0.5)
+		_bar.draw_circle(c2 + Vector2(4, -5), 10.0, Color(0, 0, 0, 0.7))
+		_bar.draw_string(f2, c2 + Vector2(-0.5, 1), key, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 1, 1, 0.95))
+		if ids[i] == "firering" and _power_state("firering")[0] == "spent" and player != null:
+			_bar.draw_string(f2, BAR_C[i] + o + Vector2(-12, -BAR_R - 6), "%d/%d" % [player.wood, CaveMan.FIRE_COST], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.7))
+		if ids[i] == "sunfire" and player != null and player.sun_t > 0.0:
+			_bar.draw_string(f2, BAR_C[i] + o + Vector2(-8, -BAR_R - 8), "%d" % ceili(player.sun_t), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("fff3c4"))
 
 
 ## The camp button: a hide tent with a little fire, and the word.

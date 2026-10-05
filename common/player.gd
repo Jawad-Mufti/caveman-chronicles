@@ -138,6 +138,11 @@ var _sun_sparks: Array = []    ## [world pos, vel, life]: embers shed as he move
 var _sun_spark_in := 0.0
 var _hands: Array = []         ## where his hands were drawn this frame (his local space)
 var _head_at := Vector2(0, -64)
+## METEOR STOMP (see Stomp): "" / "charge" (the spin) / "dive"; level 1, or 2 after a double jump.
+var stomp_state := ""
+var stomp_level := 1
+var _stomp_t := 0.0
+var _stomp_prev := false
 ## His costume. The fire-discovery set: wolf_hood, ember_paint, bear_cloak,
 ## firekeeper (and the older wolf_pelt, war_paint, bone_necklace, plain).
 var skin := "plain"
@@ -735,7 +740,10 @@ func _physics_process(delta: float) -> void:
 	_throw_prev = throw_now
 
 	if fire_now and not _fire_prev:
-		start_fire()
+		if Abilities.is_equipped("firering", self):
+			start_fire()
+		elif has_torch:
+			said.emit("FIRE RING isn't one of his two abilities — pick it in the menu (Esc).")
 	_fire_prev = fire_now
 
 	# the wind: carried in the air, drifted on the ground, braced against by
@@ -751,11 +759,14 @@ func _physics_process(delta: float) -> void:
 		else:
 			push = wind
 
+	_update_stomp(delta)
 	var pre_vy := velocity.y
 	move_and_slide()
 	if push != 0.0:
 		move_and_collide(Vector2(push * delta, 0.0))
 	var on_floor := is_on_floor()
+	if stomp_state == "dive" and on_floor:
+		_stomp_impact()
 	if on_floor and not _was_floor and pre_vy > 200.0:
 		_land = LAND_TIME
 		_land_amt = clampf(pre_vy / 1400.0, 0.3, 1.0)
@@ -997,6 +1008,8 @@ func launch(vy: float) -> void:
 func hurt(amount: int, from_x: float) -> void:
 	if invuln > 0.0 or dead or fury >= 0.0 or talking:
 		return
+	if stomp_state != "":
+		return                          # nothing stops a meteor
 	if sun_t > 0.0:
 		# the fire takes it: a flare, a little shove, no harm
 		invuln = 0.5
@@ -1208,6 +1221,7 @@ var _starred := false
 
 func _die() -> void:
 	dead = true
+	stomp_state = ""
 	if sun_t > 0.0:
 		end_sunfire()
 	_die_t = 0.0
@@ -1415,6 +1429,10 @@ func _paint() -> void:
 		# tumbling: stretched by the rushing air, with a jelly wobble
 		sy += (0.07 + sin(anim_t * 19.0) * 0.03) * tumble
 		sx -= (0.04 + sin(anim_t * 19.0) * 0.02) * tumble
+	if stomp_state == "dive":
+		# a meteor: stretched long and thin by the drop
+		sx -= 0.12 + 0.04 * stomp_level
+		sy += 0.16 + 0.06 * stomp_level
 	if fury >= 0.0:
 		if not roaring:
 			# hunched and gathering
@@ -2451,7 +2469,7 @@ func add_sun(amount: float) -> void:
 
 
 func start_sunfire() -> bool:
-	if dead or talking or not sun_ready():
+	if dead or talking or not sun_ready() or not Abilities.is_equipped("sunfire", self):
 		return false
 	sun_t = Sunfire.DURATION
 	sun_charge = 0.0
@@ -2493,7 +2511,9 @@ func end_sunfire() -> void:
 ## Every physics frame: the key, the clock, the embers he sheds.
 func _update_sun(delta: float) -> void:
 	var now: bool = Input.is_physical_key_pressed(KEY_Q) or touch.get("sun", false)
-	if now and not _sun_prev:
+	if now and not _sun_prev and GameState.abilities.has("sunfire") and not Abilities.is_equipped("sunfire", self):
+		said.emit("SUNFIRE isn't one of his two abilities — pick it in the menu (Esc).")
+	elif now and not _sun_prev:
 		if not start_sunfire() and GameState.abilities.has("sunfire") and sun_t <= 0.0:
 			said.emit("The sun isn't full yet: hit beasts, grab shells, sit by a fire.")
 	_sun_prev = now
@@ -2588,3 +2608,56 @@ func draw_glow(g) -> void:   # g: the glow layer's Batch
 	for s in _sun_sparks:
 		var q: float = clampf(float(s[2]) / 0.7, 0.0, 1.0)
 		g.draw_circle(s[0], 2.5, Color(1.0, 0.85, 0.4, q))
+
+
+## ------------------------------------------------------------------ STOMP
+## In the air, T: curl up and spin (the somersault, once — twice after a
+## double jump), hang a moment, then drop like a meteor. Landing makes the
+## blast (Stomp.Blast) that knocks beasts flat and opens stomp spots.
+func _update_stomp(delta: float) -> void:
+	var now: bool = Input.is_physical_key_pressed(KEY_T) or touch.get("stomp", false)
+	if now and not _stomp_prev and stomp_state == "" and not is_on_floor() and vine == null \
+			and not wall_cling and fury < 0.0 and slam_charge < 0.0 and not dead:
+		stomp_level = 2 if _jumps_left <= 0 else 1
+		stomp_state = "charge"
+		_stomp_t = 0.0
+		_air_glide = false
+		# the spin: the somersault, once (twice for the mega stomp)
+		flip_dir = float(facing)
+		flip_back = false
+		flip_turns = float(stomp_level)
+		flip_len = Stomp.CHARGE[stomp_level]
+		flip_t = flip_len
+		_ghosts.clear()
+		_flipped = true
+		var tr := Stomp.Trail.new()
+		tr.player = self
+		tr.level = stomp_level
+		get_parent().add_child(tr)
+	_stomp_prev = now
+	if stomp_state != "" and (vine != null or dead or talking):
+		stomp_state = ""
+		return
+	match stomp_state:
+		"charge":
+			_stomp_t += delta
+			# hanging in the air: a little lift, then still
+			velocity = Vector2(0.0, -70.0 if _stomp_t < 0.08 else 0.0)
+			if _stomp_t >= Stomp.CHARGE[stomp_level]:
+				stomp_state = "dive"
+				flip_t = 0.0
+		"dive":
+			velocity = Vector2(0.0, Stomp.SPEED[stomp_level])
+			_fall_t = 0.0
+			_air_glide = false
+
+
+func _stomp_impact() -> void:
+	var blast := Stomp.Blast.new()
+	blast.level = stomp_level
+	blast.position = global_position
+	stomp_state = ""
+	_land = LAND_TIME
+	_land_amt = 1.0
+	invuln = maxf(invuln, 0.3)
+	get_parent().add_child(blast)

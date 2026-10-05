@@ -471,6 +471,13 @@ const HOARDS := [
 	["h1", 18185.0, 380.0, 190.0, 30.0, 2, "stone", 50.0, 18185.0],    # over a floating rock, among the bats
 ]
 const HOARD_RISE := 150.0
+## Stomp spots (Stomp.Spot): caches set into the ground, opened only by the
+## METEOR STOMP. [x, kind]; ids "g0", "g1"... "crack": any stomp; "seal": a
+## gold rune seal, only a MEGA stomp (after a double jump) breaks it.
+const STOMP_SPOTS := [[1100.0, "crack"], [2350.0, "crack"], [3800.0, "seal"], [10250.0, "crack"],
+	[12200.0, "seal"], [20050.0, "crack"], [21700.0, "seal"], [22700.0, "crack"]]
+const STOMP_CRACK := ["shell", "shell", "conch"]
+const STOMP_SEAL := ["conch", "shell", "shell", "shell", "conch"]
 ## Golden Hares: [left x, right x, start x, ground y] — catch one for a shower of treasure.
 const HARES := [[3380.0, 3960.0, 3800.0, 600.0], [19760.0, 20400.0, 20260.0, 600.0], [21120.0, 21580.0, 21400.0, 600.0]]
 const HARE_VALUE := 18

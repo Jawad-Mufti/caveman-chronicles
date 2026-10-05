@@ -73,10 +73,8 @@ func _build_hud(with_fire: bool = false) -> void:
 	hud.set_bones(GameState.bones)
 	hud.fig_tapped.connect(func() -> void: player.eat_fig())
 	player.ate_fig.connect(func() -> void: hud.set_figs(GameState.figs))
-	player.sun_changed.connect(func(c: float, left: float) -> void:
-		hud.set_sun(GameState.abilities.has("sunfire"), c, left))
-	hud.set_sun(GameState.abilities.has("sunfire"), player.sun_charge, player.sun_t)
-	hud.sun_tapped.connect(func() -> void: player.start_sunfire())
+	hud.player = player
+	hud.ability_tapped.connect(use_ability)
 	hud.menu_tapped.connect(open_menu)
 	if DisplayServer.is_touchscreen_available():
 		hud.add_touch_controls(player, with_fire)
@@ -214,3 +212,15 @@ func open_menu() -> void:
 	m.player = player
 	m.level_name = title
 	add_child(m)
+
+
+## A tap on one of the two ability circles.
+func use_ability(id: String) -> void:
+	if player == null or player.dead or player.talking:
+		return
+	match id:
+		"sunfire":
+			if not player.start_sunfire() and player.sun_t <= 0.0:
+				hud.say("The sun isn't full yet: hit beasts, grab shells, sit by a fire.", 2.5)
+		"firering":
+			player.start_fire()

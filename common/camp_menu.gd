@@ -1,12 +1,16 @@
 class_name CampMenu
 extends CanvasLayer
 ## The Camp Menu: the game stops, and we are in a firelit cave. On the wall,
-## three carved tablets — SAVE (a spiral of memory in a clay pot), SHELTER (a
-## hut of tusks and hide; built later) and ABILITIES (a hand of fire). The
-## ABILITIES wall is a grid of carved medallions: every unlocked one glows
-## the same sun-gold, every locked one is cold slate in chains; the big
-## tablet on the right shows the chosen one up close, what it does, the keys,
-## or how to earn it.
+## four carved tablets — SAVE (a spiral of memory in a clay pot), SHELTER (a
+## hut of tusks and hide; built later), ABILITIES (a hand of fire) and
+## TUTORIAL (a cave painting of him leaping).
+##   ABILITIES  his powers (Abilities.POWERS): he carries TWO — pick one and
+##              press Space (or tap CARRY) to put it in a slot or take it out.
+##              The two show as circles at the bottom of the screen.
+##   TUTORIAL   his special moves (Abilities.MOVES), and how to do each.
+## On both walls every unlocked medallion glows the same sun-gold and every
+## locked one is cold slate in chains; the big tablet on the right shows the
+## chosen one up close.
 ##
 ## Keys: arrows / WASD choose, Space / Enter / J pick, Esc / K back, Tab / M
 ## close. Mouse and touch: hover or tap.
@@ -16,12 +20,15 @@ const DIM := Color("a8957a")
 const TEAL := Color("3ee0c8")
 const AMBER := Color("ffae42")
 const MAGENTA := Color("ff4fd8")
+const LIME := Color("9be15d")
 const TABLETS := [
 	["save", "SAVE", "Keep what he's found", TEAL],
 	["shelter", "SHELTER", "Build his home", AMBER],
-	["abilities", "ABILITIES", "What he can do", MAGENTA],
+	["abilities", "ABILITIES", "Pick his two powers", MAGENTA],
+	["tutorial", "TUTORIAL", "His special moves", LIME],
 ]
-const COLS := 4
+const COLS := 3
+const CARRY := Rect2(820, 604, 300, 46)     ## the CARRY IT / PUT IT DOWN button
 
 var player: CaveMan
 var level_name := ""
@@ -55,10 +62,10 @@ func _ready() -> void:
 	add_child(_view)
 	_name = _label(Vector2(740, 330), Vector2(460, 50), 36, INK, HORIZONTAL_ALIGNMENT_CENTER)
 	_status = _label(Vector2(740, 380), Vector2(460, 30), 17, Sunfire.GOLD, HORIZONTAL_ALIGNMENT_CENTER)
-	_desc = _label(Vector2(760, 420), Vector2(420, 90), 19, INK, HORIZONTAL_ALIGNMENT_CENTER)
+	_desc = _label(Vector2(760, 412), Vector2(420, 110), 17, INK, HORIZONTAL_ALIGNMENT_CENTER)
 	_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_keys = _label(Vector2(760, 520), Vector2(420, 30), 17, Sunfire.GOLD, HORIZONTAL_ALIGNMENT_CENTER)
-	_how = _label(Vector2(760, 556), Vector2(420, 60), 16, DIM, HORIZONTAL_ALIGNMENT_CENTER)
+	_keys = _label(Vector2(760, 532), Vector2(420, 26), 17, Sunfire.GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	_how = _label(Vector2(760, 560), Vector2(420, 40), 15, DIM, HORIZONTAL_ALIGNMENT_CENTER)
 	_how.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	for i in 46:
 		_embers.append(_new_ember(true))
@@ -89,11 +96,37 @@ func _new_ember(anywhere: bool) -> Array:
 func _go(page: String) -> void:
 	_page = page
 	_page_t = 0.0
-	var ab := page == "abilities"
+	var grid := _grid()
 	for l in [_name, _status, _desc, _keys, _how]:
-		l.visible = ab
-	if ab:
+		l.visible = grid
+	if grid:
+		_pick = 0
 		_show_ability()
+
+
+## The abilities and the tutorial are both walls of medallions.
+func _grid() -> bool:
+	return _page == "abilities" or _page == "tutorial"
+
+
+func _list() -> Array:
+	return Abilities.POWERS if _page == "abilities" else Abilities.MOVES
+
+
+## Put the chosen power in a slot, or take it out.
+func _carry() -> void:
+	if _page != "abilities":
+		return
+	var id: String = _list()[_pick][0]
+	match Abilities.toggle(id, player):
+		"on":
+			_flash = 0.6
+		"off":
+			_flash = -0.6
+	_show_ability()
+
+
+var _flash := 0.0           ## > 0: just put in a slot; < 0: just taken out
 
 
 func _close() -> void:
@@ -104,6 +137,7 @@ func _close() -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	_page_t += delta
+	_flash = move_toward(_flash, 0.0, delta)
 	if _saved_t >= 0.0:
 		_saved_t += delta
 		if _saved_t > 1.8:
@@ -125,15 +159,15 @@ func _input(event: InputEvent) -> void:
 			"main":
 				match k:
 					KEY_LEFT, KEY_A:
-						_sel = (_sel + 2) % 3
+						_sel = (_sel + TABLETS.size() - 1) % TABLETS.size()
 					KEY_RIGHT, KEY_D:
-						_sel = (_sel + 1) % 3
+						_sel = (_sel + 1) % TABLETS.size()
 					KEY_SPACE, KEY_ENTER, KEY_KP_ENTER, KEY_J:
 						_choose(_sel)
 					KEY_ESCAPE, KEY_K, KEY_TAB, KEY_M:
 						_close()
-			"abilities":
-				var n := Abilities.LIST.size()
+			"abilities", "tutorial":
+				var n := _list().size()
 				match k:
 					KEY_LEFT, KEY_A:
 						_pick = (_pick + n - 1) % n
@@ -142,12 +176,17 @@ func _input(event: InputEvent) -> void:
 						_pick = (_pick + 1) % n
 						_show_ability()
 					KEY_UP, KEY_W:
-						_pick = (_pick + n - COLS) % n
+						_pick = (_pick + n - _cols()) % n
 						_show_ability()
 					KEY_DOWN, KEY_S:
-						_pick = (_pick + COLS) % n
+						_pick = (_pick + _cols()) % n
 						_show_ability()
-					KEY_ESCAPE, KEY_K, KEY_SPACE, KEY_ENTER, KEY_KP_ENTER, KEY_J:
+					KEY_SPACE, KEY_ENTER, KEY_KP_ENTER, KEY_J:
+						if _page == "abilities":
+							_carry()
+						else:
+							_go("main")
+					KEY_ESCAPE, KEY_K:
 						_go("main")
 					KEY_TAB, KEY_M:
 						_close()
@@ -163,7 +202,7 @@ func _input(event: InputEvent) -> void:
 		if hit >= 0:
 			if _page == "main":
 				_sel = hit
-			elif _page == "abilities" and hit != _pick:
+			elif _grid() and hit != _pick:
 				_pick = hit
 				_show_ability()
 	elif (event is InputEventMouseButton and (event as InputEventMouseButton).pressed) \
@@ -179,7 +218,11 @@ func _input(event: InputEvent) -> void:
 			if _page == "main" and hit2 >= 0:
 				_sel = hit2
 				_choose(hit2)
-			elif _page == "abilities" and hit2 >= 0:
+			elif _page == "abilities" and CARRY.has_point(at2):
+				_carry()
+			elif _grid() and hit2 >= 0:
+				if _page == "abilities" and hit2 == _pick:
+					_carry()                # a second tap on the chosen one carries it
 				_pick = hit2
 				_show_ability()
 			elif _page == "shelter":
@@ -190,11 +233,11 @@ func _input(event: InputEvent) -> void:
 ## Which tablet / medallion is under the pointer (-1: none).
 func _hit(at: Vector2) -> int:
 	if _page == "main":
-		for i in 3:
-			if Rect2(_tablet_x(i) - 130.0, 230.0, 260.0, 320.0).has_point(at):
+		for i in TABLETS.size():
+			if Rect2(_tablet_x(i) - 118.0, 240.0, 236.0, 300.0).has_point(at):
 				return i
-	elif _page == "abilities":
-		for i in Abilities.LIST.size():
+	elif _grid():
+		for i in _list().size():
 			if at.distance_to(_medal_at(i)) < 62.0:
 				return i
 	return -1
@@ -209,27 +252,39 @@ func _choose(i: int) -> void:
 			_go("shelter")
 		"abilities":
 			_go("abilities")
+		"tutorial":
+			_go("tutorial")
 
 
 ## ------------------------------------------------------------------ layout
 func _tablet_x(i: int) -> float:
-	return 340.0 + i * 300.0
+	return 205.0 + i * 290.0
+
+
+## Three across; four when the wall has more than nine.
+func _cols() -> int:
+	return 4 if _list().size() > 9 else COLS
 
 
 func _medal_at(i: int) -> Vector2:
-	return Vector2(130.0 + (i % COLS) * 150.0, 220.0 + (i / COLS) * 150.0)
+	if _cols() == 4:
+		return Vector2(110.0 + (i % 4) * 140.0, 232.0 + (i / 4) * 150.0)
+	return Vector2(150.0 + (i % COLS) * 170.0, 232.0 + (i / COLS) * 150.0)
 
 
 func _show_ability() -> void:
-	var row: Array = Abilities.LIST[_pick]
+	var row: Array = _list()[_pick]
 	var id: String = row[0]
 	var open := Abilities.unlocked(id, player)
 	_name.text = row[1]
 	_desc.text = row[2]
 	if open:
+		var slot := Abilities.slots(player).find(id)
 		_status.text = "★  UNLOCKED  ★"
-		_status.add_theme_color_override("font_color", Sunfire.GOLD)
-		_keys.text = "KEYS:  " + str(row[3])
+		if _page == "abilities":
+			_status.text = ("★  CARRIED — SLOT %d  ★" % (slot + 1)) if slot >= 0 else "UNLOCKED — not carried"
+		_status.add_theme_color_override("font_color", Sunfire.GOLD if slot >= 0 or _page == "tutorial" else Color("e8c99a"))
+		_keys.text = ("KEY:  " if _page == "abilities" else "KEYS:  ") + str(row[3])
 		_how.text = ""
 		if id == "sunfire" and player != null:
 			if player.sun_t > 0.0:
@@ -252,8 +307,8 @@ func _draw_view() -> void:
 	match _page:
 		"main":
 			_draw_main(b)
-		"abilities":
-			_draw_abilities(b)
+		"abilities", "tutorial":
+			_draw_grid(b)
 		"shelter":
 			_draw_shelter(b)
 	# embers over everything, in fire colours with a few magic ones
@@ -320,10 +375,10 @@ func _handprint(b: Batch, at: Vector2, s: float, col: Color) -> void:
 		b.line(at + Vector2.from_angle(a) * 10.0 * s, at + Vector2.from_angle(a) * (10.0 * s + fl), col, 7.0 * s)
 
 
-## The three tablets.
+## The four tablets.
 func _draw_main(b: Batch) -> void:
 	_campfire(b, Vector2(640, 690), 1.0)
-	for i in 3:
+	for i in TABLETS.size():
 		var tab: Array = TABLETS[i]
 		var accent: Color = tab[3]
 		var on := i == _sel
@@ -338,8 +393,8 @@ func _draw_main(b: Batch) -> void:
 		rng.seed = 11 + i
 		for j in 20:
 			var a := j * TAU / 20.0
-			var rx := 128.0 * s
-			var ry := 158.0 * s
+			var rx := 114.0 * s
+			var ry := 150.0 * s
 			var p := Vector2(clampf(cos(a) * 1.5, -1.0, 1.0) * rx, clampf(sin(a) * 1.4, -1.0, 1.0) * ry)
 			slab.append(c + p + Vector2(rng.randf_range(-6, 6), rng.randf_range(-6, 6)))
 		if on:
@@ -351,23 +406,25 @@ func _draw_main(b: Batch) -> void:
 		b.poly(_grow(slab, c, 0.9), Color("57463d") if on else Color("43352f"))
 		b.polyline(_closed(slab), Color(accent, 0.9 if on else 0.3), 4.0 if on else 2.0)
 		# cracks and chisel marks
-		b.line(c + Vector2(-100, -120) * s, c + Vector2(-70, -90) * s, Color(0, 0, 0, 0.25), 2.0)
-		b.line(c + Vector2(90, 110) * s, c + Vector2(60, 130) * s, Color(0, 0, 0, 0.25), 2.0)
+		b.line(c + Vector2(-90, -116) * s, c + Vector2(-62, -88) * s, Color(0, 0, 0, 0.25), 2.0)
+		b.line(c + Vector2(80, 106) * s, c + Vector2(52, 124) * s, Color(0, 0, 0, 0.25), 2.0)
 		# the medallion and its symbol
 		var mc := c + Vector2(0, -36) * s
-		b.circle(mc, 82.0 * s, Color(0.08, 0.05, 0.05, 0.85), 40)
-		b.arc(mc, 82.0 * s, 0.0, TAU, 48, Color(accent, 0.8 if on else 0.35), 4.0)
+		b.circle(mc, 74.0 * s, Color(0.08, 0.05, 0.05, 0.85), 40)
+		b.arc(mc, 74.0 * s, 0.0, TAU, 48, Color(accent, 0.8 if on else 0.35), 4.0)
 		for d in 12:
 			var a2 := d * TAU / 12.0 + (_t * 0.6 if on else 0.0)
-			b.circle(mc + Vector2.from_angle(a2) * 92.0 * s, 3.0, Color(accent, 0.8 if on else 0.25), 6)
+			b.circle(mc + Vector2.from_angle(a2) * 84.0 * s, 3.0, Color(accent, 0.8 if on else 0.25), 6)
 		var tt := _t * (1.6 if on else 0.6)
 		match tab[0]:
 			"save":
-				_symbol_save(b, mc, 58.0 * s, accent, tt)
+				_symbol_save(b, mc, 52.0 * s, accent, tt)
 			"shelter":
-				_symbol_shelter(b, mc, 58.0 * s, accent, tt)
+				_symbol_shelter(b, mc, 52.0 * s, accent, tt)
 			"abilities":
-				_symbol_abilities(b, mc, 58.0 * s, accent, tt)
+				_symbol_abilities(b, mc, 52.0 * s, accent, tt)
+			"tutorial":
+				_symbol_tutorial(b, mc, 52.0 * s, accent, tt)
 		# the SAVED! stamp
 		if tab[0] == "save" and _saved_t >= 0.0:
 			var k := clampf(_saved_t / 0.18, 0.0, 1.0)
@@ -450,12 +507,14 @@ func _campfire(b: Batch, at: Vector2, s: float) -> void:
 		Sunfire.flame(b, at + Vector2(-24.0 + i * 16.0, -6.0) * s, (44.0 + 14.0 * sin(_t * 3.0 + i)) * s, _t * 1.2 + i * 1.7)
 
 
-## The wall of abilities: a grid of medallions, and the chosen one up close.
-func _draw_abilities(b: Batch) -> void:
-	var n := Abilities.LIST.size()
+## A wall of medallions (the powers, or the moves), and the chosen one up close.
+func _draw_grid(b: Batch) -> void:
+	var list := _list()
+	var carried := Abilities.slots(player)
+	var n := list.size()
 	var got := 0
 	for i in n:
-		var row: Array = Abilities.LIST[i]
+		var row: Array = list[i]
 		var id: String = row[0]
 		var open := Abilities.unlocked(id, player)
 		if open:
@@ -484,26 +543,35 @@ func _draw_abilities(b: Batch) -> void:
 			b.rect(Rect2(c + Vector2(-11, r * 0.5), Vector2(22, 18)), Color("8a8f9e"))
 			b.arc(c + Vector2(0, r * 0.5), 8.0, PI, TAU, 10, Color("8a8f9e"), 3.5)
 			b.circle(c + Vector2(0, r * 0.5 + 9.0), 3.0, Color("2a2c33"), 6)
+		# carried: a badge in the power's own colour, with its slot number
+		var slot := carried.find(id) if _page == "abilities" else -1
+		if slot >= 0:
+			var bp := c + Vector2(r * 0.72, -r * 0.72)
+			b.circle(bp, 15.0, Color(0, 0, 0, 0.5), 16)
+			b.circle(bp, 13.0, Abilities.colour(id), 16)
 		if on:
 			# a turning dotted ring round the chosen one
 			for d in 16:
 				var a := d * TAU / 16.0 + _t * 1.5
-				b.circle(c + Vector2.from_angle(a) * (r + 16.0), 3.0, Color(INK, 0.9) if d % 2 == 0 else Color(MAGENTA, 0.9), 6)
+				b.circle(c + Vector2.from_angle(a) * (r + 16.0), 3.0, Color(INK, 0.9) if d % 2 == 0 else Color(MAGENTA if _page == "abilities" else LIME, 0.9), 6)
+	if _page == "abilities":
+		_draw_slots(b, carried)
 	# the big tablet on the right
 	var tc := Vector2(970, 400)
-	var slab := PackedVector2Array([tc + Vector2(-250, -330), tc + Vector2(240, -322), tc + Vector2(256, 260), tc + Vector2(-244, 268)])
+	var slab := PackedVector2Array([tc + Vector2(-250, -330), tc + Vector2(240, -322), tc + Vector2(256, 268), tc + Vector2(-244, 276)])
 	b.poly(_grow(slab, tc + Vector2(8, 12), 1.0), Color(0, 0, 0, 0.45))
 	b.poly(slab, Color("3a2e29"))
 	b.poly(_grow(slab, tc, 0.96), Color("4a3a33"))
-	var pick: Array = Abilities.LIST[_pick]
+	var pick: Array = list[_pick]
 	var pid: String = pick[0]
 	var popen := Abilities.unlocked(pid, player)
 	var bc := Vector2(970, 196)
 	var pop := 1.0 + 0.25 * maxf(0.0, 1.0 - _page_t * 4.0)
 	if popen:
+		var ray_col := Abilities.colour(pid) if _page == "abilities" else Abilities.GOLD
 		for i in 16:
 			var a := i * TAU / 16.0 + _t * 0.4
-			b.tri(bc + Vector2.from_angle(a + 0.1) * 70.0, bc + Vector2.from_angle(a) * (128.0 + 10.0 * sin(_t * 4.0 + i)), bc + Vector2.from_angle(a - 0.1) * 70.0, Color(Abilities.GOLD, 0.22))
+			b.tri(bc + Vector2.from_angle(a + 0.1) * 70.0, bc + Vector2.from_angle(a) * (128.0 + 10.0 * sin(_t * 4.0 + i)), bc + Vector2.from_angle(a - 0.1) * 70.0, Color(ray_col, 0.25))
 		b.circle(bc, 92.0 * pop, Color("2a1a12"), 40)
 		b.arc(bc, 92.0 * pop, 0.0, TAU, 48, Abilities.GOLD, 5.0)
 		Abilities.draw_symbol(b, pid, bc, 74.0 * pop, Abilities.GOLD, _t * 1.6)
@@ -512,12 +580,55 @@ func _draw_abilities(b: Batch) -> void:
 		b.arc(bc, 92.0, 0.0, TAU, 48, Abilities.SLATE, 4.0)
 		Abilities.draw_symbol(b, pid, bc, 60.0, Color(Abilities.SLATE, 0.5), 0.0)
 		b.polyline(PackedVector2Array([bc + Vector2(-60, -50), bc + Vector2(-20, -10), bc + Vector2(-34, 20), bc + Vector2(10, 64)]), Color(0, 0, 0, 0.6), 3.0)
-	# how full the sun is, on the SUNFIRE tablet
-	if pid == "sunfire" and popen and player != null:
-		var k := 1.0 if player.sun_t > 0.0 else player.sun_charge
-		b.rect(Rect2(820, 620, 300, 14), Color(0, 0, 0, 0.5))
-		b.rect(Rect2(820, 620, 300.0 * k, 14), Sunfire.GOLD if k >= 1.0 else Sunfire.HOT)
+	# the CARRY IT / PUT IT DOWN button
+	if _page == "abilities" and popen:
+		var on2 := carried.has(pid)
+		var col := Abilities.colour(pid)
+		var glow := 0.5 + 0.5 * sin(_t * 4.0)
+		b.rect(CARRY.grow(4.0 + 3.0 * glow), Color(col, 0.18) if not on2 else Color(0, 0, 0, 0.0))
+		b.rect(CARRY, col.darkened(0.55) if on2 else col.darkened(0.15))
+		b.rect(Rect2(CARRY.position, Vector2(CARRY.size.x, 4)), Color(1, 1, 1, 0.25))
 	_counter = "%d / %d unlocked" % [got, n]
+
+
+## The two slots under the wall: what he carries, in their own colours —
+## the same circles he sees at the bottom of the screen in the game.
+func _draw_slots(b: Batch, carried: Array) -> void:
+	for i in Abilities.SLOTS:
+		var c := Vector2(250.0 + i * 140.0, 590.0)
+		if i < carried.size():
+			var id: String = carried[i]
+			var col := Abilities.colour(id)
+			var pulse := 1.0 + (0.12 * absf(_flash) / 0.6 if i == carried.size() - 1 else 0.0)
+			for g in 3:
+				b.circle(c, (44.0 + g * 6.0 + 3.0 * sin(_t * 4.0 + i)) * pulse, Color(col, 0.13 - g * 0.035), 28)
+			b.circle(c, 40.0 * pulse, Color("2a1a12"), 30)
+			b.arc(c, 40.0 * pulse, 0.0, TAU, 36, col, 4.0)
+			Abilities.draw_symbol(b, id, c, 28.0 * pulse, col, _t * 1.5)
+		else:
+			for d in 18:
+				var a := d * TAU / 18.0 + _t * 0.3
+				b.circle(c + Vector2.from_angle(a) * 40.0, 2.5, Color(1, 1, 1, 0.3), 6)
+
+
+## A cave painting of him mid-leap, arrows of motion around him.
+func _symbol_tutorial(b: Batch, c: Vector2, r: float, col: Color, t: float) -> void:
+	var bob := sin(t * 3.0) * 0.08 * r
+	var hd := c + Vector2(0.1 * r, -0.55 * r + bob)
+	b.circle(hd, 0.16 * r, col, 14)
+	var hip := c + Vector2(-0.05 * r, 0.05 * r + bob)
+	b.line(hd + Vector2(0, 0.14 * r), hip, col, 0.12 * r)
+	b.line(hd + Vector2(-0.02, 0.3) * r, hd + Vector2(0.45, 0.05) * r, col, 0.09 * r)
+	b.line(hd + Vector2(-0.02, 0.3) * r, hd + Vector2(-0.4, 0.45) * r, col, 0.09 * r)
+	b.line(hip, hip + Vector2(0.45, 0.25) * r, col, 0.1 * r)
+	b.line(hip + Vector2(0.45, 0.25) * r, hip + Vector2(0.35, 0.6) * r, col, 0.1 * r)
+	b.line(hip, hip + Vector2(-0.35, 0.45) * r, col, 0.1 * r)
+	for i in 3:
+		var y := (-0.3 + i * 0.3) * r
+		var x := -0.75 * r - fmod(t * 0.6 * r + i * 9.0, 0.3 * r)
+		b.line(c + Vector2(x, y), c + Vector2(x + 0.3 * r, y), Color(col, 0.7), 0.06 * r)
+	b.arc(c + Vector2(0, 0.1 * r), 0.95 * r, -PI * 0.85, -PI * 0.15, 16, Color(col, 0.6), 0.05 * r)
+	b.tri(c + Vector2(0.84, -0.48) * r, c + Vector2(0.62, -0.62) * r, c + Vector2(0.7, -0.36) * r, Color(col, 0.8))
 
 
 var _counter := ""
@@ -552,13 +663,13 @@ func _texts() -> void:
 		"main":
 			_centred(f, "THE CAMP", Vector2(640, 110), 64, Sunfire.GOLD, true)
 			_centred(f, level_name, Vector2(640, 150), 18, DIM, false)
-			for i in 3:
+			for i in TABLETS.size():
 				var tab: Array = TABLETS[i]
 				var on := i == _sel
-				var y := 520.0 + (-16.0 if on else 0.0)
+				var y := 500.0 + (-16.0 if on else 0.0)
 				_centred(f, tab[1], Vector2(_tablet_x(i), y), 30 if on else 26, tab[3] if on else INK, true)
 				_centred(f, tab[2], Vector2(_tablet_x(i), y + 26.0), 15, DIM, false)
-			_view.draw_set_transform(Vector2(_tablet_x(1) + 70.0, 278.0 + (-16.0 if _sel == 1 else 0.0)), 0.17, Vector2.ONE)
+			_view.draw_set_transform(Vector2(_tablet_x(1) + 60.0, 278.0 + (-16.0 if _sel == 1 else 0.0)), 0.17, Vector2.ONE)
 			_view.draw_string(f, Vector2(-26, 0), "SOON", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, INK)
 			_view.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 			if _saved_t >= 0.0:
@@ -567,9 +678,26 @@ func _texts() -> void:
 				_centred(f, "SAVED!", Vector2(_tablet_x(0), 380), sz, Color(TEAL.lightened(0.3), a), true)
 			_centred(f, "← →  choose      SPACE  open      ESC  back to the game", Vector2(640, 606), 16, DIM, false)
 		"abilities":
-			_centred(f, "ABILITIES", Vector2(370, 92), 50, Sunfire.GOLD, true)
-			_centred(f, _counter, Vector2(370, 126), 18, DIM, false)
-			_centred(f, "ARROWS  choose      ESC  back", Vector2(370, 672), 16, DIM, false)
+			_centred(f, "ABILITIES", Vector2(320, 92), 50, Sunfire.GOLD, true)
+			_centred(f, "%s  ·  he carries TWO" % _counter, Vector2(320, 126), 18, DIM, false)
+			_centred(f, "CARRIED", Vector2(320, 530), 16, INK, true)
+			var carried := Abilities.slots(player)
+			for i in Abilities.SLOTS:
+				_centred(f, str(i + 1), Vector2(250.0 + i * 140.0, 650.0), 14, DIM, false)
+			for i in _list().size():
+				var slot := carried.find(_list()[i][0])
+				if slot >= 0:
+					var r := 54.0 * (1.12 if i == _pick else 1.0)
+					_centred(f, str(slot + 1), _medal_at(i) + Vector2(r * 0.72, -r * 0.72 + 6.0), 17, Color.BLACK, false)
+			var pr: Array = _list()[_pick]
+			if Abilities.unlocked(pr[0], player):
+				var label := "PUT IT DOWN" if carried.has(pr[0]) else ("CARRY IT" if carried.size() < Abilities.SLOTS else "CARRY IT (swap)")
+				_centred(f, label + "   SPACE", CARRY.get_center() + Vector2(0, 7), 20, INK, true)
+			_centred(f, "ARROWS  choose      SPACE  carry      ESC  back", Vector2(320, 690), 15, DIM, false)
+		"tutorial":
+			_centred(f, "SPECIAL MOVES", Vector2(320, 92), 46, LIME, true)
+			_centred(f, "%s  ·  always his, once learned" % _counter, Vector2(320, 126), 18, DIM, false)
+			_centred(f, "ARROWS  choose      ESC  back", Vector2(320, 690), 15, DIM, false)
 		"shelter":
 			_centred(f, "THE SHELTER", Vector2(640, 110), 56, AMBER, true)
 			_centred(f, "Coming soon: build his home from the bones he gathers.", Vector2(640, 150), 20, INK, false)

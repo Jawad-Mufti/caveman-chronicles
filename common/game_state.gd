@@ -29,6 +29,8 @@ static var figs := 0                   ## roast figs in his pouch
 static var bones := 0
 static var seen := {}                  ## guides already shown, by level
 static var abilities: Array = []       ## learned once and kept: "wallkick", "sunfire"
+static var equipped: Array = []        ## the two powers he carries (see Abilities.slots)
+static var equip_picked := false      ## false: the slots fill themselves with what he unlocks
 static var _loaded := false
 
 
@@ -59,6 +61,8 @@ static func ensure_loaded() -> void:
 	bones = int(d.get("bones", 0))
 	seen = d.get("seen", {})
 	abilities = d.get("abilities", [])
+	equipped = d.get("equipped", [])
+	equip_picked = bool(d.get("equip_picked", false))
 	# an older save that forged the Firestone before weapons were kept
 	if str(gems.get("level2", "")) == "forged" and not weapons.has("hammer"):
 		weapons.append("hammer")
@@ -71,7 +75,7 @@ static func save() -> void:
 		return
 	f.store_string(JSON.stringify({"shells": shells, "upgrades": upgrades, "skins": skins, "skin": skin,
 		"gems": gems, "taken": taken, "trophies": trophies, "weapons": weapons, "weapon": weapon, "figs": figs, "bones": bones,
-		"seen": seen, "abilities": abilities}))
+		"seen": seen, "abilities": abilities, "equipped": equipped, "equip_picked": equip_picked}))
 
 
 ## A fresh start: everything back to nothing, on disk too.
@@ -89,6 +93,8 @@ static func reset() -> void:
 	bones = 0
 	seen = {}
 	abilities = []
+	equipped = []
+	equip_picked = false
 	_loaded = true
 	save()
 
@@ -144,3 +150,10 @@ static func learn(id: String) -> bool:
 	abilities.append(id)
 	save()
 	return true
+
+
+## He picked his powers in the menu (saved at once).
+static func set_equipped(ids: Array) -> void:
+	equipped = ids.duplicate()
+	equip_picked = true
+	save()
