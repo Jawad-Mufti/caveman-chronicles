@@ -209,10 +209,11 @@ class Glow extends Node2D:
 	func _draw() -> void:
 		var cam := get_viewport().get_camera_2d()
 		var cx := cam.get_screen_center_position() if cam != null else Vector2.ZERO
+		var reach := LevelBase.view_half(self).x + 260.0     # what is on screen, and a little more
 		var b := Batch.new()
 		for n in get_tree().get_nodes_in_group("glow"):
 			var n2 := n as Node2D
-			if n2 == null or absf(n2.global_position.x - cx.x) > 900.0:
+			if n2 == null or absf(n2.global_position.x - cx.x) > reach:
 				continue
 			n2.draw_glow(b)
 			b.set_xf(Transform2D.IDENTITY)

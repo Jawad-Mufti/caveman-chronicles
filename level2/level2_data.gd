@@ -514,7 +514,8 @@ const DARKNESS := [[0.0, 0.26], [700.0, 0.40], [1500.0, 0.62], [2600.0, 0.72], [
 	[21200.0, 0.72], [22700.0, 0.76], [23150.0, 0.70], [25150.0, 0.72], [25300.0, 0.86], [25400.0, 0.92], [27350.0, 0.92],   # the Long Dark
 	[27500.0, 0.74], [28050.0, 0.76], [28150.0, 0.88], [28950.0, 0.88],                   # his home; the Three Fires
 	[29000.0, 0.82], [30300.0, 0.82],                                                     # the clearing
-	[31250.0, 0.92], [38050.0, 0.92]]   # the caves: near black
+	[31250.0, 0.92], [38050.0, 0.92],   # the caves: near black
+	[38300.0, 0.88], [41500.0, 0.88]]   # the Root Hollows: lit by what lives there
 
 
 ## ---------------------------------------------------------------- the shop
@@ -526,3 +527,110 @@ const DARKNESS := [[0.0, 0.26], [700.0, 0.40], [1500.0, 0.62], [2600.0, 0.72], [
 ## treasure and the prices follow on their own.
 const ECONOMY := {"axe": 0.26, "wolf_hood": 0.16, "ember_paint": 0.18, "bear_cloak": 0.21, "firekeeper": 0.20,
 	"fig": 0.04, "heart": 0.18, "torch": 0.11, "pouch": 0.11}
+
+
+## ---------------------------------------------------------------- exploring
+## More sky lanes, going UP from places he can already reach — with jellies to
+## bounce on, rays to ride, a cache and a rare find at the top. Their own ids
+## ("k2_%d" shells, "sc2_%d" caches): SKY_LANES above must never change.
+##   start  where the lane begins (the top of something he already stands on)
+##   rocks  [x, top, w, flags]     flags: 2 = a lamp island
+##   jellies [x, y, look, drift]   rays [x0, x1, y, seconds to cross]
+##   relic  [x, y, kind, id]       (ids "r0", "r1"... shared by every rare find)
+const SKY_LANES_2 := [
+	{
+		"name": "Moon Garden",            # on up from the Moonstep Road, over the wolf hollow
+		"start": [1865.0, 70.0],
+		"rocks": [[2010.0, -40.0, 120.0, 0], [2340.0, -240.0, 150.0, 0], [2560.0, -310.0, 110.0, 0], [2760.0, -400.0, 200.0, 2],
+			[3700.0, -200.0, 140.0, 0], [3900.0, -60.0, 110.0, 0], [4060.0, 110.0, 110.0, 0]],
+		"jellies": [[2240.0, 30.0, 0, 0.0], [3260.0, -150.0, 1, 30.0]],
+		"rays": [[3060.0, 3580.0, -330.0, 6.0]],
+		"cache": [3, ["shell", "shell", "shell", "conch", "shell", "bone", "bone"]],
+		"relic": [2905.0, -445.0, "moonstone", "r0"],
+		"note": [1700.0, "Above the Moonstep... a JELLYFISH? In the sky?", 5.0],
+	},
+	{
+		"name": "Firefly Bridge",         # a high road over the Tar Pits, off a bloom by the graveyard
+		"pad": [12460.0, 600.0],
+		"start": [12460.0, 600.0],
+		"rocks": [[12560.0, 250.0, 140.0, 0], [12790.0, 180.0, 110.0, 0], [13090.0, 10.0, 120.0, 0], [13420.0, -50.0, 150.0, 2],
+			[14110.0, 60.0, 120.0, 0], [14300.0, 250.0, 120.0, 0]],
+		"jellies": [[13010.0, 260.0, 2, 0.0]],
+		"rays": [[13650.0, 14000.0, -40.0, 5.0]],
+		"cache": [3, ["shell", "shell", "conch", "shell", "shell", "bone"]],
+		"relic": [13495.0, -95.0, "star_shard", "r1"],
+		"note": [12380.0, "A bloom by the tar... and lights high over it.", 4.5],
+	},
+	{
+		"name": "Feather Peaks",          # the very top of the world, off the great tree's crown
+		"start": [20245.0, -408.0],
+		"rocks": [[20420.0, -520.0, 120.0, 0], [20760.0, -700.0, 150.0, 2], [20980.0, -640.0, 110.0, 0], [21170.0, -600.0, 210.0, 2],
+			[22030.0, -400.0, 130.0, 0], [22240.0, -240.0, 120.0, 0]],
+		"jellies": [[20640.0, -420.0, 1, 0.0]],
+		"rays": [[21460.0, 21940.0, -520.0, 6.0]],
+		"cache": [3, ["shell", "shell", "conch", "conch", "shell", "tusk", "bone"]],
+		"relic": [21300.0, -645.0, "giant_feather", "r2"],
+		"note": [20100.0, "Higher than the crown? Something soft is floating up there.", 5.0],
+	},
+]
+
+## The Root Hollows: underground, under the middle of the level. In through
+## a crusted burrow in the Steppe graveyard (STOMP it open), out by a root
+## stair near the Tar Pits. A camera region of its own, like the caves.
+const DEEP := Rect2(38400, 150, 3000, 800)
+const DEEP_BURROW := 11650.0            ## the mound, between the graveyard skeletons (clear of the rune seal at 12200)
+const DEEP_IN := Vector2(38520, 700)
+const DEEP_OUT := Vector2(12640, 600)   ## back up into the night, before the tar
+const DEEP_ROCK := [                     ## [x, y, w, h, kind]
+	[38400.0, 700.0, 800.0, 250.0, "floor"],
+	[38820.0, 590.0, 110.0, 22.0, "floor"], [38980.0, 470.0, 130.0, 22.0, "floor"],   # up to the amber nook
+	[39200.0, 780.0, 300.0, 170.0, "floor"],                                          # a step down; then a pit
+	[39620.0, 780.0, 380.0, 170.0, "floor"],                                          # under the glow-worms
+	[40000.0, 740.0, 700.0, 210.0, "floor"],                                          # the angler's hall
+	[40700.0, 700.0, 400.0, 250.0, "floor"],                                          # the snail's garden
+	[41100.0, 640.0, 300.0, 310.0, "floor"],                                          # the root stair out
+	[38400.0, 150.0, 3000.0, 160.0, "roof"],
+	[38400.0, 310.0, 420.0, 80.0, "roof"],
+	[40150.0, 310.0, 420.0, 150.0, "roof"],                                           # low: the angler hides in it
+	[38380.0, 150.0, 40.0, 800.0, "wall"], [41380.0, 150.0, 40.0, 800.0, "wall"],   # the ends: solid rock
+]
+const DEEP_WORMS := [[38480.0, 390.0, 300.0, 200.0], [39640.0, 310.0, 340.0, 465.0]]   ## [x, roof y, width, reach]
+const DEEP_ANGLER := [40360.0, 460.0, 230.0]       ## [x, roof y, how far its lure hangs]
+const DEEP_SNAIL := [40740.0, 41060.0, 700.0]      ## [from x, to x, floor y]; it carries "r3"
+const DEEP_RELICS := [[39045.0, 440.0, "amber_bug", "r4"], [40640.0, 700.0, "ivory", "r5"]]
+const DEEP_LOOT := [                                ## [x, y, kind]; ids "u0", "u1"...
+	[38620.0, 670.0, "shell"], [38700.0, 670.0, "shell"], [38875.0, 560.0, "shell"], [39030.0, 440.0, "conch"],
+	[39300.0, 750.0, "shell"], [39560.0, 700.0, "shell"], [39700.0, 750.0, "bone"], [39900.0, 750.0, "shell"],
+	[40100.0, 710.0, "shell"], [40500.0, 710.0, "conch"], [40800.0, 670.0, "shell"], [41000.0, 670.0, "shell"],
+	[41250.0, 610.0, "bone"],
+]
+
+## The Dig: the way down to the Root Hollows, through the burrow (a MEGA STOMP
+## breaks its crust). A column of earth to dig through, Terraria-style: DOWN +
+## HIT digs below, HIT digs ahead. The Sun Stone (SUNFIRE) waits halfway down;
+## a layer of packed clay near the bottom needs the SHOVEL; under it, a passage
+## to the Hollows. A root tunnel in the left wall, just above the clay, climbs
+## back out to the graveyard. Its own camera region (5).
+const DIG := Rect2(42000, 0, 1700, 2400)
+const DIG_GRID := [42690.0, 360.0, 8, 40]     ## [x, y, columns, rows] of 40-px blocks
+const DIG_POCKET := [20, 21, 2, 5]            ## rows 20-21, columns 2-5: the Sun Stone's hollow
+const DIG_CLAY := [35, 37]                    ## rows of packed clay
+const DIG_IN := Vector2(42870, 360)           ## the middle of a block: he digs straight down
+const DIG_ROCK := [                            ## [x, y, w, h, kind]
+	[42000.0, 0.0, 1700.0, 220.0, "roof"],
+	[42000.0, 220.0, 550.0, 2180.0, "wall"],
+	[42550.0, 360.0, 140.0, 1280.0, "wall"], [42550.0, 1760.0, 140.0, 640.0, "wall"],   # the gap between: the root tunnel out
+	[43010.0, 360.0, 140.0, 1600.0, "wall"],
+	[43150.0, 220.0, 550.0, 1740.0, "wall"],
+	[42690.0, 2080.0, 1010.0, 320.0, "floor"],                                          # the passage to the Hollows
+	[43680.0, 1900.0, 20.0, 200.0, "wall"],
+]
+const DIG_LOOT := ["shell", "shell", "shell", "conch", "shell", "shell", "tusk", "shell", "conch", "shell"]   ## ids "dg0"...
+
+## The windy heights: up from the Moon Garden, before the gorge's first rope.
+## Gusts blow here (only up in the sky); at the top, the bramble with the
+## SHOVEL in it — only SUNFIRE burns it, and SUNFIRE is found in the Dig.
+const WINDY_ROCKS := [[3560.0, -260.0, 110.0, 0], [3760.0, -400.0, 120.0, 0], [3600.0, -530.0, 100.0, 0], [3850.0, -640.0, 180.0, 2]]
+const WINDY_JELLY := [3470.0, -170.0, 2, 0.0]     ## under the ray's flight; it bounces him up toward the top rocks
+const WINDY_WIND := [3420.0, 4150.0, -800.0, -230.0, -240.0]   ## [x0, x1, y0, y1, strength]: not down on the Moon Garden rock below
+const BRAMBLE_AT := Vector2(3940, -640)

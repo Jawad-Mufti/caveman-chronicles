@@ -119,6 +119,7 @@ func _build_background() -> void:
 	# level, and the scenery changes as he travels — tepuis and waterfalls,
 	# then bamboo, then the painted caves, then Tuskar's stone circle.
 	var pb := ParallaxBackground.new()
+	pb.scroll_ignore_camera_zoom = true     # the far scenery keeps its size; the view pulls back over it
 	pb.layer = -100
 	add_child(pb)
 
@@ -165,10 +166,16 @@ func _build_world() -> void:
 	add_child(ceiling)
 
 	for seg in FLOORS:
-		add_child(World.Slab.new(Rect2(seg[0], GROUND_Y, seg[1] - seg[0], 240)))
+		var ground := World.Slab.new(Rect2(seg[0], GROUND_Y, seg[1] - seg[0], 240))
+		# earth below, for a pulled-back view — except over the sunken chamber
+		if seg[1] <= 5150.0 - 1.0 or seg[0] >= 6400.0:
+			ground.fill_below = 260.0
+		add_child(ground)
 
 	# Part 3: the floor of the sunken chamber
-	add_child(World.Slab.new(Rect2(5150, CHAMBER_Y, 1250, 220)))
+	var chamber := World.Slab.new(Rect2(5150, CHAMBER_Y, 1250, 220))
+	chamber.fill_below = 160.0
+	add_child(chamber)
 
 	for l in LEDGES:
 		add_child(World.Slab.new(Rect2(l[0], l[1], l[2], 22)))

@@ -31,6 +31,10 @@ static var seen := {}                  ## guides already shown, by level
 static var abilities: Array = []       ## learned once and kept: "wallkick", "sunfire"
 static var equipped: Array = []        ## the two powers he carries (see Abilities.slots)
 static var equip_picked := false      ## false: the slots fill themselves with what he unlocks
+static var view := ""                  ## the camera: "close", "normal", "wide"; "" = suit the device
+static var relics := {}                ## rare finds kept for the shelter: kind -> how many (see Relics)
+static var items: Array = []           ## tools he owns for good: "shovel"
+static var mysteries := {}             ## id -> "open" | "solved" (see CampMenu.MYSTERIES)
 static var _loaded := false
 
 
@@ -63,6 +67,10 @@ static func ensure_loaded() -> void:
 	abilities = d.get("abilities", [])
 	equipped = d.get("equipped", [])
 	equip_picked = bool(d.get("equip_picked", false))
+	view = str(d.get("view", ""))
+	relics = d.get("relics", {})
+	items = d.get("items", [])
+	mysteries = d.get("mysteries", {})
 	# an older save that forged the Firestone before weapons were kept
 	if str(gems.get("level2", "")) == "forged" and not weapons.has("hammer"):
 		weapons.append("hammer")
@@ -75,7 +83,7 @@ static func save() -> void:
 		return
 	f.store_string(JSON.stringify({"shells": shells, "upgrades": upgrades, "skins": skins, "skin": skin,
 		"gems": gems, "taken": taken, "trophies": trophies, "weapons": weapons, "weapon": weapon, "figs": figs, "bones": bones,
-		"seen": seen, "abilities": abilities, "equipped": equipped, "equip_picked": equip_picked}))
+		"seen": seen, "abilities": abilities, "equipped": equipped, "equip_picked": equip_picked, "view": view, "relics": relics, "items": items, "mysteries": mysteries}))
 
 
 ## A fresh start: everything back to nothing, on disk too.
@@ -95,6 +103,9 @@ static func reset() -> void:
 	abilities = []
 	equipped = []
 	equip_picked = false
+	relics = {}
+	items = []
+	mysteries = {}
 	_loaded = true
 	save()
 
@@ -157,3 +168,62 @@ static func set_equipped(ids: Array) -> void:
 	equipped = ids.duplicate()
 	equip_picked = true
 	save()
+
+
+## How much of the world the camera shows. On a PC the default pulls back
+## (more of the world, like PC players expect); on a touch screen it stays
+## close, so he is big enough under a thumb.
+const VIEWS := {"close": 1.0, "normal": 0.8, "wide": 0.67}
+
+
+static func view_name() -> String:
+	if VIEWS.has(view):
+		return view
+	return "close" if DisplayServer.is_touchscreen_available() else "normal"
+
+
+static func view_zoom() -> float:
+	return VIEWS[view_name()]
+
+
+## Close -> Normal -> Wide -> Close (saved at once).
+static func next_view() -> void:
+	var order := ["close", "normal", "wide"]
+	view = order[(order.find(view_name()) + 1) % order.size()]
+	save()
+
+
+## A rare find, kept for the shelter (saved at once).
+static func add_relic(kind: String) -> void:
+	relics[kind] = int(relics.get(kind, 0)) + 1
+	save()
+
+
+static func has_item(id: String) -> bool:
+	return items.has(id)
+
+
+## A tool for good (saved at once). True if it is new.
+static func give_item(id: String) -> bool:
+	if items.has(id):
+		return false
+	items.append(id)
+	save()
+	return true
+
+
+## A mystery he has run into: open until solved (saved at once).
+static func open_mystery(id: String) -> void:
+	if not mysteries.has(id):
+		mysteries[id] = "open"
+		save()
+
+
+static func solve_mystery(id: String) -> void:
+	if mysteries.get(id, "") != "solved":
+		mysteries[id] = "solved"
+		save()
+
+
+static func mystery(id: String) -> String:
+	return str(mysteries.get(id, ""))

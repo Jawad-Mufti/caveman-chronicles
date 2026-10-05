@@ -15,7 +15,7 @@ const SLOTS := 2
 
 ## [id, name, what it does, key, how to unlock it, its own colour]
 const POWERS := [
-	["sunfire", "SUNFIRE", "Fire in both fists for 30 seconds! Faster, stronger, burning blows — and fireballs. Then the sun must fill again: hit beasts, grab shells, sit by fires.", "Q", "Light a cold fire with your own torch.", Color("ffb020")],
+	["sunfire", "SUNFIRE", "Fire in both fists for 30 seconds! Faster, stronger, burning blows — and fireballs. Then the sun must fill again: hit beasts, grab shells, sit by fires.", "Q", "Find the Sun Stone, deep in the Dig.", Color("ffb020")],
 	["firering", "FIRE RING", "He gets angry... and a ring of flame bursts out around him: it burns what's close and scares off the rest. Costs two bundles of dry wood.", "F", "Carry a torch.", Color("ff4a2a")],
 	["thunderclap", "THUNDER CLAP", "One clap of his hands and the ground shakes: every beast around falls down dizzy.", "?", "A later age.", Color("5ad1ff")],
 	["stoneskin", "STONE SKIN", "Skin like granite for a while: nothing can hurt him.", "?", "A later age.", Color("9ad06a")],
@@ -29,6 +29,7 @@ const MOVES := [
 	["throw", "STONE TOSS", "Pick up rocks on the way, then throw them at things that bite back.", "K  or  THROW", ""],
 	["leap", "HERCULES LEAP", "Jump, then jump again in mid-air: a somersault, then the spear pose and a softer fall.", "SPACE  twice", ""],
 	["stomp", "METEOR STOMP", "Jump, then press T: he spins into a ball and drops like a meteor — STOMP! Beasts go flat and cracked slabs in the ground break open. Double-jump first for a MEGA STOMP: the only thing that breaks a gold rune seal.", "jump + T  ·  double jump + T", ""],
+	["dig", "DIG", "Hold DOWN and HIT to dig the earth under him; HIT alone digs what is in front. Dirt goes in one blow, stones take three. Packed clay needs a SHOVEL.", "DOWN + J  ·  J", ""],
 	["homerun", "HOME RUN", "Hold HIT to wind up the club... let go: beasts go flying.", "hold  J", "Find a club."],
 	["wallkick", "WALL KICK", "Between two close walls: hold toward a wall to slide, jump to kick across to the other.", "hold toward wall + SPACE", "Climb the split rock on the Mammoth Steppe."],
 	["torch", "TORCH", "Holds back the dark — and the wolves. It burns down: feed it at every bonfire.", "always lit", "Take a burning branch from a fire."],
@@ -55,7 +56,7 @@ static func colour(id: String) -> Color:
 ## Is it his yet? Some come with the level, some are learned once and saved.
 static func unlocked(id: String, p: CaveMan) -> bool:
 	match id:
-		"strike", "throw", "leap", "stomp":
+		"strike", "throw", "leap", "stomp", "dig":
 			return true
 		"homerun":
 			return p == null or p.has_stick
@@ -210,6 +211,19 @@ static func draw_symbol(b: Batch, id: String, c: Vector2, r: float, col: Color, 
 				var f := c + Vector2(s2 * 40.0, 22.0) * k
 				b.circle(f, 9.0 * k, col, 12)
 				_flame(b, f + Vector2(0, -6) * k, 18.0 * k, col, t * 1.4 + s2)
+		"dig":
+			# a shovel biting into blocks of earth, clods flying
+			var bob := sin(t * 5.0) * 4.0
+			for gx in 3:
+				for gy in 2:
+					if gx == 1 and gy == 0:
+						continue
+					b.rect(Rect2(c + Vector2(-42.0 + gx * 28.0, 8.0 + gy * 22.0) * k, Vector2(26, 20) * k), dk if (gx + gy) % 2 == 0 else col.darkened(0.3))
+			b.line(c + Vector2(10, -46 + bob) * k, c + Vector2(0, 0 + bob) * k, col, 5.0 * k)
+			b.poly(PackedVector2Array([c + Vector2(-10, -2 + bob) * k, c + Vector2(10, -2 + bob) * k, c + Vector2(6, 22 + bob) * k, c + Vector2(-6, 22 + bob) * k]), col)
+			for i in 3:
+				var q := fmod(t * 1.3 + i * 0.33, 1.0)
+				b.rect(Rect2(c + Vector2(20.0 + q * 18.0, -8.0 - q * 22.0 + q * q * 30.0) * k, Vector2(6, 6) * k), Color(col, 1.0 - q))
 		"stomp":
 			# a foot coming down like a meteor onto a cracking slab
 			var drop := fmod(t * 0.9, 1.0)

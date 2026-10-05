@@ -45,7 +45,7 @@ var monkey_kills := 0
 var _near_elder := false
 var _callouts := 0
 var _callout_t := 0.0
-var _region := 0             ## 0 the woods, 1 the Weeping Cave, 2 the Rattling Cave, 3 the fight
+var _region := 0             ## 0 the woods, 1 the Weeping Cave, 2 the Rattling Cave, 3 the fight, 4 the Root Hollows, 5 the Dig
 var _moving := false
 var _mouths: Array = []
 
@@ -88,6 +88,10 @@ func _ready() -> void:
 	_build_caves()
 	_build_cave_trials()
 	_build_sky_lanes()
+	_build_sky_lanes_2()
+	_build_deep()
+	_build_dig()
+	_build_windy()
 	_build_gorge()
 	_build_steppe()
 	_build_tar_pits()
@@ -162,6 +166,7 @@ func _build_background() -> void:
 	_sky_layer.add_child(sky)
 
 	var pb := ParallaxBackground.new()
+	pb.scroll_ignore_camera_zoom = true     # the far scenery keeps its size; the view pulls back over it
 	pb.layer = -100
 	add_child(pb)
 	_bands = pb
@@ -220,8 +225,7 @@ func _build_world() -> void:
 		fire.lit = b[2]
 		fire.visited.connect(_on_bonfire.bind(fire))
 		fire.kindled.connect(func() -> void:
-			hud.say("The embers catch. If he falls now, he wakes here.", 3.5)
-			_learn_sunfire.call_deferred())
+			hud.say("The embers catch. If he falls now, he wakes here.", 3.5))
 		add_child(fire)
 
 	for tr in DEAD_TREES:
@@ -556,6 +560,10 @@ func _move_player(at: Vector2, facing: int) -> void:
 
 
 func _region_at(x: float) -> int:
+	if x >= DIG.position.x:
+		return 5
+	if x >= DEEP.position.x:
+		return 4
 	if x >= CAVE_B.position.x:
 		return 2
 	if x >= CAVE_A.position.x:
@@ -573,10 +581,17 @@ func _apply_region(r: int) -> void:
 		rect = CAVE_B
 	elif r == 3:
 		rect = Rect2(ARENA.position.x, cam_top, ARENA.size.x, 1200 - cam_top)
+	elif r == 4:
+		rect = DEEP
+	elif r == 5:
+		rect = DIG
+	# the Dig goes far deeper than any pit: no "fell" there
+	fall_y = DIG.end.y + 100.0 if r == 5 else FALL_Y
 	cam.limit_left = int(rect.position.x)
 	cam.limit_right = int(rect.end.x)
 	cam.limit_top = int(rect.position.y)
 	cam.limit_bottom = int(rect.end.y)
+	apply_view(rect)          # a cave is only so tall: never show past it
 	var outdoors := r == 0 or r == 3
 	night.moon_r = 70.0 if outdoors else 0.0
 	night.sky_lift = 1.0 if outdoors else 0.0
@@ -969,11 +984,27 @@ func _build_friends() -> void:
 
 
 var _moss_met := false
+var _moss_clue := false          ## she told him where the shovel went
 var _talk_again := 0           ## cycles the "again" lines
 
 
 ## A sloth, in no hurry. Short — she'd never manage a long one.
 func _meet_moss() -> void:
+	if GameState.mystery("shovel") == "open" and not _moss_clue:
+		# she saw where it went — if he wakes her up
+		_moss_clue = true
+		_moss_met = true
+		moss.asleep = false
+		_talk([
+			["MOSS", "...Mm? A digging stone? ...On a stick?"],
+			["MOSS", "A big bird... dropped one. Into the THORNS. Way up... where the wind howls... past the moon rocks."],
+			{"choose": [
+				["Up there?!", [["MOSS", "...Higher than... I have ever bothered... to go."]]],
+				["Thorns? Ow.", [["MOSS", "Wet thorns. They won't burn... for just any fire. ...Zzz."]]],
+			]},
+			["MOSS", "...Bring the sun. ...Zzz.", func() -> void: moss.asleep = true],
+		])
+		return
 	if _moss_met:
 		_again(["Moss, asleep:  \"Zzz... Tuesday... zzz\"", "Moss, asleep:  \"Mmm... five more minutes... or years...\"",
 			"Moss snores like a very small volcano."])
@@ -1960,10 +1991,294 @@ func _learn_sunfire() -> void:
 	player.sun_charge = 1.0
 	var card := ItemGet.new()
 	card.title = "SUNFIRE"
-	card.line = "The fire leaps into him! It is one of his two ABILITIES now — its circle is at the bottom of the screen. When it shines, press Q (or tap it): 30 seconds of fire in both fists — faster, stronger, burning blows, and THROW hurls fireballs (hold it for a stream). Fill the sun by hitting beasts, grabbing shells and sitting by fires."
+	card.line = "The Sun Stone's fire leaps into him! It is one of his two ABILITIES now — its circle is at the bottom of the screen. When it shines, press Q (or tap it): 30 seconds of fire in both fists — faster, stronger, burning blows, and THROW hurls fireballs (hold it for a stream). Fill the sun by hitting beasts, grabbing shells and sitting by fires."
 	card.icon = func(c: Control) -> void:
 		var b := Batch.new()
 		Abilities.draw_symbol(b, "sunfire", Vector2.ZERO, 70.0, Abilities.GOLD, Time.get_ticks_msec() / 1000.0)
+		b.draw(c)
+	card.player = player
+	add_child(card)
+
+
+## ---------------------------------------------------------------- exploring
+## The higher sky lanes (SKY_LANES_2): rocks, jellies, rays, a cache, shells
+## along the way ("k2_%d") and a rare find at the top.
+func _build_sky_lanes_2() -> void:
+	var shell_n := 0
+	for li in SKY_LANES_2.size():
+		var lane: Dictionary = SKY_LANES_2[li]
+		if lane.has("pad"):
+			var pad: Array = lane["pad"]
+			var bloom := NightWoods.MoonPuff.new()
+			bloom.position = Vector2(pad[0], pad[1])
+			add_child(bloom)
+			var beacon := SkyLanes.Beacon.new()
+			beacon.position = Vector2(pad[0], pad[1])
+			add_child(beacon)
+		var rocks: Array = lane["rocks"]
+		for r in rocks:
+			var rock := SkyLanes.SkyRock.new()
+			rock.position = Vector2(r[0], r[1])
+			rock.w = r[2]
+			rock.lamp = (int(r[3]) & 2) != 0
+			add_child(rock)
+		for j in lane["jellies"]:
+			var jelly := SkyCreatures.DriftJelly.new()
+			jelly.position = Vector2(j[0], j[1])
+			jelly.look = j[2]
+			jelly.drift = j[3]
+			add_child(jelly)
+		for ry in lane["rays"]:
+			var ray := SkyCreatures.SkyRay.new()
+			ray.x0 = ry[0]
+			ray.x1 = ry[1]
+			ray.position = Vector2(ry[0], ry[2])
+			ray.crossing = ry[3]
+			add_child(ray)
+		var c: Array = lane["cache"]
+		var cr: Array = rocks[c[0]]
+		var cache := SkyLanes.SkyCache.new()
+		cache.contents = c[1]
+		cache.level_id = "level2"
+		cache.id = "sc2_%d" % li
+		cache.position = Vector2(float(cr[0]) + float(cr[2]) * 0.3, cr[1])
+		add_child(cache)
+		for kind in cache.contents:
+			_count_treasure(kind)
+		var loot := SkyLanes.loot_for(lane["start"], rocks)
+		if not lane.has("pad"):
+			loot = loot.slice(3)      # the first three hang over a bloom: there is none here
+		for sl in loot:
+			_treasure(sl[2], "k2_%d" % shell_n, Vector2(sl[0], sl[1]))
+			shell_n += 1
+		_relic(lane["relic"])
+		var n: Array = lane["note"]
+		_note(n[0], n[1], n[2])
+
+
+## A rare find lying in the world.
+func _relic(r: Array) -> void:
+	var relic := Relics.Relic.new()
+	relic.position = Vector2(r[0], r[1])
+	relic.kind = r[2]
+	relic.level_id = "level2"
+	relic.id = r[3]
+	add_child(relic)
+
+
+## The Root Hollows: the burrow in the graveyard, and the world under it.
+var _burrow: Underground.Burrow
+
+
+func _build_deep() -> void:
+	_burrow = Underground.Burrow.new()
+	_burrow.position = Vector2(DEEP_BURROW, GROUND_Y)
+	_burrow.open = GameState.is_taken("level2", "burrow0")
+	_burrow.opened.connect(func() -> void:
+		GameState.take("level2", "burrow0", 0)
+		hud.say("It caves in... there's a way DOWN. Walk into the hole!", 4.0))
+	_burrow.entered.connect(_enter_dig)
+	add_child(_burrow)
+	_note(DEEP_BURROW - 220.0, "Eyes blink inside that mound... it would take a MEGA STOMP to break.", 4.5)
+	var back := Caves.CaveBackdrop.new()
+	back.rect = DEEP
+	add_child(back)
+	for r in DEEP_ROCK:
+		add_child(Caves.CaveRock.new(Rect2(r[0], r[1], r[2], r[3]), r[4]))
+	for w in DEEP_WORMS:
+		var worms := Underground.GlowWorms.new()
+		worms.position = Vector2(w[0], w[1])
+		worms.width = w[2]
+		worms.reach = w[3]
+		add_child(worms)
+	var angler := Underground.Angler.new()
+	angler.position = Vector2(DEEP_ANGLER[0], DEEP_ANGLER[1])
+	angler.drop = DEEP_ANGLER[2]
+	add_child(angler)
+	var snail := Underground.CrystalSnail.new()
+	snail.x0 = DEEP_SNAIL[0]
+	snail.x1 = DEEP_SNAIL[1]
+	snail.position = Vector2((DEEP_SNAIL[0] + DEEP_SNAIL[1]) * 0.5, DEEP_SNAIL[2])
+	snail.holding = not GameState.is_taken("level2", "r3")
+	snail.cracked.connect(func(at: Vector2) -> void:
+		_relic.call_deferred([at.x, at.y, "glow_crystal", "r3"]))
+	add_child(snail)
+	for r in DEEP_RELICS:
+		_relic(r)
+	for i in DEEP_LOOT.size():
+		var l: Array = DEEP_LOOT[i]
+		_treasure(l[2], "u%d" % i, Vector2(l[0], l[1]))
+	var out := Caves.CaveExit.new()
+	out.position = Vector2(DEEP.end.x - 20.0, 640.0)      # against the end wall, like the caves
+	out.side = 1
+	out.player = player
+	out.left.connect(_leave_deep)
+	add_child(out)
+
+
+func _enter_deep() -> void:
+	if _moving:
+		return
+	_moving = true
+	hud.through_black(func() -> void:
+		_move_player(DEEP_IN, 1)
+		_secrets["hollows"] = true
+		hud.say("The Root Hollows. Something glows down here...", 3.0)
+	)
+
+
+func _leave_deep() -> void:
+	if _moving:
+		return
+	_moving = true
+	hud.through_black(func() -> void:
+		_move_player(DEEP_OUT, 1)
+	)
+
+
+## ---------------------------------------------------------------- the Dig
+func _build_dig() -> void:
+	var back := Caves.CaveBackdrop.new()
+	back.rect = DIG
+	add_child(back)
+	for r in DIG_ROCK:
+		add_child(Caves.CaveRock.new(Rect2(r[0], r[1], r[2], r[3]), r[4]))
+	# the earth: dirt, some stones, the Sun Stone's hollow, packed clay, and
+	# a few blocks with something in them
+	var grid := Dig.DigGrid.new()
+	var cols: int = DIG_GRID[2]
+	var rows: int = DIG_GRID[3]
+	grid.cols = cols
+	grid.rows = rows
+	grid.position = Vector2(DIG_GRID[0], DIG_GRID[1])
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	var cells := PackedInt32Array()
+	cells.resize(cols * rows)
+	var free_dirt: Array = []
+	for y in rows:
+		for x in cols:
+			var kind := Dig.DIRT
+			if y >= DIG_CLAY[0] and y <= DIG_CLAY[1]:
+				kind = Dig.CLAY
+			elif y >= DIG_POCKET[0] and y <= DIG_POCKET[1] and x >= DIG_POCKET[2] and x <= DIG_POCKET[3]:
+				kind = Dig.AIR
+			elif y >= 2 and rng.randf() < 0.18:
+				kind = Dig.STONE
+			cells[y * cols + x] = kind
+			if kind == Dig.DIRT and y >= 2 and y < DIG_CLAY[0] - 1:
+				free_dirt.append(y * cols + x)
+	grid.cells = cells
+	for i in DIG_LOOT.size():
+		var at: int = free_dirt[(i * 37 + 11) % free_dirt.size()]
+		while grid.loot.has(at):
+			at = free_dirt[(free_dirt.find(at) + 1) % free_dirt.size()]
+		grid.loot[at] = [DIG_LOOT[i], "dg%d" % i]
+		_count_treasure(DIG_LOOT[i])
+	grid.clay_needs_shovel.connect(func() -> void:
+		if not GameState.has_item("shovel"):
+			GameState.open_mystery("shovel")
+		hud.say("Packed clay, hard as stone. A SHOVEL could cut it... and there are old paintings on the wall.", 4.5))
+	# the clue: someone painted where the shovel went
+	var painting := Dig.Painting.new()
+	painting.position = Vector2(43170, DIG_GRID[1] + DIG_CLAY[0] * Dig.TILE - 120.0)
+	add_child(painting)
+	add_child(grid)
+	# the Sun Stone, in its hollow
+	var stone := Dig.SunStone.new()
+	stone.position = Vector2(DIG_GRID[0] + (DIG_POCKET[2] + DIG_POCKET[3] + 1) * Dig.TILE * 0.5, DIG_GRID[1] + (DIG_POCKET[1] + 1) * Dig.TILE)
+	stone.spent = GameState.abilities.has("sunfire")
+	stone.taken.connect(_learn_sunfire)
+	add_child(stone)
+	# ways out: up at the top, the root tunnel above the clay, and the passage
+	# at the bottom into the Root Hollows
+	for e in [[DIG_IN.y, -1], [DIG_GRID[1] + DIG_CLAY[0] * Dig.TILE, -1]]:
+		var up := Caves.CaveExit.new()
+		up.position = Vector2(42550.0, e[0])
+		up.side = e[1]
+		up.player = player
+		up.left.connect(_leave_dig)
+		add_child(up)
+	var down := Caves.CaveExit.new()
+	down.position = Vector2(DIG.end.x - 20.0, 2080.0)
+	down.side = 1
+	down.player = player
+	down.left.connect(_enter_deep)
+	add_child(down)
+
+
+func _enter_dig() -> void:
+	if _moving:
+		return
+	_moving = true
+	hud.through_black(func() -> void:
+		_move_player(DIG_IN, 1)
+		_secrets["dig"] = true
+		hud.say("Earth all the way down. Hold DOWN and HIT to dig!", 4.0)
+	)
+
+
+func _leave_dig() -> void:
+	if _moving:
+		return
+	_moving = true
+	hud.through_black(func() -> void:
+		_move_player(Vector2(DEEP_BURROW + 70.0, GROUND_Y), 1)
+	)
+
+
+## The windy heights over the Moon Garden, and the bramble with the shovel.
+func _build_windy() -> void:
+	for r in WINDY_ROCKS:
+		var rock := SkyLanes.SkyRock.new()
+		rock.position = Vector2(r[0], r[1])
+		rock.w = r[2]
+		rock.lamp = (int(r[3]) & 2) != 0
+		add_child(rock)
+	var jelly := SkyCreatures.DriftJelly.new()
+	jelly.position = Vector2(WINDY_JELLY[0], WINDY_JELLY[1])
+	jelly.look = WINDY_JELLY[2]
+	jelly.drift = WINDY_JELLY[3]
+	add_child(jelly)
+	var gusts := NightWoods.Wind.new()
+	gusts.x0 = WINDY_WIND[0]
+	gusts.x1 = WINDY_WIND[1]
+	gusts.y0 = WINDY_WIND[2]
+	gusts.y1 = WINDY_WIND[3]
+	gusts.strength = WINDY_WIND[4]
+	gusts.player = player
+	add_child(gusts)
+	var shovel_here := not GameState.has_item("shovel")
+	if not GameState.is_taken("level2", "bramble0"):
+		var bramble := Dig.Bramble.new()
+		bramble.position = BRAMBLE_AT
+		bramble.tried.connect(func() -> void:
+			hud.say("Wet thorns, dripping with cloud-dew. Only a fire as hot as the SUN could burn them.", 4.5))
+		bramble.burned.connect(func() -> void:
+			GameState.take("level2", "bramble0", 0)
+			if not GameState.has_item("shovel"):
+				_place_shovel())
+		add_child(bramble)
+	elif shovel_here:
+		_place_shovel()
+
+
+func _place_shovel() -> void:
+	var sh := Dig.ShovelPickup.new()
+	sh.position = BRAMBLE_AT
+	sh.picked.connect(_got_shovel)
+	add_child.call_deferred(sh)
+
+
+func _got_shovel() -> void:
+	GameState.give_item("shovel")
+	GameState.solve_mystery("shovel")
+	var card := ItemGet.new()
+	card.title = "STONE SHOVEL"
+	card.line = "A flat stone lashed to a stick. Packed clay is nothing to it now. The Dig (the mound in the graveyard) goes on down..."
+	card.icon = func(c: Control) -> void:
+		var b := Batch.new()
+		Dig.draw_shovel(b, Vector2.ZERO, 2.2)
 		b.draw(c)
 	card.player = player
 	add_child(card)

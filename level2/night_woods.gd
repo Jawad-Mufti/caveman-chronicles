@@ -1451,6 +1451,8 @@ class Wind extends Node2D:
 	var x0 := 0.0
 	var x1 := 0.0
 	var strength := -230.0     ## px/s; negative blows toward -x, down the climb
+	var y0 := -INF             ## it blows only between these heights (a gust zone up in the sky)
+	var y1 := INF
 	const LEE := 90.0          ## rock this close upwind of him keeps it off
 	var player: CaveMan
 	var t := 0.0
@@ -1477,7 +1479,7 @@ class Wind extends Node2D:
 			return
 		var p := player.global_position
 		position.x = p.x
-		if p.x < x0 or p.x > x1 or player.dead:
+		if p.x < x0 or p.x > x1 or p.y < y0 or p.y > y1 or player.dead:
 			if _applied:
 				player.wind = 0.0
 				_applied = false

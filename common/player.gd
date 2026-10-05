@@ -155,6 +155,8 @@ var stomp_state := ""
 var stomp_level := 1
 var _stomp_t := 0.0
 var _stomp_prev := false
+## Digging (see Dig): this swing goes straight down into the ground under him.
+var digging_down := false
 ## His costume. The fire-discovery set: wolf_hood, ember_paint, bear_cloak,
 ## firekeeper (and the older wolf_pelt, war_paint, bone_necklace, plain).
 var skin := "plain"
@@ -180,6 +182,7 @@ const SWINGS := {
 	"axe1": [0.17, 0.20, 0.10, 0.90, 44.0, -30.0, 3],
 	"axe2": [0.34, 0.44, 0.52, 1.00, 42.0, -30.0, 6],
 	"hammer": [0.50, 0.64, 0.58, 0.88, 50.0, -18.0, 6],
+	"dig": [0.30, 0.34, 0.50, 0.95, 4.0, 14.0, 1],          # DOWN + HIT: the hammer's slam, quick, into the ground
 	"homerun": [0.38, 0.60, 0.30, 0.82, 64.0, -42.0, 7],
 }
 const CHARGE_READY := {"club": 0.45, "axe": 0.3, "hammer": 0.5}
@@ -592,6 +595,11 @@ func _physics_process(delta: float) -> void:
 		_height = sw[5]
 	_hit_shape.position.x = _reach * facing
 	_hit_shape.position.y = _height
+	if digging_down:
+		if attacking > 0.0:
+			_hit_shape.position = Vector2(facing * 6.0, 14.0)     # the ground under his feet
+		else:
+			digging_down = false
 	if armed:
 		_hit_box.size = CLUB_BOX * (1.5 if _swing_kind == "homerun" and attacking > 0.0 else 1.0)
 	else:
@@ -711,7 +719,11 @@ func _physics_process(delta: float) -> void:
 		or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) \
 		or touch["attack"]
 	if attack_now and not _attack_prev and attack_cd <= 0.0:
-		if has_stick and not axe_out:
+		# DOWN + HIT on the ground: an overhead blow straight down — digging
+		digging_down = is_on_floor() and (Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN) or touch.get("down", false))
+		if digging_down and has_stick and not axe_out:
+			_start_swing("dig")
+		elif has_stick and not axe_out:
 			var kind := _weapon()
 			if kind == "axe":
 				# slash, back-slash, CHOP — if the taps come quickly enough
@@ -1841,7 +1853,7 @@ func _paint() -> void:
 					trail = (1.0 - q) * 0.9
 					reach = 49.0 + sin(q * PI) * 22.0
 				smear_col = Color("dfeaf2", 0.45)
-			"hammer":
+			"hammer", "dig":
 				# heaved up and back, slowly... then SMASHED down onto the ground
 				if sp < 0.56:
 					var q := sp / 0.56

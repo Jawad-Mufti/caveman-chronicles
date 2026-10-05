@@ -28,6 +28,7 @@ static var _cam_frame := -1
 static var _cam_vp: Viewport = null
 static var _cam_ok := false
 static var _cam_c := Vector2.ZERO
+static var _cam_half := Vector2(640, 360)   ## half of what the camera shows, in world units
 
 
 ## Is this node near what the camera can see? Things that animate only need
@@ -44,10 +45,18 @@ static func near_view(n: Node2D, margin: float = 800.0) -> bool:
 		_cam_ok = cam != null
 		if _cam_ok:
 			_cam_c = cam.get_screen_center_position()
+			_cam_half = vp.get_visible_rect().size * 0.5 / cam.zoom
 	if not _cam_ok:
 		return true
 	var c := _cam_c
-	return absf(n.global_position.x - c.x) < margin + 640.0 and absf(n.global_position.y - c.y) < margin + 360.0
+	return absf(n.global_position.x - c.x) < margin + _cam_half.x and absf(n.global_position.y - c.y) < margin + _cam_half.y
+
+
+## Half the size of what the camera shows, in world units (wider when the
+## view is pulled back). For anything that decides "is this on screen".
+static func view_half(n: Node2D) -> Vector2:
+	near_view(n)          # refreshes the per-frame camera numbers
+	return _cam_half
 
 
 func _build_player(start: Vector2) -> void:
@@ -66,6 +75,7 @@ func _build_player(start: Vector2) -> void:
 	cam.position_smoothing_speed = 7.0
 	add_child(cam)
 	cam.make_current()
+	apply_view(Rect2(0, cam_top, level_w, 1200 - cam_top))
 
 
 ## Call after _build_player: the HUD listens to him.
@@ -240,3 +250,21 @@ func use_ability(id: String) -> void:
 				hud.say("The sun isn't full yet: hit beasts, grab shells, sit by a fire.", 2.5)
 		"firering":
 			player.start_fire()
+
+
+## The camera's zoom: the player's View setting (GameState.view_zoom) — but
+## never so far out that the view is bigger than the place it is showing
+## (a cave is only so tall), or it would show what is outside it.
+var _view_rect := Rect2()
+
+
+func apply_view(rect: Rect2 = Rect2()) -> void:
+	if rect.size != Vector2.ZERO:
+		_view_rect = rect
+	if cam == null:
+		return
+	var screen := get_viewport().get_visible_rect().size
+	var z := GameState.view_zoom()
+	if _view_rect.size != Vector2.ZERO:
+		z = maxf(z, maxf(screen.x / _view_rect.size.x, screen.y / _view_rect.size.y))
+	cam.zoom = Vector2(z, z)

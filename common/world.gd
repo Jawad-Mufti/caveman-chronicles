@@ -5,6 +5,7 @@ extends RefCounted
 
 class Slab extends StaticBody2D:
 	var rect := Rect2()
+	var fill_below := 0.0       ## earth drawn (not solid) below it, for a pulled-back view
 
 	func _init(r: Rect2) -> void:
 		rect = r
@@ -32,6 +33,8 @@ class Slab extends StaticBody2D:
 		# one Batch: every tuft and pebble in a single draw call
 		var b := Batch.new()
 		b.rect(Rect2(Vector2.ZERO, rect.size), body.darkened(0.30))
+		if fill_below > 0.0:
+			b.rect(Rect2(0, rect.size.y, rect.size.x, fill_below), body.darkened(0.42))
 		b.rect(Rect2(Vector2.ZERO, Vector2(rect.size.x, minf(52.0, rect.size.y))), body)
 		var cap_h := minf(12.0, rect.size.y)
 		b.rect(Rect2(Vector2.ZERO, Vector2(rect.size.x, cap_h)), cap.darkened(0.22))

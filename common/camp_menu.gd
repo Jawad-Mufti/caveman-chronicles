@@ -29,6 +29,12 @@ const TABLETS := [
 ]
 const COLS := 3
 const CARRY := Rect2(820, 604, 300, 46)     ## the CARRY IT / PUT IT DOWN button
+const VIEW_BTN := Rect2(40, 650, 260, 40)   ## VIEW: CLOSE / NORMAL / WIDE (also the V key)
+const MYST_BOX := Rect2(900, 640, 350, 56)  ## the MYSTERIES note, bottom right
+## The mysteries he has run into (GameState.mysteries): [while open, once solved].
+const MYSTERIES := {
+	"shovel": ["The clay in the Dig needs a SHOVEL... where is one?", "The shovel was in the thorns, up in the windy sky."],
+}
 
 var player: CaveMan
 var level_name := ""
@@ -49,6 +55,7 @@ var _how: Label
 var _was_paused := false
 var _flash := 0.0           ## > 0: just put in a slot; < 0: just taken out
 var _counter := ""          ## "n / m unlocked", worked out while drawing the wall
+var _view_flash := 0.0      ## > 0: the VIEW button was just pressed
 
 
 func _ready() -> void:
@@ -139,6 +146,7 @@ func _process(delta: float) -> void:
 	_t += delta
 	_page_t += delta
 	_flash = move_toward(_flash, 0.0, delta)
+	_view_flash = maxf(_view_flash - delta, 0.0)
 	if _saved_t >= 0.0:
 		_saved_t += delta
 		if _saved_t > 1.8:
@@ -165,6 +173,8 @@ func _input(event: InputEvent) -> void:
 						_sel = (_sel + 1) % TABLETS.size()
 					KEY_SPACE, KEY_ENTER, KEY_KP_ENTER, KEY_J:
 						_choose(_sel)
+					KEY_V:
+						_cycle_view()
 					KEY_ESCAPE, KEY_K, KEY_TAB, KEY_M:
 						_close()
 			"abilities", "tutorial":
@@ -209,7 +219,9 @@ func _input(event: InputEvent) -> void:
 	elif (event is InputEventMouseButton and (event as InputEventMouseButton).pressed) \
 			or (event is InputEventScreenTouch and (event as InputEventScreenTouch).pressed):
 		var at2: Vector2 = event.position
-		if Rect2(1150, 24, 110, 44).has_point(at2):
+		if _page == "main" and VIEW_BTN.has_point(at2):
+			_cycle_view()
+		elif Rect2(1150, 24, 110, 44).has_point(at2):
 			if _page == "main":
 				_close()
 			else:
@@ -433,6 +445,17 @@ func _draw_main(b: Batch) -> void:
 			for r in 10:
 				var a3 := r * TAU / 10.0 + _saved_t * 2.0
 				b.line(mc + Vector2.from_angle(a3) * 50.0 * sz, mc + Vector2.from_angle(a3) * (90.0 + 50.0 * _saved_t) * sz, Color(TEAL, 0.8 * (1.0 - _saved_t / 1.8)), 5.0)
+	# the mysteries he has met, on a scrap of hide: open ones first
+	if not GameState.mysteries.is_empty():
+		b.rect(MYST_BOX, Color("2a1d14", 0.85))
+		b.rect(Rect2(MYST_BOX.position, Vector2(MYST_BOX.size.x, 3)), Color(AMBER, 0.7))
+	# the VIEW button, bottom left
+	var vb := VIEW_BTN.grow(_view_flash * 8.0)
+	b.rect(vb, Color(0, 0, 0, 0.45))
+	b.rect(Rect2(vb.position, Vector2(vb.size.x, 3)), Color(TEAL, 0.6 + _view_flash))
+	for i in 3:
+		var on: bool = ["close", "normal", "wide"][i] == GameState.view_name()
+		b.rect(Rect2(VIEW_BTN.position + Vector2(180.0 + i * 24.0, 12.0 + (2 - i) * 4.0), Vector2(16.0, 16.0 - (2 - i) * 4.0)), TEAL if on else Color(1, 1, 1, 0.25))
 	# the soon ribbon on the shelter tablet
 	var sx := _tablet_x(1) + 70.0
 	var sy := 260.0 + (-16.0 if _sel == 1 else 0.0)
@@ -637,7 +660,7 @@ func _symbol_tutorial(b: Batch, c: Vector2, r: float, col: Color, t: float) -> v
 ## The shelter: just a dream for now — the outline of a hut, in bones.
 func _draw_shelter(b: Batch) -> void:
 	_campfire(b, Vector2(640, 690), 0.8)
-	var c := Vector2(640, 380)
+	var c := Vector2(380, 380)
 	for s in [-1.0, 1.0]:
 		var pts := PackedVector2Array()
 		for i in 9:
@@ -654,6 +677,30 @@ func _draw_shelter(b: Batch) -> void:
 		b.circle(c + Vector2(bx - 20, 200), 5.0, Color("efe6cf"), 8)
 		b.circle(c + Vector2(bx + 20, 192), 5.0, Color("efe6cf"), 8)
 		b.circle(c + Vector2(bx + 20, 200), 5.0, Color("efe6cf"), 8)
+	# the rare finds, on a shelf: found ones in their colours, the rest dark
+	var kinds := Relics.KINDS.keys()
+	for i in kinds.size():
+		var at := _relic_slot(i)
+		var have := int(GameState.relics.get(kinds[i], 0))
+		b.circle(at, 46.0, Color(0, 0, 0, 0.4), 28)
+		if have > 0:
+			var col := Relics.colour(kinds[i])
+			b.circle(at, 44.0 + 3.0 * sin(_t * 3.0 + i), Color(col, 0.18), 28)
+			b.arc(at, 44.0, 0.0, TAU, 32, col, 3.0)
+			Relics.draw_icon(b, kinds[i], at, 24.0, _t + i)
+		else:
+			b.arc(at, 44.0, 0.0, TAU, 32, Color(1, 1, 1, 0.15), 2.0)
+			var sil := Batch.new()
+			Relics.draw_icon(sil, kinds[i], at, 24.0, 0.0)
+			for k in sil.colors.size():
+				sil.colors[k] = Color(0.05, 0.04, 0.05, 0.85)
+			b.points.append_array(sil.points)
+			b.colors.append_array(sil.colors)
+	b.rect(Rect2(740, 548, 470, 10), Color("5e452f"))
+
+
+func _relic_slot(i: int) -> Vector2:
+	return Vector2(820.0 + (i % 3) * 155.0, 270.0 + (i / 3) * 150.0)
 
 
 ## Text drawn straight on the view (titles, names under tablets, hints).
@@ -677,6 +724,17 @@ func _texts() -> void:
 				var sz := int(46.0 * (2.0 - clampf(_saved_t / 0.18, 0.0, 1.0)))
 				_centred(f, "SAVED!", Vector2(_tablet_x(0), 380), sz, Color(TEAL.lightened(0.3), a), true)
 			_centred(f, "← →  choose      SPACE  open      ESC  back to the game", Vector2(640, 606), 16, DIM, false)
+			_view.draw_string(f, VIEW_BTN.position + Vector2(14, 27), "VIEW: %s   V" % GameState.view_name().to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, INK)
+			if not GameState.mysteries.is_empty():
+				_view.draw_string(f, MYST_BOX.position + Vector2(12, 18), "MYSTERIES", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, AMBER)
+				var y := 36.0
+				for id in GameState.mysteries:
+					if not MYSTERIES.has(id) or y > 52.0:
+						continue
+					var solved: bool = GameState.mysteries[id] == "solved"
+					var line: String = (MYSTERIES[id] as Array)[1 if solved else 0]
+					_view.draw_string(f, MYST_BOX.position + Vector2(12, y + 6), ("✓ " if solved else "? ") + line, HORIZONTAL_ALIGNMENT_LEFT, MYST_BOX.size.x - 20.0, 13, Color("9be15d") if solved else INK)
+					y += 18.0
 		"abilities":
 			_centred(f, "ABILITIES", Vector2(320, 92), 50, Sunfire.GOLD, true)
 			_centred(f, "%s  ·  he carries TWO" % _counter, Vector2(320, 126), 18, DIM, false)
@@ -700,8 +758,16 @@ func _texts() -> void:
 			_centred(f, "ARROWS  choose      ESC  back", Vector2(320, 690), 15, DIM, false)
 		"shelter":
 			_centred(f, "THE SHELTER", Vector2(640, 110), 56, AMBER, true)
-			_centred(f, "Coming soon: build his home from the bones he gathers.", Vector2(640, 150), 20, INK, false)
-			_centred(f, "Bones gathered:  %d" % GameState.bones, Vector2(640, 620), 24, Color("efe6cf"), true)
+			_centred(f, "Coming soon: build his home from bones — and the rare finds out in the world.", Vector2(640, 150), 19, INK, false)
+			_centred(f, "Bones gathered:  %d" % GameState.bones, Vector2(380, 620), 24, Color("efe6cf"), true)
+			_centred(f, "RARE FINDS", Vector2(975, 205), 24, AMBER, true)
+			var kinds := Relics.KINDS.keys()
+			for i in kinds.size():
+				var have := int(GameState.relics.get(kinds[i], 0))
+				var at := _relic_slot(i)
+				_centred(f, Relics.name_of(kinds[i]) if have > 0 else "?", at + Vector2(0, 66), 13, INK if have > 0 else DIM, false)
+				if have > 1:
+					_centred(f, "x%d" % have, at + Vector2(34, -30), 15, Color.WHITE, true)
 			_centred(f, "any key  back", Vector2(640, 662), 16, DIM, false)
 
 
@@ -710,3 +776,14 @@ func _centred(f: Font, text: String, at: Vector2, size: int, col: Color, shadow:
 	if shadow:
 		_view.draw_string(f, at + Vector2(-w * 0.5 + 3, 3), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(0, 0, 0, 0.6 * col.a))
 	_view.draw_string(f, at + Vector2(-w * 0.5, 0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
+
+
+## Close -> Normal -> Wide: how much of the world the camera shows. Saved,
+## and the level's camera changes at once (the game is paused behind us).
+func _cycle_view() -> void:
+	GameState.next_view()
+	var level := player.get_parent() if player != null else null
+	if level != null and level.has_method("apply_view"):
+		level.apply_view()
+	_view_flash = 0.5
+

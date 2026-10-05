@@ -395,6 +395,7 @@ func add_touch_controls(man: CaveMan) -> void:
 		["THROW", Vector2(1010, 420), "throw"],
 		["TALK", Vector2(870, 560), "talk"],
 		["STOMP", Vector2(870, 420), "stomp"],
+		["DOWN", Vector2(100, 420), "down"],
 	]
 	# the powers are tapped on their circles at the bottom (see _draw_bar)
 	for s in specs:

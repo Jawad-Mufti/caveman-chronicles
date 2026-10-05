@@ -27,6 +27,12 @@ const SHROOMS := [Color("5ff0ff"), Color("ff5fd2"), Color("9dff6a")]
 const PETALS := [Color("ffd84a"), Color("b07cff"), Color("ff7a6b"), Color("6ad8ff")]
 
 
+## How far either side of the camera centre the grass must be alive: what
+## the view shows (wider when it is pulled back), and a little more.
+static func reach(n: Node2D) -> float:
+	return LevelBase.view_half(n).x + 120.0
+
+
 static func _cam_x(n: Node) -> float:
 	var cam := n.get_viewport().get_camera_2d()
 	return cam.get_screen_center_position().x if cam != null else 0.0
@@ -40,6 +46,7 @@ class Ground extends World.Slab:
 
 	func _init(r: Rect2) -> void:
 		super(r)
+		fill_below = 260.0          # soil drawn below the solid part: a pulled-back view never sees its bottom
 
 	func _ready() -> void:
 		super._ready()
@@ -58,11 +65,12 @@ class Ground extends World.Slab:
 	## Is the camera over this stretch of ground (or near it)?
 	func in_view() -> bool:
 		var cx := Turf._cam_x(self)
-		return cx > rect.position.x - 800.0 and cx < rect.end.x + 800.0
+		var reach := Turf.reach(self) + 40.0
+		return cx > rect.position.x - reach and cx < rect.end.x + reach
 
 	func _draw() -> void:
 		var w := rect.size.x
-		var h := rect.size.y
+		var h := rect.size.y + fill_below
 		var rng := RandomNumberGenerator.new()
 		rng.seed = int(rect.position.x) * 13 + 5
 		var sd := rng.randf() * 10.0
@@ -214,7 +222,7 @@ class Ground extends World.Slab:
 		var o := global_position
 		for cr in crystals:
 			var p: Vector2 = o + (cr[0] as Vector2)
-			if absf(p.x - cam_x) > 760.0:
+			if absf(p.x - cam_x) > Turf.reach(self):
 				continue
 			var col: Color = CRYSTALS[cr[1]]
 			var pulse := 0.5 + 0.5 * sin(front.t * 1.6 + p.x)
@@ -280,8 +288,8 @@ class Blades extends Node2D:
 		var gx := ground.global_position.x
 		var top := ground.global_position.y
 		var cx := Turf._cam_x(self) - gx
-		var i0 := clampi(int((cx - 760.0) / _step), 0, _x.size())
-		var i1 := clampi(int((cx + 760.0) / _step) + 1, 0, _x.size())
+		var i0 := clampi(int((cx - Turf.reach(self)) / _step), 0, _x.size())
+		var i1 := clampi(int((cx + Turf.reach(self)) / _step) + 1, 0, _x.size())
 		var p := _player()
 		var px := -99999.0
 		var near := 0.0                 # 1 when his feet are in the grass
@@ -389,8 +397,8 @@ class Blades extends Node2D:
 			return
 		var b := Batch.new()
 		var cx := Turf._cam_x(self) - ground.global_position.x
-		var i0 := clampi(int((cx - 760.0) / _step), 0, _x.size())
-		var i1 := clampi(int((cx + 760.0) / _step) + 1, 0, _x.size())
+		var i0 := clampi(int((cx - Turf.reach(self)) / _step), 0, _x.size())
+		var i1 := clampi(int((cx + Turf.reach(self)) / _step) + 1, 0, _x.size())
 		var shade := 0.0 if front else 0.18
 		for i in range(i0, i1):
 			var a := _bend[i]
@@ -417,7 +425,7 @@ class Blades extends Node2D:
 	func _draw_flora(b: Batch, cx: float) -> void:
 		for f in _flora:
 			var x: float = f[0]
-			if absf(x - cx) > 760.0:
+			if absf(x - cx) > Turf.reach(self):
 				continue
 			var open: float = f[3]
 			var sway := sin(t * 1.5 + x) * 1.5
@@ -453,7 +461,7 @@ class Blades extends Node2D:
 		var o := global_position
 		for f in _flora:
 			var p := o + Vector2(float(f[0]), 0)
-			if absf(p.x - cam_x) > 760.0:
+			if absf(p.x - cam_x) > Turf.reach(self):
 				continue
 			var open: float = f[3]
 			if f[1] == "shroom":
