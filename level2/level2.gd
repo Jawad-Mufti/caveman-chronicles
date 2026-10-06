@@ -1047,6 +1047,7 @@ func _build_gorge() -> void:
 	giant.position = Vector2(GORGE_TRUNK[0], GORGE_TRUNK[2])
 	giant.w = GORGE_TRUNK[1] - GORGE_TRUNK[0]
 	add_child(giant)
+	giant.stomped_on.connect(_on_giant_stomped)
 	for v in GORGE_VINES:
 		var vine := NightWoods.Vine.new()
 		vine.position = Vector2(v[0], v[1])
@@ -1059,6 +1060,53 @@ func _build_gorge() -> void:
 		rock.w = c[2]
 		rock.player = player
 		add_child(rock)
+
+
+## A METEOR STOMP on the fallen giant: Moss clings on in terror, and what was
+## tucked in its bark shakes loose and flies straight to him.
+var _gw_out := {}
+var _moss_shaken := 0
+func _on_giant_stomped(level: int, at: Vector2) -> void:
+	moss.scare(3.5 if level == 1 else 5.0)
+	var eek := CaveMan.WordPop.new()
+	eek.text = "EEEK!"
+	eek.size = 24
+	eek.color = Color("ffe7b0")
+	eek.centered = true
+	eek.position = moss.global_position + Vector2(48, 120)
+	add_child(eek)
+	hud.say(MOSS_SHAKEN[_moss_shaken % MOSS_SHAKEN.size()], 3.5)
+	_moss_shaken += 1
+	var n := 3 if level == 1 else 5
+	var shaken := 0
+	for i in GORGE_WOOD_LOOT.size():
+		if n <= 0:
+			break
+		var id := "gw%d" % i
+		if GameState.is_taken("level2", id) or _gw_out.has(id):
+			continue
+		_gw_out[id] = true
+		n -= 1
+		var p := Treasure.Pickup.new()
+		p.kind = GORGE_WOOD_LOOT[i]
+		p.level_id = "level2"
+		p.id = id
+		p.position = Vector2(at.x + randf_range(-200.0, 200.0), at.y + 20.0)
+		p.vel = Vector2(randf_range(-200.0, 200.0), randf_range(-760.0, -600.0))     # high out of the bark, then to him
+		p.homing = player
+		_on_treasure_popped(p)
+		add_child(p)
+		shaken += 1
+	if shaken > 0:
+		var w := CaveMan.WordPop.new()
+		w.text = "SHAKEN LOOSE! x%d" % shaken
+		w.size = 26
+		w.color = Color("ffe066")
+		w.star = Color("e8823a", 0.85)
+		w.centered = true
+		w.life = 1.3
+		w.position = at + Vector2(0, -190)
+		add_child(w)
 
 
 func _build_long_dark() -> void:
@@ -2374,13 +2422,30 @@ func _build_mountain_inside() -> void:
 		worms.width = w[2]
 		worms.reach = w[3]
 		add_child(worms)
-	for b in MT_BATS:
-		var bat := NightBeasts.Bat.new()
-		bat.ground_y = _mt_floor(b[0], b[1])
-		bat.position = Vector2(b[0], bat.ground_y - BAT_HOVER)
-		add_child(bat)
+	for w in MT_CAVEWORMS:
+		var worm := Mountain.CaveWorm.new()
+		worm.terrain = mountain
+		worm.left_x = w[2]
+		worm.right_x = w[3]
+		worm.position = Vector2(w[0], _mt_floor(w[0], w[1]))
+		add_child(worm)
+	for s in MT_SKELETONS:
+		var risen := Mountain.RisenSkeleton.new()
+		risen.terrain = mountain
+		risen.left_x = s[2]
+		risen.right_x = s[3]
+		risen.position = Vector2(s[0], _mt_floor(s[0], s[1]))
+		add_child(risen)
 	for r in MT_RELICS:
 		_relic([r[0], _mt_floor(r[0], r[1]) - 30.0, r[2], r[3]])
+	for ch in MT_CHESTS:
+		var chest := Treasure.Breakable.new()
+		chest.kind = "chest"
+		chest.contents = ch[2]
+		chest.level_id = "level2"
+		chest.id = ch[3]
+		chest.position = Vector2(ch[0], _mt_floor(ch[0], ch[1]))
+		add_child(chest)
 	for i in MT_LOOT.size():
 		var l: Array = MT_LOOT[i]
 		var at := Vector2(l[0], l[1])

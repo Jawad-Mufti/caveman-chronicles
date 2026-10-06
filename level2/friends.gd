@@ -15,6 +15,8 @@ class Moss extends Node2D:
 	## little. Blinks very... slowly. The origin is where her claws grip.
 	var speaking := false
 	var asleep := false
+	var scared := 0.0          ## > 0: the tree is shaking! wide awake, eyes like saucers, clinging on
+	var _was_asleep := false
 	var _t := 0.0
 
 	func _ready() -> void:
@@ -22,15 +24,27 @@ class Moss extends Node2D:
 
 	func _process(delta: float) -> void:
 		_t += delta
+		if scared > 0.0:
+			scared = maxf(scared - delta, 0.0)
+			if scared == 0.0:
+				asleep = _was_asleep           # ...and, slowly, back to sleep
 		if NightWoods.near_view(self):
 			queue_redraw()
+
+	## Jolted awake by a stomp on her tree: she clings on, terrified she'll fall.
+	func scare(secs: float) -> void:
+		if scared <= 0.0:
+			_was_asleep = asleep
+		asleep = false
+		scared = maxf(scared, secs)
 
 	func _draw() -> void:
 		var b := Batch.new()
 		var fur := Color("7d6a52")
 		var dark := Color("5a4a38")
 		var face := Color("d9c7a3")
-		var sway := sin(_t * 0.7) * 0.06
+		var fright := clampf(scared, 0.0, 1.0)
+		var sway := sin(_t * 0.7) * 0.06 * (1.0 - fright) + sin(_t * 38.0) * 0.07 * fright
 		b.set_xf(Transform2D(sway, Vector2.ZERO))
 		# arms and legs up to the trunk, long claws hooked over it
 		for gx in [-22.0, -8.0, 8.0, 22.0]:
@@ -55,10 +69,15 @@ class Moss extends Node2D:
 		for s in [-1.0, 1.0]:
 			b.poly(PackedVector2Array([f + Vector2(s * 4.0, -8), f + Vector2(s * 13.0, -7), f + Vector2(s * 18.0, 2),
 				f + Vector2(s * 12.0, 3), f + Vector2(s * 5.0, -2)]), Color("6b5440"))
-		var blink := asleep or fmod(_t, 4.2) < 0.9           # a long, slow blink
+		var blink := (asleep or fmod(_t, 4.2) < 0.9) and fright <= 0.0     # a long, slow blink
 		for s in [-1.0, 1.0]:
 			var e := f + Vector2(s * 9.0, -3)
-			if blink:
+			if fright > 0.0:
+				# WIDE awake: big whites, tiny darting pupils
+				b.circle(e, 6.0, Color("1a120c"), 12)
+				b.circle(e, 5.0, Color.WHITE, 12)
+				b.circle(e + Vector2(sin(_t * 13.0) * 1.8, 1.0), 1.7, Color("1a120c"), 8)
+			elif blink:
 				b.line(e + Vector2(-3.5, 0), e + Vector2(3.5, 1), Color("1a120c"), 2.0)
 			else:
 				b.circle(e, 3.6, Color("1a120c"), 10)
@@ -67,8 +86,16 @@ class Moss extends Node2D:
 		b.circle(f + Vector2(0, 5), 4.5, Color("4a3426"), 10)            # nose
 		# the mouth: a lazy smile, opening as she talks
 		var open := (0.5 + 0.5 * sin(_t * 9.0)) if speaking else 0.0
-		b.line(f + Vector2(-7, 11), f + Vector2(0, 14 + open * 4.0), Color("4a3426"), 2.2)
-		b.line(f + Vector2(0, 14 + open * 4.0), f + Vector2(7, 11), Color("4a3426"), 2.2)
+		if fright > 0.0:
+			# a worried little "o", trembling, and sweat flying off her
+			b.ellipse(f + Vector2(0, 14), 4.0, 5.0 + sin(_t * 30.0) * 0.8, Color("4a3426"))
+			for k in 2:
+				var q := fmod(_t * 1.6 + k * 0.5, 1.0)
+				var side := -1.0 if k == 0 else 1.0
+				b.circle(f + Vector2(side * (24.0 + q * 18.0), -10.0 + q * 26.0), 3.2 * (1.0 - q * 0.5), Color("bfe6ff", 0.9 * (1.0 - q)), 8)
+		else:
+			b.line(f + Vector2(-7, 11), f + Vector2(0, 14 + open * 4.0), Color("4a3426"), 2.2)
+			b.line(f + Vector2(0, 14 + open * 4.0), f + Vector2(7, 11), Color("4a3426"), 2.2)
 		b.draw(self)
 		if asleep:
 			# z... z... Z

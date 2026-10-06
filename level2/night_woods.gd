@@ -428,10 +428,58 @@ class FallenGiant extends Node2D:
 	## A giant tree that fell across the gorge long ago: a huge mossy trunk
 	## spanning it high up, its roots torn out of one cliff and its crown lost
 	## on the other, with old vines hanging down from it.
+	## A METEOR STOMP on top of it: the whole tree shudders (and things shake loose).
+	signal stomped_on(level: int, at: Vector2)
 	var w := 1500.0
+	var _quake := 0.0
+	var _body: StaticBody2D
+	var _base := Vector2.ZERO
 
 	func _ready() -> void:
 		z_index = -1
+		_base = position
+		add_to_group("stomp_spot")
+		# he can walk along the top of it (one-way: jump up through it from a vine)
+		_body = StaticBody2D.new()
+		var body := _body
+		body.collision_layer = 1
+		body.collision_mask = 0
+		add_child(body)
+		for i in 24:
+			var cs := CollisionShape2D.new()
+			var seg := SegmentShape2D.new()
+			seg.a = _top(i / 24.0)
+			seg.b = _top((i + 1) / 24.0)
+			cs.shape = seg
+			cs.one_way_collision = true
+			body.add_child(cs)
+
+	## The top of the trunk at k (0 = the root end, 1 = the crown end), where he walks.
+	func _top(k: float) -> Vector2:
+		return Vector2(k * w, sin(k * PI) * 18.0 - lerpf(34.0, 20.0, k) + 3.0)
+
+	## Called by every stomp's Blast (group "stomp_spot"): only one that lands ON the trunk counts.
+	func stomped(level: int, at: Vector2) -> void:
+		var lx := at.x - _base.x
+		if lx < 0.0 or lx > w:
+			return
+		var top := _base.y + _top(lx / w).y
+		if absf(at.y - top) > 40.0:
+			return
+		_quake = 0.9 if level == 1 else 1.4
+		# bark and leaves shaken off it
+		for i in 4 + 3 * level:
+			var dust := Critter.DeathPop.new()
+			dust.dust = true
+			dust.position = Vector2(at.x + randf_range(-260, 260), top + randf_range(0, 30))
+			get_parent().add_child.call_deferred(dust)
+		stomped_on.emit(level, at)
+
+	func _process(delta: float) -> void:
+		if _quake > 0.0:
+			_quake = maxf(_quake - delta, 0.0)
+			position = _base + Vector2(sin(_quake * 70.0) * 2.0, sin(_quake * 55.0) * 4.0) * minf(_quake, 1.0)
+			_body.position = _base - position       # only the picture shakes: what he stands on stays put
 
 	func _draw() -> void:
 		var b := Batch.new()

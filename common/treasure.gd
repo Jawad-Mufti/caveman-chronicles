@@ -209,6 +209,7 @@ class Pickup extends Area2D:
 	var _home := Vector2.ZERO      ## where it came from
 	var _flight := 0.0
 	var _bounced := false
+	var homing: CaveMan = null      ## shaken loose for him: a little pop, then it flies to him by itself
 
 	func _ready() -> void:
 		if GameState.is_taken(level_id, id):
@@ -252,6 +253,9 @@ class Pickup extends Area2D:
 
 	func _process(delta: float) -> void:
 		t += delta
+		if homing != null:
+			_home_in(delta)
+			return
 		if vel != Vector2.ZERO:
 			_fly(delta)
 			return
@@ -260,6 +264,28 @@ class Pickup extends Area2D:
 			# It turns like a spinning coin, and bobs.
 			position.y = _base_y + sin(t * 2.2) * 3.0
 			scale.x = maxf(0.2, absf(cos(t * 2.0)))
+
+	## Homing: it pops up (no collisions), then swoops to him faster and faster,
+	## and he has it the moment it reaches him.
+	func _home_in(delta: float) -> void:
+		_flight += delta
+		var him := homing
+		if not is_instance_valid(him) or him.dead:
+			homing = null
+			vel = Vector2(0, 1)
+			return
+		var target := him.global_position + Vector2(0, -40)
+		if _flight < 0.6:
+			vel.y += GRAVITY * delta
+		else:
+			var want := (target - global_position).normalized() * (450.0 + 1300.0 * (_flight - 0.6))
+			vel = vel.lerp(want, minf(1.0, delta * 7.0))
+		global_position += vel * delta
+		scale.x = maxf(0.2, absf(cos(t * 6.0)))
+		if global_position.distance_to(target) < 36.0 or _flight > 3.0:
+			homing = null
+			vel = Vector2.ZERO
+			_on_body(him)
 
 	## Sent flying so it comes down on `to` after `tt` seconds, with no hop on
 	## landing (so it stays where it was aimed). `floor_y`: the ground there.
@@ -387,12 +413,12 @@ class Breakable extends Area2D:
 		collision_layer = 4          # his swing and his rocks find it
 		collision_mask = 0
 		monitoring = false
-		hits = {"log": 2, "mound": 3, "pot": 1, "stash": 2, "hoard": 3}.get(kind, 2)
+		hits = {"log": 2, "mound": 3, "pot": 1, "stash": 2, "hoard": 3, "chest": 3}.get(kind, 2)
 		add_to_group("glow")
 		_t = randf() * 5.0
 		var cs := CollisionShape2D.new()
 		var sh := RectangleShape2D.new()
-		sh.size = {"log": Vector2(70, 36), "mound": Vector2(50, 70), "pot": Vector2(34, 40), "stash": Vector2(74, 40), "hoard": Vector2(60, 54)}.get(kind, Vector2(60, 40))
+		sh.size = {"log": Vector2(70, 36), "mound": Vector2(50, 70), "pot": Vector2(34, 40), "stash": Vector2(74, 40), "hoard": Vector2(60, 54), "chest": Vector2(58, 46)}.get(kind, Vector2(60, 40))
 		cs.shape = sh
 		cs.position = Vector2(0, -sh.size.y * 0.5)
 		add_child(cs)
@@ -413,9 +439,9 @@ class Breakable extends Area2D:
 		_shake = 0.25
 		queue_redraw()
 		# out comes a share of what's inside with every hit — the rest at the end
-		var total_hits: int = {"log": 2, "mound": 3, "pot": 1, "stash": 2, "hoard": 3}.get(kind, 2)
+		var total_hits: int = {"log": 2, "mound": 3, "pot": 1, "stash": 2, "hoard": 3, "chest": 3}.get(kind, 2)
 		var share: int = contents.size() - _given if hits == 0 else maxi(1, contents.size() / (total_hits + 1))
-		var big := kind == "stash" or kind == "hoard"
+		var big := kind in ["stash", "hoard", "chest"]
 		if big and hits > 0:
 			share = 1
 		for n in share:
@@ -436,6 +462,17 @@ class Breakable extends Area2D:
 		call_deferred("queue_free")
 
 	func _pop(i: int, from_dir: int, fountain: bool) -> void:
+		var item: String = contents[i]
+		if item.begins_with("relic:"):
+			# "relic:<kind>:<id>": a rare find rises out of it and hangs there, glowing
+			var parts := item.split(":")
+			var relic := Relics.Relic.new()
+			relic.kind = parts[1]
+			relic.level_id = level_id
+			relic.id = parts[2]
+			relic.position = global_position + Vector2(0, -78)
+			get_parent().call_deferred("add_child", relic)
+			return
 		var tid := "%s_%d" % [id, i]
 		if GameState.is_taken(level_id, tid):
 			return
@@ -466,7 +503,7 @@ class Breakable extends Area2D:
 		var spark := fmod(_t * 0.5, 2.5)
 		if spark < 0.4:
 			var k := sin(spark / 0.4 * PI)
-			var off: Vector2 = {"log": Vector2(34, -18), "mound": Vector2(4, -40), "pot": Vector2(0, -34), "stash": Vector2(0, -30), "hoard": Vector2(0, -30)}.get(kind, Vector2(0, -20))
+			var off: Vector2 = {"log": Vector2(34, -18), "mound": Vector2(4, -40), "pot": Vector2(0, -34), "stash": Vector2(0, -30), "hoard": Vector2(0, -30), "chest": Vector2(0, -34)}.get(kind, Vector2(0, -20))
 			var c := global_position + off
 			var r := 9.0 * k
 			if r < 1.5:
@@ -482,6 +519,38 @@ class Breakable extends Area2D:
 	func _draw() -> void:
 		var b := Batch.new()
 		match kind:
+			"chest":
+				# a small chest of split logs, bound with bone and rawhide, a stone lock
+				var wood := Color("8a5a30")
+				var dark := Color("4a2c14")
+				b.quad(Vector2(-29, 0), Vector2(-29, -30), Vector2(29, -30), Vector2(29, 0), dark)
+				b.quad(Vector2(-26, -2), Vector2(-26, -28), Vector2(26, -28), Vector2(26, -2), wood)
+				# the lid: a half log, curved
+				var lid := PackedVector2Array()
+				for k in 9:
+					var a := PI + k * PI / 8.0
+					lid.append(Vector2(cos(a) * 30.0, -30.0 + sin(a) * 15.0))
+				b.poly(lid, dark)
+				var lid2 := PackedVector2Array()
+				for k in 9:
+					var a := PI + k * PI / 8.0
+					lid2.append(Vector2(cos(a) * 27.0, -31.0 + sin(a) * 12.0))
+				b.poly(lid2, wood.lightened(0.12))
+				for y in [-10.0, -20.0]:
+					b.line(Vector2(-25, y), Vector2(25, y), Color(dark, 0.6), 2.0)
+				# bone straps
+				for x in [-17.0, 17.0]:
+					b.line(Vector2(x, 0), Vector2(x, -42), Color("3b2614"), 7.0)
+					b.line(Vector2(x, 0), Vector2(x, -42), Pal.KEY_BONE, 4.5)
+				# the stone lock, and cracks as it takes the blows
+				b.circle(Vector2(0, -28), 7.0, Color("3b2614"), 12)
+				b.circle(Vector2(0, -28), 5.0, Color("8c8c94"), 12)
+				b.circle(Vector2(-1.5, -29.5), 1.6, Color(1, 1, 1, 0.6), 6)
+				if hits < 3:
+					b.line(Vector2(-8, -24), Vector2(-2, -12), dark, 2.5)
+				if hits < 2:
+					b.line(Vector2(6, -40), Vector2(12, -26), dark, 2.5)
+					b.line(Vector2(12, -26), Vector2(8, -14), dark, 2.5)
 			"hoard":
 				# a fat woven basket, tied shut, shells peeking out of the top
 				var body := PackedVector2Array([Vector2(-22, 0), Vector2(-30, -16), Vector2(-30, -36), Vector2(-24, -46),
@@ -642,6 +711,7 @@ class GoldenHare extends Critter:
 
 	func _setup() -> void:
 		hp = 1
+		gives_orbs = false     # a treasure to chase, not a beast to beat
 		damage = 0
 		stompable = true
 		stomp_top = -18.0

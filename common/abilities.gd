@@ -25,17 +25,19 @@ const POWERS := [
 
 ## [id, name, how to do it, keys, how to unlock it]
 const MOVES := [
-	["strike", "CLUB SWING", "Whack whatever is in reach. Tap again quickly for a combo.", "J  or  HIT", ""],
+	["strike", "CLUB SWING", "Whack whatever is in reach. HOLD it to keep swinging: BONK, uppercut, SMASH, again and again. Every hit in a row builds your COMBO, and a big combo hits harder!", "J  or  HIT  (hold)", ""],
+	["pogo", "POGO STRIKE", "In the air, hold DOWN and HIT: the club stabs straight down. Hit a beast and you BOUNCE off its head, with your air jump back. Keep bouncing!", "in the air: DOWN + J", ""],
 	["throw", "STONE TOSS", "Pick up rocks on the way, then throw them at things that bite back.", "K  or  THROW", ""],
+	["grab", "GRAB & BOWL", "BONK a beast and it sees stars. While they spin, press THROW next to it: he lifts it right over his head! THROW (or HIT) again and he bowls it along the ground: everything in the way goes flying. STRIKE!", "J, then K, then K", ""],
 	["leap", "HERCULES LEAP", "Jump, then jump again in mid-air: a somersault, then the spear pose and a softer fall.", "SPACE  twice", ""],
 	["stomp", "METEOR STOMP", "Jump, then press T: he spins into a ball and drops like a meteor â STOMP! Beasts go flat and cracked slabs in the ground break open. Double-jump first for a MEGA STOMP: the only thing that breaks a gold rune seal.", "jump + T  Â·  double jump + T", ""],
 	["dash", "METEOR DASH", "Jump, then press T while holding LEFT or RIGHT: he spins, then shoots that way like a meteor, flat through the air. Beasts in the way go flying; a wall goes BOOM; and mountain rock... he drills right through it. Double-jump first for the long gold one.", "jump + T + LEFT / RIGHT", ""],
 	["dig", "DIG", "Hold DOWN and HIT to dig the earth under him; HIT alone digs what is in front. Dirt goes in one blow, stones take three. Packed clay needs a SHOVEL.", "DOWN + J  Â·  J", ""],
-	["homerun", "HOME RUN", "Hold HIT to wind up the club... let go: beasts go flying.", "hold  J", "Find a club."],
+	["homerun", "HOME RUN", "Hold SPECIAL to wind up the club... let go: beasts go flying.", "hold  L, let go", "Find a club."],
 	["wallkick", "WALL KICK", "Between two close walls: hold toward a wall to slide, jump to kick across to the other.", "hold toward wall + SPACE", "Climb the split rock on the Mammoth Steppe."],
 	["torch", "TORCH", "Holds back the dark â and the wolves. It burns down: feed it at every bonfire.", "always lit", "Take a burning branch from a fire."],
-	["slam", "HAMMER SLAM", "Hold HIT to raise the Firestone Hammer, let go: SLAM! A wave of fire rolls along the ground.", "hold  J", "Forge the Firestone Hammer."],
-	["axe", "AXE THROW", "Hold HIT, let go: the stone axe spins out and comes back to his hand.", "hold  J", "Trade for the stone axe."],
+	["slam", "HAMMER SLAM", "Hold SPECIAL to raise the Firestone Hammer, let go: SLAM! A wave of fire rolls along the ground.", "hold  L, let go", "Forge the Firestone Hammer."],
+	["axe", "AXE THROW", "Hold SPECIAL, let go: the stone axe spins out and comes back to his hand.", "hold  L, let go", "Trade for the stone axe."],
 	["spear", "SPEAR THROW", "The broken fang becomes a spear. Throw it far, and fetch it back.", "?", "Level 3."],
 ]
 
@@ -57,7 +59,7 @@ static func colour(id: String) -> Color:
 ## Is it his yet? Some come with the level, some are learned once and saved.
 static func unlocked(id: String, p: CaveMan) -> bool:
 	match id:
-		"strike", "throw", "leap", "stomp", "dash", "dig":
+		"strike", "pogo", "throw", "grab", "leap", "stomp", "dash", "dig":
 			return true
 		"homerun":
 			return p == null or p.has_stick
@@ -127,6 +129,39 @@ static func draw_symbol(b: Batch, id: String, c: Vector2, r: float, col: Color, 
 				b.circle(tip + Vector2.from_angle(i * 2.1 + 0.4) * 9.0 * k, 3.5 * k, dk, 8)
 			for i in 3:
 				b.arc(base, (48.0 + i * 12.0) * k, a - 2.2, a - 1.2, 10, Color(col, 0.75 - i * 0.2), 3.0 * k)
+		"pogo":
+			# a club stabbing straight down onto a head, and the bounce back up
+			var q := fmod(t * 1.2, 1.0)
+			var hop := absf(sin(q * PI)) * 26.0
+			var top := c + Vector2(0, -34.0 - hop) * k
+			b.line(top, top + Vector2(0, 40) * k, dk, w * 2.2)
+			b.line(top, top + Vector2(0, 40) * k, col, w * 1.5)
+			b.circle(top + Vector2(0, 40) * k, 10.0 * k, col, 12)
+			b.ellipse(c + Vector2(0, 34) * k, 20.0 * k, 9.0 * k, Color(col, 0.45))
+			for i in 2:
+				var s := -1.0 if i == 0 else 1.0
+				b.arc(c + Vector2(s * 26.0, 10.0) * k, 14.0 * k, PI * 1.1, PI * 1.9, 8, Color(col, 0.7), 3.0 * k)
+		"grab":
+			# a curled-up beast bowled along the ground into two pins: STRIKE
+			var q := fmod(t * 0.7, 1.0)
+			var gy := c.y + 30.0 * k
+			b.line(Vector2(c.x - 48.0 * k, gy), Vector2(c.x + 48.0 * k, gy), Color(col, 0.5), 2.5 * k)
+			var bx := c.x + (-40.0 + 62.0 * minf(q / 0.6, 1.0)) * k
+			var bc := Vector2(bx, gy - 14.0 * k)
+			b.circle(bc, 15.0 * k, dk, 14)
+			b.circle(bc, 12.0 * k, col, 14)
+			var sa := q * 14.0
+			b.line(bc, bc + Vector2.from_angle(sa) * 10.0 * k, dk, 2.5 * k)
+			for i in 3:
+				b.line(Vector2(bx - (20.0 + i * 8.0) * k, gy - (8.0 + i * 7.0) * k), Vector2(bx - (32.0 + i * 8.0) * k, gy - (8.0 + i * 7.0) * k), Color(col, 0.6), 2.5 * k)
+			var fall := clampf((q - 0.55) / 0.2, 0.0, 1.0)
+			for i in 2:
+				var px := c.x + (30.0 + i * 12.0) * k
+				var tilt := fall * (0.9 + i * 0.5)
+				var top := Vector2(px, gy) + Vector2(sin(tilt), -cos(tilt)) * 30.0 * k
+				b.line(Vector2(px, gy), top, dk, 9.0 * k)
+				b.line(Vector2(px, gy), top, col, 6.0 * k)
+				b.circle(top, 5.0 * k, col, 8)
 		"throw":
 			# a stone flying along a dotted arc, speed lines behind
 			var q := fmod(t * 0.8, 1.0)

@@ -28,8 +28,8 @@ signal torch_out
 signal fire_released
 signal said(note: String)
 
-const SPEED := 315.0          ## walking and running on the ground (SUNFIRE: x1.55)
-const AIR_SPEED := 320.0      ## in the air: a touch over the run (jumps reach ~6% further than the level was spaced for)
+const SPEED := 330.0          ## running on the ground (315 before 2026-10-06; SUNFIRE: x1.55)
+const AIR_SPEED := 320.0      ## in the air (335 broke the Glowcap Chasm and the chimney; 330 broke the chasm back across)
 ## Ramped instead of snapped, so direction changes read as weight rather than teleporting.
 const ACCEL := 2600.0
 const FRICTION := 2800.0
@@ -115,6 +115,11 @@ var has_stick := false
 var rocks := 0
 var max_rocks := 6
 var throwing := 0.0
+## GRAB & THROW (common/grab.gd): the dazed critter held overhead, if any
+const Grab := preload("res://common/grab.gd")
+var carrying: Critter = null
+var _carry_t := 0.0
+var _carry_hand := Vector2(0, -96)    ## where his lifting hand was drawn (local px)
 var berries := 0
 var max_berries := 3
 var facing := 1
@@ -146,6 +151,15 @@ var slam_t := 0.0               ## > 0 just after a slam: the hammer down on the
 var slam_cd := 0.0
 var showing_off := 0.0          ## > 0: holding a new treasure up high (set by the level)
 var _attack_held := 0.0
+var _special_prev := false
+## THE COMBO: hits landed in a row (each within COMBO_GAP of the last). It
+## builds his damage (COMBO_DMG) and is shown big on the HUD; a hit taken, or
+## a pause, ends it.
+var combo_hits := 0
+var _combo_gap := 0.0
+const COMBO_GAP := 2.0
+const COMBO_DMG := [[5, 1], [12, 2], [25, 3]]       ## [hits, + damage]
+const COMBO_WORDS := {10: "SAVAGE!", 20: "BRUTAL!", 30: "UNSTOPPABLE!", 50: "CAVE LEGEND!!"}
 ## SUNFIRE (see Sunfire): seconds of it left, and how full the sun is (0..1).
 var sun_t := 0.0
 var sun_charge := 0.0
@@ -188,16 +202,17 @@ var axe := false           ## the Flint Axe: a knapped flint blade, harder blows
 ## Each swing: [how long, time before the next, hits from, hits until (as parts
 ## of the swing), reach, height, damage]
 const SWINGS := {
-	"club": [0.26, 0.38, 0.20, 1.00, 36.0, -34.0, 3],
-	"axe0": [0.17, 0.20, 0.10, 0.90, 44.0, -48.0, 3],
-	"axe1": [0.17, 0.20, 0.10, 0.90, 44.0, -30.0, 3],
-	"axe2": [0.34, 0.44, 0.52, 1.00, 42.0, -30.0, 6],
-	"hammer": [0.50, 0.64, 0.58, 0.88, 50.0, -18.0, 6],
+	"club": [0.22, 0.24, 0.20, 1.00, 38.0, -34.0, 3],         # (2026-10-06: faster, Terraria-quick; was 0.26 / 0.38)
+	"axe0": [0.15, 0.17, 0.10, 0.90, 44.0, -48.0, 3],
+	"axe1": [0.15, 0.17, 0.10, 0.90, 44.0, -30.0, 3],
+	"axe2": [0.30, 0.36, 0.52, 1.00, 42.0, -30.0, 6],
+	"hammer": [0.44, 0.52, 0.58, 0.88, 50.0, -18.0, 6],
 	"dig": [0.30, 0.34, 0.50, 0.95, 4.0, 14.0, 1],          # DOWN + HIT: the hammer's slam, quick, into the ground
+	"spike": [0.24, 0.20, 0.15, 1.00, 4.0, 22.0, 3],         # DOWN + HIT in the air: the POGO, straight down
 	"homerun": [0.38, 0.60, 0.30, 0.82, 64.0, -42.0, 7],
 	# the club's combo: tap, tap, TAP — BONK, the uppercut back up, then the finisher
-	"club1": [0.20, 0.27, 0.15, 1.00, 40.0, -40.0, 3],
-	"club2": [0.40, 0.58, 0.52, 0.95, 50.0, -30.0, 5],
+	"club1": [0.18, 0.20, 0.15, 1.00, 40.0, -40.0, 3],
+	"club2": [0.34, 0.42, 0.52, 0.95, 50.0, -30.0, 5],
 }
 const CHARGE_READY := {"club": 0.45, "axe": 0.3, "hammer": 0.5}
 var _swing_kind := "club"
@@ -235,7 +250,7 @@ var _vine_a := 0.0        ## angle from straight down
 var _vine_w := 0.0        ## angular speed
 var _vine_cd := 0.0       ## brief no-regrab of the vine he just let go of
 var _last_vine: Node2D = null
-var touch := {"left": false, "right": false, "jump": false, "attack": false, "heal": false, "throw": false, "fire": false, "talk": false}
+var touch := {"left": false, "right": false, "jump": false, "attack": false, "heal": false, "throw": false, "fire": false, "talk": false, "special": false}
 
 var _jump_prev := false
 var _attack_prev := false
@@ -260,6 +275,8 @@ var _hit_shape: CollisionShape2D
 
 
 func _ready() -> void:
+	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED     # the fur tiles
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	if preview:
 		# just for show: no body, no hit box, not "the player"
 		set_physics_process(false)
@@ -481,6 +498,8 @@ func _physics_process(delta: float) -> void:
 	if fig_now and not _fig_prev:
 		eat_fig()
 	_fig_prev = fig_now
+	_carry_step(delta)
+	_combo_step(delta)
 	if dead:
 		# the last pop into the air, the topple, and then flat on his back
 		_die_t += delta
@@ -574,13 +593,16 @@ func _physics_process(delta: float) -> void:
 	slam_cd = maxf(slam_cd - delta, 0.0)
 	showing_off = maxf(showing_off - delta, 0.0)
 	var held: bool = Input.is_physical_key_pressed(KEY_J) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or touch["attack"]
+	# SPECIAL (L): hold to charge the weapon's special, let go to unleash it.
+	# Holding HIT itself keeps swinging (like Terraria). Touch: the SPECIAL button.
+	var special: bool = Input.is_physical_key_pressed(KEY_L) or touch.get("special", false)
 	if slam_charge >= 0.0:
 		slam_charge += delta
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
 		if not is_on_floor():
 			velocity.y += GRAVITY_DOWN * delta
 		move_and_slide()
-		if not held:
+		if not special:
 			if slam_charge >= _charge_ready():
 				match _weapon():
 					"hammer":
@@ -591,19 +613,16 @@ func _physics_process(delta: float) -> void:
 						_home_run()
 			slam_charge = -1.0
 		_attack_prev = held
+		_special_prev = special
 		return
 	if held:
 		_attack_held += delta
 	else:
 		_attack_held = 0.0
-	# holding attack turns the swing into the weapon's special: if he's still
-	# holding during the wind-up (before the blow has landed), the swing is
-	# dropped and the charge begins — so the special never waits for a whole swing
-	if has_stick and not axe_out and is_on_floor() and slam_cd <= 0.0 and _attack_held > 0.22:
-		var winding := attacking > 0.0 and (1.0 - attacking / _swing_time) < float(SWINGS[_swing_kind][2]) and _swing_kind != "homerun"
-		if attacking <= 0.0 or winding:
-			attacking = 0.0
-			slam_charge = 0.0
+	if has_stick and not axe_out and is_on_floor() and slam_cd <= 0.0 and special and not _special_prev:
+		attacking = 0.0
+		slam_charge = 0.0
+	_special_prev = special
 
 	# scorched: running off in a panic, smoke trailing behind
 	scorch_t = maxf(scorch_t - delta, 0.0)
@@ -767,11 +786,18 @@ func _physics_process(delta: float) -> void:
 	var attack_now: bool = Input.is_physical_key_pressed(KEY_J) \
 		or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) \
 		or touch["attack"]
-	if attack_now and not _attack_prev and attack_cd <= 0.0:
+	if attack_now and not _attack_prev and carrying != null:
+		_hurl()
+	elif attack_now and attack_cd <= 0.0 and carrying == null:
+		# held, it keeps swinging (like Terraria): each swing chains on into the next
+		var down_held: bool = Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN) or touch.get("down", false)
 		# DOWN + HIT on the ground: an overhead blow straight down — digging
-		digging_down = is_on_floor() and (Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN) or touch.get("down", false))
+		digging_down = is_on_floor() and down_held
 		if digging_down and has_stick and not axe_out:
 			_start_swing("dig")
+		elif down_held and not is_on_floor() and has_stick and not axe_out and vine == null:
+			# DOWN + HIT in the air: the POGO — a spike straight down; hit something and he bounces off it
+			_start_swing("spike")
 		elif has_stick and not axe_out:
 			var kind := _weapon()
 			if kind == "axe":
@@ -785,7 +811,7 @@ func _physics_process(delta: float) -> void:
 					velocity.x += float(facing) * 140.0      # a step into the finisher
 			_start_swing(kind)
 		else:
-			attack_cd = 0.46
+			attack_cd = 0.3
 			attacking = PUNCH_TIME
 		if sun_t > 0.0:
 			attack_cd *= 0.55          # burning fists are quick fists
@@ -814,7 +840,10 @@ func _physics_process(delta: float) -> void:
 			if (not _throw_prev or _stream_t <= 0.0) and shoot_fireball():
 				_stream_t = Sunfire.STREAM_GAP
 	elif throw_now and not _throw_prev:
-		throw_rock()
+		if carrying != null:
+			_hurl()
+		elif not _try_grab():
+			throw_rock()
 	_throw_prev = throw_now
 
 	if fire_now and not _fire_prev:
@@ -933,13 +962,16 @@ func _apply_swing() -> void:
 			level.add_child(dust)
 	if sun_t > 0.0:
 		dmg += Sunfire.HIT_BONUS
+	dmg += combo_bonus()
 	for area in _hitbox.get_overlapping_areas():
 		if not area.has_method("take_hit"):
 			continue
 		var id := area.get_instance_id()
-		if _swing_hits.has(id):
+		if _swing_hits.has(id) or area == carrying:
 			continue
 		_swing_hits.append(id)
+		if area is Critter:
+			Grab.daze(area as Critter)        # dazed: grab it (THROW) while the stars spin
 		var flings := _swing_kind == "homerun" and has_stick and "fling" in area
 		if flings:
 			area.fling = 2.4
@@ -952,6 +984,16 @@ func _apply_swing() -> void:
 		if crit:
 			add_sun(Sunfire.GAIN_HIT)
 			_hit_word(at)
+			combo_hit()
+			# every blow lands with a little freeze-frame: heavier swings, longer
+			var heavy := _swing_kind in ["club2", "axe2", "hammer", "homerun"]
+			Critter.slow_time(get_tree(), 0.05 if heavy else 0.03, 0.06 if heavy else 0.04)
+		if _swing_kind == "spike" and (crit or area is Treasure.Breakable):
+			# the POGO: off its head and back up, the air jump given back
+			velocity.y = -640.0
+			_jumps_left = maxi(_jumps_left, 1)
+			attacking = minf(attacking, 0.05)
+			FX.burst(get_parent(), global_position + Vector2(0, 10), "ring")
 		if sun_t > 0.0:
 			var boom := Sunfire.Impact.new()
 			boom.position = at + Vector2(-facing * 6.0, -30.0)
@@ -1059,6 +1101,7 @@ func grab_vine(v: Node2D) -> bool:
 	if v == _last_vine and _vine_cd > 0.0:
 		return false
 	vine = v
+	_drop_carried()
 	var rel: Vector2 = (global_position - Vector2(0, HANG)) - v.global_position
 	_vine_a = atan2(rel.x, rel.y)
 	var length: float = v.length
@@ -1147,6 +1190,8 @@ func hurt(amount: int, from_x: float) -> void:
 		return
 	hp -= amount
 	invuln = 1.1
+	_drop_carried()
+	combo_hits = 0                       # a hit taken ends the run
 	knock = 0.25
 	slam_charge = -1.0
 	if vine != null:
@@ -1357,7 +1402,125 @@ var _die_t := 0.0
 var _starred := false
 
 
+## ------------------------------------------------------------ GRAB & THROW
+## THROW next to a dazed critter: up it goes, overhead and upside down.
+func _try_grab() -> bool:
+	if dead or carrying != null or vine != null or wall_cling or stomp_state != "" or talking:
+		return false
+	var best: Critter = null
+	var best_d := INF
+	for n in get_tree().get_nodes_in_group("critters"):
+		var c := n as Critter
+		if c == null or not Grab.can_grab(c):
+			continue
+		var d := c.global_position - global_position
+		if d.x * facing < -16.0 or absf(d.x) > Grab.REACH or absf(d.y) > 70.0:
+			continue
+		if d.length() < best_d:
+			best_d = d.length()
+			best = c
+	if best == null:
+		return false
+	carrying = best
+	_carry_t = 0.0
+	best.set_physics_process(false)        # it stops biting: he moves it now
+	best.scale.y = -absf(best.scale.y)     # upside down, legs to the sky
+	for ch in best.get_children():
+		if ch is Grab.Stars:
+			ch.queue_free()
+	_say_word("HEAVE!", Color("fff4d6"))
+	return true
+
+
+## Holds it up where his hand is, wriggling, the body resting on his palm.
+func _carry_step(delta: float) -> void:
+	if carrying == null:
+		return
+	if not is_instance_valid(carrying) or carrying.dying > 0.0:
+		carrying = null
+		return
+	_carry_t += delta
+	var h := maxf(carrying._body_height() / 0.9, 22.0)
+	carrying.global_position = to_global(_carry_hand) - Vector2(0, h - 4.0)
+	carrying.rotation = sin(anim_t * 17.0) * 0.12
+	carrying.queue_redraw()
+
+
+## Away it goes, spinning, into whatever is ahead.
+func _hurl() -> void:
+	if carrying == null or _carry_t < 0.12:
+		return
+	var f := Grab.Flight.new()
+	f.critter = carrying
+	f.dir = facing
+	f.thrower = self
+	f.vel = Vector2(Grab.THROW_V.x * facing + velocity.x * 0.3, Grab.THROW_V.y + minf(velocity.y, 0.0) * 0.3)
+	get_parent().add_child(f)
+	carrying = null
+	throwing = 0.28
+	_say_word("HUP!", Color("ffd36b"))
+
+
+## Lets go of it (hurt, a vine, death): it drops on its feet beside him.
+func _drop_carried() -> void:
+	if carrying == null:
+		return
+	if is_instance_valid(carrying):
+		carrying.rotation = 0.0
+		carrying.scale.y = absf(carrying.scale.y)
+		carrying.global_position = global_position + Vector2(facing * 34.0, 0)
+		carrying.set_physics_process(true)
+	carrying = null
+
+
+## ------------------------------------------------------------ THE COMBO
+## Extra damage for a long run of hits (COMBO_DMG).
+func combo_bonus() -> int:
+	var b := 0
+	for s in COMBO_DMG:
+		if combo_hits >= int(s[0]):
+			b = int(s[1])
+	return b
+
+
+## A hit landed: the run goes on (and at the milestones, he gets told so).
+func combo_hit() -> void:
+	combo_hits += 1
+	_combo_gap = COMBO_GAP
+	if COMBO_WORDS.has(combo_hits):
+		var w := WordPop.new()
+		w.text = COMBO_WORDS[combo_hits]
+		w.size = 30
+		w.color = Color("ffe066") if combo_hits < 30 else Color("ff7a3a")
+		w.star = Color("c0392b", 0.85)
+		w.centered = true
+		w.life = 1.0
+		w.position = global_position + Vector2(0, -150)
+		get_parent().add_child(w)
+
+
+func _combo_step(delta: float) -> void:
+	if combo_hits <= 0:
+		return
+	_combo_gap -= delta
+	if _combo_gap <= 0.0:
+		combo_hits = 0
+
+
+func _say_word(text: String, col: Color) -> void:
+	var w := WordPop.new()
+	w.text = text
+	w.size = 20
+	w.color = col
+	w.centered = true
+	w.tilt = randf_range(-0.15, 0.15)
+	w.life = 0.55
+	w.position = global_position + Vector2(0, -120)
+	get_parent().add_child(w)
+
+
 func _die() -> void:
+	_drop_carried()
 	dead = true
 	stomp_state = ""
 	if sun_t > 0.0:
@@ -1417,7 +1580,7 @@ const C_HAIR := Color("5a2c18")      ## a rich dark chestnut: natural, but warm 
 const C_HAIR_HI := Color("94512a")   ## lighter streaks in it
 ## The head is drawn bigger than life (like most platformer heroes): the face is
 ## what reads from far away. Scaled about the neck, mane, face and topknot together.
-const HEAD_K := 1.28
+const HEAD_K := 1.2
 const NECK := Vector2(4, -126)
 const C_LEOPARD := Color("d9a64e")   ## his leopard-skin loincloth
 const C_LEOPARD_SPOT := Color("4a2a14")
@@ -1430,13 +1593,12 @@ const C_EYE := Color("ece3cd")
 const C_MOUTH := Color("33211a")
 var _skin := C_SKIN      ## flushes toward ember while he is winding up the fire
 
-const MANE := [
-	Vector2(-24, -128), Vector2(-30, -142), Vector2(-28, -158), Vector2(-31, -170),
-	Vector2(-22, -182), Vector2(-14, -190), Vector2(-2, -186), Vector2(8, -194),
-	Vector2(18, -186), Vector2(28, -188), Vector2(34, -174), Vector2(40, -162),
-	Vector2(37, -146), Vector2(42, -132), Vector2(34, -124), Vector2(22, -130),
-	Vector2(4, -134), Vector2(-12, -130),
-]
+## The mane: a wild shock of spikes swept back off his head, [angle deg, length]
+## from MANE_C, going from the front of the crown round the back to the nape.
+const MANE_C := Vector2(2, -158)
+const MANE_SPIKES := [[-52.0, 36.0], [-76.0, 46.0], [-100.0, 50.0], [-124.0, 50.0], [-148.0, 47.0],
+	[-171.0, 43.0], [-194.0, 38.0], [-216.0, 30.0]]
+## The beard and the fringe (painted with fur); the face is the original, front on.
 const BEARD := [
 	Vector2(-19, -144), Vector2(-21, -138), Vector2(-17, -131), Vector2(-12, -124),
 	Vector2(-7, -119), Vector2(-1, -123), Vector2(4, -116), Vector2(9, -122),
@@ -1450,6 +1612,11 @@ const FRINGE := [
 	Vector2(26, -176), Vector2(28, -166), Vector2(22, -167), Vector2(15, -171),
 	Vector2(8, -168), Vector2(1, -172), Vector2(-6, -168), Vector2(-13, -170),
 ]
+const FACE := Vector2.ZERO      ## (the features could sit toward his facing; front on now)
+const FUR := preload("res://common/art/fur.png")
+const FUR_GREY := preload("res://common/art/fur_grey.png")
+var _hair_off := Vector2.ZERO   ## how far the hair tips trail his motion (a spring)
+var _hair_vel := Vector2.ZERO
 
 
 
@@ -1465,9 +1632,47 @@ var _bb: Batch = null
 
 func _draw() -> void:
 	_bb = Batch.new()
+	_furs.clear()
 	_paint()
-	_bb.draw(self)
+	# the furred shapes (mane, beard, loincloth), textured, each in its place
+	# among the rest: the batch is drawn in pieces, cut where each was asked for
+	var at := 0
+	for f in _furs:
+		_bb.draw_range(self, at, f[5])
+		at = f[5]
+		draw_set_transform_matrix(f[3])
+		draw_colored_polygon(f[0], f[1], f[4], f[2])
+		var ring: PackedVector2Array = f[0].duplicate()
+		ring.append(f[0][0])
+		draw_polyline(ring, f[1].darkened(0.62), OLW * 0.62)
+		draw_set_transform_matrix(Transform2D.IDENTITY)
+	_bb.draw_range(self, at, _bb.points.size())
 	_bb = null
+
+
+## A shape covered in a fur texture (`tex`, tinted `col`), in its place in the
+## painting order. The hair is laid on a slant, along the shape.
+var _furs: Array = []
+func _fur(pts: PackedVector2Array, tex: Texture2D, col: Color, tex_scale := 1.0) -> void:
+	if _bb == null:
+		_shape(pts, col)
+		return
+	var uv := PackedVector2Array()
+	var ts := tex.get_size() * 0.5 * tex_scale
+	for p in pts:
+		uv.append(p.rotated(0.75) / ts)
+	_furs.append([pts, col, tex, _bb.xf, uv, _bb.points.size()])
+
+
+## A closed curve rounded through the control points (a quadratic B-spline).
+func _smooth(ctrl: Array, n: int = 4) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	var m := ctrl.size()
+	for i in m:
+		var a: Vector2 = (ctrl[(i - 1 + m) % m] + ctrl[i]) * 0.5
+		var b: Vector2 = (ctrl[i] + ctrl[(i + 1) % m]) * 0.5
+		out.append_array(_quad(a, ctrl[i], b, n))
+	return out
 
 
 func _segs(r: float) -> int:
@@ -1761,8 +1966,16 @@ func _paint() -> void:
 	_stm(upper)
 
 	var head_xf := upper * Transform2D(0.0, Vector2(HEAD_K, HEAD_K), 0.0, NECK * (1.0 - HEAD_K))
+	var face_xf := head_xf * Transform2D(0.0, FACE)
+	# the hair trails his motion on a spring: streams back in a run, flies up
+	# in a fall, flops down and bounces on a landing
+	var dt := get_process_delta_time()
+	var hair_to := Vector2(-clampf(velocity.x * facing / SPEED, -1.6, 1.6) * 11.0,
+		clampf(-velocity.y / 900.0, -1.2, 1.2) * 10.0) if not dead else Vector2.ZERO
+	_hair_vel += ((hair_to - _hair_off) * 140.0 - _hair_vel * 11.0) * dt
+	_hair_off += _hair_vel * dt
 	_stm(head_xf)
-	_shape(PackedVector2Array(MANE), C_HAIR)
+	_mane()
 	_stm(upper)
 	_costume_back()
 	# spare wood rides tucked in the belt at his back, behind the body
@@ -1771,21 +1984,27 @@ func _paint() -> void:
 		_ln(Vector2(wx, -60), Vector2(wx - 22, -104), Pal.DEADWOOD_DARK, 9.0, true)
 		_ln(Vector2(wx, -60), Vector2(wx - 22, -104), Pal.DEADWOOD, 5.0, true)
 	_oval(Vector2(4, -130), 17.0, 10.0, _skin)
-	var torso := PackedVector2Array([Vector2(-46, -122)])
-	torso.append_array(_quad(Vector2(-46, -122), Vector2(4, -138), Vector2(54, -122)))
-	torso.append_array(_quad(Vector2(54, -122), Vector2(44, -94), Vector2(30, -68)))
+	# a hero's chest: broad shoulders tapering to the waist
+	var torso := PackedVector2Array([Vector2(-50, -124)])
+	torso.append_array(_quad(Vector2(-50, -124), Vector2(4, -142), Vector2(58, -124)))
+	torso.append_array(_quad(Vector2(58, -124), Vector2(50, -90), Vector2(30, -68)))
 	torso.append(Vector2(-22, -68))
-	torso.append_array(_quad(Vector2(-22, -68), Vector2(-36, -94), Vector2(-46, -122)))
+	torso.append_array(_quad(Vector2(-22, -68), Vector2(-40, -90), Vector2(-50, -124)))
 	torso.remove_at(torso.size() - 1)
 	_shape(torso, _skin)
-	_pl(_quad(Vector2(-32, -114), Vector2(-14, -100), Vector2(2, -108), 8, true), C_SK2, 3.5, true)
-	_pl(_quad(Vector2(6, -108), Vector2(22, -100), Vector2(40, -114), 8, true), C_SK2, 3.5, true)
-	_ln(Vector2(4, -100), Vector2(4, -74), C_SK2, 3.0, true)
-	for yy in [-94.0, -86.0, -78.0]:
-		_ln(Vector2(-6, yy), Vector2(2, yy + 1.0), C_SK2, 3.0, true)
-		_ln(Vector2(6, yy + 1.0), Vector2(14, yy), C_SK2, 3.0, true)
-	_ticks([[-4, -114, -6, -108], [3, -116, 2, -109], [10, -113, 12, -107], [-1, -106, -3, -100],
-		[6, -106, 7, -100], [2, -100, 3, -94], [-10, -110, -12, -104], [16, -110, 18, -104]])
+	# pecs, lit on the top; soft abs
+	_fan(_quad(Vector2(-32, -118), Vector2(-14, -98), Vector2(2, -110), 8, true), Color(1, 0.95, 0.85, 0.16))
+	_fan(_quad(Vector2(6, -110), Vector2(24, -98), Vector2(44, -118), 8, true), Color(1, 0.95, 0.85, 0.16))
+	_pl(_quad(Vector2(-32, -114), Vector2(-14, -98), Vector2(2, -108), 8, true), C_SK2, 3.5, true)
+	_pl(_quad(Vector2(6, -108), Vector2(24, -98), Vector2(44, -114), 8, true), C_SK2, 3.5, true)
+	var ab := Color(C_SK2, 0.55)
+	_ln(Vector2(4, -98), Vector2(4, -76), ab, 2.5, true)
+	for yy in [-92.0, -84.0]:
+		_ln(Vector2(-6, yy), Vector2(2, yy + 1.0), ab, 2.5, true)
+		_ln(Vector2(6, yy + 1.0), Vector2(14, yy), ab, 2.5, true)
+	# a little tuft of chest hair
+	for k in 3:
+		_ln(Vector2(-1.0 + k * 5.0, -110), Vector2(-3.0 + k * 5.0 + (k - 1) * 2.0, -102), C_HAIR, 3.0, true)
 	if _sun_k > 0.0:
 		# the muscles lit from inside, gold
 		var gl := Color(Sunfire.WHITE_HOT, 0.6 * _sun_k)
@@ -1800,6 +2019,9 @@ func _paint() -> void:
 	var back_sh := Vector2(-42, -118)
 	if has_torch and not boxing:
 		_torch_arm(back_sh, running, air, ph, speed_k, rage, upper)
+	elif carrying != null:
+		# the other hand up too, steadying it
+		_arm(back_sh, back_sh + Vector2(16, -44), back_sh + Vector2(44, -96), 11.0, true)
 	elif not boxing:
 		var fa := _pose_arm(back_sh, -1.0, running, air, ph, speed_k)
 		_arm(back_sh, fa[0], fa[1], 10.0, true)
@@ -1829,6 +2051,13 @@ func _paint() -> void:
 	# big ears that stick out
 	_dot(Vector2(-23, -150), 9.0, _skin, 4.0)
 	_dot(Vector2(31, -150), 9.0, _skin, 4.0)
+	# a little curved fang hanging from that ear, swinging with him
+	var ear_sw := clampf(_hair_off.x * 0.04, -0.6, 0.6) + sin(anim_t * 3.0) * 0.08
+	var e0 := Vector2(33, -142)
+	var dn := Vector2(sin(ear_sw), cos(ear_sw))
+	var sd := Vector2(dn.y, -dn.x)
+	_cc(e0, 2.2, C_OL)
+	_shape(PackedVector2Array([e0 + dn * 2.0 - sd * 3.2, e0 + dn * 2.0 + sd * 3.2, e0 + dn * 9.0 + sd * 1.6, e0 + dn * 13.0 - sd * 1.5]), Pal.KEY_BONE, 2.0)
 	_cc(Vector2(-26, -150), 3.5, C_SK2)
 	_cc(Vector2(34, -150), 3.5, C_SK2)
 	# his mood, for the funny faces
@@ -1843,10 +2072,7 @@ func _paint() -> void:
 	elif _idle_t > 5.0 and fmod(_idle_t - 5.0, 9.0) < 1.6:
 		mood = "yawn"
 	_oval(Vector2(4, -154), 24.0, 27.0, _skin)
-	_shape(PackedVector2Array(BEARD), C_HAIR, 4.0)
-	# streaks of lighter fire in the beard
-	for s in [[-12.0, -140.0, -10.0, -128.0], [2.0, -138.0, 3.0, -124.0], [16.0, -138.0, 15.0, -126.0]]:
-		_ln(Vector2(s[0], s[1]), Vector2(s[2], s[3]), C_HAIR_HI, 3.0, true)
+	_fur(PackedVector2Array(BEARD), FUR, C_HAIR.lightened(0.18), 0.6)
 	_costume_face()
 	if skin == "war_paint":
 		for k in 3:
@@ -1888,12 +2114,9 @@ func _paint() -> void:
 		_smile()
 	# rosy cheeks
 	for ch in [Vector2(-15, -140), Vector2(24, -140)]:
-		_cc(ch, 5.0, Color(0.93, 0.45, 0.42, 0.42))
-	# a big potato nose
-	_oval(Vector2(5, -144), 10.0, 8.0, _skin.lerp(Color("d9705a"), 0.3), 2.5)
-	_cc(Vector2(1, -141), 1.6, C_MOUTH)
-	_cc(Vector2(9, -141), 1.6, C_MOUTH)
-	_cc(Vector2(2, -148), 2.6, Color(1, 0.9, 0.8, 0.55))
+		_cc(ch, 5.0, Color(0.93, 0.45, 0.42, 0.26))
+	# a button nose
+	_nose()
 	var blink := fmod(anim_t, 3.7) < 0.12
 	if dead:
 		# X for eyes
@@ -1908,8 +2131,8 @@ func _paint() -> void:
 	else:
 		# one eye a bit bigger than the other: goofy, and his own
 		var shut := blink or mood == "yawn"
-		_eye(Vector2(-8, -149), wince, shut or mood == "strain", 0.9, -1.0)
-		_eye(Vector2(16, -150), wince, shut, 1.14, 1.0)
+		_eye(Vector2(-8, -149), wince, shut or mood == "strain", 0.96, -1.0)
+		_eye(Vector2(16, -150), wince, shut, 1.08, 1.0)
 		if mood == "strain":
 			# sweat flying off his brow
 			var q := fmod(anim_t * 1.8, 1.0)
@@ -1938,19 +2161,14 @@ func _paint() -> void:
 			var side := -1.0 if k == 0 else 1.0
 			var dp := Vector2(4.0 + side * (30.0 + q * 34.0), -166.0 - q * 30.0 + q * q * 40.0)
 			_cc(dp, 4.0 * tumble * (1.0 - q * 0.5), Color("bfe6ff", 0.9 * (1.0 - q)))
-	# THE UNIBROW: one thick furry brow, his trademark
+	# THE UNIBROW: his trademark, sculpted (_brows)
 	if mood == "strain":
 		inner = 5.0
 	elif mood == "ooh" or mood == "yawn":
 		inner = -5.0
-	var brow := PackedVector2Array([Vector2(-20, -161), Vector2(-4, -164.0 + inner), Vector2(4, -162.0 + inner * 0.5),
-		Vector2(12, -164.0 + inner), Vector2(29, -161)])
-	_pl(brow, C_OL, 11.0, true)
-	_pl(brow, C_HAIR, 8.0, true)
-	for k in 6:
-		var bx := -16.0 + k * 8.5
-		_ln(Vector2(bx, -165.0 + inner * 0.4), Vector2(bx + 2.0, -170.0 + inner * 0.4), C_HAIR, 2.5, true)
-	_shape(PackedVector2Array(FRINGE), C_HAIR, 4.0)
+	_brows(inner)
+	_fur(PackedVector2Array(FRINGE), FUR, C_HAIR, 0.6)
+	_stm(face_xf)
 	if not skin in ["wolf_hood", "bear_cloak"]:
 		_topknot()
 	if skin == "war_paint":
@@ -1983,12 +2201,21 @@ func _paint() -> void:
 		var r := 7.0 + sin(anim_t * 18.0) * 2.5
 		_pg(PackedVector2Array([gl + Vector2(0, -r), gl + Vector2(r * 0.25, 0), gl + Vector2(0, r), gl + Vector2(-r * 0.25, 0)]), Color(1, 1, 0.9, 0.9))
 		_pg(PackedVector2Array([gl + Vector2(-r, 0), gl + Vector2(0, r * 0.25), gl + Vector2(r, 0), gl + Vector2(0, -r * 0.25)]), Color(1, 1, 0.9, 0.9))
+	elif carrying != null:
+		# hoisting a critter overhead: one mighty arm, straight up (it wobbles)
+		var lk := clampf(_carry_t / Grab.LIFT_TIME, 0.0, 1.0)
+		lk = 1.0 - pow(1.0 - lk, 3.0)
+		var hd := Vector2(46, -120).lerp(Vector2(14, -232), lk) + Vector2(sin(anim_t * 17.0) * 3.0, 0)
+		_arm(sh, sh.lerp(hd, 0.5) + Vector2(14, 4), hd, 15.0, false)
+		_fist(hd, 13.0)
+		if _bb != null:
+			_carry_hand = _bb.xf * hd
 	elif showing_off > 0.0 and has_stick:
 		# holding the new treasure up high, both arms, for everyone to see
 		var hd := Vector2(20, -232)
 		_arm(sh, sh + Vector2(10, -60), hd, 13.0, false)
 		_club(hd + Vector2(0, 30), hd + Vector2(0, -80), 7.0, 26.0)
-		_dot(hd, 11.0, _skin)
+		_fist(hd)
 	elif slam_charge >= 0.0 and has_stick:
 		var tremble := Vector2(sin(anim_t * 60.0), cos(anim_t * 71.0)) * 2.5 * charge_k
 		var hd: Vector2
@@ -2010,7 +2237,7 @@ func _paint() -> void:
 				ca = 2.5 + 0.25 * charge_k
 				_arm(sh, sh + Vector2(-20, 6), hd, 13.0, false)
 		_club(hd - Vector2.from_angle(ca) * 12.0, hd + Vector2.from_angle(ca) * 112.0, 7.0, 26.0)
-		_dot(hd, 11.0, _skin)
+		_fist(hd)
 		if charge_k >= 1.0:
 			# ready: a glint at the weapon's head
 			var tip := hd + Vector2.from_angle(ca) * 104.0
@@ -2022,20 +2249,20 @@ func _paint() -> void:
 		var hd := Vector2(96, -70)
 		_arm(sh, sh + Vector2(40, 10), hd, 13.0, false)
 		_club(hd, Vector2(190, -8), 7.0, 26.0)
-		_dot(hd, 11.0, _skin)
+		_fist(hd)
 	elif scorch_t > 0.0 and has_stick:
 		# arms up, waving wildly
 		var hd := Vector2(24 + sin(anim_t * 26.0) * 14.0, -214)
 		_arm(sh, sh + Vector2(12, -52), hd, 13.0, false)
 		_club(hd, hd + Vector2(-50, -60), 7.0, 22.0)
-		_dot(hd, 11.0, _skin)
+		_fist(hd)
 	elif spear > 0.3 and throwing <= 0.0 and attacking <= 0.0:
 		# the spear: arm thrust straight out in front, club pointed ahead like a spear
 		var hd := sh + Vector2(72, 12)
 		_arm(sh, sh.lerp(hd, 0.5) + Vector2(0, -3), hd, 13.0, false)
 		if has_stick and not axe_out:
 			_club(hd + Vector2(-22, -3), hd + Vector2(96, 16), 7.0, 22.0)
-		_dot(hd, 11.0, _skin)
+		_fist(hd)
 	elif flip_t > 0.0 and (curl > 0.0 or open_k > 0.0):
 		var hd: Vector2
 		if open_k > 0.0:
@@ -2046,7 +2273,7 @@ func _paint() -> void:
 			hd = Vector2(34, -84)                                           # hugging the knees
 		_arm(sh, sh.lerp(hd, 0.5) + Vector2(10, 14), hd, 13.0, false)
 		_club(hd, hd + Vector2(-60, 40), 7.0, 22.0)
-		_dot(hd, 11.0, _skin)
+		_fist(hd)
 	elif tumble > 0.0 and throwing <= 0.0 and attacking <= 0.0:
 		# windmilling: the near arm whirls, the club whirling with it
 		var a := anim_t * 19.0
@@ -2054,14 +2281,14 @@ func _paint() -> void:
 		_arm(sh, sh.lerp(hd, 0.5) + Vector2(sin(a) * 10.0, -cos(a) * 10.0), hd, 13.0, false)
 		if has_stick and not axe_out:
 			_club(hd, hd + Vector2.from_angle(a + 0.9) * 92.0, 7.0, 22.0)
-		_dot(hd, 11.0, _skin)
+		_fist(hd)
 	elif wall_cling and not is_on_floor() and throwing <= 0.0 and attacking <= 0.0:
 		# climbing: the near hand reaching up the wall and pulling, in time with the feet
 		var hd := Vector2(60, -184.0 + 18.0 * sin(anim_t * 11.0 + PI))
 		_arm(sh, sh + Vector2(22, -30), hd, 13.0, false)
 		if has_stick and not axe_out:
 			_club(hd + Vector2(-14, 40), hd + Vector2(-34, -60), 7.0, 22.0)
-		_dot(hd, 11.0, _skin)
+		_fist(hd)
 		# fingers spread on the rock
 		for k in 3:
 			_ln(hd, hd + Vector2(8.0, -10.0 + k * 8.0), _skin, 6.0, true)
@@ -2069,7 +2296,7 @@ func _paint() -> void:
 		# hanging on: the near hand up on the vine, the club tucked under the arm
 		var hd := Vector2(0, -HANG / ART)
 		_arm(sh, sh + Vector2(-8, -48), hd, 13.0, false)
-		_dot(hd, 11.0, _skin)
+		_fist(hd)
 	elif fury >= 0.0 and has_stick:
 		# the club goes up overhead for the whole rage and is shaken at the
 		# world as the fire leaves: the pose reads from across the screen
@@ -2077,7 +2304,7 @@ func _paint() -> void:
 		var hd := sh + Vector2(8, -58)
 		_arm(sh, sh + Vector2(26, -24), hd, 13.0, false)
 		_club(hd - Vector2.from_angle(ca) * 12.0, hd + Vector2.from_angle(ca) * 112.0, 7.0, 26.0)
-		_dot(hd, 11.0, _skin)
+		_fist(hd)
 	elif boxing:
 		var prog := 1.0 - attacking / PUNCH_TIME
 		var jab := 0.0
@@ -2128,7 +2355,7 @@ func _paint() -> void:
 					trail = (1.0 - q) * 0.9
 					reach = 49.0 + sin(q * PI) * 22.0
 				smear_col = Color("dfeaf2", 0.45)
-			"dig":
+			"dig", "spike":
 				# like a pickaxe: up over his head, then DRIVEN straight down at his feet
 				if sp < 0.38:
 					var q := sp / 0.38
@@ -2198,14 +2425,14 @@ func _paint() -> void:
 		_pl(smear, smear_col, 9.0 if _swing_kind in ["hammer", "homerun", "axe2"] else 7.0, true)
 		_arm(sh, el, hd, 13.0, false)
 		_club(hd - Vector2.from_angle(ca) * 12.0, hd + Vector2.from_angle(ca) * 112.0, 7.0, 26.0)
-		_dot(hd, 11.0, _skin)
+		_fist(hd)
 	elif has_stick:
 		# carries the club on his shoulder; it rides the body's bob and lean
 		var lift := -8.0 if air else 0.0
 		var hd := Vector2(60, -76.0 + lift)
 		_arm(sh, Vector2(68, -96.0 + lift), hd, 10.0, false)
 		_club(Vector2(58, -64.0 + lift), Vector2(84, -184.0 + lift), 7.0, 26.0)
-		_dot(hd, 11.0, _skin)
+		_fist(hd)
 	else:
 		var na := _pose_arm(sh, 1.0, running, air, ph, speed_k)
 		_arm(sh, na[0], na[1], 10.0, true)
@@ -2274,7 +2501,7 @@ func _flame(base: Vector2, w: float, h: float, sway: float, col: Color) -> void:
 
 ## Level 2: his first hide. A rough wrap cut from a pelt, ragged at the hem.
 func _hide_loincloth(k: float) -> void:
-	var sw := -k * 6.0 + sin(anim_t * 2.0) * 1.2
+	var sw := -k * 6.0 + sin(anim_t * 2.0) * 1.2 + _hair_off.x * 0.5
 	var hem := [Vector2(40, -40), Vector2(31, -34), Vector2(22, -38), Vector2(13, -31),
 		Vector2(3, -36), Vector2(-7, -30), Vector2(-16, -35), Vector2(-24, -32), Vector2(-29, -40)]
 	var pts := PackedVector2Array([Vector2(-27, -74), Vector2(35, -74)])
@@ -2301,6 +2528,7 @@ func _hide_loincloth(k: float) -> void:
 		hide = Color("c49a64")
 		spots = Color("8a6a3c")
 	_shape(pts, hide, 3.5)
+	_fur(pts, FUR, Color(1.0, 0.9, 0.7, 0.32), 0.5)       # the hide is real fur
 	if leopard:
 		# leopard rosettes: broken dark rings round a warmer middle
 		for r in [Vector2(-14, -62), Vector2(6, -66), Vector2(26, -60), Vector2(-4, -48), Vector2(18, -46), Vector2(-20, -44), Vector2(32, -46)]:
@@ -2543,9 +2771,11 @@ func _knee(hip: Vector2, foot: Vector2, a: float, b: float) -> Vector2:
 func _leg(hip: Vector2, foot: Vector2, bend: float) -> void:
 	var straight := hip.lerp(foot, 0.5) + Vector2(1.5, 0)
 	var knee := straight.lerp(_knee(hip, foot, 36.0, 36.0), bend)
-	_limb([hip, knee, foot], [19.0, 16.0])
-	_oval(foot + Vector2(4, 3), 17.0, 8.0, _skin)
-	_seg_hair(knee, foot, 2)
+	_limb([hip, knee, foot], [[25.0, 17.0], [18.0, 12.0]])     # a big thigh, a strong calf, a slim ankle
+	# a big bare foot, three toes at the front
+	_oval(foot + Vector2(6, 2), 19.0, 8.5, _skin)
+	for tx in [15.0, 20.0]:
+		_ln(foot + Vector2(tx, 0), foot + Vector2(tx + 1.0, 6), _skin.darkened(0.45), 2.0, true)
 
 
 ## Elbow and hand for an arm that is not doing anything else. side is -1 for
@@ -2583,11 +2813,55 @@ func _eye(c: Vector2, wince: bool, blink: bool, s := 1.0, side := 1.0) -> void:
 		return
 	# big and clear, so they read from across the screen
 	var ry := 0.8 if blink else 5.6 * s
-	_oval(c, 6.6 * s, ry, C_EYE, 2.2)
+	_oval(c, 6.6 * s, ry, C_EYE, 2.0)
 	if not blink:
-		_cc(c + Vector2(2.0, 0.6) * s, 3.4 * s, Color("1a0f08"))
-		_cc(c + Vector2(0.8, -1.0) * s, 1.4 * s, Color.WHITE)
-		_cc(c + Vector2(3.4, 2.0) * s, 0.7 * s, Color.WHITE)     # a second sparkle: lively eyes
+		# warm amber eyes: his own
+		_cc(c + Vector2(2.0, 0.6) * s, 3.9 * s, Color("8a4f12"))
+		_cc(c + Vector2(2.0, 0.6) * s, 3.1 * s, Color("d18a2a"))
+		_cc(c + Vector2(2.2, 0.8) * s, 1.8 * s, Color("1a0f08"))
+		_cc(c + Vector2(0.9, -1.0) * s, 1.3 * s, Color.WHITE)
+		_cc(c + Vector2(3.4, 2.0) * s, 0.6 * s, Color.WHITE)     # a second sparkle: lively eyes
+		# a lash line along the top, swept out at the outer corner
+		_ac(c, 6.8 * s, PI * 1.12, PI * 1.88, 8, C_OL, 2.2, true)
+		var outer := c + Vector2(6.6 * s * side, -1.5 * s)
+		_ln(outer, outer + Vector2(3.0 * side, -2.5) * s, C_OL, 2.0, true)
+
+
+## A little round button of a nose, a shine on the tip.
+func _nose() -> void:
+	_oval(Vector2(5, -143), 6.5, 5.6, _skin.lerp(Color("d9705a"), 0.2), 2.2)
+	_cc(Vector2(3, -145), 2.0, Color(1, 0.92, 0.82, 0.65))
+
+
+## His unibrow, sculpted: thick at the ends, thinner where it meets over the
+## nose. `inner` > 0 brings the middle down (a frown), < 0 lifts it.
+func _brows(inner: float) -> void:
+	_brow(Vector2(4, -160.0 + inner * 0.6), Vector2(-21, -161), 6.0, 9.0, 4.0)
+	_brow(Vector2(4, -160.0 + inner * 0.6), Vector2(30, -161), 6.0, 10.0, 4.0)
+	# his mark: an old scar nicked right through the brow over his big eye
+	_ln(Vector2(18, -169.0 + inner * 0.4), Vector2(22, -155.0 + inner * 0.3), _skin, 3.4, true)
+	_ln(Vector2(18.5, -167.0 + inner * 0.4), Vector2(21.5, -156.5 + inner * 0.3), Color("e6a98a"), 1.4, true)
+
+
+## One brow: a furry band from `a` (by the nose) to `b`, `w_a` thick at a, `w_b`
+## at b, arched up by `arch`, with a few hairs flicking up out of it.
+func _brow(a: Vector2, b: Vector2, w_a: float, w_b: float, arch: float) -> void:
+	var mid := (a + b) * 0.5 + Vector2(0, -arch * 2.0)
+	var top := PackedVector2Array()
+	var bot := PackedVector2Array()
+	for i in 7:
+		var q := i / 6.0
+		var p := a.lerp(mid, q).lerp(mid.lerp(b, q), q)
+		var w := lerpf(w_a, w_b, q) * (1.0 - 0.25 * pow(q, 4.0))
+		top.append(p + Vector2(0, -w * 0.5))
+		bot.append(p + Vector2(0, w * 0.5))
+	var pts := PackedVector2Array(top)
+	for i in range(bot.size() - 1, -1, -1):
+		pts.append(bot[i])
+	_shape(pts, C_HAIR, 3.0)
+	for i in [1, 3, 5]:
+		var t0: Vector2 = top[i]
+		_ln(t0 + Vector2(0, 1), t0 + (b - a).normalized() * 3.5 + Vector2(0, -3.5), C_HAIR, 2.0, true)
 
 
 ## Out cold: mouth hanging open, tongue lolling out of the side.
@@ -2644,6 +2918,7 @@ func _smile() -> void:
 	# smile lines lifting the cheeks
 	_ln(Vector2(-9, -137), Vector2(-7, -140), C_OL, 2.0, true)
 	_ln(Vector2(17, -137), Vector2(15, -140), C_OL, 2.0, true)
+
 
 
 func _mouth() -> void:
@@ -2786,39 +3061,84 @@ func _arm(sh: Vector2, el: Vector2, hd: Vector2, bicep: float, fist: bool) -> vo
 	if _bb != null:
 		_hands.append(_bb.xf * hd)
 	var buff := 1.0 + 0.22 * _sun_k          # SUNFIRE: thicker arms, a bigger bicep
-	_limb([sh, el, hd], [16.0 * buff, 16.0 * buff])
-	_oval((sh + el) * 0.5, sh.distance_to(el) * 0.46, bicep * (1.0 + 0.45 * _sun_k), _skin, 3.5, (el - sh).angle())
-	_seg_hair(el, hd, 3)
-	_dot(sh, 15.0 * buff, _skin)
+	# a cartoon strongman's arm: a round shoulder, and forearms thicker than the upper arm
+	_limb([sh, el, hd], [[17.0 * buff, 14.0 * buff], [15.0 * buff, 20.0 * buff]])
+	_oval(sh.lerp(el, 0.55), sh.distance_to(el) * 0.4, bicep * 0.85 * (1.0 + 0.45 * _sun_k), _skin, 0.0, (el - sh).angle())
 	if fist:
-		_dot(hd, 10.0, _skin)
+		_fist(hd, 10.5)
 
 
-## Outline pass first, then fill, with round joints, so segments merge cleanly.
+## A big fist: a round mitt with the knuckles marked.
+func _fist(hd: Vector2, r: float = 12.0) -> void:
+	_dot(hd, r, _skin, 3.5)
+	var k := _skin.darkened(0.4)
+	_ac(hd + Vector2(r * 0.15, 0), r * 0.6, -0.9, 0.9, 6, k, 2.0, true)
+	_ln(hd + Vector2(-r * 0.2, -r * 0.55), hd + Vector2(r * 0.3, -r * 0.3), k, 2.0, true)
+
+
+## Outline pass first, then fill, so segments merge cleanly. Each segment
+## tapers from w[i][0] to w[i][1], the joints rounded.
 func _limb(p: Array, w: Array) -> void:
-	var dark := _skin.darkened(0.34)
+	var dark := _skin.darkened(0.42)
 	for i in p.size() - 1:
-		var ow: float = w[i] + 5.0
-		_ln(p[i], p[i + 1], dark, ow, true)
-		_cc(p[i], ow * 0.5, dark)
-		_cc(p[i + 1], ow * 0.5, dark)
+		var w0: float = w[i][0]
+		var w1: float = w[i][1]
+		_taper(p[i], p[i + 1], w0 + 5.0, w1 + 5.0, dark)
 	for i in p.size() - 1:
-		var fw: float = float(w[i]) * 0.88
-		var off: Vector2 = LIGHT * float(w[i]) * 0.13
-		_ln(p[i] + off, p[i + 1] + off, _skin, fw, true)
-		_cc(p[i] + off, fw * 0.5, _skin)
-		_cc(p[i + 1] + off, fw * 0.5, _skin)
+		_taper(p[i], p[i + 1], w[i][0], w[i][1], _skin.darkened(0.16))
+	for i in p.size() - 1:
+		var w0: float = w[i][0]
+		var w1: float = w[i][1]
+		var off: Vector2 = LIGHT * w0 * 0.12
+		_taper(p[i] + off, p[i + 1] + off, w0 * 0.72, w1 * 0.72, _skin)
 
 
-func _ticks(list: Array) -> void:
-	for q in list:
-		_ln(Vector2(q[0], q[1]), Vector2(q[2], q[3]), C_HAIR, 3.0, true)
+## A limb segment that tapers from width w0 at a to w1 at b, ends rounded.
+func _taper(a: Vector2, b: Vector2, w0: float, w1: float, col: Color) -> void:
+	var d := b - a
+	if d.length_squared() < 0.01:
+		_cc(a, w0 * 0.5, col)
+		return
+	var n := Vector2(-d.y, d.x).normalized()
+	var q := PackedVector2Array([a + n * w0 * 0.5, b + n * w1 * 0.5, b - n * w1 * 0.5, a - n * w0 * 0.5])
+	if _bb != null:
+		_bb.quad(q[0], q[1], q[2], q[3], col)
+	else:
+		_pg(q, col)
+	_cc(a, w0 * 0.5, col)
+	_cc(b, w1 * 0.5, col)
 
 
-func _seg_hair(a: Vector2, b: Vector2, n: int) -> void:
-	for i in range(1, n + 1):
-		var p := a.lerp(b, float(i) / (n + 1))
-		_ln(p + Vector2(-3, -3), p + Vector2(2, 3), C_HAIR, 3.0, true)
+## A convex shape filled as a fan of triangles (no triangulating every frame).
+func _fan(pts: PackedVector2Array, col: Color) -> void:
+	if _bb == null:
+		_pg(pts, col)
+		return
+	for i in range(1, pts.size() - 1):
+		_bb.tri(pts[0], pts[i], pts[i + 1], col)
+
+
+## The mane: spikes round the back of his head, painted with fur. The long
+## ones swing most with the motion (_hair_off).
+func _mane() -> void:
+	var pts := PackedVector2Array()
+	var sway := sin(anim_t * 2.4) * 1.5
+	for i in MANE_SPIKES.size():
+		var s: Array = MANE_SPIKES[i]
+		var a := deg_to_rad(float(s[0]))
+		var r: float = s[1]
+		var swing := (r - 26.0) / 24.0
+		pts.append(MANE_C + Vector2.from_angle(a + 0.2) * 23.0)
+		pts.append(MANE_C + Vector2.from_angle(a) * r + (_hair_off + Vector2(sway, 0)) * swing)
+	pts.append(MANE_C + Vector2.from_angle(deg_to_rad(-230.0)) * 18.0)
+	pts.append(MANE_C + Vector2(4, 6))
+	_fur(pts, FUR, C_HAIR, 0.6)
+	# lighter streaks along the biggest spikes
+	for i in [2, 3, 4]:
+		var s: Array = MANE_SPIKES[i]
+		var a := deg_to_rad(float(s[0]))
+		var tip := MANE_C + Vector2.from_angle(a) * (float(s[1]) - 12.0) + _hair_off * 0.7
+		_ln(MANE_C + Vector2.from_angle(a) * 24.0, tip, Color(C_HAIR_HI, 0.8), 3.0, true)
 
 
 func _lit(pts: PackedVector2Array, amount: float = 0.87) -> PackedVector2Array:

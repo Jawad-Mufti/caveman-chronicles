@@ -43,6 +43,16 @@ const GORGE_TRUNK := [3990.0, 5460.0, 250.0]        ## [x0, x1, y]: the fallen g
 const GORGE_VINES := [[4200.0, 262.0, 255.0], [4670.0, 262.0, 255.0], [5140.0, 262.0, 255.0]]
 const GORGE_LEDGE := [4880.0, 560.0, 120.0]          ## a narrow resting ledge, low: it catches a short jump
 const GORGE_CRUMBLES := []
+## Shaken out of the fallen giant by METEOR STOMPs on top of it (3 a stomp, 5 a MEGA
+## stomp), flying straight to him. Ids "gw%d". A bonus: not counted in the shop prices.
+const GORGE_WOOD_LOOT := ["conch", "shell", "shell", "shell", "conch", "shell", "shell", "amber", "shell", "shell"]
+## Moss, shaken awake on her tree by a stomp: a line for each one, in turn.
+const MOSS_SHAKEN := [
+	"Moss:  \"W-WHOA!! ...The tree... is SHAKING! ...Don't drop me... I'm too slow... to fall!\"",
+	"Moss:  \"EEK! ...Who's... jumping... on my... ceiling?!\"",
+	"Moss:  \"Please... stop... I'm holding on... with all... four... claws...\"",
+	"Moss:  \"My whole life... flashed before my eyes. ...It was... mostly naps.\"",
+]
 ## The mountain (2026-10-06): a Terrain (common/terrain.gd) from this text map,
 ## made by tools/mountain_gen (edit the map by hand, or the shapes there and regenerate).
 ## Column c is at x = MOUNTAIN_AT.x + 40 c, row r at y = MOUNTAIN_AT.y + 40 r; flat ground
@@ -237,7 +247,7 @@ const WOLVES := [
 ]
 const BAT_HOVER := 70.0
 ## [x, the surface this bat belongs to]
-const BATS := [[1880.0, GROUND_Y], [2360.0, 400.0], [6370.0, 160.0], [7090.0, -160.0], [35635.0, 700.0], [36840.0, 700.0, 240.0]]
+const BATS := [[1880.0, GROUND_Y], [2360.0, 400.0], [35635.0, 700.0], [36840.0, 700.0, 240.0]]
 const ROCK_PILES := [[760.0, GROUND_Y], [2130.0, 490.0], [2785.0, GROUND_Y], [6900.0, -40.0], [23200.0, GROUND_Y], [34900.0, 600.0], [36360.0, 700.0], [39520.0, 600.0]]
 const BERRIES := [[1030.0, 500.0], [2425.0, 400.0], [5970.0, 720.0], [7180.0, -480.0], [36000.0, 700.0], [40700.0, 600.0], [37360.0, 700.0], [39480.0, 600.0]]
 
@@ -459,7 +469,7 @@ const SKY_LANES := [
 	{
 		"name": "Moonstep Road",          # the firelit woods: over the first wolves and the first pit, to the bonfire
 		"pad": [800.0, 600.0],
-		"rocks": [[940.0, 300.0, 190.0, 0], [1200.0, 280.0, 120.0, 0], [1370.0, 250.0, 110.0, 0], [1560.0, 310.0, 140.0, 1], [1780.0, 70.0, 170.0, 0]],
+		"rocks": [[940.0, 300.0, 190.0, 0], [1200.0, 200.0, 120.0, 0], [1370.0, 175.0, 110.0, 0], [1560.0, 310.0, 140.0, 1], [1780.0, 70.0, 170.0, 0]],
 		"cache": [4, ["shell", "shell", "shell", "shell", "conch", "bone", "bone", "bone"]],
 		"motes": [1100.0, 1700.0],
 		"note": [690.0, "Stepping stones in the sky! The bloom bounces you up.", 5.0],
@@ -689,7 +699,7 @@ const MT_ROOMS := [
 	[Rect2(11340, 510, 360, 200), "THE GLOW HOLLOW", "mind the sticky threads"],
 	[Rect2(8160, 500, 800, 330), "THE GREAT CAVERN", "bounce on the glowcaps to reach the high ledge"],
 	[Rect2(8300, 960, 440, 140), "THE DEEP HOLLOW", "down where the old bones sleep"],
-	[Rect2(9320, 300, 440, 210), "THE BAT ROOST", "shhh..."],
+	[Rect2(9320, 300, 440, 210), "THE SLEEPING HALL", "shhh... the dead are sleeping"],
 	[Rect2(9770, -420, 100, 720), "THE EAGLE SHAFT", "kick wall to wall, all the way to the High Peak"],
 	[Rect2(7290, -250, 100, 860), "THE CHIMNEY", "wall to wall — up, up, UP!"],
 ]
@@ -703,8 +713,23 @@ const MT_CRYSTALS := [
 const MT_SKELETON := [6990.0, 620.0, 0.85]            ## [x, near floor y, size]: the Bone Hall
 const MT_PAINT := [6880.0, 980.0]                    ## [x, near floor y]: the Painted Cave's wall
 const MT_WORMS := [[11520.0, 510.0, 150.0, 120.0]]   ## [x, near roof y, width, reach]: Glow Hollow
-const MT_BATS := [[6540.0, 760.0], [7120.0, 620.0], [9480.0, 500.0], [9620.0, 500.0], [8700.0, 820.0]] ## [x, near floor y]: one in the grotto, one in the hall
+## No bats in the mountain (they live in the caves). Its tunnels have CAVE WORMS
+## (harmless; a bonk and they drop a roasted grub: food) and RISEN SKELETONS (a heap
+## of bones that rattles back together when he comes near; gets up once more).
+## [x, near floor y, left x, right x] (Mountain.CaveWorm, Mountain.RisenSkeleton).
+const MT_CAVEWORMS := [[6450.0, 760.0, 6330.0, 6650.0], [6850.0, 980.0, 6720.0, 7050.0], [8450.0, 830.0, 8250.0, 8650.0],
+	[11500.0, 660.0, 11380.0, 11660.0]]
+const MT_SKELETONS := [[7130.0, 620.0, 6820.0, 7230.0], [8600.0, 1080.0, 8330.0, 8720.0], [9450.0, 520.0, 9340.0, 9740.0],
+	[9650.0, 520.0, 9340.0, 9740.0]]
 const MT_RELICS := [[6860.0, 620.0, "bear_fang", "r6"], [7000.0, 980.0, "red_ochre", "r7"]]
+## Two small chests hidden deep in the mountain: [x, near floor y, contents, id]. Three
+## whacks and a fountain of loot, and a VERY rare relic in each ("relic:<kind>:<id>").
+## A bonus for exploring, like the buried finds: NOT counted in the shop prices.
+## One in the far corner of THE DEEP HOLLOW, one at the back of THE BAT ROOST.
+const MT_CHESTS := [
+	[8330.0, 1080.0, ["amber", "conch", "conch", "shell", "shell", "shell", "shell", "shell", "relic:thunder_egg:r11"], "ch0"],
+	[9740.0, 515.0, ["amber", "conch", "conch", "shell", "shell", "shell", "shell", "shell", "relic:golden_horn:r12"], "ch1"],
+]
 ## Finds: [x, y, kind, on the floor?]; ids "mt0", "mt1"... (never insert, only append)
 const MT_LOOT := [
 	[6060.0, 760.0, "shell", true], [6140.0, 760.0, "shell", true], [6220.0, 760.0, "shell", true],      # Echo Tunnel

@@ -9,5 +9,6 @@ credit required. Credited anyway, with thanks.
 | dirt.png (dirt) | [4 hand-painted ground textures](https://opengameart.org/content/4-hand-painted-ground-textures) | Drummyfish | CC0 |
 | grass.png (hp_ground_grass_clover), rock_layers.png (hp_rock_2) | [8 handpainted style textures #2](https://opengameart.org/content/8-handpainted-style-textures-2) | rubberduck | CC0 |
 | earth.png (hp_earth_ground) | [8 handpainted style textures](https://opengameart.org/content/8-handpainted-style-textures-hpearthgroundpng) | rubberduck | CC0 |
+| fur.png, fur_grey.png (fabrics_0037; the grey one desaturated for the wolves) | [Fur Texture of Animals](https://www.texturecan.com/details/266/) | TextureCan | CC0 |
 
 Resized to 512 px (256 for dirt, grass and earth) with `tools/prep_art`.

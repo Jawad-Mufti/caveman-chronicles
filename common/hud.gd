@@ -108,6 +108,19 @@ func _ready() -> void:
 	_bones.size = Vector2(130, 30)
 	_bones.draw.connect(_draw_bones)
 	add_child(_bones)
+	# THE COMBO: hits in a row, under the hearts (hidden when there is none)
+	_combo = Control.new()
+	_combo.position = Vector2(20, 96)
+	_combo.size = Vector2(260, 70)
+	_combo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_combo.draw.connect(_draw_combo)
+	add_child(_combo)
+	# spirit orbs: streamed in from the beasts he beats (common/spirit_orbs.gd)
+	_orbs = Control.new()
+	_orbs.position = Vector2(1130, 150)
+	_orbs.size = Vector2(130, 30)
+	_orbs.draw.connect(_draw_orbs)
+	add_child(_orbs)
 	# roast figs: tap to eat one (or press H)
 	_figs = Control.new()
 	_figs.position = Vector2(1130, 114)
@@ -187,6 +200,23 @@ func _process(delta: float) -> void:
 		_shell_bump = maxf(_shell_bump - delta, 0.0)
 		_shells_shown = shells
 		_shells.queue_redraw()
+	if _him == null or not is_instance_valid(_him):
+		_him = get_tree().get_first_node_in_group("player") as CaveMan
+	var hits := _him.combo_hits if _him != null else 0
+	if hits != _combo_shown:
+		if hits > _combo_shown:
+			_combo_bump = 0.16
+		_combo_shown = hits
+		_combo.queue_redraw()
+	if _combo_bump > 0.0:
+		_combo_bump = maxf(_combo_bump - delta, 0.0)
+		_combo.queue_redraw()
+	if GameState.orbs != _orbs_shown:
+		_orb_bump = 0.18                     # a little pulse as each one lands
+		_orbs_shown = GameState.orbs
+	if _orb_bump > 0.0:
+		_orb_bump = maxf(_orb_bump - delta, 0.0)
+		_orbs.queue_redraw()
 
 
 func say(text: String, seconds: float = 4.0) -> void:
@@ -206,6 +236,48 @@ func _draw_bones() -> void:
 	b.draw(_bones)
 	_bones.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	_bones.draw_string(ThemeDB.fallback_font, Vector2(34, 22), str(bones), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Pal.BONE)
+
+
+var _combo: Control
+var _combo_shown := 0
+var _combo_bump := 0.0
+var _him: CaveMan
+
+
+## The combo: "12 HITS", hotter in colour as it climbs, and the damage it adds.
+func _draw_combo() -> void:
+	var n := _combo_shown
+	if n < 2:
+		return
+	var heat := clampf(n / 30.0, 0.0, 1.0)
+	var col := Color("fff4d6").lerp(Color("ffb02e"), clampf(heat * 2.0, 0.0, 1.0)).lerp(Color("ff4a2a"), clampf(heat * 2.0 - 1.0, 0.0, 1.0))
+	var k := 1.0 + 0.45 * sin(_combo_bump / 0.16 * PI)
+	var font := ThemeDB.fallback_font
+	var size := int(34 * k)
+	var txt := str(n)
+	var at := Vector2(4, 40)
+	for o in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 2)]:
+		_combo.draw_string(font, at + o, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(0.12, 0.05, 0.02))
+	_combo.draw_string(font, at, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
+	var w := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	_combo.draw_string(font, at + Vector2(w + 8, -4), "HITS", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, col)
+	var bonus := _him.combo_bonus() if _him != null else 0
+	if bonus > 0:
+		_combo.draw_string(font, at + Vector2(w + 8, 18), "+%d DMG" % bonus, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("ff9a5a"))
+
+
+var _orbs: Control
+var _orbs_shown := -1
+var _orb_bump := 0.0
+
+
+func _draw_orbs() -> void:
+	var k := 1.0 + 0.35 * sin(_orb_bump / 0.18 * PI)
+	var c := Vector2(14, 15)
+	_orbs.draw_circle(c, 11.0 * k, Color("5fb8ff", 0.3))
+	_orbs.draw_circle(c, 7.0 * k, Color("cfeeff"))
+	_orbs.draw_circle(c + Vector2(-2, -2) * k, 2.6 * k, Color.WHITE)
+	_orbs.draw_string(ThemeDB.fallback_font, Vector2(34, 22), str(GameState.orbs), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("cfeeff"))
 
 
 func set_figs(value: int) -> void:
@@ -393,6 +465,7 @@ func add_touch_controls(man: CaveMan) -> void:
 		["JUMP", Vector2(1000, 560), "jump"],
 		["HIT", Vector2(1140, 560), "attack"],
 		["THROW", Vector2(1010, 420), "throw"],
+		["SPECIAL", Vector2(1140, 420), "special"],
 		["TALK", Vector2(870, 560), "talk"],
 		["STOMP", Vector2(870, 420), "stomp"],
 		["DOWN", Vector2(100, 420), "down"],

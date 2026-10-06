@@ -54,7 +54,65 @@ func _ready() -> void:
 	add_to_group("critters")
 	# struck, the whole silhouette flashes white (a shader), not a circle over it
 	material = FX.flash_material()
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS     # painted fur: smooth, not blocky
 	_setup()
+	_hp0 = hp
+
+
+var kb := 0.0                   ## knock-back speed from the last blow (px/s, sideways)
+
+
+## The damage a blow did, popping off the creature: bigger and hotter for bigger hits.
+class DamageNumber extends Node2D:
+	var value := 1
+	var t := 0.0
+	var _vx := 0.0
+
+	func _ready() -> void:
+		z_index = 25
+		_vx = randf_range(-40.0, 40.0)
+
+	func _process(delta: float) -> void:
+		t += delta
+		if t > 0.7:
+			queue_free()
+			return
+		position += Vector2(_vx, -90.0 + t * 160.0) * delta
+		queue_redraw()
+
+	func _draw() -> void:
+		var big := value >= 5
+		var col := Color.WHITE if value <= 2 else (Color("ffe066") if value <= 4 else Color("ff8a3a"))
+		var pop := 1.0 + 0.6 * maxf(0.0, 1.0 - t / 0.12)
+		var a := clampf((0.7 - t) / 0.25, 0.0, 1.0)
+		var size := int((22 if not big else 30) * pop)
+		var txt := str(value)
+		var font := ThemeDB.fallback_font
+		var w := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		var at := Vector2(-w * 0.5, 0)
+		for o in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 2)]:
+			draw_string(font, at + o, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(0.1, 0.05, 0.02, a))
+		draw_string(font, at, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(col, a))
+
+
+## SPIRIT ORBS (common/spirit_orbs.gd): beaten, it lets go of a burst of them,
+## more for bigger beasts; they stream into him by themselves.
+const ORBS := preload("res://common/spirit_orbs.gd")
+var _hp0 := 1                   ## its hp when it appeared: what it's worth
+var gives_orbs := true          ## false for things that aren't beasts to beat
+
+
+func _release_orbs() -> void:
+	if not gives_orbs or _hp0 > 500 or not is_inside_tree():
+		return
+	var him := player if player != null else get_tree().get_first_node_in_group("player") as CaveMan
+	if him == null:
+		return
+	var burst := ORBS.new()
+	burst.count = ORBS.worth(_hp0)
+	burst.target = him
+	burst.origin = global_position + Vector2(0, -_body_height() * 0.6 - 10.0)
+	get_parent().add_child.call_deferred(burst)
 
 
 func _setup() -> void:
@@ -135,9 +193,37 @@ var _bb: Batch = null
 
 func _draw() -> void:
 	_bb = Batch.new()
+	_furs.clear()
 	_paint()
-	_bb.draw(self)
+	if _furs.is_empty():
+		_bb.draw(self)
+	else:
+		# the furred shapes, textured, each in its place among the rest: the batch
+		# is drawn in pieces, cut where each fur shape was asked for
+		var at := 0
+		for f in _furs:
+			_bb.draw_range(self, at, f[6])
+			at = f[6]
+			draw_set_transform_matrix(f[3])
+			draw_colored_polygon(f[0], f[1], f[4], f[2])
+			var ring: PackedVector2Array = f[0].duplicate()
+			ring.append(f[0][0])
+			draw_polyline(ring, f[1].darkened(0.75), f[5])
+			draw_set_transform_matrix(Transform2D.IDENTITY)
+		_bb.draw_range(self, at, _bb.points.size())
 	_bb = null
+
+
+## A shape covered in a fur texture (`tex`, tinted `col`), drawn over the rest.
+## Fur runs along the body: the texture is laid in the shape's own space.
+var _furs: Array = []
+func _fur_shape(pts: PackedVector2Array, tex: Texture2D, col: Color, w: float = 1.6, tex_scale := 1.0) -> void:
+	var uv := PackedVector2Array()
+	var ts := tex.get_size() * 0.35 * tex_scale
+	for p in pts:
+		uv.append(p.rotated(0.75) / ts)       # (the hair in the texture runs on a slant: laid along the body)
+	var xf: Transform2D = _bb.xf if _bb != null else Transform2D.IDENTITY
+	_furs.append([pts, col, tex, xf, uv, w, _bb.points.size() if _bb != null else 0])
 
 
 func _segs(r: float) -> int:
@@ -230,6 +316,14 @@ func take_hit(dmg: int, from_dir: int) -> void:
 		return
 	hp -= dmg
 	flash = 0.15
+	# a number pops off it, and the blow knocks it back (big beasts barely budge)
+	if dmg > 0 and dmg < 99 and is_inside_tree():
+		var num := DamageNumber.new()
+		num.value = dmg
+		num.position = global_position + Vector2(randf_range(-10, 10), -_body_height() - 24.0)
+		get_parent().add_child(num)
+	if from_dir != 0:
+		kb = float(from_dir) * minf(240.0 + 40.0 * dmg, 460.0) * (0.3 if _hp0 > 20 else 1.0)
 	_on_hit(from_dir)
 	if hp <= 0:
 		_begin_death(from_dir)
@@ -273,6 +367,7 @@ func _begin_death(from_dir: int) -> void:
 	_dv *= fling
 	_dspin *= minf(fling, 1.6)
 	_on_die()
+	_release_orbs()
 	# the world holds its breath for a blink, and there's a pop where it was hit
 	if is_inside_tree():
 		Critter.slow_time(get_tree(), 0.07, 0.08)
@@ -428,6 +523,13 @@ func _physics_process(delta: float) -> void:
 		var p := get_tree().get_first_node_in_group("player")
 		if p != null:
 			player = p as CaveMan
+
+	# knocked back by a blow: it slides, slowing, then its own moves take over
+	if kb != 0.0:
+		position.x += kb * delta
+		kb = move_toward(kb, 0.0, 1700.0 * delta)
+		if "left_x" in self and "right_x" in self and float(get("right_x")) > float(get("left_x")):
+			position.x = clampf(position.x, float(get("left_x")), float(get("right_x")))
 
 	_tick(delta)
 

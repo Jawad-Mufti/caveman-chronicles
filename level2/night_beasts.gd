@@ -444,6 +444,9 @@ class Wolf extends Critter:
 
 	## ------------------------------------------------------------- drawing
 	## Designed facing right at 1/0.8 size; flipped and scaled in one transform.
+	const FUR := preload("res://common/art/fur_grey.png")
+	const FUR_TINT := Color(1.0, 0.97, 1.02)
+
 	func _paint() -> void:
 		var f := float(dir)
 		_st(Vector2.ZERO, 0.0, Vector2(SIZE * f, SIZE))
@@ -488,7 +491,7 @@ class Wolf extends Critter:
 			var wag := sin(t * 3.0 + slot) * 3.0
 			tail = PackedVector2Array([Vector2(-26, -32 + sink), Vector2(-42, -30 + sink), Vector2(-52, -20 + wag), Vector2(-50, -10 + wag),
 				Vector2(-44, -14 + wag), Vector2(-34, -22 + sink)])
-		_shape(tail, Pal.WOLF_DARK, 2.2)
+		_fur_shape(tail, FUR, FUR_TINT.darkened(0.25), 1.4)
 		# body: deep chest, tucked belly, a ruff at the shoulders
 		var body := PackedVector2Array([
 			Vector2(-30, -30 + sink), Vector2(-18, -39 + sink), Vector2(0, -41 + sink * 1.2), Vector2(16, -42 + sink * 1.4),
@@ -496,8 +499,7 @@ class Wolf extends Critter:
 			Vector2(-18, -17 + sink * 0.6), Vector2(-29, -21 + sink)])
 		for i in body.size():
 			body[i] = body[i] + Vector2(stretch * (body[i].x * 0.18), shiver)
-		_shape(body, Pal.WOLF)
-		_fill(_pts_oval(Vector2(0, -20 + sink * 0.6), 17.0, 3.5), Pal.WOLF_BELLY)
+		_fur_shape(body, FUR, FUR_TINT)
 		# hackles: a bristling ridge along the neck and back, raised high when it attacks
 		var bristle := 1.6 if state in ["crouch", "lunge", "hunt"] else 1.0
 		for i in 9:
@@ -517,8 +519,7 @@ class Wolf extends Critter:
 		var head := PackedVector2Array([
 			Vector2(hx - 6, hy - 2), Vector2(hx + 4, hy - 10), Vector2(hx + 14, hy - 8), Vector2(hx + 26, hy - 3),
 			Vector2(hx + 29, hy + 1), Vector2(hx + 26, hy + 4 + snarl), Vector2(hx + 12, hy + 7 + snarl), Vector2(hx - 2, hy + 8)])
-		_shape(head, Pal.WOLF)
-		_fill(_pts_oval(Vector2(hx + 16, hy + 4 + snarl * 0.5), 9.0, 2.2), Pal.WOLF_BELLY)
+		_fur_shape(head, FUR, FUR_TINT.lightened(0.08))
 		_cc(Vector2(hx + 28, hy), 2.4, Pal.OUTLINE)
 		# an old scar across its muzzle
 		_ln(Vector2(hx + 12, hy - 7), Vector2(hx + 22, hy + 1), Pal.WOLF_BELLY.lightened(0.2), 1.6, true)

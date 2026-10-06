@@ -82,6 +82,13 @@ func tri(a: Vector2, b: Vector2, c: Vector2, col: Color) -> void:
 	_add(PackedVector2Array([a, b, c]), col)
 
 
+## A triangle with a colour at each corner (soft shading).
+func tri_cols(a: Vector2, b: Vector2, c: Vector2, ca: Color, cb: Color, cc: Color) -> void:
+	var pts := PackedVector2Array([a, b, c])
+	points.append_array(pts if _plain else xf * pts)
+	colors.append_array(PackedColorArray([ca, cb, cc]))
+
+
 ## Four corners in order; each corner may have its own colour (for gradients).
 func quad(a: Vector2, b: Vector2, c: Vector2, d: Vector2, col: Color, cols: PackedColorArray = PackedColorArray()) -> void:
 	if cols.size() == 4:
@@ -236,6 +243,13 @@ func draw_arc(c: Vector2, r: float, a0: float, a1: float, n: int, col: Color, w:
 
 func draw_string(font: Font, pos: Vector2, text: String, align: int = 0, width: float = -1.0, size: int = 16, col: Color = Color.WHITE) -> void:
 	_texts.append([xf, font, pos, text, align, width, size, col])
+
+
+## Only the triangles recorded between two marks (`points.size()` at the time):
+## to draw other things (textured shapes) in between, in order.
+func draw_range(ci: CanvasItem, from: int, to: int) -> void:
+	if to > from:
+		RenderingServer.canvas_item_add_triangle_array(ci.get_canvas_item(), PackedInt32Array(), points.slice(from, to), colors.slice(from, to))
 
 
 ## Everything recorded so far, as one draw call on this canvas item.

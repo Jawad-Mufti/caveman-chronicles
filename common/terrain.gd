@@ -232,6 +232,7 @@ func _mesh(mi: MeshInstance2D, parent: Node, polys: Array, tex_path: String, col
 		mi = MeshInstance2D.new()
 		mi.texture = load(tex_path) as Texture2D
 		mi.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+		mi.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS     # smooth paint, not blocky pixels
 		mi.modulate = col
 		mi.z_index = z
 		parent.add_child(mi)
@@ -609,7 +610,7 @@ func _draw_edges(k: int, over: Node2D) -> void:
 ## MeshInstance2D child of `owner_node` (whose position is the rect's corner).
 ## The caller draws its own lip and outline over it.
 static func paint_rect(owner_node: Node2D, size: Vector2, tex_key: String, col: Color, z: int = 0) -> void:
-	var tex := load(TEX.get(tex_key, TEX["#"])) as Texture2D
+	var tex := load(TEX.get(tex_key, tex_key if tex_key.begins_with("res://") else TEX["#"])) as Texture2D     # a map key, or a texture path
 	var tsz := tex.get_size() * TEXEL
 	var o := owner_node.position
 	var pts := [Vector2.ZERO, Vector2(size.x, 0), size, Vector2(0, size.y)]
@@ -629,6 +630,7 @@ static func paint_rect(owner_node: Node2D, size: Vector2, tex_key: String, col: 
 	mi.mesh = am
 	mi.texture = tex
 	mi.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	mi.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS     # smooth paint, not blocky pixels
 	mi.modulate = col
 	mi.z_index = z
 	mi.z_as_relative = true
@@ -664,6 +666,7 @@ static func paint_poly(owner_node: Node2D, poly: PackedVector2Array, tex_path: S
 	mi.mesh = am
 	mi.texture = tex
 	mi.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	mi.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS     # smooth paint, not blocky pixels
 	mi.modulate = col
 	mi.show_behind_parent = true
 	owner_node.add_child(mi)

@@ -27,6 +27,9 @@ static var figs := 0                   ## roast figs in his pouch
 ## and kept for building his shelter in the home level. Shells are the rare
 ## currency: each is found only once per save.
 static var bones := 0
+## SPIRIT ORBS: streamed in from every beast he beats (common/spirit_orbs.gd). A currency
+## apart from shells (beasts come back each visit), for upgrades.
+static var orbs := 0
 static var seen := {}                  ## guides already shown, by level
 static var abilities: Array = []       ## learned once and kept: "wallkick", "sunfire"
 static var equipped: Array = []        ## the two powers he carries (see Abilities.slots)
@@ -63,6 +66,7 @@ static func ensure_loaded() -> void:
 	weapon = str(d.get("weapon", "club"))
 	figs = int(d.get("figs", 0))
 	bones = int(d.get("bones", 0))
+	orbs = int(d.get("orbs", 0))
 	seen = d.get("seen", {})
 	abilities = d.get("abilities", [])
 	equipped = d.get("equipped", [])
@@ -82,7 +86,7 @@ static func save() -> void:
 	if f == null:
 		return
 	f.store_string(JSON.stringify({"shells": shells, "upgrades": upgrades, "skins": skins, "skin": skin,
-		"gems": gems, "taken": taken, "trophies": trophies, "weapons": weapons, "weapon": weapon, "figs": figs, "bones": bones,
+		"gems": gems, "taken": taken, "trophies": trophies, "weapons": weapons, "weapon": weapon, "figs": figs, "bones": bones, "orbs": orbs,
 		"seen": seen, "abilities": abilities, "equipped": equipped, "equip_picked": equip_picked, "view": view, "relics": relics, "items": items, "mysteries": mysteries}))
 
 
@@ -99,6 +103,7 @@ static func reset() -> void:
 	weapon = "club"
 	figs = 0
 	bones = 0
+	orbs = 0
 	seen = {}
 	abilities = []
 	equipped = []

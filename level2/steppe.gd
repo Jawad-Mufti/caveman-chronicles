@@ -112,6 +112,8 @@ class Mammoth extends AnimatableBody2D:
 		_feet.add_child(fs)
 		add_child(_feet)
 		_t = randf() * 4.0
+		texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS     # painted fur: smooth, not blocky
+		_build_skin()
 
 	func _physics_process(delta: float) -> void:
 		_t += delta
@@ -135,77 +137,156 @@ class Mammoth extends AnimatableBody2D:
 				p.hurt(1, global_position.x)
 		if NightWoods.near_view(self):
 			queue_redraw()
+			_far.queue_redraw()
+		_skin.scale.x = dirn
 
 	func _v(x: float, y: float) -> Vector2:
 		return Vector2(x * dirn, y) * size
 
+	## Its silhouette (body, hump, head, ear as one shape), facing right, at its
+	## size: painted with real fur once (common/art/fur.png), turned with it.
+	const FUR := "res://common/art/fur.png"
+	const FUR_TINT := Color(0.86, 0.78, 0.78)
+	var _sil := PackedVector2Array()
+	var _skin: Node2D
+	var _far: Node2D
+	var _fur: Texture2D
+
+	func _build_skin() -> void:
+		var parts := [_oval_pts(Vector2(-8, -118), Vector2(112, 58), 30)]
+		for c in [[Vector2(48, -150), 48.0], [Vector2(30, -164), 28.0], [Vector2(104, -138), 38.0], [Vector2(98, -166), 26.0], [Vector2(94, -174), 17.0]]:
+			parts.append(_oval_pts(c[0], Vector2(c[1], c[1]), 18))
+		var sil: PackedVector2Array = parts[0]
+		for i in range(1, parts.size()):
+			var merged := Geometry2D.merge_polygons(sil, parts[i])
+			for m in merged:
+				if not Geometry2D.is_polygon_clockwise(m) or merged.size() == 1:
+					sil = m
+					break
+		for i in sil.size():
+			sil[i] = sil[i] * size
+		_sil = sil
+		_fur = load(FUR) as Texture2D
+		# far legs behind the body, then the painted body, then (in _draw) the rest
+		_far = Node2D.new()
+		_far.show_behind_parent = true
+		_far.z_index = -1
+		_far.draw.connect(func() -> void:
+			for l in [[-62.0, 0.0], [52.0, 0.25]]:
+				_leg_tex(_far, l[0], l[1], _pause <= 0.0, Color(0.55, 0.48, 0.5)))
+		add_child(_far)
+		_skin = Node2D.new()
+		_skin.show_behind_parent = true
+		add_child(_skin)
+		Terrain.paint_poly(_skin, _sil, FUR, FUR_TINT, Vector2(randf() * 300.0, 0))
+
+	func _oval_pts(c: Vector2, r: Vector2, n: int) -> PackedVector2Array:
+		var pts := PackedVector2Array()
+		for i in n:
+			var a := TAU * i / n
+			var p := Vector2(cos(a) * r.x, sin(a) * r.y)
+			if r.x > 100.0 and p.y < 0.0 and p.x > 0.0:
+				p.y -= sin(-a) * 14.0          # the shoulder hump
+			pts.append(c + p)
+		return pts
+
 	func _draw() -> void:
 		var b := Batch.new()
-		var fur := Color("6b4a32")
-		var dark := Color("4e3524")
-		var rim := Color("8f6e4f")
+		var dark := Color("3e2a1c")
+		var rim := Color("b08a62")
 		var moving := _pause <= 0.0
-		# legs, four-beat: far legs first (darker), near legs after the body
-		var legs := [[-62.0, 0.0, true], [52.0, 0.25, true], [-74.0, 0.5, false], [40.0, 0.75, false]]
-		for l in legs:
-			if l[2]:
-				_leg(b, l[0], l[1], moving, dark.darkened(0.25))
-		# the tail, and the shaggy body
+		var f := dirn
+		# the tail
 		b.polyline(PackedVector2Array([_v(-118, -128), _v(-128, -112), _v(-126, -96)]), dark, 4.0 * size)
 		b.circle(_v(-126, -94), 6.0 * size, dark, 8)
-		var body := PackedVector2Array()
-		for i in 28:
-			var a := TAU * i / 28.0
-			var r := Vector2(112, 58)
-			var c := Vector2(cos(a) * r.x, sin(a) * r.y)
-			if c.y < 0.0 and c.x > 0.0:
-				c.y -= sin(a * -1.0) * 14.0          # the shoulder hump
-			body.append(_v(c.x - 8.0, c.y - 118.0))
-		b.poly(body, fur)
-		b.circle(_v(48, -150), 48.0 * size, fur, 18)               # the hump
-		b.circle(_v(30, -168), 26.0 * size, rim, 14)
-		b.circle(_v(30, -162), 26.0 * size, fur, 14)
-		# the fringe of long hair under the belly
+		# shading over the painted coat: dark toward the belly, a fan from its middle
+		var mid := Vector2(0, -130) * size
+		for i in _sil.size():
+			var a: Vector2 = _sil[i]
+			var c: Vector2 = _sil[(i + 1) % _sil.size()]
+			var ka := clampf((a.y / size + 150.0) / 90.0, 0.0, 1.0)
+			var kc := clampf((c.y / size + 150.0) / 90.0, 0.0, 1.0)
+			b.tri_cols(Vector2(mid.x * f, mid.y), Vector2(a.x * f, a.y), Vector2(c.x * f, c.y),
+				Color(0.05, 0.03, 0.02, 0.0), Color(0.05, 0.03, 0.02, 0.55 * ka), Color(0.05, 0.03, 0.02, 0.55 * kc))
+		# the cheek in shadow, and the outline round the whole coat
+		b.ellipse(_v(80, -134), 15.0 * size, 12.0 * size, Color(0.08, 0.05, 0.03, 0.4))
+		var ring := PackedVector2Array()
+		for p in _sil:
+			ring.append(Vector2(p.x * f, p.y))
+		ring.append(ring[0])
+		b.polyline(ring, Color("1d1712"), 3.5 * size)
+		# the fringe of long hair under the belly, swinging
 		var x := -104.0
 		while x < 96.0:
-			b.tri(_v(x, -72), _v(x + 14.0, -72), _v(x + 7.0, -52 + sin(_t * 2.0 + x) * 3.0), dark)
+			b.tri(_v(x, -74), _v(x + 14.0, -74), _v(x + 7.0, -52 + sin(_t * 2.0 + x) * 3.0), dark)
+			b.line(_v(x + 4.0, -72), _v(x + 6.0, -58 + sin(_t * 2.0 + x) * 3.0), Color(rim, 0.5), 1.5 * size)
 			x += 12.0
-		for l in legs:
-			if not l[2]:
-				_leg(b, l[0], l[1], moving, Color("5a3e2a"))
-		# the head: a high dome, a small ear, an eye
-		b.circle(_v(104, -138), 38.0 * size, fur, 16)
-		b.circle(_v(98, -166), 26.0 * size, fur, 14)
-		b.circle(_v(96, -176), 16.0 * size, rim, 10)
-		b.circle(_v(94, -172), 16.0 * size, fur, 10)
-		b.circle(_v(80, -136), 13.0 * size, dark, 10)
-		b.circle(_v(116, -148), 3.5 * size, Color("1a120c"), 8)
-		b.circle(_v(117, -149), 1.3 * size, Color("fff4dd"), 6)
-		# the trunk, swaying
+		# the ear's inside, an eye
+		b.ellipse(_v(95, -173), 9.0 * size, 11.0 * size, Color(0.1, 0.06, 0.04, 0.45))
+		b.circle(_v(116, -148), 3.8 * size, Color("1a120c"), 8)
+		b.circle(_v(117, -149), 1.4 * size, Color("fff4dd"), 6)
+		b.line(_v(110, -154), _v(122, -156), Color("1d1712"), 2.0 * size)
+		# the trunk, swaying: shaggy brown, darker at the tip
 		var sway := sin(_t * 1.3) * 10.0
 		var tp := PackedVector2Array()
 		for i in 9:
 			var k := i / 8.0
 			tp.append(_v(128.0 + k * 14.0 + sway * k * k, -128.0 + k * 92.0 - k * k * 8.0))
 		for i in tp.size():
-			b.circle(tp[i], (11.0 - i * 0.8) * size, fur if i < 7 else dark, 10)
+			b.circle(tp[i], (12.5 - i * 0.8) * size, Color("1d1712"), 10)
+		for i in tp.size():
+			b.circle(tp[i], (11.0 - i * 0.8) * size, Color("6b4a32").lerp(dark, i / 9.0), 10)
+		# wrinkle rings across it
+		for i in range(1, tp.size() - 1):
+			var d: Vector2 = (tp[i + 1] - tp[i - 1]).normalized()
+			var n := Vector2(-d.y, d.x) * (9.0 - i * 0.7) * size
+			b.line(tp[i] - n, tp[i] + n, Color(0.1, 0.06, 0.04, 0.55), 1.5 * size)
 		# the tusks, long and curling up
 		var tusk := PackedVector2Array([_v(118, -112), _v(140, -100), _v(166, -102), _v(184, -118), _v(188, -138)])
+		b.polyline(tusk, Color("1d1712"), 11.0 * size)
 		b.polyline(tusk, Color("cdbf9f"), 8.0 * size)
-		b.polyline(tusk, Color("efe4c8"), 5.0 * size)
+		b.polyline(tusk, Color("efe4c8"), 4.0 * size)
+		# shaggy fur standing up along the back and hump
+		var sp := [Vector2(-104, -150), Vector2(-70, -168), Vector2(-30, -178), Vector2(10, -190), Vector2(40, -198), Vector2(70, -196), Vector2(96, -188)]
+		for i in sp.size() - 1:
+			for k in 4:
+				var q: Vector2 = (sp[i] as Vector2).lerp(sp[i + 1], k / 4.0)
+				var l := 9.0 + sin(i * 3.1 + k) * 3.0
+				b.tri(_v(q.x - 4.0, q.y + 4.0), _v(q.x + 4.0, q.y + 4.0), _v(q.x - 3.0 + sin(_t * 1.5 + q.x) * 1.5, q.y - l), Color("5a3d28"))
 		# a moonlit rim along the back
-		b.polyline(PackedVector2Array([_v(-110, -150), _v(-60, -172), _v(0, -184), _v(40, -196), _v(80, -192)]), Color(rim, 0.8), 3.0 * size)
+		b.polyline(PackedVector2Array([_v(-110, -150), _v(-60, -172), _v(0, -184), _v(40, -196), _v(80, -192)]), Color(rim, 0.55), 3.0 * size)
+		# the near legs, in fur, over the coat's lower edge
+		for l in [[-74.0, 0.5], [40.0, 0.75]]:
+			_leg_tex(self, l[0], l[1], moving, Color(0.8, 0.72, 0.72))
 		b.draw(self)
 
-	func _leg(b: Batch, x: float, phase: float, moving: bool, col: Color) -> void:
+	## One leg, in the fur: a tapering column and a round foot (drawn on `ci`).
+	func _leg_tex(ci: CanvasItem, x: float, phase: float, moving: bool, tint: Color) -> void:
 		var ph := (_ph + phase) * TAU
 		var swing := sin(ph) if moving else 0.0
 		var lift := maxf(0.0, cos(ph)) * 10.0 if moving else 0.0
-		var hip := _v(x, -96)
+		var hip := _v(x, -100)
 		var foot := _v(x + swing * 16.0, -lift)
-		b.poly(PackedVector2Array([hip + Vector2(-15, 0) * size, hip + Vector2(15, 0) * size, foot + Vector2(13, -6) * size, foot + Vector2(-13, -6) * size]), col)
-		b.circle(foot + Vector2(0, -6) * size, 14.0 * size, col, 10)
-		b.rect(Rect2(foot + Vector2(-15, -6) * size, Vector2(30, 6) * size), col.darkened(0.2))
+		# a pillar leg: wide at the top, a knee bulge, narrowing to the foot
+		var knee := hip.lerp(foot, 0.55) + _v(swing * 4.0, 0) - Vector2(0, 0)
+		var col := PackedVector2Array([hip + Vector2(-19, -6) * size, hip + Vector2(19, -6) * size, knee + Vector2(15, 0) * size,
+			foot + Vector2(13, -8) * size, foot + Vector2(-13, -8) * size, knee + Vector2(-15, 0) * size])
+		var tsz := _fur.get_size() * Terrain.TEXEL
+		var uv := PackedVector2Array()
+		for p in col:
+			uv.append(p / tsz)
+		ci.draw_colored_polygon(col, tint, uv, _fur)
+		ci.draw_polyline(PackedVector2Array([col[1], col[2], col[3]]), Color("1d1712"), 2.5 * size)
+		ci.draw_polyline(PackedVector2Array([col[0], col[5], col[4]]), Color("1d1712"), 2.5 * size)
+		# shaggy hair hanging over the knee
+		for k in 4:
+			var hx := -12.0 + k * 8.0
+			ci.draw_line(knee + Vector2(hx, -10) * size, knee + Vector2(hx + 1.0, 6) * size, Color(0.15, 0.09, 0.05, 0.6), 2.0 * size)
+		ci.draw_circle(foot + Vector2(0, -6) * size, 15.5 * size, Color("1d1712"))
+		ci.draw_circle(foot + Vector2(0, -6) * size, 13.5 * size, Color("4a3426"))
+		# toenails
+		for k in 3:
+			ci.draw_circle(foot + Vector2(-7.0 + k * 7.0, -2.0) * size, 2.6 * size, Color("cdbf9f"))
 
 
 ## ================================================================ RIVER

@@ -50,6 +50,8 @@ class Ground extends World.Slab:
 
 	func _ready() -> void:
 		super._ready()
+		# the earth under the grass: painted, like the mountain's (smooth, night-tinted)
+		Terrain.paint_rect(self, Vector2(rect.size.x, rect.size.y + fill_below), Terrain.EARTH_TEX, Terrain.NIGHT_EARTH)
 		back = Blades.new()
 		back.ground = self
 		back.front = false
@@ -75,108 +77,13 @@ class Ground extends World.Slab:
 		rng.seed = int(rect.position.x) * 13 + 5
 		var sd := rng.randf() * 10.0
 		var b := Batch.new()
-		# the bands of soil, top to bottom, with wavy borders
-		var tops := [8.0, 34.0, 62.0, 104.0, 160.0]
-		for i in tops.size():
-			var y0: float = tops[i]
-			if y0 >= h:
-				break
-			var edge := PackedVector2Array()
-			var x := -6.0
-			while x <= w + 6.0:
-				edge.append(Vector2(x, y0 + sin(x * 0.012 + i * 1.7 + sd) * 6.0 + sin(x * 0.043 + i) * 2.5))
-				x += 22.0
-			var band := edge.duplicate()
-			band.append(Vector2(w + 6.0, h))
-			band.append(Vector2(-6.0, h))
-			b.poly(band, SOIL[i])
-			if i > 0:
-				b.polyline(edge, Color(SOIL[i]).darkened(0.35), 2.5)
-				b.polyline(edge, Color(SOIL[i - 1]).lightened(0.1), 1.0)
-			# freckles of lighter grit in each band
-			for k in int(w / 40.0):
-				var gp := Vector2(rng.randf_range(0, w), y0 + rng.randf_range(10, 40))
-				if gp.y < h - 4.0:
-					b.circle(gp, rng.randf_range(1.0, 2.2), Color(SOIL[i]).lightened(0.18), 6)
-		# deeper is darker
-		for k in 4:
-			var yy := 120.0 + k * 30.0
-			if yy < h:
-				b.rect(Rect2(-6, yy, w + 12, h - yy), Color(0, 0, 0, 0.09))
-		# worm tunnels
-		for k in int(w / 260.0) + 1:
-			var p0 := Vector2(rng.randf_range(20, maxf(21.0, w - 20)), rng.randf_range(40, minf(h - 20, 160)))
-			var pts := PackedVector2Array()
-			for j in 9:
-				pts.append(p0 + Vector2(j * 9.0, sin(j * 0.9 + k) * 6.0))
-			for j in range(0, 8, 2):
-				b.line(pts[j], pts[j + 1], Color(OUTLINE, 0.35), 3.0)
-		# roots growing down from the turf
-		var rx := rng.randf_range(20, 90)
-		while rx < w - 10.0:
-			var root := PackedVector2Array([Vector2(rx, 10)])
-			var rl := rng.randf_range(30, 85)
-			var drift := rng.randf_range(-12, 12)
-			for j in range(1, 7):
-				var q := j / 6.0
-				root.append(Vector2(rx + drift * q + sin(q * 6.0 + rx) * 4.0, 10.0 + rl * q))
-			b.polyline(root, Color("2a1c12"), 3.0)
-			b.polyline(root, Color("4a3220"), 1.2)
-			for j in 2:
-				var at: Vector2 = root[2 + j * 2]
-				b.line(at, at + Vector2(rng.randf_range(-12, 12), rng.randf_range(6, 14)), Color("2a1c12"), 1.5)
-			rx += rng.randf_range(80, 170)
-		# pebbles: outlined, with a lit side
-		for k in int(w / 60.0) + 1:
-			var c := Vector2(rng.randf_range(8, maxf(9.0, w - 8)), rng.randf_range(24, minf(h - 10, 170)))
-			var r := rng.randf_range(4, 9)
-			var col: Color = PEBBLES[rng.randi() % PEBBLES.size()]
-			var rot := rng.randf_range(-0.6, 0.6)
-			b.ellipse(c, r + 1.5, r * 0.7 + 1.5, OUTLINE, rot)
-			b.ellipse(c, r, r * 0.7, col, rot)
-			b.ellipse(c + Vector2(-r * 0.25, -r * 0.2), r * 0.45, r * 0.25, col.lightened(0.3), rot)
-		# fossils: an ammonite, a fish, an old bone — here and there
-		var fx := rng.randf_range(80, 260)
-		var kind := rng.randi() % 3
-		while fx < w - 60.0:
-			var fc := Vector2(fx, rng.randf_range(38, minf(h - 30, 100)))
-			var bone := Color("d8c7a0")
-			match kind % 3:
-				0:
-					var sp := PackedVector2Array()
-					for j in 30:
-						var a := j * 0.42
-						sp.append(fc + Vector2.from_angle(a) * (2.0 + j * 0.55))
-					b.ellipse(fc, 19, 18, Color(OUTLINE, 0.5))
-					b.polyline(sp, bone, 3.0)
-				1:
-					b.line(fc + Vector2(-22, 0), fc + Vector2(18, 0), bone, 3.0)
-					for j in 5:
-						var ribx := -14.0 + j * 6.0
-						b.line(fc + Vector2(ribx, -7), fc + Vector2(ribx + 2, 7), bone, 2.0)
-					b.tri(fc + Vector2(18, 0), fc + Vector2(28, -8), fc + Vector2(28, 8), bone)
-					b.tri(fc + Vector2(-22, 0), fc + Vector2(-32, -7), fc + Vector2(-30, 0), bone)
-				2:
-					b.line(fc + Vector2(-16, 4), fc + Vector2(16, -4), bone, 5.0)
-					for e in [Vector2(-16, 4), Vector2(16, -4)]:
-						b.circle(fc + e + Vector2(0, -3), 4.0, bone, 8)
-						b.circle(fc + e + Vector2(0, 3), 4.0, bone, 8)
-			kind += 1
-			fx += rng.randf_range(260, 480)
-		# crystals: little clusters that glow through the dark
+		# the earth itself is painted (Terrain.paint_rect in _ready, behind this);
+		# here it just darkens smoothly with depth, no bands
+		var dk := Color(0.05, 0.03, 0.02, 0.0)
+		var deep := Color(0.05, 0.03, 0.02, 0.7)
+		b.quad(Vector2(0, 30), Vector2(w, 30), Vector2(w, h), Vector2(0, h), dk,
+			PackedColorArray([dk, dk, deep, deep]))
 		crystals.clear()
-		var cx := rng.randf_range(180, 420)
-		while cx < w - 30.0:
-			var cc := Vector2(cx, rng.randf_range(46, minf(h - 24, 105)))
-			var ci := rng.randi() % CRYSTALS.size()
-			var col2: Color = CRYSTALS[ci]
-			for j in 3:
-				var off := Vector2(-8.0 + j * 8.0, 0)
-				var tall := 12.0 + (6.0 if j == 1 else 0.0)
-				b.tri(cc + off + Vector2(-4, 4), cc + off + Vector2(0, -tall), cc + off + Vector2(4, 4), col2.darkened(0.3))
-				b.tri(cc + off + Vector2(-2, 3), cc + off + Vector2(0, -tall + 3), cc + off + Vector2(1, 3), col2.lightened(0.2))
-			crystals.append([cc, ci])
-			cx += rng.randf_range(380, 700)
 		# the cliff faces at both ends, with roots dangling off them
 		for side in [0.0, w]:
 			var s := -1.0 if side == 0.0 else 1.0

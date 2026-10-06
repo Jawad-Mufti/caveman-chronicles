@@ -16,6 +16,9 @@ const KINDS := {
 	"ivory": ["MAMMOTH IVORY", "Old ivory, smooth as water. Carved, it makes the strongest tools.", Color("f3ead2")],
 	"bear_fang": ["CAVE BEAR FANG", "From the biggest bear that ever lived. Hung by the door, no wolf comes near.", Color("efe3c8")],
 	"red_ochre": ["RED OCHRE", "The old ones' paint, from the Painted Cave. Pictures for the shelter walls.", Color("c8553d")],
+	# the two VERY rare ones, each locked in a chest hidden in the mountain
+	"thunder_egg": ["THUNDER EGG", "A stone egg that rumbles when storms come. Cracked open: a cave of purple crystal inside.", Color("a77bff")],
+	"golden_horn": ["GOLDEN HORN", "A mountain goat's horn, gold all through. Blow it, and the whole valley answers.", Color("ffcf40")],
 }
 
 
@@ -100,6 +103,35 @@ static func draw_icon(b: Batch, kind: String, c: Vector2, r: float, t: float) ->
 			for f in 4:
 				b.line(c + Vector2(6.0 + f * 2.6, -10) * k, c + Vector2(4.0 + f * 3.4, -18) * k, col.lightened(0.15), 2.0 * k)
 			b.ellipse(c + Vector2(-9, -1) * k, 3.0 * k, 2.0 * k, Color(1, 0.85, 0.75, 0.6))
+		"thunder_egg":
+			# a grey stone egg cracked open on a heart of purple crystal, crackling
+			b.ellipse(c + Vector2(0, 2) * k, 14.0 * k, 17.0 * k, Color("4a4550"))
+			b.ellipse(c + Vector2(-1, 1) * k, 12.0 * k, 15.0 * k, Color("8a8494"))
+			b.ellipse(c + Vector2(1, 3) * k, 8.0 * k, 10.0 * k, dk)
+			for i in 5:
+				var a := -PI * 0.5 + (i - 2) * 0.5
+				var tip := c + Vector2(1, 3) * k + Vector2.from_angle(a) * 9.0 * k
+				b.tri(c + Vector2(1, 6) * k + Vector2(-2.5, 0) * k, c + Vector2(1, 6) * k + Vector2(2.5, 0) * k, tip, col if i % 2 == 0 else col.lightened(0.35))
+			var z := 0.5 + 0.5 * sin(t * 9.0)
+			b.line(c + Vector2(-17, -12) * k, c + Vector2(-11, -6) * k, Color(1, 1, 0.7, z), 1.8 * k)
+			b.line(c + Vector2(-11, -6) * k, c + Vector2(-15, -2) * k, Color(1, 1, 0.7, z), 1.8 * k)
+			b.line(c + Vector2(16, -14) * k, c + Vector2(12, -8) * k, Color(1, 1, 0.7, 1.0 - z), 1.8 * k)
+		"golden_horn":
+			# a curling golden horn, ringed, a shine running along it
+			var horn := PackedVector2Array()
+			for i in 9:
+				var q := i / 8.0
+				horn.append(c + Vector2(-14.0 + q * 26.0, 10.0 - sin(q * PI * 0.9) * 22.0) * k)
+			for i in 8:
+				b.line(horn[i], horn[i + 1], dk, (5.0 + i * 1.6) * k + 3.0 * k)
+			for i in 8:
+				b.line(horn[i], horn[i + 1], col, (5.0 + i * 1.6) * k)
+			for i in [2, 4, 6]:
+				b.circle(horn[i], (3.0 + i * 0.8) * k, col.darkened(0.25), 10)
+			b.circle(horn[8], 7.0 * k, dk, 12)
+			b.circle(horn[8], 4.0 * k, Color("4a3410"), 10)
+			var sh := horn[int(fmod(t * 4.0, 8.0))]
+			b.circle(sh + Vector2(-1, -2) * k, 2.2 * k, Color(1, 1, 0.9, 0.85), 8)
 		_:
 			b.circle(c, 14.0 * k, col, 14)
 
