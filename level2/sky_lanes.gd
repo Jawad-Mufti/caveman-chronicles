@@ -14,14 +14,20 @@ class SkyRock extends StaticBody2D:
 	## point, roots hanging out underneath. Land on it from above, jump up
 	## through it from below. It glows along its lip, so it reads even in the
 	## Long Dark — and a lamp island (crystals at its tip) is a real light there.
+	## Painted like the mountain: real rock, earth and grass textures (common/art)
+	## for its body, with the outline and the little things drawn over them.
 	var w := 120.0
 	var lamp := false
 	var has_pad := false
 	var tint := Color("bcd8ff")
 	var t := 0.0
-	## Its outline, kept from _draw: the glow layer draws a moonlit copy of it
-	## over the dark, so a lane reads at night without his torch.
+	## Its outline: the glow layer draws a moonlit copy of it over the dark, so a
+	## lane reads at night without his torch.
 	var _outline := PackedVector2Array()
+	var _soil := PackedVector2Array()
+	var _depth := PackedFloat32Array()
+	var _n := 4
+	var _tip := Vector2.ZERO
 
 	func _ready() -> void:
 		collision_layer = 1
@@ -37,6 +43,36 @@ class SkyRock extends StaticBody2D:
 		if lamp:
 			add_to_group("light")
 		t = randf() * 6.0
+		_shape()
+		# the body, painted: rock below, a band of earth, the grass cap
+		Terrain.paint_poly(self, _outline, Terrain.ROCK_TEX, Terrain.NIGHT_ROCK, position)
+		Terrain.paint_poly(self, _soil, Terrain.EARTH_TEX, Terrain.NIGHT_EARTH, position)
+		var cap := PackedVector2Array([Vector2(-6, -3), Vector2(w + 6, -3), Vector2(w + 4, 6), Vector2(w * 0.75, 10),
+			Vector2(w * 0.5, 8), Vector2(w * 0.25, 10), Vector2(-4, 6)])
+		Terrain.paint_poly(self, cap, Terrain.GRASS_TEX, Terrain.NIGHT_GRASS.lightened(0.12), position)
+
+	## The island's shape: soil and rock tapering to a ragged point.
+	func _shape() -> void:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = int(position.x) * 7 + int(position.y) * 3
+		var deep := clampf(w * 0.75, 50.0, 110.0)
+		_n = maxi(int(w / 16.0), 4)
+		for i in _n + 1:
+			var k := float(i) / _n
+			_depth.append(deep * pow(1.0 - absf(k - 0.5) * 2.0, 0.75) * rng.randf_range(0.82, 1.0))
+		var tip_d := 0.0
+		var tip_x := w * 0.5
+		for i in _n + 1:
+			if _depth[i] > tip_d:
+				tip_d = _depth[i]
+				tip_x = w * float(i) / _n
+		_tip = Vector2(tip_x, tip_d)
+		_outline = PackedVector2Array([Vector2(-3, 4), Vector2(w + 3, 4)])
+		_soil = PackedVector2Array([Vector2(-3, 4), Vector2(w + 3, 4)])
+		for i in range(_n, -1, -1):
+			var x := w * float(i) / _n
+			_outline.append(Vector2(x, 6.0 + _depth[i]))
+			_soil.append(Vector2(x, 6.0 + _depth[i] * 0.42))
 
 	func light() -> Vector4:
 		return Vector4(global_position.x + w * 0.5, global_position.y - 26.0, 150.0, 0.0)
@@ -47,46 +83,30 @@ class SkyRock extends StaticBody2D:
 	func _draw() -> void:
 		var bt := Batch.new()
 		var rng := RandomNumberGenerator.new()
-		rng.seed = int(position.x) * 7 + int(position.y) * 3
-		# a little floating island: a grassy cap, then soil and rock tapering to a
-		# ragged point underneath, with roots hanging out of it
-		var deep := clampf(w * 0.75, 50.0, 110.0)
-		var n := maxi(int(w / 16.0), 4)
-		var depth := PackedFloat32Array()
-		for i in n + 1:
-			var k := float(i) / n
-			depth.append(deep * pow(1.0 - absf(k - 0.5) * 2.0, 0.75) * rng.randf_range(0.82, 1.0))
-		var tip_x := w * 0.5
-		var tip_d := 0.0
-		for i in n + 1:
-			if depth[i] > tip_d:
-				tip_d = depth[i]
-				tip_x = w * float(i) / n
-		var rock := PackedVector2Array([Vector2(-3, 4), Vector2(w + 3, 4)])
-		var soil := PackedVector2Array([Vector2(-3, 4), Vector2(w + 3, 4)])
-		for i in range(n, -1, -1):
-			var x := w * float(i) / n
-			rock.append(Vector2(x, 6.0 + depth[i]))
-			soil.append(Vector2(x, 6.0 + depth[i] * 0.42))
-		bt.poly(rock, Color("3e4660"))
-		_outline = rock
-		bt.poly(soil, Color("4f3d2f"))
-		bt.polyline(soil.slice(2), Color("3a2c22"), 2.0)
-		# stones set in the rock, and in the soil
-		for i in int(w / 30.0) + 1:
-			var k := rng.randf_range(0.2, 0.8)
-			var sx := w * k
-			var sd := depth[int(round(k * n))]
-			bt.circle(Vector2(sx, 6.0 + sd * rng.randf_range(0.5, 0.75)), rng.randf_range(3.0, 5.5), Color("566079"), 8)
-			bt.circle(Vector2(w * rng.randf_range(0.1, 0.9), 6.0 + rng.randf_range(4.0, 9.0)), rng.randf_range(1.5, 2.5), Color("6b5643"), 6)
+		rng.seed = int(position.x) * 11 + int(position.y)
+		var tip_x := _tip.x
+		var tip_d := _tip.y
+		# shading: the underside falls into shadow toward its point
+		for i in range(2, _outline.size() - 1):
+			var a: Vector2 = _outline[i]
+			var b: Vector2 = _outline[i + 1]
+			var a0 := Vector2(a.x, lerpf(6.0, a.y, 0.35))
+			var b0 := Vector2(b.x, lerpf(6.0, b.y, 0.35))
+			bt.quad(a0, b0, b, a, Color.BLACK, PackedColorArray([Color(0.04, 0.03, 0.06, 0.0), Color(0.04, 0.03, 0.06, 0.0),
+				Color(0.04, 0.03, 0.06, 0.6), Color(0.04, 0.03, 0.06, 0.6)]))
+		# where the earth meets the rock, and the outline round it all
+		bt.polyline(_soil.slice(2), Color(0.12, 0.08, 0.06, 0.6), 2.0)
+		var ring := _outline.duplicate()
+		ring.append(_outline[0])
+		bt.polyline(ring, Color("1d1712"), 3.0)
 		# roots hanging from the underside
 		for i in 3:
 			var k := 0.3 + 0.2 * i + rng.randf_range(-0.05, 0.05)
 			var rx := w * k
-			var ry := 4.0 + depth[int(round(k * n))]
+			var ry := 4.0 + _depth[int(round(k * _n))]
 			var rl := rng.randf_range(16.0, 38.0)
-			bt.polyline(PackedVector2Array([Vector2(rx, ry), Vector2(rx + 4.0, ry + rl * 0.45), Vector2(rx - 2.0, ry + rl)]), Color("3b2f26"), 2.0)
-			bt.line(Vector2(rx + 3.0, ry + rl * 0.4), Vector2(rx + 9.0, ry + rl * 0.6), Color("3b2f26"), 1.2)
+			bt.polyline(PackedVector2Array([Vector2(rx, ry), Vector2(rx + 4.0, ry + rl * 0.45), Vector2(rx - 2.0, ry + rl)]), Color("3b2a1e"), 2.5)
+			bt.line(Vector2(rx + 3.0, ry + rl * 0.4), Vector2(rx + 9.0, ry + rl * 0.6), Color("3b2a1e"), 1.4)
 		if lamp:
 			# a cluster of crystals at the tip: it lights the way
 			var c := Vector2(tip_x, 2.0 + tip_d)
@@ -94,8 +114,8 @@ class SkyRock extends StaticBody2D:
 			bt.tri(c + Vector2(-1, 0), c + Vector2(4, 13), c + Vector2(8, 0), Color("c9f6ff", 0.95))
 		else:
 			# a few pebbles drifting under the point
-			bt.circle(Vector2(tip_x - 6.0, 14.0 + tip_d), 3.0, Color("4c5675"), 8)
-			bt.circle(Vector2(tip_x + 7.0, 24.0 + tip_d), 2.0, Color("4c5675"), 6)
+			bt.circle(Vector2(tip_x - 6.0, 14.0 + tip_d), 3.0, Color("6b5f55"), 8)
+			bt.circle(Vector2(tip_x + 7.0, 24.0 + tip_d), 2.0, Color("6b5f55"), 6)
 		# a vine trailing over the edge of the wider ones
 		if w >= 140.0:
 			var vx := w * 0.82
@@ -103,22 +123,26 @@ class SkyRock extends StaticBody2D:
 			bt.polyline(PackedVector2Array([Vector2(vx, 4), Vector2(vx + 4.0, 4.0 + vl * 0.5), Vector2(vx, 4.0 + vl)]), Color("2c5236"), 2.0)
 			for j in 4:
 				var ly := 12.0 + j * vl / 4.5
-				bt.circle(Vector2(vx + (3.0 if j % 2 == 0 else -2.0), ly), 3.2, Color("3f7a48"), 6)
-		# the grass cap, curling over the edges
-		bt.rect(Rect2(-4, -2, w + 8, 9), Color("2f5a3a"))
-		bt.rect(Rect2(-4, -2, w + 8, 3), Color("5c9a5e"))
-		for i in int(w / 20.0) + 2:
+				bt.circle(Vector2(vx + (3.0 if j % 2 == 0 else -2.0), ly), 3.2, Color("4a8a3e"), 6)
+		# the grass: an outline over the cap, tufts standing up and hanging over the lip
+		bt.polyline(PackedVector2Array([Vector2(-6, -3), Vector2(w + 6, -3)]), Color("1d2a14"), 2.0)
+		for i in int(w / 18.0) + 2:
 			var gx := -2.0 + rng.randf_range(0.0, w + 4.0)
-			bt.tri(Vector2(gx - 3.0, 6), Vector2(gx + 3.0, 6), Vector2(gx, 6.0 + rng.randf_range(4.0, 10.0)), Color("2f5a3a"))
-		for i in int(w / 13.0):
+			bt.tri(Vector2(gx - 3.0, 7), Vector2(gx + 3.0, 7), Vector2(gx, 7.0 + rng.randf_range(5.0, 12.0)), Color("3e6b2c"))
+		for i in int(w / 11.0):
 			var tx := rng.randf_range(2.0, w - 2.0)
-			bt.tri(Vector2(tx - 2.0, -1), Vector2(tx + 2.0, -1), Vector2(tx + rng.randf_range(-2.0, 2.0), -rng.randf_range(4.0, 8.0)), Color("4f8a52"))
-		# a bush on the broad ones, out at one end
+			var col := Color("5f9a42") if i % 2 == 0 else Color("7fb85a")
+			bt.tri(Vector2(tx - 2.5, -2), Vector2(tx + 2.5, -2), Vector2(tx + rng.randf_range(-3.0, 3.0), -rng.randf_range(6.0, 11.0)), col)
+		# a bush on the broad ones, out at one end; a flower or two
 		if w >= 160.0:
 			var bx := w * 0.12
-			bt.circle(Vector2(bx, -6), 9.0, Color("2c5236"), 10)
-			bt.circle(Vector2(bx + 10.0, -9), 8.0, Color("2c5236"), 10)
-			bt.circle(Vector2(bx + 3.0, -10), 4.0, Color("4a7d4f"), 8)
+			bt.circle(Vector2(bx, -6), 9.0, Color("2f5a2a"), 10)
+			bt.circle(Vector2(bx + 10.0, -9), 8.0, Color("3a6b30"), 10)
+			bt.circle(Vector2(bx + 3.0, -10), 4.0, Color("5f9a42"), 8)
+		for i in int(w / 70.0):
+			var fx := rng.randf_range(10.0, w - 10.0)
+			bt.line(Vector2(fx, -2), Vector2(fx, -9), Color("3e6b2c"), 1.5)
+			bt.circle(Vector2(fx, -10), 2.4, Color("f2e6a0") if i % 2 == 0 else Color("e8a3c0"), 6)
 		bt.draw(self)
 
 	func draw_glow(g) -> void:   # g: the glow layer's Batch

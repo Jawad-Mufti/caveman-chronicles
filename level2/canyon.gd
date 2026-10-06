@@ -59,6 +59,7 @@ class SkyStone extends Node2D:
 	var _home := Vector2.ZERO
 	var _t := 0.0
 	var _drops: Array = []
+	var _body := PackedVector2Array()
 
 	func _ready() -> void:
 		_home = position
@@ -70,6 +71,22 @@ class SkyStone extends Node2D:
 		add_to_group("glow")
 		for i in 4:
 			_drops.append(randf())
+		# the body, painted like the mountain (common/art): rock, a band of earth, the grass cap
+		var rng := RandomNumberGenerator.new()
+		rng.seed = int(_home.x)
+		_body = PackedVector2Array([Vector2(-52, -10), Vector2(52, -10)])
+		for k in range(8, -1, -1):
+			var q := k / 8.0
+			var d := 34.0 * (1.0 - pow(absf(q - 0.5) * 2.0, 1.4)) * rng.randf_range(0.8, 1.0)
+			_body.append(Vector2(-52.0 + 104.0 * q, -6.0 + d))
+		var band := PackedVector2Array([Vector2(-52, -10), Vector2(52, -10)])
+		for k in range(8, -1, -1):
+			var q2 := k / 8.0
+			band.append(Vector2(-52.0 + 104.0 * q2, -8.0 + 12.0 * (1.0 - pow(absf(q2 - 0.5) * 2.0, 1.6))))
+		Terrain.paint_poly(self, _body, Terrain.ROCK_TEX, Terrain.NIGHT_ROCK.lightened(0.2), _home)
+		Terrain.paint_poly(self, band, Terrain.EARTH_TEX, Terrain.NIGHT_EARTH, _home)
+		Terrain.paint_poly(self, PackedVector2Array([Vector2(-56, -15), Vector2(56, -15), Vector2(54, -7), Vector2(20, -5), Vector2(-20, -6), Vector2(-54, -7)]),
+			Terrain.GRASS_TEX, Terrain.NIGHT_GRASS.lightened(0.12), _home)
 
 	func _offset(t: float) -> Vector2:
 		var a := TAU * t / period + beat
@@ -92,31 +109,24 @@ class SkyStone extends Node2D:
 
 	func _draw() -> void:
 		var b := Batch.new()
-		var rng := RandomNumberGenerator.new()
-		rng.seed = int(_home.x)
-		# the rock: a flat-topped chunk, jagged underneath, darker below
-		var body := PackedVector2Array([Vector2(-52, -10), Vector2(52, -10)])
-		for k in range(8, -1, -1):
-			var q := k / 8.0
-			var d := 34.0 * (1.0 - pow(absf(q - 0.5) * 2.0, 1.4)) * rng.randf_range(0.8, 1.0)
-			body.append(Vector2(-52.0 + 104.0 * q, -6.0 + d))
-		b.poly(body, Color("4b4f63"))
-		var lit := PackedVector2Array([Vector2(-52, -10), Vector2(52, -10)])
-		for k in range(8, -1, -1):
-			var q2 := k / 8.0
-			lit.append(Vector2(-52.0 + 104.0 * q2, -8.0 + 14.0 * (1.0 - pow(absf(q2 - 0.5) * 2.0, 1.6))))
-		b.poly(lit, Color("676c86"))
-		# strata and a few pebbles
-		b.line(Vector2(-40, 6), Vector2(36, 9), Color("3c3f51"), 2.0)
-		b.circle(Vector2(-20, 14), 4.0, Color("5a5e75"), 8)
-		b.circle(Vector2(18, 18), 3.0, Color("5a5e75"), 8)
+		# (the body is painted: meshes under this) shade its underside, and outline it
+		for i in range(2, _body.size() - 1):
+			var p0: Vector2 = _body[i]
+			var p1: Vector2 = _body[i + 1]
+			b.quad(Vector2(p0.x, -2), Vector2(p1.x, -2), p1, p0, Color.BLACK, PackedColorArray([Color(0.04, 0.03, 0.06, 0.0), Color(0.04, 0.03, 0.06, 0.0),
+				Color(0.04, 0.03, 0.06, 0.6), Color(0.04, 0.03, 0.06, 0.6)]))
+		var ring := _body.duplicate()
+		ring.append(_body[0])
+		b.polyline(ring, Color("1d1712"), 3.0)
 		# roots trailing, and the tie-point of the vine
 		for s in [-1.0, 1.0]:
 			b.polyline(PackedVector2Array([Vector2(s * 26.0, 14), Vector2(s * 30.0, 30), Vector2(s * 24.0, 44)]), Color("3b2f26"), 2.0)
 		b.circle(Vector2(0, 30), 6.0, Color("3b2f26"), 10)
-		# the mossy top
-		b.rect(Rect2(-54, -14, 108, 7), Color("2f5a3a"))
-		b.rect(Rect2(-54, -14, 108, 3), Color("5c9a5e"))
+		# grass tufts on the cap
+		for k in 9:
+			var gx := -48.0 + k * 12.0
+			b.tri(Vector2(gx - 2.5, -14), Vector2(gx + 2.5, -14), Vector2(gx + sin(k * 2.3) * 3.0, -21.0 - (k % 3) * 2.0), Color("5f9a42") if k % 2 == 0 else Color("7fb85a"))
+			b.tri(Vector2(gx - 3.0, -7), Vector2(gx + 3.0, -7), Vector2(gx + 1.0, -1.0 + (k % 2) * 3.0), Color("3e6b2c"))
 		# the little world on top
 		match look % 3:
 			0:      # a tiny twisted tree
@@ -129,8 +139,10 @@ class SkyStone extends Node2D:
 				b.tri(Vector2(-2, -14), Vector2(2, -28), Vector2(8, -14), Color("4fb4cf"))
 			2:      # a ring of standing stones, like a tiny shrine
 				for k in 3:
-					b.rect(Rect2(-24.0 + k * 18.0, -30, 8, 16), Color("8a8fa6"))
-				b.rect(Rect2(-26, -34, 52, 5), Color("8a8fa6"))
+					b.rect(Rect2(-24.0 + k * 18.0, -30, 8, 16), Color("9a8f80"))
+					b.rect(Rect2(-24.0 + k * 18.0, -30, 2, 16), Color("b8ad9c"))
+				b.rect(Rect2(-26, -34, 52, 5), Color("9a8f80"))
+				b.polyline(PackedVector2Array([Vector2(-26, -29), Vector2(-26, -34), Vector2(26, -34), Vector2(26, -29)]), Color("1d1712"), 1.5)
 		# water trickling off the lip, in drops
 		for i in _drops.size():
 			var q3: float = _drops[i]
@@ -141,6 +153,10 @@ class SkyStone extends Node2D:
 	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		var o := global_position
 		var pulse := 0.5 + 0.5 * sin(_t * 2.0 + _home.x)
+		# moonlight on the stone itself, over the dark (as the sky islands have)
+		g.draw_set_transform(o)
+		g.draw_colored_polygon(_body, Color("b0a497", 0.22))
+		g.draw_set_transform(Vector2.ZERO)
 		g.draw_line(o + Vector2(-50, -13), o + Vector2(50, -13), Color("9fd6a6", 0.55), 3.0)
 		for k in 5:
 			var x := -36.0 + k * 18.0
@@ -157,6 +173,7 @@ class FloatRock extends AnimatableBody2D:
 	var bob := 0.0
 	var _home := Vector2.ZERO
 	var _t := 0.0
+	var _body := PackedVector2Array()
 
 	func _ready() -> void:
 		collision_layer = 1
@@ -172,6 +189,17 @@ class FloatRock extends AnimatableBody2D:
 		cs.one_way_collision = true
 		add_child(cs)
 		add_to_group("glow")
+		# painted like the mountain: rock, with a grass cap
+		var rng := RandomNumberGenerator.new()
+		rng.seed = int(_home.x)
+		_body = PackedVector2Array([Vector2(0, 0), Vector2(w, 0)])
+		var n := maxi(int(w / 18.0), 4)
+		for k in range(n, -1, -1):
+			var q := float(k) / n
+			_body.append(Vector2(w * q, 10.0 + 30.0 * (1.0 - pow(absf(q - 0.5) * 2.0, 1.3)) * rng.randf_range(0.75, 1.0)))
+		Terrain.paint_poly(self, _body, Terrain.ROCK_TEX, Terrain.NIGHT_ROCK.lightened(0.2), _home)
+		Terrain.paint_poly(self, PackedVector2Array([Vector2(-3, -3), Vector2(w + 3, -3), Vector2(w + 1, 6), Vector2(w * 0.5, 8), Vector2(-1, 6)]),
+			Terrain.GRASS_TEX, Terrain.NIGHT_GRASS.lightened(0.12), _home)
 
 	func _physics_process(delta: float) -> void:
 		_t += delta
@@ -181,21 +209,25 @@ class FloatRock extends AnimatableBody2D:
 
 	func _draw() -> void:
 		var b := Batch.new()
-		var rng := RandomNumberGenerator.new()
-		rng.seed = int(_home.x)
-		var body := PackedVector2Array([Vector2(0, 0), Vector2(w, 0)])
-		var n := maxi(int(w / 18.0), 4)
-		for k in range(n, -1, -1):
-			var q := float(k) / n
-			body.append(Vector2(w * q, 10.0 + 30.0 * (1.0 - pow(absf(q - 0.5) * 2.0, 1.3)) * rng.randf_range(0.75, 1.0)))
-		b.poly(body, Color("4b4f63"))
-		b.rect(Rect2(0, 0, w, 8), Color("6a6f88"))
-		b.rect(Rect2(0, 0, w, 3), Color("a3a9c4"))
-		b.line(Vector2(w * 0.2, 12), Vector2(w * 0.45, 20), Color("3c3f51"), 2.0)
+		# (painted underneath) shade the underside, outline it, tufts on the cap
+		for i in range(2, _body.size() - 1):
+			var p0: Vector2 = _body[i]
+			var p1: Vector2 = _body[i + 1]
+			b.quad(Vector2(p0.x, 6), Vector2(p1.x, 6), p1, p0, Color.BLACK, PackedColorArray([Color(0.04, 0.03, 0.06, 0.0), Color(0.04, 0.03, 0.06, 0.0),
+				Color(0.04, 0.03, 0.06, 0.6), Color(0.04, 0.03, 0.06, 0.6)]))
+		var ring := _body.duplicate()
+		ring.append(_body[0])
+		b.polyline(ring, Color("1d1712"), 3.0)
+		for k in int(w / 14.0):
+			var gx := 6.0 + k * 14.0
+			b.tri(Vector2(gx - 2.5, -2), Vector2(gx + 2.5, -2), Vector2(gx + sin(k * 1.7) * 3.0, -8.0 - (k % 3) * 2.0), Color("5f9a42") if k % 2 == 0 else Color("7fb85a"))
 		b.draw(self)
 
 	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		var o := global_position
+		g.draw_set_transform(o)
+		g.draw_colored_polygon(_body, Color("b0a497", 0.22))
+		g.draw_set_transform(Vector2.ZERO)
 		g.draw_line(o + Vector2(3, 0.5), o + Vector2(w - 3, 0.5), Color("c9d6ff", 0.5), 2.0)
 
 

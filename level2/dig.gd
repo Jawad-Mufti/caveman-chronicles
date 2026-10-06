@@ -553,13 +553,13 @@ class Gulper extends Area2D:
 	const ARC := 0.8                  ## seconds for the lunge
 	const STUCK := 1.7
 	var floor_y := 1160.0
-	var x0 := 12040.0
-	var x1 := 12530.0
+	var x0 := 15340.0
+	var x1 := 15830.0
 	var state := "sleep"             ## sleep, swim, tell, lunge, stuck, dive, dead
 	var hp := HP
 	var _t := 0.0
 	var _st := 0.0
-	var _x := 12300.0                ## where it is along the floor
+	var _x := 15600.0                ## where it is along the floor
 	var _from := 0.0
 	var _to := 0.0
 	var _dir := 1.0

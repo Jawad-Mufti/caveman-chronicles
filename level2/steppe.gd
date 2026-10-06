@@ -31,39 +31,45 @@ class KickWall extends StaticBody2D:
 		cs.shape = sh
 		cs.position = Vector2(w * 0.5, h * 0.5)
 		add_child(cs)
+		# painted layered stone (common/art), like the mountain's rock
+		Terrain.paint_poly(self, PackedVector2Array([Vector2.ZERO, Vector2(w, 0), Vector2(w, h), Vector2(0, h)]),
+			"res://common/art/rock_layers.png", Color(0.7, 0.64, 0.6), position)
 
 	func _draw() -> void:
 		var b := Batch.new()
 		var rng := RandomNumberGenerator.new()
 		rng.seed = int(position.x) * 13 + int(position.y)
-		b.rect(Rect2(0, 0, w, h), Color("454a5e"))
-		b.rect(Rect2(0, 0, 7, h), Color("5a6078"))            # moonlit edges
-		b.rect(Rect2(w - 7, 0, 7, h), Color("5a6078"))
+		# (painted underneath) moonlit edges, darker toward the foot, an outline
+		b.rect(Rect2(0, 0, 6, h), Color(1.0, 0.95, 0.85, 0.12))
+		b.rect(Rect2(w - 6, 0, 6, h), Color(1.0, 0.95, 0.85, 0.12))
+		b.quad(Vector2(0, h * 0.4), Vector2(w, h * 0.4), Vector2(w, h), Vector2(0, h), Color.BLACK,
+			PackedColorArray([Color(0.04, 0.03, 0.06, 0.0), Color(0.04, 0.03, 0.06, 0.0), Color(0.04, 0.03, 0.06, 0.5), Color(0.04, 0.03, 0.06, 0.5)]))
+		b.polyline(PackedVector2Array([Vector2(0, h), Vector2(0, 0), Vector2(w, 0), Vector2(w, h)]), Color("1d1712"), 3.0)
 		# strata
 		var y := 30.0
 		while y < h - 10.0:
-			b.line(Vector2(4, y), Vector2(w - 4, y + rng.randf_range(-6.0, 6.0)), Color("383c4e"), 2.0)
+			b.line(Vector2(4, y), Vector2(w - 4, y + rng.randf_range(-6.0, 6.0)), Color(0.15, 0.11, 0.09, 0.45), 2.0)
 			y += rng.randf_range(40.0, 70.0)
 		# holds on both faces: little ledges, scuffed pale
 		var hy := 40.0
 		while hy < h - 20.0:
 			for side in [0.0, w - 12.0]:
-				b.rect(Rect2(side + rng.randf_range(0.0, 2.0), hy + rng.randf_range(-8.0, 8.0), 12, 5), Color("8b90a6"))
+				b.rect(Rect2(side + rng.randf_range(0.0, 2.0), hy + rng.randf_range(-8.0, 8.0), 12, 5), Color("c2b29a"))
 			hy += rng.randf_range(55.0, 75.0)
 		# scrape marks, where others have climbed
 		for i in int(h / 90.0):
 			var sx: float = 3.0 if i % 2 == 0 else w - 10.0
 			var sy := rng.randf_range(30.0, h - 40.0)
 			for k in 3:
-				b.line(Vector2(sx + k * 3.0, sy), Vector2(sx + k * 3.0 + 2.0, sy + 16.0), Color("7b8096"), 1.2)
+				b.line(Vector2(sx + k * 3.0, sy), Vector2(sx + k * 3.0 + 2.0, sy + 16.0), Color("b3a38c"), 1.2)
 		if grassy:
-			b.rect(Rect2(-3, -3, w + 6, 9), Color("2f5a3a"))
-			b.rect(Rect2(-3, -3, w + 6, 3), Color("5c9a5e"))
+			b.rect(Rect2(-3, -3, w + 6, 9), Color("3e6b2c"))
+			b.rect(Rect2(-3, -3, w + 6, 3), Color("7fb85a"))
 			for i in int(w / 14.0):
 				var tx := rng.randf_range(2.0, w - 2.0)
 				b.tri(Vector2(tx - 2.0, -2), Vector2(tx + 2.0, -2), Vector2(tx, -rng.randf_range(5.0, 9.0)), Color("4f8a52"))
 		else:
-			b.rect(Rect2(0, 0, w, 4), Color("8b90a6"))
+			b.rect(Rect2(0, 0, w, 4), Color("c2b29a"))
 		b.draw(self)
 
 

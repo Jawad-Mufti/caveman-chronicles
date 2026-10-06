@@ -14,6 +14,8 @@ const KINDS := {
 	"glow_crystal": ["GLOW CRYSTAL", "It shines by itself, deep underground. Walls that glow at night.", Color("6dffd8")],
 	"amber_bug": ["AMBER BUG", "A beetle asleep in amber for a thousand winters. A charm for the door.", Color("ffae42")],
 	"ivory": ["MAMMOTH IVORY", "Old ivory, smooth as water. Carved, it makes the strongest tools.", Color("f3ead2")],
+	"bear_fang": ["CAVE BEAR FANG", "From the biggest bear that ever lived. Hung by the door, no wolf comes near.", Color("efe3c8")],
+	"red_ochre": ["RED OCHRE", "The old ones' paint, from the Painted Cave. Pictures for the shelter walls.", Color("c8553d")],
 }
 
 
@@ -82,6 +84,22 @@ static func draw_icon(b: Batch, kind: String, c: Vector2, r: float, t: float) ->
 			b.polyline(arc, col, 6.0 * k)
 			for i in 3:
 				b.line(arc[3 + i * 2] + Vector2(-2, 2) * k, arc[3 + i * 2] + Vector2(2, -2) * k, Color("b8ab8a"), 1.5 * k)
+		"bear_fang":
+			# a great curved fang on a cord
+			b.line(c + Vector2(-16, -14) * k, c + Vector2(16, -14) * k, Color("8a6a48"), 2.0 * k)
+			var fang := PackedVector2Array([c + Vector2(-8, -14) * k, c + Vector2(8, -14) * k, c + Vector2(6, 0) * k, c + Vector2(0, 14) * k, c + Vector2(-5, 2) * k])
+			b.tri(fang[0], fang[1], fang[2], dk)
+			b.tri(fang[0], fang[2], fang[3], col)
+			b.tri(fang[0], fang[3], fang[4], col)
+			b.line(c + Vector2(-3, -10) * k, c + Vector2(-1, 6) * k, Color(1, 1, 1, 0.6), 1.6 * k)
+		"red_ochre":
+			# a lump of red earth, and a red hand print beside it
+			b.ellipse(c + Vector2(-5, 4) * k, 11.0 * k, 9.0 * k, dk, 0.3)
+			b.ellipse(c + Vector2(-6, 2) * k, 10.0 * k, 8.0 * k, col, 0.3)
+			b.ellipse(c + Vector2(9, -6) * k, 5.0 * k, 6.0 * k, col.lightened(0.15))
+			for f in 4:
+				b.line(c + Vector2(6.0 + f * 2.6, -10) * k, c + Vector2(4.0 + f * 3.4, -18) * k, col.lightened(0.15), 2.0 * k)
+			b.ellipse(c + Vector2(-9, -1) * k, 3.0 * k, 2.0 * k, Color(1, 0.85, 0.75, 0.6))
 		_:
 			b.circle(c, 14.0 * k, col, 14)
 

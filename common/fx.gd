@@ -110,6 +110,31 @@ static func burst(parent: Node, at: Vector2, kind: String, dir: float = 0.0) -> 
 			p.scale_amount_min = 0.45
 			p.scale_amount_max = 1.0
 			p.color_ramp = _ramp([Color(0.78, 0.7, 0.6, 0.55), Color(0.7, 0.64, 0.55, 0.3), Color(0.6, 0.55, 0.5, 0.0)])
+		"kick":
+			# a little dust kicked back off a running foot
+			p.amount = 5
+			p.lifetime = 0.4
+			p.direction = Vector2(-dir, -0.6).normalized()
+			p.spread = 25.0
+			p.initial_velocity_min = 60.0
+			p.initial_velocity_max = 120.0
+			p.gravity = Vector2(0, 260)
+			p.scale_amount_min = 0.3
+			p.scale_amount_max = 0.6
+			p.color_ramp = _ramp([Color(0.78, 0.7, 0.6, 0.5), Color(0.6, 0.55, 0.5, 0.0)])
+		"ring":
+			# a ring of air pushed out under a jump in mid-air
+			p.amount = 16
+			p.lifetime = 0.35
+			p.direction = Vector2(0, 1)
+			p.spread = 85.0
+			p.initial_velocity_min = 220.0
+			p.initial_velocity_max = 260.0
+			p.damping_min = 500.0
+			p.damping_max = 600.0
+			p.scale_amount_min = 0.25
+			p.scale_amount_max = 0.4
+			p.color_ramp = _ramp([Color(1, 1, 1, 0.7), Color(0.85, 0.9, 1.0, 0.0)])
 		"smoke":
 			p.amount = 8
 			p.lifetime = 0.9

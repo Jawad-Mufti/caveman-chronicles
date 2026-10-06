@@ -9,7 +9,7 @@ extends RefCounted
 ## effects: the burst when it starts, the fireballs, the hits, the drawing.
 
 const DURATION := 30.0
-const SPEED_MUL := 1.45            ## run and air speed
+const SPEED_MUL := 1.55            ## run and air speed (always well over the plain run)
 const JUMP_MUL := 1.13
 const HIT_BONUS := 2               ## extra damage on every blow
 const SHOT_GAP := 0.13             ## fastest he can throw
@@ -27,14 +27,39 @@ const WHITE_HOT := Color("fff3c4")
 const RED := Color("ff3b1f")
 
 
-## A flame drawn into a Batch: base at `at`, `h` tall, licking upward.
-static func flame(b: Batch, at: Vector2, h: float, t: float, a := 1.0) -> void:
-	var sway := sin(t * 11.0) * h * 0.22
-	var tip := at + Vector2(sway, -h * (1.0 + 0.15 * sin(t * 17.0)))
-	b.poly(PackedVector2Array([at + Vector2(-h * 0.45, 0), at + Vector2(-h * 0.35, -h * 0.5), tip,
-		at + Vector2(h * 0.35, -h * 0.45), at + Vector2(h * 0.45, 0), at + Vector2(0, h * 0.3)]), Color(RED, 0.85 * a))
-	b.poly(PackedVector2Array([at + Vector2(-h * 0.3, 0), at + Vector2(sway * 0.7, -h * 0.75), at + Vector2(h * 0.3, 0), at + Vector2(0, h * 0.2)]), Color(HOT, 0.95 * a))
-	b.poly(PackedVector2Array([at + Vector2(-h * 0.15, 0), at + Vector2(sway * 0.4, -h * 0.42), at + Vector2(h * 0.15, 0), at + Vector2(0, h * 0.1)]), Color(WHITE_HOT, a))
+## A flame drawn into a Batch: base at `at`, `h` tall, licking upward (`lean`
+## bends it, e.g. trailing behind something moving). Real fire is many tongues,
+## not one shape: three deep-red tongues (the middle one tallest), two orange
+## inside them, a yellow core, and a white-hot root — each flickering on its own beat.
+static func flame(b: Batch, at: Vector2, h: float, t: float, a := 1.0, lean := 0.0) -> void:
+	for k in 3:
+		var hk := h * (0.66 + 0.34 * float(k == 1)) * (1.0 + 0.2 * sin(t * (13.0 + k * 3.0) + k * 2.0))
+		_tongue(b, at + Vector2((k - 1) * h * 0.2, 0), hk, h * 0.25, t * 10.0 + k * 2.1, lean, Color(RED, 0.8 * a))
+	for k in 2:
+		var hk2 := h * 0.72 * (1.0 + 0.18 * sin(t * 15.0 + k * 3.3))
+		_tongue(b, at + Vector2((k - 0.5) * h * 0.18, 0), hk2, h * 0.17, t * 12.0 + k * 1.4, lean, Color(HOT, 0.95 * a))
+	_tongue(b, at, h * 0.48 * (1.0 + 0.15 * sin(t * 19.0)), h * 0.11, t * 14.0, lean, Color(GOLD, a))
+	b.ellipse(at + Vector2(0, -h * 0.06), h * 0.15, h * 0.09, Color(WHITE_HOT, a), 0.0, 8)
+
+
+## One tongue of flame: a wiggling spine, widest at the root, tapering to a
+## point, rounded at the bottom.
+static func _tongue(b: Batch, base: Vector2, h: float, w: float, ph: float, lean: float, col: Color) -> void:
+	b.ellipse(base, w, w * 0.6, col, 0.0, 8)
+	var pl := base + Vector2(-w, 0)
+	var pr := base + Vector2(w, 0)
+	for i in range(1, 5):
+		var k := i / 4.0
+		var c := base + Vector2(sin(ph + k * 2.6) * w * 0.7 * k + lean * h * k * k, -h * k)
+		if i == 4:
+			b.tri(pl, pr, c, col)
+		else:
+			var ww := w * (1.0 - k) * (1.0 + 0.2 * sin(ph * 1.3 + k * 4.0))
+			var l := c + Vector2(-ww, 0)
+			var r := c + Vector2(ww, 0)
+			b.quad(pl, pr, r, l, col)
+			pl = l
+			pr = r
 
 
 ## ================================================================ IGNITE
@@ -226,7 +251,7 @@ class Impact extends Node2D:
 
 ## ================================================================ WORD
 class Word extends Node2D:
-	## "SUNFIRE!" — big, gold, wobbling, rising off him.
+	## "SUNFIRE!" â big, gold, wobbling, rising off him.
 	var text := "SUNFIRE!"
 	var size := 46
 	var t := 0.0

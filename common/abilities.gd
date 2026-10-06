@@ -1,10 +1,10 @@
 class_name Abilities
 extends RefCounted
-## What he can do, as the Camp Menu shows it — two different things:
+## What he can do, as the Camp Menu shows it â two different things:
 ##   POWERS   abilities: big, spent and recharged. He carries TWO at a time
 ##            (picked in the menu); their circles sit at the bottom of the
 ##            screen, shining while ready, dark while spent.
-##   MOVES    special moves: always his once learned — the TUTORIAL shows how.
+##   MOVES    special moves: always his once learned â the TUTORIAL shows how.
 ## Every one has a carved symbol drawn in code. In the menu the unlocked ones
 ## all glow the same gold and the locked ones are slate; on the HUD each power
 ## burns in its own colour.
@@ -15,7 +15,7 @@ const SLOTS := 2
 
 ## [id, name, what it does, key, how to unlock it, its own colour]
 const POWERS := [
-	["sunfire", "SUNFIRE", "Fire in both fists for 30 seconds! Faster, stronger, burning blows — and fireballs. Then the sun must fill again: hit beasts, grab shells, sit by fires.", "Q", "Find the Sun Stone, deep in the Dig.", Color("ffb020")],
+	["sunfire", "SUNFIRE", "Fire in both fists for 30 seconds! Faster, stronger, burning blows â and fireballs. Then the sun must fill again: hit beasts, grab shells, sit by fires.", "Q", "Find the Sun Stone, deep in the Dig.", Color("ffb020")],
 	["firering", "FIRE RING", "He gets angry... and a ring of flame bursts out around him: it burns what's close and scares off the rest. Costs two bundles of dry wood.", "F", "Carry a torch.", Color("ff4a2a")],
 	["thunderclap", "THUNDER CLAP", "One clap of his hands and the ground shakes: every beast around falls down dizzy.", "?", "A later age.", Color("5ad1ff")],
 	["stoneskin", "STONE SKIN", "Skin like granite for a while: nothing can hurt him.", "?", "A later age.", Color("9ad06a")],
@@ -28,11 +28,12 @@ const MOVES := [
 	["strike", "CLUB SWING", "Whack whatever is in reach. Tap again quickly for a combo.", "J  or  HIT", ""],
 	["throw", "STONE TOSS", "Pick up rocks on the way, then throw them at things that bite back.", "K  or  THROW", ""],
 	["leap", "HERCULES LEAP", "Jump, then jump again in mid-air: a somersault, then the spear pose and a softer fall.", "SPACE  twice", ""],
-	["stomp", "METEOR STOMP", "Jump, then press T: he spins into a ball and drops like a meteor — STOMP! Beasts go flat and cracked slabs in the ground break open. Double-jump first for a MEGA STOMP: the only thing that breaks a gold rune seal.", "jump + T  ·  double jump + T", ""],
-	["dig", "DIG", "Hold DOWN and HIT to dig the earth under him; HIT alone digs what is in front. Dirt goes in one blow, stones take three. Packed clay needs a SHOVEL.", "DOWN + J  ·  J", ""],
+	["stomp", "METEOR STOMP", "Jump, then press T: he spins into a ball and drops like a meteor â STOMP! Beasts go flat and cracked slabs in the ground break open. Double-jump first for a MEGA STOMP: the only thing that breaks a gold rune seal.", "jump + T  Â·  double jump + T", ""],
+	["dash", "METEOR DASH", "Jump, then press T while holding LEFT or RIGHT: he spins, then shoots that way like a meteor, flat through the air. Beasts in the way go flying; a wall goes BOOM; and mountain rock... he drills right through it. Double-jump first for the long gold one.", "jump + T + LEFT / RIGHT", ""],
+	["dig", "DIG", "Hold DOWN and HIT to dig the earth under him; HIT alone digs what is in front. Dirt goes in one blow, stones take three. Packed clay needs a SHOVEL.", "DOWN + J  Â·  J", ""],
 	["homerun", "HOME RUN", "Hold HIT to wind up the club... let go: beasts go flying.", "hold  J", "Find a club."],
 	["wallkick", "WALL KICK", "Between two close walls: hold toward a wall to slide, jump to kick across to the other.", "hold toward wall + SPACE", "Climb the split rock on the Mammoth Steppe."],
-	["torch", "TORCH", "Holds back the dark — and the wolves. It burns down: feed it at every bonfire.", "always lit", "Take a burning branch from a fire."],
+	["torch", "TORCH", "Holds back the dark â and the wolves. It burns down: feed it at every bonfire.", "always lit", "Take a burning branch from a fire."],
 	["slam", "HAMMER SLAM", "Hold HIT to raise the Firestone Hammer, let go: SLAM! A wave of fire rolls along the ground.", "hold  J", "Forge the Firestone Hammer."],
 	["axe", "AXE THROW", "Hold HIT, let go: the stone axe spins out and comes back to his hand.", "hold  J", "Trade for the stone axe."],
 	["spear", "SPEAR THROW", "The broken fang becomes a spear. Throw it far, and fetch it back.", "?", "Level 3."],
@@ -56,7 +57,7 @@ static func colour(id: String) -> Color:
 ## Is it his yet? Some come with the level, some are learned once and saved.
 static func unlocked(id: String, p: CaveMan) -> bool:
 	match id:
-		"strike", "throw", "leap", "stomp", "dig":
+		"strike", "throw", "leap", "stomp", "dash", "dig":
 			return true
 		"homerun":
 			return p == null or p.has_stick
@@ -224,6 +225,16 @@ static func draw_symbol(b: Batch, id: String, c: Vector2, r: float, col: Color, 
 			for i in 3:
 				var q := fmod(t * 1.3 + i * 0.33, 1.0)
 				b.rect(Rect2(c + Vector2(20.0 + q * 18.0, -8.0 - q * 22.0 + q * q * 30.0) * k, Vector2(6, 6) * k), Color(col, 1.0 - q))
+		"dash":
+			# a ball of light shooting sideways, streaks flying out behind it
+			var run := fmod(t * 0.8, 1.0)
+			var bx := lerpf(-34.0, 30.0, run)
+			for i in 4:
+				var sy := -12.0 + i * 8.0
+				b.line(c + Vector2(bx - 14.0, sy) * k, c + Vector2(bx - 44.0 - i * 6.0, sy) * k, Color(col, 0.55), 3.0 * k)
+			b.circle(c + Vector2(bx, 0) * k, 13.0 * k, col, 14)
+			b.circle(c + Vector2(bx + 3.0, -3.0) * k, 5.0 * k, Color(1, 1, 1, 0.7), 10)
+			b.rect(Rect2(c + Vector2(36, -26) * k, Vector2(8, 52) * k), dk)
 		"stomp":
 			# a foot coming down like a meteor onto a cracking slab
 			var drop := fmod(t * 0.9, 1.0)

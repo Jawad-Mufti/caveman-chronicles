@@ -6,17 +6,17 @@ extends "res://level2/level2_data.gd"
 ##   The Hanging Gorge (3980-5680) a ravine crossed by a chain of vines hanging from a
 ##                              fallen giant; a resting ledge; crumbling stepping stones
 ##   The Mountain (5680-8750)   a hard climb in the wind; a crevice stash; a lookout
-##   (8750-12750)               open ground between the mountain and the great tree
-##   The Great Tree (12750-14120) climb it, cross the chasm on its bough, mind the monkeys.
+##   (12050-12750)               open ground between the mountain and the great tree
+##   The Great Tree (16050-14120) climb it, cross the chasm on its bough, mind the monkeys.
 ##                              At the very top: Old Bongo, the monkey king, who talks.
-##   Far side (14120-16200)      last bonfire, a dead snag to climb back up, wolves running scared
-##   The Boulder Run (16200-18200) a boulder breaks loose and rolls after him: run!
-##   The Long Dark (18300-20400) the roar that snuffs his torch; fireflies; vines; crumbling rock
-##   The Toolmaker (20400-21080) his home under a rock overhang: the forge
+##   Far side (17420-16200)      last bonfire, a dead snag to climb back up, wolves running scared
+##   The Boulder Run (19500-18200) a boulder breaks loose and rolls after him: run!
+##   The Long Dark (21600-20400) the roar that snuffs his torch; fireflies; vines; crumbling rock
+##   The Toolmaker (23700-21080) his home under a rock overhang: the forge
 ##                              (Firestone -> the Firestone Hammer) and his shop
-##   The Three Fires (21080-22000) a trial: a cracked boulder, wolves, and three
+##   The Three Fires (24380-22000) a trial: a cracked boulder, wolves, and three
 ##                              stone bowls to light; they burn the gate down
-##   Old Scar's clearing (22000-23300) the boss
+##   Old Scar's clearing (25300-23300) the boss
 ##
 ## The story: Old Bongo has lost the key to his banana box in one of two
 ## caves, and he'll trade the gem for it. Which cave is decided fresh each
@@ -29,6 +29,7 @@ extends "res://level2/level2_data.gd"
 ## what was found.
 
 var night: Night
+var mountain: Terrain
 var sky: NightWoods.NightSky
 var _sky_layer: CanvasLayer
 var _bands: ParallaxBackground
@@ -91,6 +92,7 @@ func _ready() -> void:
 	_build_sky_lanes_2()
 	_build_under()
 	_build_windy()
+	_build_mountain_inside()
 	_build_gorge()
 	_build_steppe()
 	_build_tar_pits()
@@ -105,9 +107,11 @@ func _ready() -> void:
 	night.table = DARKNESS
 	night.player = player
 	add_child(night)
+	night.caves.append(mountain)      # dark as underground inside its tunnels
 	var wind := NightWoods.Wind.new()
 	wind.x0 = WIND_ZONE[0]
 	wind.x1 = WIND_ZONE[1]
+	wind.shelter = mountain           # no wind inside its tunnels
 	wind.player = player
 	add_child(wind)
 	_build_hud()
@@ -184,13 +188,11 @@ func _build_background() -> void:
 
 
 func _build_world() -> void:
-	# scenery first, so everything solid draws over it
-	var face := NightWoods.MountainFace.new()
-	var pts := PackedVector2Array()
-	for p in MOUNTAIN:
-		pts.append(Vector2(p[0], p[1]))
-	face.outline = pts
-	add_child(face)
+	# the mountain: painted rock with tunnels and caves inside (common/terrain.gd)
+	mountain = Terrain.new()
+	mountain.map = MOUNTAIN_MAP
+	mountain.position = MOUNTAIN_AT
+	add_child(mountain)
 	var tree := NightWoods.GreatTree.new()
 	tree.position = Vector2(TREE_X, GROUND_Y)
 	add_child(tree)
@@ -207,7 +209,8 @@ func _build_world() -> void:
 		add_child(NightWoods.Crag.new(Rect2(c[0], c[1], c[2], c[3])))
 	for m in MOONPUFFS:
 		var puff := NightWoods.MoonPuff.new()
-		puff.position = Vector2(m[0], m[1])
+		var py: float = mountain.ground_y(m[0], m[1] - 70.0)
+		puff.position = Vector2(m[0], py if absf(py - m[1]) < 60.0 else m[1])   # on the mountain: right on its rock
 		add_child(puff)
 	for b in BOULDERS:
 		var rock := NightWoods.Boulder.new()
@@ -270,8 +273,8 @@ func _build_critters() -> void:
 	_note(5500, "Only one way now: UP.", 3.0)
 	_spot(Rect2(5860, 620, 240, 110), "A crack in the rock — and someone's stash in it.", "crevice")
 	_spot(Rect2(7170, -480, 80, 90), "From up here, the whole valley. And something glints, high in the great tree.", "lookout")
-	_note(19940, "Monkeys! Leave them alone, they leave YOU alone.", 4.5)
-	_note(21180, "A dead snag: a ladder back up to the bough.", 4.5)
+	_note(23240, "Monkeys! Leave them alone, they leave YOU alone.", 4.5)
+	_note(24480, "A dead snag: a ladder back up to the bough.", 4.5)
 
 
 func _build_tree_life() -> void:
@@ -404,12 +407,12 @@ func _build_cave_trials() -> void:
 	fall.rattled.connect(func() -> void:
 		hud.say("Dust trickles down. The roof is letting go — watch the floor: shadows come first.", 4.0))
 	add_child(fall)
-	_note(32715, "Dripping rocks above. Don't stand still!", 4.5)
-	_note(33105, "Wriggly silk sacs. Pop them from far away.", 4.5)
-	_note(33415, "A glowing mushroom. Jump on it. WHEEE!", 4.0)
-	_note(36110, "Scritch... scratch... scritch... LOTS of somethings.", 3.5)
-	_note(36465, "A bridge of old ribs. It creaks. Something hisses.", 4.5)
-	_note(36835, "The roof is rattling. RUN!", 3.0)
+	_note(36015, "Dripping rocks above. Don't stand still!", 4.5)
+	_note(36405, "Wriggly silk sacs. Pop them from far away.", 4.5)
+	_note(36715, "A glowing mushroom. Jump on it. WHEEE!", 4.0)
+	_note(39410, "Scritch... scratch... scritch... LOTS of somethings.", 3.5)
+	_note(39765, "A bridge of old ribs. It creaks. Something hisses.", 4.5)
+	_note(40135, "The roof is rattling. RUN!", 3.0)
 
 
 ## The sky lanes: see SKY_LANES. Loot is added with the rest of the treasure.
@@ -713,7 +716,7 @@ func _update_elder(delta: float) -> void:
 	# (talking to him is his choice now: see _update_talkers)
 	# from the bough, a voice from above
 	_callout_t -= delta
-	var on_bough := absf(player.global_position.y - 42.0) < 12.0 and player.global_position.x > 20400.0
+	var on_bough := absf(player.global_position.y - 42.0) < 12.0 and player.global_position.x > 23700.0
 	if quest == "none" and on_bough and _callouts < 3 and _callout_t <= 0.0:
 		_callouts += 1
 		_callout_t = 10.0
@@ -859,10 +862,10 @@ func _build_steppe() -> void:
 		bones.position = Vector2(g[0], GROUND_Y)
 		bones.size = g[1]
 		add_child(bones)
-	_note(9000, "Two walls, close together. Bounce wall to wall — up, up, UP!", 5.5)
-	_note(9840, "Mammoths! Mind the feet. Ride the backs.", 5.0)
-	_note(10420, "Too deep to swim. The old bull wades across — hop on!", 5.0)
-	_note(11250, "A mammoth graveyard. Bones as big as huts. Spooky.", 5.0)
+	_note(12300, "Two walls, close together. Bounce wall to wall — up, up, UP!", 5.5)
+	_note(13140, "Mammoths! Mind the feet. Ride the backs.", 5.0)
+	_note(13720, "Too deep to swim. The old bull wades across — hop on!", 5.0)
+	_note(14550, "A mammoth graveyard. Bones as big as huts. Spooky.", 5.0)
 
 
 ## The Tar Pits: pools of tar, logs that sink under him, a boulder stuck fast.
@@ -893,8 +896,8 @@ func _build_tar_pits() -> void:
 	snap.x0 = TAR_SNAPPER[0]
 	snap.x1 = TAR_SNAPPER[1]
 	add_child(snap)
-	_note(12640, "Tar pits! Logs sink, tar spouts — keep hopping!", 5.0)
-	_note(13600, "Yellow eyes in the tar... don't stand still!", 4.0)
+	_note(15940, "Tar pits! Logs sink, tar spouts — keep hopping!", 5.0)
+	_note(16900, "Yellow eyes in the tar... don't stand still!", 4.0)
 
 
 ## Thunder Canyon: the Sky Stones with their vines, the rest ledge, the
@@ -939,10 +942,10 @@ func _build_canyon() -> void:
 	for i in CANYON_LOOT.size():
 		var l: Array = CANYON_LOOT[i]
 		_treasure(l[2], "n%d" % i, Vector2(l[0], l[1]))
-	_note(14620, "Flying rocks! Ride their vines — they keep a rhythm.", 4.5)
-	_note(16920, "Phew. A fire. Rest.", 3.0)
-	_note(17200, "Floating rocks! Hop across — and watch the sky.", 4.0)
-	_note(19320, "The great tree! At last.", 3.5)
+	_note(17920, "Flying rocks! Ride their vines — they keep a rhythm.", 4.5)
+	_note(20220, "Phew. A fire. Rest.", 3.0)
+	_note(20500, "Floating rocks! Hop across — and watch the sky.", 4.0)
+	_note(22620, "The great tree! At last.", 3.5)
 
 
 ## The bats start on him over the floating rocks.
@@ -1093,9 +1096,9 @@ func _update_long_dark() -> void:
 		for i in 3:
 			var wolf := NightBeasts.Wolf.new()
 			wolf.panic = true
-			wolf.panic_end = 22360.0
-			wolf.left_x = 21700.0
-			wolf.right_x = 25700.0
+			wolf.panic_end = 25660.0
+			wolf.left_x = 25000.0
+			wolf.right_x = 29000.0
 			wolf.position = Vector2(x + 720.0 + i * 70.0, GROUND_Y)
 			add_child(wolf)
 		hud.say("The wolves come running — straight past him. They're running FROM something.", 4.5)
@@ -1173,7 +1176,7 @@ func _build_the_end() -> void:
 	arena_bongo.visible = false
 	add_child(arena_bongo)
 	player.died.connect(_on_died_in_fight)
-	_note(26900, "Firelight under the rocks. Someone lives here.", 3.0)
+	_note(30200, "Firelight under the rocks. Someone lives here.", 3.0)
 
 
 ## ---------------------------------------------------------------- the Three Fires
@@ -1955,6 +1958,7 @@ func _on_bonfire(fire: NightWoods.Bonfire) -> void:
 func _process(delta: float) -> void:
 	_update_talkers()
 	_update_under()
+	_update_mountain()
 	super._process(delta)
 	_told_out = maxf(_told_out - delta, 0.0)
 	hud.set_torch(player.has_torch, player.torch_fuel)
@@ -2125,6 +2129,7 @@ var _seal: Dig.DenSeal
 func _build_under() -> void:
 	var back := Caves.CaveBackdrop.new()
 	back.rect = UNDER
+	back.margin = 0.0          # (right under the surface: no dark border over the sky)
 	add_child(back)
 	for r in UNDER_ROCK:
 		add_child(Caves.CaveRock.new(Rect2(r[0], r[1], r[2], r[3]), r[4]))
@@ -2206,6 +2211,7 @@ func _build_under() -> void:
 	add_child(passage)
 	var den_back := Caves.CaveBackdrop.new()
 	den_back.rect = DEN
+	den_back.margin = 0.0
 	add_child(den_back)
 	_seal = Dig.DenSeal.new()
 	_seal.position = Vector2(DEN.position.x - 10.0, DEN_PASSAGE[1])
@@ -2308,3 +2314,132 @@ func _got_teeth() -> void:
 		b.draw(c)
 	card.player = player
 	add_child(card)
+
+
+## ------------------------------------------------------------ inside the mountain
+## The mountain is a Terrain (built in _build_world); here its tunnels and caves
+## are furnished. Everything is set on the floor (or hung from the roof) that the
+## terrain itself reports, so the map can be reshaped without moving these.
+var _mt_seen := {}
+
+func _mt_floor(x: float, near_y: float) -> float:
+	var y := mountain.ground_y(x, near_y - 70.0)
+	return y if y < INF else near_y
+
+
+func _mt_roof(x: float, near_y: float) -> float:
+	var y := mountain.roof_y(x, near_y + 70.0)
+	return y if y > -INF else near_y
+
+
+func _build_mountain_inside() -> void:
+	# root mats over the mouths on the path: he walks over them; from below he jumps up through
+	for m in MT_LIDS:
+		var lid := Underground.Lid.new()
+		lid.position = Vector2(m[0], m[1])
+		lid.w = m[2]
+		add_child(lid)
+	# the two chimneys' walls: kick walls
+	for ch in [MT_CHIMNEY, MT_CHIMNEY2]:
+		for s in [[ch[0], 1.0], [ch[1], -1.0]]:
+			var face := Mountain.KickFace.new()
+			face.position = Vector2(s[0], 0)
+			face.top = ch[2]
+			face.bottom = ch[3]
+			face.side = s[1]
+			add_child(face)
+	for g in MT_CAPS:
+		var cap := CaveTrials.GlowCap.new()
+		cap.position = Vector2(g[0], _mt_floor(g[0], g[1]))
+		cap.tint = TINTS[g[2]]
+		add_child(cap)
+	_bury_finds()
+	for c in MT_CRYSTALS:
+		var crystal := CaveTrials.Crystals.new()
+		crystal.hanging = c[2]
+		crystal.position = Vector2(c[0], _mt_roof(c[0], c[1]) if c[2] else _mt_floor(c[0], c[1]))
+		crystal.tint = TINTS[c[3]]
+		crystal.n = 3 + (int(c[0]) / 7) % 3
+		add_child(crystal)
+	var bones := Steppe.Skeleton.new()
+	bones.position = Vector2(MT_SKELETON[0], _mt_floor(MT_SKELETON[0], MT_SKELETON[1]))
+	bones.size = MT_SKELETON[2]
+	add_child(bones)
+	var paint := Mountain.CavePaint.new()
+	paint.position = Vector2(MT_PAINT[0], _mt_floor(MT_PAINT[0], MT_PAINT[1]) - 6.0)
+	add_child(paint)
+	for w in MT_WORMS:
+		var worms := Underground.GlowWorms.new()
+		worms.position = Vector2(w[0], _mt_roof(w[0], w[1]))
+		worms.width = w[2]
+		worms.reach = w[3]
+		add_child(worms)
+	for b in MT_BATS:
+		var bat := NightBeasts.Bat.new()
+		bat.ground_y = _mt_floor(b[0], b[1])
+		bat.position = Vector2(b[0], bat.ground_y - BAT_HOVER)
+		add_child(bat)
+	for r in MT_RELICS:
+		_relic([r[0], _mt_floor(r[0], r[1]) - 30.0, r[2], r[3]])
+	for i in MT_LOOT.size():
+		var l: Array = MT_LOOT[i]
+		var at := Vector2(l[0], l[1])
+		if l[3]:
+			at.y = _mt_floor(l[0], l[1]) - 30.0
+		_treasure(l[2], "mt%d" % i, at)
+	_note(5860, "A slot in the rock... and the dark goes on, INTO the mountain.", 4.5)
+	_note(9900, "The HIGH PEAK. Down there... the rock is full of glints. DOWN + HIT to dig!", 5.0)
+
+
+## Every frame: the first time he steps into each room, its name.
+func _update_mountain() -> void:
+	if player == null or _region != 0:
+		return
+	# over the mountain he may dig all the way down: the camera follows, and it's no "fall"
+	var mb := mountain.bounds()
+	if player.global_position.x > mb.position.x and player.global_position.x < mb.end.x:
+		cam.limit_bottom = int(mb.end.y)
+		fall_y = mb.end.y + 200.0
+	var at := player.global_position + Vector2(0, -30)
+	for i in MT_ROOMS.size():
+		var room: Array = MT_ROOMS[i]
+		if not _mt_seen.has(i) and (room[0] as Rect2).has_point(at) and mountain.is_inside(at):
+			_mt_seen[i] = true
+			hud.title_card(room[1], room[2])
+
+
+## Finds buried in the mountain's rock (MT_BURIED, MT_BURIED_RARE): a seeded roll
+## over its solid samples, at least two in from any open air, the rare ones deep
+## in the strata. They glint through the rock; dig them out. (Ids "mb%d" follow
+## the map: regenerate the map, and the buried ids change.)
+func _bury_finds() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2611
+	var spots := []
+	var deep := []
+	for r in range(2, mountain._h - 3):
+		for c in range(3, mountain._w - 3):
+			if not mountain._is_solid_code(mountain._code(c, r)):
+				continue
+			var buried := true
+			for d in [Vector2i(-2, 0), Vector2i(2, 0), Vector2i(0, -2), Vector2i(0, 2), Vector2i(-1, -1), Vector2i(1, -1)]:
+				if not mountain._is_solid_code(mountain._code(c + d.x, r + d.y)):
+					buried = false
+			if not buried:
+				continue
+			spots.append(r * mountain._w + c)
+			if mountain._code(c, r) == 61:          # '=': the deep strata
+				deep.append(r * mountain._w + c)
+	var n := 0
+	for kind in MT_BURIED:
+		for i in int(MT_BURIED[kind]):
+			if spots.is_empty():
+				return
+			var idx: int = spots.pop_at(rng.randi() % spots.size())
+			mountain.loot[idx] = [kind, "mb%d" % n]
+			n += 1
+	for rare in MT_BURIED_RARE:
+		if deep.is_empty():
+			return
+		var idx2: int = deep.pop_at(rng.randi() % deep.size())
+		mountain.loot[idx2] = ["relic:" + rare[0], rare[1]]

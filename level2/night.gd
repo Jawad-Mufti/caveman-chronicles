@@ -69,6 +69,10 @@ var table: Array = []
 var extra := 0.0
 var ambient := 0.7
 var player: CaveMan
+## Terrain with tunnels and caves inside it (the mountain): in there it is as dark
+## as underground. `_cave` eases in and out as he walks in and out.
+var caves: Array = []
+var _cave := 0.0
 ## The moon is a light too: a small hole in the dark at a fixed spot on screen.
 var moon := Vector2(1010, 104)
 var moon_r := 70.0
@@ -180,6 +184,12 @@ func _process(_delta: float) -> void:
 	if player != null:
 		# underground (the Dig, the Hollows) it darkens with depth, and the moon is gone
 		under = clampf((player.global_position.y - UNDER_Y) / 500.0, 0.0, 1.0)
+		var in_cave := false
+		for t in caves:
+			if is_instance_valid(t) and t.is_inside(player.global_position + Vector2(0, -40)):
+				in_cave = true
+		_cave = move_toward(_cave, 1.0 if in_cave else 0.0, _delta * 1.6)
+		under = maxf(under, _cave * 0.9)
 		var d := lerpf(darkness_at(player.global_position.x), UNDER_DARK, under)
 		ambient = clampf((d + extra) * DARK_SCALE, 0.0, 0.97)
 	var xf := get_viewport().get_canvas_transform()

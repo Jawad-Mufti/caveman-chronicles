@@ -1327,6 +1327,9 @@ class Crag extends StaticBody2D:
 		cs.shape = sh
 		cs.position = rect.size * 0.5
 		add_child(cs)
+		if rect.size.y >= 40.0:
+			# the body of the rock, in painted stone like the mountain (common/art)
+			Terrain.paint_rect(self, rect.size, "#", Color(0.62, 0.6, 0.72))
 
 	var _bt: Batch
 
@@ -1347,10 +1350,15 @@ class Crag extends StaticBody2D:
 			under.append(Vector2(0, h))
 			_bt.poly(under, Pal.CRAG_DARK)
 		else:
-			_bt.rect(Rect2(0, 0, w, h), Pal.CRAG_DARK.darkened(0.35))
-			_bt.rect(Rect2(0, 0, w, minf(h, 150.0)), Pal.CRAG_DARK)
-		_bt.rect(Rect2(0, 0, w, minf(h, 26.0 if thin else 60.0)), Pal.CRAG)
-		_bt.rect(Rect2(0, 0, w, 5), Pal.CRAG_LIGHT)
+			# (the painted stone is a mesh under this): shade it toward the bottom, outline it
+			_bt.quad(Vector2(0, minf(h, 60.0)), Vector2(w, minf(h, 60.0)), Vector2(w, h), Vector2(0, h), Color.BLACK,
+				PackedColorArray([Color(0, 0, 0, 0.0), Color(0, 0, 0, 0.0), Color(0.03, 0.02, 0.05, 0.55), Color(0.03, 0.02, 0.05, 0.55)]))
+			_bt.polyline(PackedVector2Array([Vector2(0, h), Vector2(0, 0), Vector2(w, 0), Vector2(w, h)]), Color("1d1712"), 5.0)
+		if thin:
+			_bt.rect(Rect2(0, 0, w, minf(h, 26.0)), Pal.CRAG)
+		# moss on top, like the mountain's
+		_bt.rect(Rect2(0, -3, w, 7), Color(0.33, 0.47, 0.3))
+		_bt.rect(Rect2(0, -3, w, 2), Color(0.5, 0.68, 0.45))
 		# strata and cracks
 		var n := int(w / 45.0) + 1
 		for i in n:
@@ -1395,49 +1403,6 @@ class Boulder extends StaticBody2D:
 		_bt.draw(self)
 
 
-class MountainFace extends Node2D:
-	## The mountain behind the climb: scenery only, so it reads as a backdrop
-	## (cooler and darker than the rock you can stand on).
-	var outline := PackedVector2Array()
-
-	var _bt: Batch
-
-	func _draw() -> void:
-		_bt = Batch.new()
-		_bt.poly(outline, Pal.MOUNTAIN_FACE)
-		var rim := PackedVector2Array()
-		for i in range(1, outline.size() - 1):
-			rim.append(outline[i])
-		_bt.polyline(rim, Color(Pal.MOONLIT, 0.35), 3.0)
-		# gullies down the face, so it never reads as a slope you could walk
-		var x0 := outline[0].x
-		var x1 := outline[outline.size() - 1].x
-		var gx := x0 + 60.0
-		var gi := 0
-		while gx < x1 - 60.0:
-			var y := _surface(gx) + 30.0
-			_bt.line(Vector2(gx, y), Vector2(gx + sin(gi * 1.7) * 20.0, y + 260.0 + fmod(gi * 53.0, 200.0)), Color(Pal.CHARCOAL, 0.35), 5.0)
-			gx += 70.0 + fmod(gi * 37.0, 60.0)
-			gi += 1
-		# strata running across the face
-		for k in 7:
-			var y := -300.0 + k * 130.0
-			var line := PackedVector2Array()
-			for i in 12:
-				var x := outline[0].x + (outline[outline.size() - 1].x - outline[0].x) * i / 11.0
-				line.append(Vector2(x, y + sin(x * 0.004 + k) * 26.0))
-			_bt.polyline(line, Color(Pal.NIGHT_NEAR, 0.45), 2.0)
-		_bt.draw(self)
-
-	func _surface(x: float) -> float:
-		for i in range(1, outline.size()):
-			var a := outline[i - 1]
-			var b := outline[i]
-			if x >= a.x and x <= b.x:
-				return lerpf(a.y, b.y, (x - a.x) / maxf(b.x - a.x, 1.0))
-		return 0.0
-
-
 class Wind extends Node2D:
 	## Gusts on the mountain, on a rhythm the player can learn: a breath of a
 	## warning (streaks thicken, leaves fly), then a full gust, then calm.
@@ -1454,6 +1419,8 @@ class Wind extends Node2D:
 	var y0 := -INF             ## it blows only between these heights (a gust zone up in the sky)
 	var y1 := INF
 	const LEE := 90.0          ## rock this close upwind of him keeps it off
+	var shelter: Node = null   ## a Terrain: inside its tunnels and caves there is no wind
+	var _indoors := false
 	var player: CaveMan
 	var t := 0.0
 	var k := 0.0               ## 0 calm .. 1 full gust
@@ -1479,7 +1446,8 @@ class Wind extends Node2D:
 			return
 		var p := player.global_position
 		position.x = p.x
-		if p.x < x0 or p.x > x1 or p.y < y0 or p.y > y1 or player.dead:
+		_indoors = shelter != null and shelter.is_inside(p + Vector2(0, -40))
+		if p.x < x0 or p.x > x1 or p.y < y0 or p.y > y1 or player.dead or _indoors:
 			if _applied:
 				player.wind = 0.0
 				_applied = false
@@ -1501,7 +1469,7 @@ class Wind extends Node2D:
 		return not get_world_2d().direct_space_state.intersect_ray(q).is_empty()
 
 	func draw_glow(g) -> void:   # g: the glow layer's Batch
-		if k <= 0.01 or player == null:
+		if k <= 0.01 or player == null or _indoors:
 			return
 		var px := player.global_position.x
 		if px < x0 - 300.0 or px > x1 + 300.0:

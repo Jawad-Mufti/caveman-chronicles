@@ -28,8 +28,8 @@ signal torch_out
 signal fire_released
 signal said(note: String)
 
-const SPEED := 280.0          ## walking and running on the ground
-const AIR_SPEED := 300.0      ## in the air: jumps carry as far as the level was built for
+const SPEED := 315.0          ## walking and running on the ground (SUNFIRE: x1.55)
+const AIR_SPEED := 320.0      ## in the air: a touch over the run (jumps reach ~6% further than the level was spaced for)
 ## Ramped instead of snapped, so direction changes read as weight rather than teleporting.
 const ACCEL := 2600.0
 const FRICTION := 2800.0
@@ -56,7 +56,7 @@ const AIR_JUMP := -520.0      ## weaker than the ground jump: a recovery, not a 
 ## out, the back leg tucked — and he comes down a little softer than a plain
 ## fall, with a capped speed and time to steer. A LONG fall (any fall) turns
 ## into a cartoon TUMBLE: legs pedalling, arms windmilling, yelling.
-const AIR_FLIP_TIME := 0.42
+const AIR_FLIP_TIME := 0.3    ## (quick and snappy: a whip of a somersault)
 const GLIDE_GRAVITY := 1900.0
 const GLIDE_FALL := 620.0
 const LONG_FALL := 0.4        ## falling this long (s) and he starts to tumble
@@ -67,6 +67,13 @@ var _spear := 0.0             ## 0..1: the spear pose after the double jump
 var _tumble := 0.0            ## 0..1: the cartoon fall
 var _fall_t := 0.0
 var _yelled := false
+## The UNBOWED get-up: out of a long flailing fall he lands SPLAT, pops back up
+## and flexes. Only the splat holds him; any key cuts the flex short.
+const GETUP_SPLAT := 0.26
+const GETUP_FLEX := 0.42
+const GETUP_TIME := 1.05
+const BOASTS := ["UNBOWED!", "HA!", "Still here!", "Is that all?", "Ugu strong!"]
+var getup := -1.0             ## seconds into the get-up; -1 = not getting up
 ## Chimneys: between two close walls (bodies in group "kick_wall") he jumps
 ## from one to the other, Prince of Persia style. Holding into a wall slows
 ## his fall to a slide; jump kicks him up and across. Other walls don't count,
@@ -148,10 +155,14 @@ var _shot_hand := 0
 var _stream_t := 0.0
 var _sun_sparks: Array = []    ## [world pos, vel, life]: embers shed as he moves
 var _sun_spark_in := 0.0
+var _sun_k := 0.0              ## 0..1: how far into his SUNFIRE form (bigger, stronger) he has grown
+var _idle_t := 0.0             ## standing still this long (for the yawn)
 var _hands: Array = []         ## where his hands were drawn this frame (his local space)
 var _head_at := Vector2(0, -64)
 ## METEOR STOMP (see Stomp): "" / "charge" (the spin) / "dive"; level 1, or 2 after a double jump.
 var stomp_state := ""
+var stomp_dir := 0              ## 0: the meteor goes DOWN; -1 / +1: the METEOR DASH, sideways (T + left/right)
+var _dash_hit: Array = []         ## critters the dash has already struck
 var stomp_level := 1
 var _stomp_t := 0.0
 var _stomp_prev := false
@@ -184,6 +195,9 @@ const SWINGS := {
 	"hammer": [0.50, 0.64, 0.58, 0.88, 50.0, -18.0, 6],
 	"dig": [0.30, 0.34, 0.50, 0.95, 4.0, 14.0, 1],          # DOWN + HIT: the hammer's slam, quick, into the ground
 	"homerun": [0.38, 0.60, 0.30, 0.82, 64.0, -42.0, 7],
+	# the club's combo: tap, tap, TAP — BONK, the uppercut back up, then the finisher
+	"club1": [0.20, 0.27, 0.15, 1.00, 40.0, -40.0, 3],
+	"club2": [0.40, 0.58, 0.52, 0.95, 50.0, -30.0, 5],
 }
 const CHARGE_READY := {"club": 0.45, "axe": 0.3, "hammer": 0.5}
 var _swing_kind := "club"
@@ -397,22 +411,47 @@ class SmashDust extends Node2D:
 
 ## A word bursting out of a big hit ("HOME RUN!").
 class WordPop extends Node2D:
+	## A comic word ("HOME RUN!", "SPLAT!"): pops in big with a bounce, a dark
+	## outline so it reads on anything, rises and fades. `star` puts a spiky
+	## comic burst behind it; `centered` centres it on its position.
 	var text := ""
 	var t := 0.0
+	var size := 30
+	var color := Color(1.0, 0.85, 0.35)
+	var star := Color(0, 0, 0, 0)
+	var centered := false
+	var tilt := -0.08
+	var life := 0.9
+
+	func _ready() -> void:
+		z_index = 20
 
 	func _process(delta: float) -> void:
 		t += delta
-		if t > 0.9:
+		if t > life:
 			queue_free()
 			return
 		queue_redraw()
 
 	func _draw() -> void:
-		var k := 1.0 + 0.4 * clampf(1.0 - t / 0.15, 0.0, 1.0)
-		var a := clampf((0.9 - t) / 0.3, 0.0, 1.0)
-		draw_set_transform(Vector2(0, -t * 40.0), -0.08, Vector2(k, k))
-		draw_string(ThemeDB.fallback_font, Vector2(2, 2), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(0, 0, 0, 0.6 * a))
-		draw_string(ThemeDB.fallback_font, Vector2.ZERO, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(1.0, 0.85, 0.35, a))
+		# pop: overshoot to 1.35, settle back to 1
+		var k := lerpf(0.3, 1.35, clampf(t / 0.09, 0.0, 1.0))
+		if t > 0.09:
+			k = lerpf(1.35, 1.0, clampf((t - 0.09) / 0.14, 0.0, 1.0))
+		var a := clampf((life - t) / 0.3, 0.0, 1.0)
+		var font := ThemeDB.fallback_font
+		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		var o := Vector2(-w * 0.5, size * 0.35) if centered else Vector2.ZERO
+		draw_set_transform(Vector2(0, -t * 40.0), tilt, Vector2(k, k))
+		if star.a > 0.0:
+			var c := o + Vector2(w * 0.5, -size * 0.35)
+			var pts := PackedVector2Array()
+			for i in 24:
+				var r := minf(w * 0.62 + 10.0, 78.0) if i % 2 == 0 else minf(w * 0.42 + 4.0, 56.0)
+				pts.append(c + Vector2.from_angle(i * TAU / 24.0) * Vector2(r, r * 0.62))
+			draw_colored_polygon(pts, Color(star, star.a * a))
+		draw_string_outline(font, o, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, maxi(size / 5, 4), Color(0.12, 0.07, 0.04, a))
+		draw_string(font, o, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(color, a))
 
 
 ## Two little hearts rising and fading where he ate a fig.
@@ -469,7 +508,7 @@ func _physics_process(delta: float) -> void:
 		flip_t = maxf(flip_t - delta, 0.0)
 		_ghost_in -= delta
 		if _ghost_in <= 0.0:
-			_ghost_in = 0.035
+			_ghost_in = 0.02
 			_ghosts.append([global_position + Vector2(0, -38), 0.22])
 		if is_on_floor() or vine != null or knock > 0.0:
 			flip_t = 0.0
@@ -488,6 +527,9 @@ func _physics_process(delta: float) -> void:
 	if attacking <= 0.0:
 		_combo_t += delta
 	throwing = maxf(throwing - delta, 0.0)
+
+	if getup >= 0.0 and _update_getup(delta):
+		return
 
 	if talking:
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
@@ -623,7 +665,7 @@ func _physics_process(delta: float) -> void:
 			velocity.y += (GRAVITY_UP if velocity.y < 0.0 else GRAVITY_DOWN) * delta
 
 	# the spear pose out of the double jump's somersault; the tumble on a long fall
-	var aloft := not is_on_floor() and vine == null and knock <= 0.0 and not dead
+	var aloft := not is_on_floor() and vine == null and knock <= 0.0 and not dead and not wall_cling
 	if aloft and velocity.y > 0.0:
 		_fall_t += delta
 	else:
@@ -634,10 +676,15 @@ func _physics_process(delta: float) -> void:
 	_spear = move_toward(_spear, 1.0 if spearing else 0.0, delta * 9.0)
 	if tumbling and not _yelled:
 		_yelled = true
-		var pop := Treasure.FloatText.new()
-		pop.text = YELLS[randi() % YELLS.size()]
-		pop.position = global_position + Vector2(-30, -190)
-		get_parent().add_child.call_deferred(pop)
+		var yell := WordPop.new()
+		yell.text = YELLS[randi() % YELLS.size()]
+		yell.size = 22
+		yell.color = Color("cfe8ff")
+		yell.centered = true
+		yell.tilt = randf_range(-0.15, 0.15)
+		yell.life = 0.8
+		yell.position = global_position + Vector2(0, -110)
+		get_parent().add_child.call_deferred(yell)
 	if not aloft:
 		_yelled = false
 
@@ -694,11 +741,13 @@ func _physics_process(delta: float) -> void:
 				said.emit("WALL KICK learned! (see Abilities in the camp menu)")
 		elif _coyote > 0.0 and _jumps_left == MAX_JUMPS:
 			velocity.y = JUMP * _jump_mul()
+			FX.burst(get_parent(), global_position, "dust", -float(facing))
 			_jumps_left -= 1
 			_buffer = 0.0
 			_coyote = 0.0
 		elif _jumps_left > 0:
 			velocity.y = AIR_JUMP * _jump_mul()
+			FX.burst(get_parent(), global_position + Vector2(0, 4), "ring")
 			_jumps_left -= 1
 			_buffer = 0.0
 			flip_dir = signf(velocity.x) if absf(velocity.x) > 40.0 else float(facing)
@@ -729,6 +778,11 @@ func _physics_process(delta: float) -> void:
 				# slash, back-slash, CHOP — if the taps come quickly enough
 				_combo = (_combo + 1) % 3 if _combo_t < 0.45 else 0
 				kind = "axe%d" % _combo
+			elif kind == "club":
+				_combo = (_combo + 1) % 3 if _combo_t < 0.45 else 0
+				kind = ["club", "club1", "club2"][_combo]
+				if kind == "club2":
+					velocity.x += float(facing) * 140.0      # a step into the finisher
 			_start_swing(kind)
 		else:
 			attack_cd = 0.46
@@ -791,6 +845,31 @@ func _physics_process(delta: float) -> void:
 	var on_floor := is_on_floor()
 	if stomp_state == "dive" and on_floor:
 		_stomp_impact()
+	if stomp_state == "dash" and is_on_wall():
+		_dash_wall()
+	if on_floor and not _was_floor and _tumble > 0.5 and stomp_state == "" and invuln <= 0.0:
+		# (not straight after a hit: a splat then would hand the next blow a free target)
+		getup = 0.0
+		invuln = GETUP_SPLAT + 0.1
+		velocity.x *= 0.2
+		FX.burst(get_parent(), global_position, "dust", float(facing))
+		FX.burst(get_parent(), global_position, "dust", -float(facing))
+		var lvl := get_parent()
+		if lvl.has_method("shake"):
+			lvl.shake(7.0, 0.22)
+		var ring := SmashDust.new()
+		ring.position = global_position
+		lvl.add_child(ring)
+		var splat := WordPop.new()
+		splat.text = "SPLAT!"
+		splat.size = 34
+		splat.color = Color("fff4d6")
+		splat.star = Color("d9541e", 0.9)
+		splat.centered = true
+		splat.tilt = randf_range(-0.2, 0.2)
+		splat.life = 0.6
+		splat.position = global_position + Vector2(0, -40)
+		lvl.add_child(splat)
 	if on_floor and not _was_floor and pre_vy > 200.0:
 		_land = LAND_TIME
 		_land_amt = clampf(pre_vy / 1400.0, 0.3, 1.0)
@@ -817,7 +896,10 @@ func _process(delta: float) -> void:
 	# footfall lands where the ground actually is.
 	if is_on_floor():
 		var k := clampf(absf(velocity.x) / SPEED, 0.0, 1.0)
+		var step0 := floori(_run_phase / PI)
 		_run_phase += absf(velocity.x) * delta / (_stride_amp(k) * ART)
+		if floori(_run_phase / PI) != step0 and k > 0.8 and is_on_floor():
+			FX.burst(get_parent(), global_position, "kick", signf(velocity.x))
 	_land = maxf(_land - delta, 0.0)
 	queue_redraw()
 
@@ -831,6 +913,15 @@ func _apply_swing() -> void:
 		if prog < float(sw[2]) or prog > float(sw[3]):
 			return
 		dmg = int(sw[6]) + club_bonus
+		if _swing_kind == "dig" and not _struck:
+			# the blow goes in: dirt flies both ways, a thud
+			_struck = true
+			var lv := get_parent()
+			FX.burst(lv, global_position + Vector2(facing * 8.0, 0), "kick", 1.0)
+			FX.burst(lv, global_position + Vector2(facing * 8.0, 0), "kick", -1.0)
+			FX.burst(lv, global_position, "dust", float(facing))
+			if lv.has_method("shake"):
+				lv.shake(2.5, 0.1)
 		if _swing_kind == "hammer" and not _struck:
 			# the hammer comes down on the ground: it shakes, and sparks fly
 			_struck = true
@@ -860,6 +951,7 @@ func _apply_swing() -> void:
 			area.take_hit(dmg, facing)
 		if crit:
 			add_sun(Sunfire.GAIN_HIT)
+			_hit_word(at)
 		if sun_t > 0.0:
 			var boom := Sunfire.Impact.new()
 			boom.position = at + Vector2(-facing * 6.0, -30.0)
@@ -874,6 +966,15 @@ func _apply_swing() -> void:
 		# the hammer's weight: what it hits and doesn't kill is knocked flat
 		if _swing_kind == "hammer" and is_instance_valid(area) and area.has_method("stagger"):
 			area.stagger(facing, 0.9)
+		if _swing_kind == "club2" and is_instance_valid(area):
+			# the finisher: the world jolts, and what it hits reels back
+			if area.has_method("stagger"):
+				area.stagger(facing, 0.6)
+			if not _struck:
+				_struck = true
+				var lvl := get_parent()
+				if lvl.has_method("shake"):
+					lvl.shake(6.0, 0.18)
 		if _swing_kind == "homerun" and not _struck:
 			_struck = true
 			var word := WordPop.new()
@@ -902,7 +1003,7 @@ func _start_swing(kind: String) -> void:
 	attacking = sw[0]
 	attack_cd = sw[1]
 	_struck = false
-	if kind.begins_with("axe"):
+	if kind.begins_with("axe") or kind.begins_with("club"):
 		_combo_t = 0.0
 
 
@@ -1032,6 +1133,7 @@ func launch(vy: float) -> void:
 func hurt(amount: int, from_x: float) -> void:
 	if invuln > 0.0 or dead or fury >= 0.0 or talking:
 		return
+	getup = -1.0
 	if stomp_state != "":
 		return                          # nothing stops a meteor
 	if sun_t > 0.0:
@@ -1294,13 +1396,14 @@ func revive(spot: Vector2) -> void:
 	if has_torch:
 		torch_fuel = 1.0
 	hp_changed.emit(hp)
+	getup = 0.0                  # back from the dead: SPLAT, up, and a flex
 
 
 ## ------------------------------------------------------------------ drawing
 ## He is designed at about 2.6x game size and scaled down in one transform.
 ## Facing is folded into the same transform (a negative x scale), so none of
 ## the shapes below need to know which way he is looking.
-const ART := 0.38        ## design units -> game pixels. ~186 tall -> ~71 px
+const ART := 0.42        ## design units -> game pixels. ~186 tall -> ~78 px (the topknot on top)
 const OLW := 5.0         ## rim width in design units (~2 px on screen)
 ## Shapes are drawn twice — a shadow tone, then the base tone pulled toward the
 ## light — so each form has a shaded edge instead of a flat colour and a black
@@ -1310,7 +1413,14 @@ const LIGHT := Vector2(0.55, -0.83)
 const C_OL := Color("2a211a")
 const C_SKIN := Color("c89263")
 const C_SK2 := Color("a67148")
-const C_HAIR := Color("3a2a1c")
+const C_HAIR := Color("5a2c18")      ## a rich dark chestnut: natural, but warm enough to read on the night
+const C_HAIR_HI := Color("94512a")   ## lighter streaks in it
+## The head is drawn bigger than life (like most platformer heroes): the face is
+## what reads from far away. Scaled about the neck, mane, face and topknot together.
+const HEAD_K := 1.28
+const NECK := Vector2(4, -126)
+const C_LEOPARD := Color("d9a64e")   ## his leopard-skin loincloth
+const C_LEOPARD_SPOT := Color("4a2a14")
 const C_LEAF := Color("6a8447")
 const C_LEAF2 := Color("55703a")
 const C_VINE := Color("6a5535")
@@ -1328,10 +1438,10 @@ const MANE := [
 	Vector2(4, -134), Vector2(-12, -130),
 ]
 const BEARD := [
-	Vector2(-19, -150), Vector2(-21, -140), Vector2(-17, -131), Vector2(-12, -124),
+	Vector2(-19, -144), Vector2(-21, -138), Vector2(-17, -131), Vector2(-12, -124),
 	Vector2(-7, -119), Vector2(-1, -123), Vector2(4, -116), Vector2(9, -122),
-	Vector2(15, -118), Vector2(20, -125), Vector2(25, -130), Vector2(29, -141),
-	Vector2(27, -150), Vector2(20, -142), Vector2(12, -144), Vector2(4, -142),
+	Vector2(15, -118), Vector2(20, -125), Vector2(25, -130), Vector2(29, -139),
+	Vector2(27, -144), Vector2(20, -142), Vector2(12, -144), Vector2(4, -142),
 	Vector2(-4, -144), Vector2(-12, -142),
 ]
 const FRINGE := [
@@ -1444,6 +1554,7 @@ func _paint() -> void:
 	if fury >= 0.0:
 		rage = clampf(fury / FURY_RELEASE, 0.0, 1.0)
 		roaring = fury >= FURY_RELEASE
+	_sun_k = move_toward(_sun_k, 1.0 if sun_t > 0.0 and not dead else 0.0, get_process_delta_time() * 3.5)
 	_skin = C_SKIN.lerp(Pal.EMBER, 0.22 * rage) if rage > 0.0 else C_SKIN
 	_hands.clear()
 	if sun_t > 0.0:
@@ -1465,8 +1576,30 @@ func _paint() -> void:
 		# tumbling: stretched by the rushing air, with a jelly wobble
 		sy += (0.07 + sin(anim_t * 19.0) * 0.03) * tumble
 		sx -= (0.04 + sin(anim_t * 19.0) * 0.02) * tumble
-	if stomp_state == "dive":
-		# a meteor: stretched long and thin by the drop
+	var gu := getup if on_floor and not dead else -1.0
+	if gu >= 0.0:
+		if gu < GETUP_SPLAT:
+			# SPLAT: flattened like a pancake, wobbling
+			var w := sin(gu * 40.0) * 0.05 * (1.0 - gu / GETUP_SPLAT)
+			sx = 1.38 + w
+			sy = 0.5 - w
+		elif gu < GETUP_FLEX:
+			# BOING: back up, stretched tall
+			var q := (gu - GETUP_SPLAT) / (GETUP_FLEX - GETUP_SPLAT)
+			sx = lerpf(1.38, 1.0, q) - 0.1 * sin(q * PI)
+			sy = lerpf(0.5, 1.0, q) + 0.2 * sin(q * PI)
+		else:
+			# the flex: chest out, a proud little puff
+			var q2 := clampf((gu - GETUP_FLEX) / 0.15, 0.0, 1.0)
+			sx = 1.0 + 0.05 * q2
+			sy = 1.0 + 0.04 * q2
+	if _sun_k > 0.0:
+		# SUNFIRE: he grows, a pop past full size and back
+		var grow := 1.0 + 0.15 * _sun_k + 0.06 * sin(_sun_k * PI)
+		sx *= grow
+		sy *= grow
+	if stomp_state == "dive" or stomp_state == "dash":
+		# a meteor: stretched long and thin by the speed
 		sx -= 0.12 + 0.04 * stomp_level
 		sy += 0.16 + 0.06 * stomp_level
 	if fury >= 0.0:
@@ -1486,6 +1619,16 @@ func _paint() -> void:
 		var back_out := 1.0 + 2.2 * pow(dk - 1.0, 3.0) + 1.2 * pow(dk - 1.0, 2.0)
 		rot = -float(facing) * PI * 0.5 * back_out
 	var base := Transform2D(rot, Vector2(ART * facing * sx, ART * sy), 0.0, Vector2.ZERO)
+	if wall_cling and not is_on_floor() and not dead:
+		base.origin.x -= float(facing) * 12.0       # drawn just off the wall he clings to, not sunk into it
+	if vine != null and not dead:
+		# on a vine the body hangs along it, swinging from the grip
+		var grip := Vector2(0, -HANG)
+		base = Transform2D(-_vine_a * 0.9, grip) * Transform2D(0.0, -grip) * base
+	if stomp_state == "dash" and not dead:
+		# the dash: laid out flat, head first, like a thrown spear
+		var mid := Vector2(0, -38)
+		base = Transform2D(0.0, mid) * Transform2D(float(stomp_dir) * PI * 0.5, Vector2.ZERO) * Transform2D(0.0, -mid) * base
 	var curl := 0.0                 ## 1 = curled into a ball; 0 = open
 	var open_k := 0.0               ## 1 = opened out for the landing
 	if flip_t > 0.0:
@@ -1503,6 +1646,14 @@ func _paint() -> void:
 			var at: Vector2 = (g[0] as Vector2) - global_position
 			_cc(at, 17.0, Color(C_SKIN, 0.28 * a))
 			_cc(at + Vector2(-flip_dir * 4.0, -6.0), 8.0, Color(C_HAIR, 0.3 * a))
+		# the whoosh: bright arcs where his head just swept round
+		if curl > 0.3:
+			var hot := Color(1.0, 0.9, 0.55) if _air_glide else Color(0.85, 0.95, 1.0)
+			var head_a := -PI * 0.5 + ang
+			for w in 3:
+				var a0 := head_a - flip_dir * (0.4 + 0.55 * w)
+				var a1 := head_a - flip_dir * 0.1
+				_ac(pivot, 52.0 + w * 10.0, minf(a0, a1), maxf(a0, a1), 12, Color(hot, (0.95 - w * 0.25) * curl), 10.0 - w * 2.5)
 		# a ball is smaller than a man: squeeze him in while he's curled
 		base = Transform2D(0.0, pivot) * Transform2D(ang, Vector2.ONE * (1.0 - 0.14 * curl)) * Transform2D(0.0, -pivot) * base
 
@@ -1517,9 +1668,21 @@ func _paint() -> void:
 	if flip_t > 0.0:
 		lean = 0.5 * curl - 0.1 * open_k      # curled forward into the ball
 	lean = lerpf(lean, 0.16, spear)                                  # driving forward into the dive
+	if attacking > 0.0 and _swing_kind == "dig" and has_stick:
+		# digging: stretched up for the lift, hunched over the blow
+		var dp := 1.0 - attacking / _swing_time
+		lean += -0.08 if dp < 0.45 else 0.32 * sin(clampf((dp - 0.45) / 0.5, 0.0, 1.0) * PI)
+		bob += 0.0 if dp < 0.45 else 10.0 * sin(clampf((dp - 0.45) / 0.5, 0.0, 1.0) * PI)
+	if attacking > 0.0 and _swing_kind == "club2" and has_stick:
+		# the finisher: rearing back, then thrown forward into the blow
+		var fp := 1.0 - attacking / _swing_time
+		lean += -0.14 * sin(clampf(fp / 0.45, 0.0, 1.0) * PI * 0.5) if fp < 0.45 else 0.3 * sin(clampf((fp - 0.45) / 0.55, 0.0, 1.0) * PI)
 	lean = lerpf(lean, -0.08 + sin(anim_t * 11.0) * 0.17, tumble)   # rocking as he flails
 	if fury >= 0.0 and not roaring:
 		bob += 7.0 * rage
+	if wall_cling and not on_floor:
+		bob += 4.0 * sin(anim_t * 22.0)          # heaving himself up with each pull
+		lean = 0.12
 	var shake := Vector2.ZERO
 	if fury >= 0.0 and not roaring:
 		shake = Vector2(sin(anim_t * 71.0) * 2.6, cos(anim_t * 89.0) * 1.8) * rage
@@ -1540,7 +1703,17 @@ func _paint() -> void:
 			foot_f = foot_f.lerp(Vector2(30, -40), curl * 0.6)
 	elif air:
 		bend = 1.0
-		if velocity.y < -150.0:
+		if vine != null:
+			# legs trail the swing, and kick forward when he pumps it
+			var swg := clampf(_vine_w / 3.0, -1.0, 1.0) * float(facing)
+			foot_f = Vector2(18.0 - 26.0 * swg, -12.0 - 14.0 * absf(swg))
+			foot_b = Vector2(-12.0 - 26.0 * swg, -6.0 - 10.0 * absf(swg))
+		elif wall_cling:
+			# scrambling up the wall: the feet take turns, pushing
+			var cl := anim_t * 11.0
+			foot_f = Vector2(40, -54.0 + 16.0 * sin(cl))
+			foot_b = Vector2(34, -14.0 - 16.0 * sin(cl))
+		elif velocity.y < -150.0:
 			foot_f = Vector2(42, -36)      # lead knee drives up
 			foot_b = Vector2(-32, -12)     # trail leg hangs back
 		elif velocity.y < 180.0:
@@ -1587,7 +1760,10 @@ func _paint() -> void:
 	var upper := base * Transform2D(lean, Vector2(shake.x, -62.0 + bob + shake.y)) * Transform2D(0.0, Vector2(0, 62))
 	_stm(upper)
 
+	var head_xf := upper * Transform2D(0.0, Vector2(HEAD_K, HEAD_K), 0.0, NECK * (1.0 - HEAD_K))
+	_stm(head_xf)
 	_shape(PackedVector2Array(MANE), C_HAIR)
+	_stm(upper)
 	_costume_back()
 	# spare wood rides tucked in the belt at his back, behind the body
 	for i in wood:
@@ -1610,6 +1786,14 @@ func _paint() -> void:
 		_ln(Vector2(6, yy + 1.0), Vector2(14, yy), C_SK2, 3.0, true)
 	_ticks([[-4, -114, -6, -108], [3, -116, 2, -109], [10, -113, 12, -107], [-1, -106, -3, -100],
 		[6, -106, 7, -100], [2, -100, 3, -94], [-10, -110, -12, -104], [16, -110, 18, -104]])
+	if _sun_k > 0.0:
+		# the muscles lit from inside, gold
+		var gl := Color(Sunfire.WHITE_HOT, 0.6 * _sun_k)
+		_pl(_quad(Vector2(-32, -114), Vector2(-14, -100), Vector2(2, -108), 8, true), gl, 2.5, true)
+		_pl(_quad(Vector2(6, -108), Vector2(22, -100), Vector2(40, -114), 8, true), gl, 2.5, true)
+		_ln(Vector2(4, -100), Vector2(4, -74), gl, 2.0, true)
+		for yy in [-94.0, -86.0, -78.0]:
+			_ln(Vector2(-6, yy), Vector2(14, yy), gl, 2.0, true)
 	_costume_chest()
 
 	# far arm: pumps against the legs when running
@@ -1640,11 +1824,29 @@ func _paint() -> void:
 	for i in mini(rocks, 3):
 		_dot(Vector2(36.0 + i * 10.0, -62), 6.5, Pal.STONE, 2.5)
 
-	# ---- head: one steady grumpy expression
-	_dot(Vector2(-20, -152), 6.0, _skin, 4.0)
-	_dot(Vector2(28, -152), 6.0, _skin, 4.0)
+	# ---- head: a warm, cheeky face (he scowls only in a fight or a rage)
+	_stm(head_xf)
+	# big ears that stick out
+	_dot(Vector2(-23, -150), 9.0, _skin, 4.0)
+	_dot(Vector2(31, -150), 9.0, _skin, 4.0)
+	_cc(Vector2(-26, -150), 3.5, C_SK2)
+	_cc(Vector2(34, -150), 3.5, C_SK2)
+	# his mood, for the funny faces
+	_idle_t = _idle_t + get_process_delta_time() if on_floor and speed_k < 0.05 and attacking <= 0.0 and not talking and not dead and fury < 0.0 else 0.0
+	var mood := ""
+	if wall_cling and not on_floor:
+		mood = "strain"
+	elif on_floor and speed_k > 0.85 and attacking <= 0.0 and sun_t <= 0.0:
+		mood = "run"
+	elif air and velocity.y < -200.0 and flip_t <= 0.0 and tumble < 0.3 and vine == null:
+		mood = "ooh"
+	elif _idle_t > 5.0 and fmod(_idle_t - 5.0, 9.0) < 1.6:
+		mood = "yawn"
 	_oval(Vector2(4, -154), 24.0, 27.0, _skin)
 	_shape(PackedVector2Array(BEARD), C_HAIR, 4.0)
+	# streaks of lighter fire in the beard
+	for s in [[-12.0, -140.0, -10.0, -128.0], [2.0, -138.0, 3.0, -124.0], [16.0, -138.0, 15.0, -126.0]]:
+		_ln(Vector2(s[0], s[1]), Vector2(s[2], s[3]), C_HAIR_HI, 3.0, true)
 	_costume_face()
 	if skin == "war_paint":
 		for k in 3:
@@ -1664,11 +1866,34 @@ func _paint() -> void:
 		_dead_mouth()
 	elif tumble > 0.5:
 		_yell()
+	elif gu >= 0.0 and gu < GETUP_SPLAT:
+		_dead_mouth()
+	elif gu >= GETUP_FLEX:
+		_grin()
+	elif sun_t > 0.0 and attacking <= 0.0:
+		_grin()                                # SUNFIRE: a fierce, delighted grin
+	elif vine != null and absf(_vine_w) > 1.6:
+		_grin()                                # wheee!
+	elif mood == "strain" and not wince:
+		_tongue_out(false)                     # tongue poking out: concentrating hard
+	elif mood == "run" and not wince:
+		_tongue_out(true)                      # tongue flapping like a happy dog
+	elif mood == "ooh":
+		_oval(Vector2(4, -135), 4.5, 5.5, C_MOUTH, 2.2)
+	elif mood == "yawn":
+		_oval(Vector2(4, -134), 7.5, 9.0 * sin(clampf(fmod(_idle_t - 5.0, 9.0) / 1.6, 0.0, 1.0) * PI) + 2.0, C_MOUTH, 2.2)
+	elif attacking > 0.0 or slam_charge >= 0.0 or wall_cling or wince or scorch_t > 0.0:
+		_mouth()                               # teeth gritted: effort
 	else:
-		_mouth()
-	_oval(Vector2(4, -146), 8.0, 5.0, C_SK2, 3.0)
-	_cc(Vector2(1, -145), 1.4, C_MOUTH)
-	_cc(Vector2(7, -145), 1.4, C_MOUTH)
+		_smile()
+	# rosy cheeks
+	for ch in [Vector2(-15, -140), Vector2(24, -140)]:
+		_cc(ch, 5.0, Color(0.93, 0.45, 0.42, 0.42))
+	# a big potato nose
+	_oval(Vector2(5, -144), 10.0, 8.0, _skin.lerp(Color("d9705a"), 0.3), 2.5)
+	_cc(Vector2(1, -141), 1.6, C_MOUTH)
+	_cc(Vector2(9, -141), 1.6, C_MOUTH)
+	_cc(Vector2(2, -148), 2.6, Color(1, 0.9, 0.8, 0.55))
 	var blink := fmod(anim_t, 3.7) < 0.12
 	if dead:
 		# X for eyes
@@ -1681,16 +1906,26 @@ func _paint() -> void:
 			_oval(ec, 7.5, 7.0, C_EYE, 3.0)
 			_cc(ec + Vector2(1.5 + sin(anim_t * 23.0), 1.0), 2.2, Color("1a0f08"))
 	else:
-		_eye(Vector2(-7, -151), wince, blink)
-		_eye(Vector2(15, -151), wince, blink)
-	# brows set in a permanent V: grumpy is his resting face
-	var inner := 9.0 if wince else 5.0
+		# one eye a bit bigger than the other: goofy, and his own
+		var shut := blink or mood == "yawn"
+		_eye(Vector2(-8, -149), wince, shut or mood == "strain", 0.9, -1.0)
+		_eye(Vector2(16, -150), wince, shut, 1.14, 1.0)
+		if mood == "strain":
+			# sweat flying off his brow
+			var q := fmod(anim_t * 1.8, 1.0)
+			_cc(Vector2(-22.0 - q * 10.0, -166.0 + q * 18.0), 3.2 * (1.0 - q * 0.5), Color("bfe6ff", 0.9 * (1.0 - q)))
+	# brows: soft and a little raised at rest (friendly); a V only when it's on
+	var inner := 8.0 if wince else -1.5
+	if attacking > 0.0 or slam_charge >= 0.0:
+		inner = 6.0
 	if fury >= 0.0:
 		inner = 12.0
 	if tumble > 0.5:
 		inner = -7.0                          # shot up in alarm
 	if dead:
 		inner = 0.0                           # no more scowling
+	if gu >= GETUP_FLEX:
+		inner = -4.0                          # brows up: proud of himself
 	if tumble > 0.0:
 		# hair blown straight up, flapping
 		for k in 4:
@@ -1703,22 +1938,52 @@ func _paint() -> void:
 			var side := -1.0 if k == 0 else 1.0
 			var dp := Vector2(4.0 + side * (30.0 + q * 34.0), -166.0 - q * 30.0 + q * q * 40.0)
 			_cc(dp, 4.0 * tumble * (1.0 - q * 0.5), Color("bfe6ff", 0.9 * (1.0 - q)))
-	_ln(Vector2(-18, -160), Vector2(-2, -160.0 + inner), C_HAIR, 8.0, true)
-	_ln(Vector2(10, -160.0 + inner), Vector2(26, -160), C_HAIR, 8.0, true)
+	# THE UNIBROW: one thick furry brow, his trademark
+	if mood == "strain":
+		inner = 5.0
+	elif mood == "ooh" or mood == "yawn":
+		inner = -5.0
+	var brow := PackedVector2Array([Vector2(-20, -161), Vector2(-4, -164.0 + inner), Vector2(4, -162.0 + inner * 0.5),
+		Vector2(12, -164.0 + inner), Vector2(29, -161)])
+	_pl(brow, C_OL, 11.0, true)
+	_pl(brow, C_HAIR, 8.0, true)
+	for k in 6:
+		var bx := -16.0 + k * 8.5
+		_ln(Vector2(bx, -165.0 + inner * 0.4), Vector2(bx + 2.0, -170.0 + inner * 0.4), C_HAIR, 2.5, true)
 	_shape(PackedVector2Array(FRINGE), C_HAIR, 4.0)
+	if not skin in ["wolf_hood", "bear_cloak"]:
+		_topknot()
 	if skin == "war_paint":
 		_rc(Rect2(-12, -161, 36, 3.5), Pal.EMBER)
 	_costume_head()
+	if gu >= 0.0 and gu < GETUP_FLEX:
+		# seeing stars
+		for k in 3:
+			var a := anim_t * 9.0 + k * TAU / 3.0
+			var sp := Vector2(4.0 + cos(a) * 34.0, -182.0 + sin(a) * 9.0)
+			_pg(PackedVector2Array([sp + Vector2(0, -7), sp + Vector2(2, -2), sp + Vector2(7, 0), sp + Vector2(2, 2), sp + Vector2(0, 7), sp + Vector2(-2, 2), sp + Vector2(-7, 0), sp + Vector2(-2, -2)]), Color("ffd84a"))
 	if _bb != null:
 		_head_at = _bb.xf * Vector2(4, -168)
 	_soot_face()
 	if fury >= 0.0:
 		_rage_marks(rage, roaring)
 
+	_stm(upper)
 	# ---- the near arm: fists, throw, club swing, club carry, or pumping
 	var sh := Vector2(50, -118)
 	var charge_k := clampf(slam_charge / _charge_ready(), 0.0, 1.0) if slam_charge >= 0.0 else 0.0
-	if showing_off > 0.0 and has_stick:
+	if gu >= GETUP_FLEX and attacking <= 0.0 and throwing <= 0.0:
+		# the flex: bicep up, fist by his ear, the club held up like a trophy
+		var hd := sh + Vector2(18, -64)
+		_arm(sh, sh + Vector2(40, -8), hd, 17.0, true)
+		if has_stick and not axe_out:
+			_club(hd + Vector2(-4, 14), hd + Vector2(8, -96), 7.0, 26.0)
+		# a glint off the bicep
+		var gl := sh + Vector2(36, -22)
+		var r := 7.0 + sin(anim_t * 18.0) * 2.5
+		_pg(PackedVector2Array([gl + Vector2(0, -r), gl + Vector2(r * 0.25, 0), gl + Vector2(0, r), gl + Vector2(-r * 0.25, 0)]), Color(1, 1, 0.9, 0.9))
+		_pg(PackedVector2Array([gl + Vector2(-r, 0), gl + Vector2(0, r * 0.25), gl + Vector2(r, 0), gl + Vector2(0, -r * 0.25)]), Color(1, 1, 0.9, 0.9))
+	elif showing_off > 0.0 and has_stick:
 		# holding the new treasure up high, both arms, for everyone to see
 		var hd := Vector2(20, -232)
 		_arm(sh, sh + Vector2(10, -60), hd, 13.0, false)
@@ -1790,6 +2055,16 @@ func _paint() -> void:
 		if has_stick and not axe_out:
 			_club(hd, hd + Vector2.from_angle(a + 0.9) * 92.0, 7.0, 22.0)
 		_dot(hd, 11.0, _skin)
+	elif wall_cling and not is_on_floor() and throwing <= 0.0 and attacking <= 0.0:
+		# climbing: the near hand reaching up the wall and pulling, in time with the feet
+		var hd := Vector2(60, -184.0 + 18.0 * sin(anim_t * 11.0 + PI))
+		_arm(sh, sh + Vector2(22, -30), hd, 13.0, false)
+		if has_stick and not axe_out:
+			_club(hd + Vector2(-14, 40), hd + Vector2(-34, -60), 7.0, 22.0)
+		_dot(hd, 11.0, _skin)
+		# fingers spread on the rock
+		for k in 3:
+			_ln(hd, hd + Vector2(8.0, -10.0 + k * 8.0), _skin, 6.0, true)
 	elif vine != null:
 		# hanging on: the near hand up on the vine, the club tucked under the arm
 		var hd := Vector2(0, -HANG / ART)
@@ -1853,7 +2128,19 @@ func _paint() -> void:
 					trail = (1.0 - q) * 0.9
 					reach = 49.0 + sin(q * PI) * 22.0
 				smear_col = Color("dfeaf2", 0.45)
-			"hammer", "dig":
+			"dig":
+				# like a pickaxe: up over his head, then DRIVEN straight down at his feet
+				if sp < 0.38:
+					var q := sp / 0.38
+					ang = lerpf(-0.6, -2.3, q * q * (3.0 - 2.0 * q))
+					trail = -0.15
+				else:
+					var q := clampf((sp - 0.38) / 0.12, 0.0, 1.0)     # lands at 0.5, as the blow does
+					ang = -2.3 + q * q * 3.75
+					trail = (1.0 - q) * 1.0
+					reach = 44.0 - 6.0 * q
+				smear_col = Color(0.85, 0.7, 0.5, 0.45)
+			"hammer":
 				# heaved up and back, slowly... then SMASHED down onto the ground
 				if sp < 0.56:
 					var q := sp / 0.56
@@ -1865,6 +2152,25 @@ func _paint() -> void:
 					trail = (1.0 - q) * 1.1
 					reach = 52.0 + sin(q * PI) * 10.0
 				smear_col = Color(Pal.EMBER_GLOW, 0.45)
+			"club1":
+				# the uppercut: from low in front, whipped back up over his head
+				var q := 1.0 - pow(1.0 - sp, 2.4)
+				ang = lerpf(1.25, -1.9, q)
+				trail = -(1.0 - q) * 0.8
+				reach = 50.0 + sin(q * PI) * 14.0
+				smear_col = Color(Pal.BONE, 0.4)
+			"club2":
+				# the finisher: wound right up behind his head... then SMASHED down
+				if sp < 0.45:
+					var q := sp / 0.45
+					ang = lerpf(-1.9, -3.05, q * q * (3.0 - 2.0 * q))
+					trail = -0.2
+				else:
+					var q := clampf((sp - 0.45) / 0.22, 0.0, 1.0)
+					ang = -3.05 + (1.0 - pow(1.0 - q, 3.0)) * 4.45
+					trail = (1.0 - q) * 1.2
+					reach = 52.0 + sin(q * PI) * 22.0
+				smear_col = Color(1.0, 0.9, 0.6, 0.55)
 			"homerun":
 				# from low behind him, a full sweep round to high in front
 				var q := 1.0 - pow(1.0 - sp, 2.2)
@@ -1975,27 +2281,59 @@ func _hide_loincloth(k: float) -> void:
 	for i in hem.size():
 		var h: Vector2 = hem[i]
 		pts.append(h + Vector2(sw + sin(anim_t * 2.6 + i) * 0.8, 0))
-	var hide := Pal.HIDE
-	var spots := Pal.HIDE_DARK
+	var hide := C_LEOPARD
+	var spots := C_LEOPARD_SPOT
+	var leopard := true
 	if skin in ["wolf_pelt", "wolf_hood"]:
+		leopard = false
 		hide = Pal.WOLF
 		spots = Pal.WOLF_DARK
 	elif skin == "ember_paint":
+		leopard = false
 		hide = Color("9a4a22")
 		spots = Color("4a2414")
 	elif skin == "bear_cloak":
+		leopard = false
 		hide = Color("6b4a2e")
 		spots = Color("45301c")
 	elif skin == "firekeeper":
+		leopard = false
 		hide = Color("c49a64")
 		spots = Color("8a6a3c")
 	_shape(pts, hide, 3.5)
-	_oval(Vector2(-8, -54), 7.0, 4.5, spots, 0.0, 0.3)
-	_oval(Vector2(20, -48), 5.0, 3.5, spots, 0.0, -0.2)
+	if leopard:
+		# leopard rosettes: broken dark rings round a warmer middle
+		for r in [Vector2(-14, -62), Vector2(6, -66), Vector2(26, -60), Vector2(-4, -48), Vector2(18, -46), Vector2(-20, -44), Vector2(32, -46)]:
+			var rp: Vector2 = r + Vector2(sw * 0.5, 0)
+			_cc(rp, 4.2, Color("c07a2c"))
+			for q in 3:
+				var a: float = q * TAU / 3.0 + rp.x
+				_cc(rp + Vector2.from_angle(a) * 4.6, 2.2, spots)
+	else:
+		_oval(Vector2(-8, -54), 7.0, 4.5, spots, 0.0, 0.3)
+		_oval(Vector2(20, -48), 5.0, 3.5, spots, 0.0, -0.2)
 	for i in 8:
 		var fx := -24.0 + i * 8.0 + sw
 		_ln(Vector2(fx, -37), Vector2(fx - 2, -29), Pal.WOLF_BELLY if skin in ["wolf_pelt", "wolf_hood"] else spots, 2.5, true)
 
+
+## Ugu's topknot: a fiery tuft tied up on top with a little bone through it.
+## It bounces a beat behind his head.
+func _topknot() -> void:
+	var sway := sin(anim_t * 3.0) * 2.0 - velocity.x / SPEED * 4.0 * float(facing)
+	var base := Vector2(2, -184)
+	var tip := base + Vector2(-6.0 + sway, -30.0)
+	_shape(PackedVector2Array([base + Vector2(-11, 4), base + Vector2(-12, -10), tip + Vector2(-6, 2), tip, tip + Vector2(8, 4),
+		base + Vector2(10, -10), base + Vector2(11, 4)]), C_HAIR, 4.0)
+	_ln(base + Vector2(-2, -8), tip + Vector2(2, 6), C_HAIR_HI, 3.0, true)
+	# the bone through the knot
+	var b0 := base + Vector2(-20, -8)
+	var b1 := base + Vector2(20, -12)
+	_ln(b0, b1, C_OL, 9.0, true)
+	_ln(b0, b1, Pal.KEY_BONE, 5.0, true)
+	for e in [b0, b1]:
+		_dot(e + Vector2(0, -2), 4.0, Pal.KEY_BONE, 2.5)
+		_dot(e + Vector2(0, 3), 4.0, Pal.KEY_BONE, 2.5)
 
 ## A little bunch of grapes (the health fruit), at the given size.
 func _grapes(at: Vector2, k: float) -> void:
@@ -2238,15 +2576,18 @@ func _pose_arm(sh: Vector2, side: float, running: bool, air: bool, phase: float,
 	return [sh + Vector2(15.0 * side, 24.0), sh + Vector2(9.0 * side, 48.0 + br)]
 
 
-func _eye(c: Vector2, wince: bool, blink: bool) -> void:
+func _eye(c: Vector2, wince: bool, blink: bool, s := 1.0, side := 1.0) -> void:
 	if wince:
-		_ln(c + Vector2(-6, -2), c + Vector2(6, 1), C_OL, 3.0, true)
+		# squeezed shut: > <
+		_pl(PackedVector2Array([c + Vector2(-5.0 * side, -4), c + Vector2(4.0 * side, 0), c + Vector2(-5.0 * side, 4)]), C_OL, 3.0, true)
 		return
-	var ry := 0.6 if blink else 3.4
-	_oval(c, 6.0, ry, C_EYE, 3.0)
+	# big and clear, so they read from across the screen
+	var ry := 0.8 if blink else 5.6 * s
+	_oval(c, 6.6 * s, ry, C_EYE, 2.2)
 	if not blink:
-		_cc(c + Vector2(1.6, 0.4), 2.6, Color("1a0f08"))
-		_cc(c + Vector2(0.8, -0.4), 0.9, Color.WHITE)
+		_cc(c + Vector2(2.0, 0.6) * s, 3.4 * s, Color("1a0f08"))
+		_cc(c + Vector2(0.8, -1.0) * s, 1.4 * s, Color.WHITE)
+		_cc(c + Vector2(3.4, 2.0) * s, 0.7 * s, Color.WHITE)     # a second sparkle: lively eyes
 
 
 ## Out cold: mouth hanging open, tongue lolling out of the side.
@@ -2264,6 +2605,47 @@ func _yell() -> void:
 
 
 ## Clenched teeth with the corners pulled down.
+## A big toothy grin (the flex).
+func _grin() -> void:
+	var pts := PackedVector2Array()
+	for i in 9:
+		var a := PI * i / 8.0
+		pts.append(Vector2(4.0 - cos(a) * 13.0, -140.0 + sin(a) * 8.0))
+	_pg(pts, C_EYE)
+	_pl(pts, C_OL, 2.5, true)
+	_ln(Vector2(-9, -140), Vector2(17, -140), C_OL, 2.5, true)
+	for i in range(1, 4):
+		var tx := -9.0 + i * 6.5
+		_ln(Vector2(tx, -140), Vector2(tx, -135), C_OL, 1.5, true)
+
+
+## The smile with his tongue out of the corner: poking out (concentrating), or
+## flapping about (running flat out).
+func _tongue_out(flap: bool) -> void:
+	_smile()
+	var w := sin(anim_t * 26.0) * 3.0 if flap else 0.0
+	var tip := Vector2(19.0 + (6.0 if flap else 0.0), -132.0 + w)
+	_shape(PackedVector2Array([Vector2(10, -136), Vector2(14, -138), tip + Vector2(3, -2), tip + Vector2(2, 3), Vector2(11, -132)]), Color("e0707a"), 2.0)
+	_ln(Vector2(12, -135), tip + Vector2(-1, 0), Color("b04a55"), 1.5, true)
+
+## His resting face: a happy open smile, top teeth showing, a bit of tongue.
+func _smile() -> void:
+	var pts := PackedVector2Array()
+	for i in 9:
+		var a := PI * i / 8.0
+		pts.append(Vector2(4.0 - cos(a) * 10.0, -138.0 + sin(a) * 7.0))
+	_pg(pts, C_MOUTH)
+	_oval(Vector2(4, -133.5), 4.5, 2.4, Color("d9656a"), 0.0)
+	# the gap in his front teeth
+	_rc(Rect2(-3, -138, 6, 3.4), C_EYE)
+	_rc(Rect2(5, -138, 6, 3.4), C_EYE)
+	_pl(pts, C_OL, 2.2, true)
+	_ln(Vector2(-6, -138), Vector2(14, -138), C_OL, 2.2, true)
+	# smile lines lifting the cheeks
+	_ln(Vector2(-9, -137), Vector2(-7, -140), C_OL, 2.0, true)
+	_ln(Vector2(17, -137), Vector2(15, -140), C_OL, 2.0, true)
+
+
 func _mouth() -> void:
 	var w := 16.0
 	var h := 5.0
@@ -2403,10 +2785,11 @@ func _leaf(a: Vector2, length: float, width: float, ang: float, col: Color) -> v
 func _arm(sh: Vector2, el: Vector2, hd: Vector2, bicep: float, fist: bool) -> void:
 	if _bb != null:
 		_hands.append(_bb.xf * hd)
-	_limb([sh, el, hd], [16.0, 16.0])
-	_oval((sh + el) * 0.5, sh.distance_to(el) * 0.46, bicep, _skin, 3.5, (el - sh).angle())
+	var buff := 1.0 + 0.22 * _sun_k          # SUNFIRE: thicker arms, a bigger bicep
+	_limb([sh, el, hd], [16.0 * buff, 16.0 * buff])
+	_oval((sh + el) * 0.5, sh.distance_to(el) * 0.46, bicep * (1.0 + 0.45 * _sun_k), _skin, 3.5, (el - sh).angle())
 	_seg_hair(el, hd, 3)
-	_dot(sh, 15.0, _skin)
+	_dot(sh, 15.0 * buff, _skin)
 	if fist:
 		_dot(hd, 10.0, _skin)
 
@@ -2605,19 +2988,28 @@ func _paint_sun_aura() -> void:
 		var p0 := c + Vector2.from_angle(ang) * 30.0
 		var p1 := c + Vector2.from_angle(ang) * (66.0 + 10.0 * sin(anim_t * 7.0 + i)) * pulse
 		_ln(p0, p1, Color(Sunfire.WHITE_HOT, 0.22 * a), 4.0)
+	# behind him: fire blazing up off his shoulders and back, trailing as he moves
+	var lean := clampf(-velocity.x / 520.0, -0.9, 0.9)
+	var g := 1.0 + 0.15 * _sun_k
+	var f := float(facing)
+	for bf in [[Vector2(-f * 22.0, -52.0), 34.0], [Vector2(f * 20.0, -54.0), 28.0], [Vector2(-f * 24.0, -30.0), 26.0], [Vector2(-f * 6.0, -62.0), 30.0]]:
+		var bp: Vector2 = bf[0]
+		Sunfire.flame(_bb, bp * g, float(bf[1]) * _sun_k, anim_t * 1.2 + bp.x * 0.3, 0.85 * a, lean)
 
 
 ## Fire in both fists and in his hair; the embers he sheds.
 func _paint_sun_flames() -> void:
 	var warn := sun_t < Sunfire.WARN and fmod(sun_t * 6.0, 1.0) < 0.5
 	var a := 0.45 if warn else 1.0
+	# the fire trails behind him as he moves
+	var lean := clampf(-velocity.x / 520.0, -0.9, 0.9)
 	for i in _hands.size():
 		var h: Vector2 = _hands[i]
 		_bb.circle(h, 9.0, Color(Sunfire.HOT, 0.8 * a), 12)
-		Sunfire.flame(_bb, h + Vector2(0, 4), 26.0, anim_t * 1.3 + i * 2.1, a)
+		Sunfire.flame(_bb, h + Vector2(0, 4), 28.0, anim_t * 1.3 + i * 2.1, a, lean * 0.6)
 	for k in 3:
 		var hx := (k - 1) * 7.0
-		Sunfire.flame(_bb, _head_at + Vector2(hx, 4), 16.0 + 6.0 * float(k == 1), anim_t + k * 1.7, 0.85 * a)
+		Sunfire.flame(_bb, _head_at + Vector2(hx, 4), 18.0 + 8.0 * float(k == 1), anim_t + k * 1.7, 0.85 * a, lean)
 	for s in _sun_sparks:
 		var q: float = clampf(float(s[2]) / 0.7, 0.0, 1.0)
 		_bb.circle(to_local(s[0]), 3.0 * q + 0.8, Color(Sunfire.GOLD, q), 6)
@@ -2651,6 +3043,16 @@ func _update_stomp(delta: float) -> void:
 			and not wall_cling and fury < 0.0 and slam_charge < 0.0 and not dead:
 		stomp_level = 2 if _jumps_left <= 0 else 1
 		stomp_state = "charge"
+		# T with left or right held: the METEOR DASH, that way
+		var lr := 0
+		if Input.is_physical_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_D) or touch["right"]:
+			lr += 1
+		if Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_A) or touch["left"]:
+			lr -= 1
+		stomp_dir = lr
+		if lr != 0:
+			facing = lr
+		_dash_hit.clear()
 		_stomp_t = 0.0
 		_air_glide = false
 		# the spin: the somersault, once (twice for the mega stomp)
@@ -2664,6 +3066,7 @@ func _update_stomp(delta: float) -> void:
 		var tr := Stomp.Trail.new()
 		tr.player = self
 		tr.level = stomp_level
+		tr.dir = stomp_dir
 		get_parent().add_child(tr)
 	_stomp_prev = now
 	if stomp_state != "" and (vine != null or dead or talking):
@@ -2675,8 +3078,28 @@ func _update_stomp(delta: float) -> void:
 			# hanging in the air: a little lift, then still
 			velocity = Vector2(0.0, -70.0 if _stomp_t < 0.08 else 0.0)
 			if _stomp_t >= Stomp.CHARGE[stomp_level]:
-				stomp_state = "dive"
+				stomp_state = "dive" if stomp_dir == 0 else "dash"
+				_stomp_t = 0.0
 				flip_t = 0.0
+		"dash":
+			_stomp_t += delta
+			velocity = Vector2(stomp_dir * Stomp.DASH_SPEED[stomp_level], 0.0)
+			_fall_t = 0.0
+			_air_glide = false
+			# what it rams on the way: knocked, burned by the speed
+			for c in get_tree().get_nodes_in_group("critters"):
+				var cr := c as Critter
+				if cr == null or cr.dying > 0.0 or _dash_hit.has(cr):
+					continue
+				var d := cr.global_position - global_position
+				if absf(d.x) < 70.0 and absf(d.y + 30.0) < 70.0:
+					_dash_hit.append(cr)
+					cr.take_hit(Stomp.DAMAGE[stomp_level], stomp_dir)
+					_hit_word(cr.global_position)
+			if _stomp_t >= Stomp.DASH_TIME[stomp_level]:
+				# spent: he drops out of it, still flying a little
+				stomp_state = ""
+				velocity = Vector2(stomp_dir * 260.0, -120.0)
 		"dive":
 			velocity = Vector2(0.0, Stomp.SPEED[stomp_level])
 			_fall_t = 0.0
@@ -2690,5 +3113,94 @@ func _stomp_impact() -> void:
 	stomp_state = ""
 	_land = LAND_TIME
 	_land_amt = 1.0
+	invuln = maxf(invuln, 0.3)
+	get_parent().add_child(blast)
+
+
+## The get-up, each frame while it runs. True while the splat still holds him
+## (the caller skips the rest of the frame); the flex lets everything through,
+## and any move, jump or swing ends it.
+func _update_getup(delta: float) -> bool:
+	var before := getup
+	getup += delta
+	if getup < GETUP_SPLAT:
+		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
+		if not is_on_floor():
+			velocity.y += GRAVITY_DOWN * delta
+		move_and_slide()
+		_was_floor = is_on_floor()
+		return true
+	if before < GETUP_FLEX and getup >= GETUP_FLEX:
+		var boast := WordPop.new()
+		boast.text = BOASTS[randi() % BOASTS.size()]
+		boast.size = 30
+		boast.centered = true
+		boast.tilt = 0.06 * float(facing)
+		boast.life = 1.1
+		boast.position = global_position + Vector2(0, -110)
+		get_parent().add_child.call_deferred(boast)
+	var busy: bool = Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_D) \
+		or Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_RIGHT) \
+		or Input.is_physical_key_pressed(KEY_SPACE) or Input.is_physical_key_pressed(KEY_W) \
+		or Input.is_physical_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_J) \
+		or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) \
+		or touch["left"] or touch["right"] or touch["jump"] or touch["attack"]
+	if getup >= GETUP_TIME or (busy and getup >= GETUP_SPLAT) or not is_on_floor():
+		getup = -1.0
+	return false
+
+
+## A comic word where a blow lands on a creature, by weapon.
+func _hit_word(at: Vector2) -> void:
+	var word := WordPop.new()
+	var words := ["POW!", "BAM!"]
+	if has_stick and not axe_out:
+		match _swing_kind:
+			"hammer", "dig":
+				words = ["WHAM!", "KRAK!"]
+			"axe0", "axe1", "axe2":
+				words = ["SHNK!", "CHOP!"]
+			"homerun":
+				return                       # it has its own: HOME RUN!
+			"club1":
+				words = ["WHACK!", "SMACK!"]
+			"club2":
+				words = ["KA-BONK!", "KRAKOOM!"]
+				word.size = 27
+				word.life = 0.7
+			_:
+				words = ["BONK!", "THWAK!"]
+	word.text = words[randi() % words.size()]
+	if word.size == 30:
+		word.size = 22                       # (the finisher set its own)
+	word.color = Color("fff4d6")
+	word.star = Color("e8823a", 0.85)
+	word.centered = true
+	word.tilt = randf_range(-0.25, 0.25)
+	if word.life > 0.8:
+		word.life = 0.45
+	word.position = at + Vector2(-facing * 4.0, -60.0)
+	get_parent().add_child(word)
+
+
+## The dash meets a wall. Diggable rock (a Terrain): he DRILLS through it, a
+## blow strong enough to break any rock, and flies on. Anything else: BOOM.
+func _dash_wall() -> void:
+	var front := global_position + Vector2(stomp_dir * 30.0, -38.0)
+	var drilled := false
+	for t in get_tree().get_nodes_in_group("diggable"):
+		for i in 3:
+			if t.dig_at(front, 64.0, 6):
+				drilled = true
+	if drilled:
+		var lvl := get_parent()
+		if lvl.has_method("shake"):
+			lvl.shake(3.0, 0.08)
+		return
+	var blast := Stomp.Blast.new()
+	blast.level = stomp_level
+	blast.position = global_position + Vector2(stomp_dir * 20.0, 0)
+	stomp_state = ""
+	velocity = Vector2(-stomp_dir * 220.0, -260.0)      # bounced back off it
 	invuln = maxf(invuln, 0.3)
 	get_parent().add_child(blast)

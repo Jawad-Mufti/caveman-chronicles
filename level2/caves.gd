@@ -28,6 +28,9 @@ class CaveRock extends StaticBody2D:
 		cs.shape = sh
 		cs.position = rect.size * 0.5
 		add_child(cs)
+		# painted rock (common/art), dim: deep in a cave
+		Terrain.paint_poly(self, PackedVector2Array([Vector2.ZERO, Vector2(rect.size.x, 0), rect.size, Vector2(0, rect.size.y)]),
+			Terrain.ROCK_TEX, Color(0.5, 0.46, 0.52), rect.position)
 
 	var _bt: Batch
 
@@ -37,10 +40,11 @@ class CaveRock extends StaticBody2D:
 		rng.seed = int(rect.position.x) * 7 + int(rect.position.y)
 		var w := rect.size.x
 		var h := rect.size.y
-		_bt.rect(Rect2(0, 0, w, h), Pal.CAVE_ROCK.darkened(0.3))
+		_bt.polyline(PackedVector2Array([Vector2(0, 0), Vector2(w, 0), Vector2(w, h), Vector2(0, h), Vector2(0, 0)]), Color("1d1712"), 3.0)
 		match kind:
 			"floor":
-				_bt.rect(Rect2(0, 0, w, minf(h, 36.0)), Pal.CAVE_ROCK)
+				_bt.quad(Vector2(0, 0), Vector2(w, 0), Vector2(w, minf(h, 40.0)), Vector2(0, minf(h, 40.0)), Color.WHITE,
+					PackedColorArray([Color(1, 0.95, 0.85, 0.14), Color(1, 0.95, 0.85, 0.14), Color(1, 0.95, 0.85, 0.0), Color(1, 0.95, 0.85, 0.0)]))
 				var top := PackedVector2Array()
 				var x := 0.0
 				while x <= w:
@@ -51,7 +55,6 @@ class CaveRock extends StaticBody2D:
 				for i in int(w / 50.0):
 					_bt.circle(Vector2(rng.randf_range(6.0, w - 6.0), -1.5), rng.randf_range(1.5, 3.5), Pal.CAVE_ROCK_LIGHT.darkened(0.2))
 			"roof":
-				_bt.rect(Rect2(0, maxf(h - 36.0, 0.0), w, minf(h, 36.0)), Pal.CAVE_ROCK)
 				# stalactites, short, so they never look like something to stand on
 				var x := rng.randf_range(4.0, 20.0)
 				while x < w - 8.0:
@@ -71,6 +74,7 @@ class CaveRock extends StaticBody2D:
 class CaveBackdrop extends Node2D:
 	## The back wall of a cave, covering the woods and sky behind it.
 	var rect := Rect2()
+	var margin := 500.0     ## dark beyond the rect (a separate cave region); 0 for caves right under the world
 
 	func _ready() -> void:
 		z_index = -2
@@ -81,7 +85,8 @@ class CaveBackdrop extends Node2D:
 		_bt = Batch.new()
 		var rng := RandomNumberGenerator.new()
 		rng.seed = int(rect.position.x)
-		_bt.rect(rect.grow(500.0), Pal.CAVE_DARK)
+		if margin > 0.0:
+			_bt.rect(rect.grow(margin), Pal.CAVE_DARK)
 		_bt.rect(rect, Pal.CAVE_BACK)
 		for i in int(rect.size.x / 35.0):
 			var c := rect.position + Vector2(rng.randf() * rect.size.x, rng.randf() * rect.size.y)

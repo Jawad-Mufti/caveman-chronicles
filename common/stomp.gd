@@ -17,6 +17,9 @@ const CHARGE := [0.0, 0.2, 0.32]       ## the spin before the drop, by level
 const SPEED := [0.0, 1500.0, 2100.0]   ## the plunge
 const RADIUS := [0.0, 110.0, 190.0]    ## what the blast reaches
 const DAMAGE := [0, 3, 6]
+## The METEOR DASH (T + left/right in the air): sideways, after the same spin.
+const DASH_SPEED := [0.0, 1100.0, 1400.0]
+const DASH_TIME := [0.0, 0.2, 0.27]       ## ~220 px, and ~380 px for the gold one
 
 const ICE := Color("7df9ff")
 const BLUE := Color("4a7dff")
@@ -38,6 +41,7 @@ class Trail extends Node2D:
 	## light streams up behind him.
 	var player: CaveMan
 	var level := 1
+	var dir := 0                   ## 0: the drop; -1/+1: the dash
 	var _t := 0.0
 	var _tail: Array = []          ## recent positions while dropping
 	var _sparks: Array = []        ## [offset, life]
@@ -55,7 +59,7 @@ class Trail extends Node2D:
 			queue_free()
 			return
 		global_position = player.global_position + Vector2(0, -38)
-		if player.stomp_state == "dive":
+		if player.stomp_state == "dive" or player.stomp_state == "dash":
 			_tail.push_front(global_position)
 			if _tail.size() > 12:
 				_tail.pop_back()
@@ -81,7 +85,13 @@ class Trail extends Node2D:
 				b.circle(p2, (16.0 if level == 1 else 24.0) * q, Color(c2, 0.35 * q), 12)
 			for j in 5:
 				var x := (-20.0 + j * 10.0) * (1.0 if level == 1 else 1.6)
-				b.line(Vector2(x, -30), Vector2(x * 0.6, -110.0 - 30.0 * level), Color(col, 0.55), 2.0)
+				var a0 := Vector2(x, -30)
+				var a1 := Vector2(x * 0.6, -110.0 - 30.0 * level)
+				if dir != 0:
+					# the dash: the streaks stream out BEHIND him, flat
+					a0 = Vector2(-dir * 30.0, x)
+					a1 = Vector2(-dir * (130.0 + 40.0 * level), x * 0.6)
+				b.line(a0, a1, Color(col, 0.55), 2.0)
 		b.draw(self)
 
 	func draw_glow(g) -> void:   # g: the glow layer's Batch
