@@ -37,5 +37,7 @@ func _run() -> void:
 			quiet()
 			p.torch_fuel = 0.0 if args.has("notorch") else 1.0
 		await RenderingServer.frame_post_draw
-		get_viewport().get_texture().get_image().save_png("C:/tmp/shots/%s.png" % parts[0])
+		var out := "C:/tmp/shots/%s.png" % parts[0]          # a name like "palette/01woods" goes in its own folder
+		DirAccess.make_dir_recursive_absolute(out.get_base_dir())
+		get_viewport().get_texture().get_image().save_png(out)
 	get_tree().quit()

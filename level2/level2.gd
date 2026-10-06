@@ -186,6 +186,50 @@ func _build_background() -> void:
 	var under := World.Undergrowth.new()
 	under.seedn = 8
 	_pano(pb, under, Vector2(0.62, 0.34))
+	_pal_bands = [ridges, pines, woods, under]
+
+
+## THE COLOUR SCRIPT: the region's palette at x (PALETTE, lerped between the two
+## entries round it), blended toward PALETTE_UNDER by depth inside UNDER.
+## Returns [sky_high, sky_low, ridge, pine, woods, under, accent].
+var _pal_bands: Array = []
+## Each band is drawn once in its own colours; it is recoloured by `modulate`
+## (target / the colour it was drawn in): per-vertex, free, no redraw.
+const PAL_BASE := [Pal.NIGHT_FAR, Pal.PINE, Pal.NIGHT_NEAR, Pal.FROND]
+var accent := Color("e08a3c")        ## the region's accent (its light, its glows, its highlights)
+
+func palette_at(at: Vector2) -> Array:
+	var i := 0
+	while i < PALETTE.size() - 2 and at.x > float(PALETTE[i + 1][0]):
+		i += 1
+	var a: Array = PALETTE[i]
+	var b: Array = PALETTE[i + 1]
+	var t := clampf((at.x - float(a[0])) / maxf(float(b[0]) - float(a[0]), 1.0), 0.0, 1.0)
+	var out: Array = []
+	for k in range(1, 8):
+		out.append((a[k] as Color).lerp(b[k], t))
+	if at.x > UNDER.position.x and at.x < UNDER.end.x:
+		var deep := clampf((at.y - Night.UNDER_Y) / 500.0, 0.0, 1.0)
+		if deep > 0.0:
+			for k in 7:
+				out[k] = (out[k] as Color).lerp(PALETTE_UNDER[k], deep)
+	return out
+
+
+func _update_palette() -> void:
+	if player == null or _pal_bands.is_empty():
+		return
+	if player.global_position.x > LEVEL_W + 400.0:
+		return                                     # the caves keep their own colours
+	var p := palette_at(player.global_position)
+	sky.night_high = p[0]
+	sky.night_low = p[1]
+	sky.accent = p[6]
+	accent = p[6]
+	for k in 4:
+		var target: Color = p[2 + k]
+		var base: Color = PAL_BASE[k]
+		(_pal_bands[k] as CanvasItem).modulate = Color(target.r / base.r, target.g / base.g, target.b / base.b)
 
 
 func _build_world() -> void:
@@ -2023,6 +2067,7 @@ func _process(delta: float) -> void:
 	_told_out = maxf(_told_out - delta, 0.0)
 	hud.set_torch(player.has_torch, player.torch_fuel)
 	sky.dusk = clampf(1.0 - player.global_position.x / 1500.0, 0.0, 1.0)
+	_update_palette()
 	# the camera stays on the clearing through the fight and through his defeat,
 	# until he has limped away into the dark
 	var r := 3 if (_fight or (_scar_beaten and scar.visible)) else _region_at(player.global_position.x)

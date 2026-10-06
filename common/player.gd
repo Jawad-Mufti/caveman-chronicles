@@ -79,6 +79,8 @@ var getup := -1.0             ## seconds into the get-up; -1 = not getting up
 ## his fall to a slide; jump kicks him up and across. Other walls don't count,
 ## so climbs elsewhere can't be skipped this way.
 const WALL_SLIDE := 150.0
+const CLIMB_SPEED := 170.0    ## scrambling up a steep rock face (diggable Terrain)
+var climbing := false
 const WALL_KICK := Vector2(340, -600)
 const WALL_LOCK := 0.16       ## after a kick, steering is ignored this long
 const WALL_GRACE := 0.10      ## a kick still works this long after leaving the wall
@@ -728,7 +730,29 @@ func _physics_process(delta: float) -> void:
 	# chimney walls: cling and slide while holding into one
 	_wall_t = maxf(_wall_t - delta, 0.0)
 	wall_cling = false
-	if not is_on_floor():
+	# ROCK CLIMBING: hold toward a steep face of the diggable rock (too steep to
+	# walk up) and he scrambles up it; at the top he heaves himself over the lip.
+	# SPACE kicks off it like a chimney wall.
+	var was_climbing := climbing
+	climbing = false
+	var rn := _rock_wall_normal()
+	var up_held: bool = Input.is_physical_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_W) or touch.get("up", false)
+	# on the ground it takes UP + toward the wall (walking into rock just stops, so he can dig it);
+	# in the air, or already on the wall, holding toward it is enough. Holding HIT digs instead.
+	if rn != 0.0 and dir == -rn and attacking <= 0.0 and _attack_held <= 0.0 and (up_held or not is_on_floor() or was_climbing):
+		climbing = true
+		_wall_dir = -int(rn)
+		_wall_t = WALL_GRACE
+		wall_cling = true
+		velocity.y = -CLIMB_SPEED
+		_slide_dust -= delta
+		if _slide_dust <= 0.0:
+			_slide_dust = 0.16
+			FX.burst(get_parent(), global_position + Vector2(_wall_dir * 13.0, -40.0), "dust", float(-_wall_dir))
+	elif was_climbing and dir == float(_wall_dir) and not is_on_floor():
+		# over the top: a heave up onto the ledge
+		velocity = Vector2(dir * 180.0, -360.0)
+	if not is_on_floor() and not climbing:
 		var wn := _kick_wall_normal()
 		if wn != 0.0:
 			_wall_dir = -int(wn)
@@ -1132,6 +1156,29 @@ func _slam() -> void:
 ## arrived with, can pump with left/right, and jumps to let go — carrying the
 ## swing's speed with him, plus a little hop.
 ## The side normal of a chimney wall he touched in the last move, or 0.
+## A steep face of the diggable rock he is pressed against (too steep to walk up):
+## which way it faces, or 0.
+func _rock_wall_normal() -> float:
+	for i in get_slide_collision_count():
+		var c := get_slide_collision(i)
+		var n := c.get_normal()
+		var body := c.get_collider() as Node
+		if absf(n.x) > 0.72 and body != null and _is_rock(body):
+			return signf(n.x)
+	return 0.0
+
+
+## The diggable Terrain is a Node2D; what he touches is one of its chunk bodies, further down.
+func _is_rock(n: Node) -> bool:
+	for i in 3:
+		if n == null:
+			return false
+		if n.is_in_group("diggable"):
+			return true
+		n = n.get_parent()
+	return false
+
+
 func _kick_wall_normal() -> float:
 	for i in get_slide_collision_count():
 		var c := get_slide_collision(i)

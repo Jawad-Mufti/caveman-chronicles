@@ -1676,6 +1676,10 @@ class NightSky extends Node2D:
 	## first dark stretch: the level sets `dusk` from how far he has walked.
 	var dusk := 1.0
 	var t := 0.0
+	## The region's night sky (the colour script, PALETTE): dusk still lerps on top of it.
+	var night_high := Pal.NIGHT_SKY_HIGH
+	var night_low := Pal.NIGHT_SKY_LOW
+	var accent := Pal.MOON              ## the region's accent: tints the moon's halo
 
 	var _redraw_in := 0.0
 
@@ -1690,8 +1694,8 @@ class NightSky extends Node2D:
 
 	func _draw() -> void:
 		_bt = Batch.new()
-		var hi := Pal.NIGHT_SKY_HIGH.lerp(Pal.DUSK_HIGH, dusk)
-		var lo := Pal.NIGHT_SKY_LOW.lerp(Pal.DUSK_LOW, dusk)
+		var hi := night_high.lerp(Pal.DUSK_HIGH, dusk)
+		var lo := night_low.lerp(Pal.DUSK_LOW, dusk)
 		_bt.quad(Vector2(-60, -60), Vector2(1400, -60), Vector2(1400, 840), Vector2(-60, 840), hi, PackedColorArray([hi, hi, lo, lo]))
 		var starlight := 1.0 - dusk
 		if starlight > 0.02:
@@ -1700,8 +1704,9 @@ class NightSky extends Node2D:
 				var tw := 0.55 + 0.45 * sin(t * (0.8 + fmod(i * 0.37, 1.3)) + i)
 				_bt.circle(p, 0.9 + fmod(i * 0.61, 1.1), Color(Pal.STAR, starlight * tw * (0.35 + fmod(i * 0.29, 0.5))), 6)
 		var m := Vector2(1010, 104)
+		var halo := Pal.MOON.lerp(accent, 0.6)
 		for i in 4:
-			_bt.circle(m, 58.0 + i * 24.0, Color(Pal.MOON, 0.07 - i * 0.015))
+			_bt.circle(m, 58.0 + i * 24.0, Color(halo, 0.07 - i * 0.015))
 		_bt.circle(m, 42.0, Pal.MOON)
 		for c in [[Vector2(-12, -8), 9.0], [Vector2(10, 6), 7.0], [Vector2(4, -16), 4.5], [Vector2(-8, 16), 5.0]]:
 			_bt.circle(m + (c[0] as Vector2), float(c[1]), Pal.MOON_SHADE)

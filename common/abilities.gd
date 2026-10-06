@@ -30,6 +30,7 @@ const MOVES := [
 	["cyclone", "CYCLONE", "Keep the swings coming: BONK, uppercut, SMASH... and the FOURTH is the CYCLONE, the club whirling right round you twice, hitting everything on BOTH sides, again and again.", "J  x4  (or hold)", ""],
 	["ram", "RAM", "Run flat out and HIT: you charge like a mammoth, club out in front, right through everything in the way.", "run + J", ""],
 	["launch", "LAUNCH, JUGGLE, SLAM DUNK", "UP + HIT knocks a beast high into the AIR (LAUNCH!). Jump after it and HIT it up there to keep it flying (JUGGLE!). Then DOWN + HIT drives it into the ground: SLAM DUNK!! and everything near goes flying.", "UP + J, jump, J, DOWN + J", ""],
+	["climb", "ROCK CLIMB", "Stuck below a steep rock face in the mountain? Hold UP and walk into it (or jump at it and hold toward it): he scrambles right up, and heaves himself over the top. SPACE kicks off it.", "UP + toward the rock", ""],
 	["throw", "STONE TOSS", "Pick up rocks on the way, then throw them at things that bite back. Aim with the arrows: UP throws straight up, UP + RIGHT at 45 degrees, DOWN (in the air) down. A rock BONKS a beast and bounces off to hit another; it CLACKS off rock and bounces.", "K  +  arrows to aim", ""],
 	["grab", "GRAB & BOWL", "BONK a beast and it sees stars. While they spin, press THROW next to it: he lifts it right over his head! THROW (or HIT) again and he bowls it along the ground: everything in the way goes flying. STRIKE!", "J, then K, then K", ""],
 	["leap", "HERCULES LEAP", "Jump, then jump again in mid-air: a somersault, then the spear pose and a softer fall.", "SPACE  twice", ""],
@@ -62,7 +63,7 @@ static func colour(id: String) -> Color:
 ## Is it his yet? Some come with the level, some are learned once and saved.
 static func unlocked(id: String, p: CaveMan) -> bool:
 	match id:
-		"strike", "pogo", "cyclone", "ram", "launch", "throw", "grab", "leap", "stomp", "dash", "dig":
+		"strike", "pogo", "cyclone", "ram", "launch", "climb", "throw", "grab", "leap", "stomp", "dash", "dig":
 			return true
 		"homerun":
 			return p == null or p.has_stick
@@ -132,6 +133,17 @@ static func draw_symbol(b: Batch, id: String, c: Vector2, r: float, col: Color, 
 				b.circle(tip + Vector2.from_angle(i * 2.1 + 0.4) * 9.0 * k, 3.5 * k, dk, 8)
 			for i in 3:
 				b.arc(base, (48.0 + i * 12.0) * k, a - 2.2, a - 1.2, 10, Color(col, 0.75 - i * 0.2), 3.0 * k)
+		"climb":
+			# a rock face, and a little figure's hands going up it, an arrow up
+			var q := fmod(t * 0.9, 1.0)
+			b.quad(c + Vector2(4, -42) * k, c + Vector2(30, -42) * k, c + Vector2(30, 42) * k, c + Vector2(4, 42) * k, Color(col, 0.35))
+			b.line(c + Vector2(4, -42) * k, c + Vector2(4, 42) * k, col, 3.0 * k)
+			var hy := c.y + (24.0 - q * 50.0) * k
+			b.circle(Vector2(c.x - 8.0 * k, hy - 14.0 * k), 7.0 * k, col, 10)
+			b.line(Vector2(c.x - 8.0 * k, hy - 8.0 * k), Vector2(c.x - 8.0 * k, hy + 16.0 * k), col, 4.0 * k)
+			b.line(Vector2(c.x - 8.0 * k, hy - 4.0 * k), Vector2(c.x + 2.0 * k, hy - 14.0 * k), col, 3.0 * k)
+			b.line(c + Vector2(-30, 20) * k, c + Vector2(-30, -26) * k, Color(col, 0.7), 3.0 * k)
+			b.tri(c + Vector2(-37, -20) * k, c + Vector2(-23, -20) * k, c + Vector2(-30, -32) * k, Color(col, 0.7))
 		"cyclone":
 			# a club whirling round, a ring of blur
 			var a0 := t * 9.0

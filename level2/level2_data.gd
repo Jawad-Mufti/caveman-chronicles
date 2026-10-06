@@ -569,6 +569,35 @@ const CAVE_LOOT := [
 ]
 ## [x, darkness]. Dusk at the camp, darkest in the woods, thinner on the
 ## mountain where the moon reaches, dark again under the great tree.
+## THE COLOUR SCRIPT (caveman_visuals_spec item 1): the sky and the four backdrop
+## bands take each region's colours, lerped by x as he walks (like DARKNESS). Each
+## region HOLDS its colours and blends into the next over a few hundred px at its
+## border. A first pass (Jawad: "to look at, not final").
+## [x, sky_high, sky_low, ridge, pine, woods, under, accent]
+const PALETTE := [
+	[0.0, Color("1b2440"), Color("2a3350"), Color("33405e"), Color("273349"), Color("1e2a3a"), Color("16202c"), Color("e08a3c")],      # firelit woods
+	[3600.0, Color("1b2440"), Color("2a3350"), Color("33405e"), Color("273349"), Color("1e2a3a"), Color("16202c"), Color("e08a3c")],
+	[4100.0, Color("16233a"), Color("27384f"), Color("3b5163"), Color("2d4150"), Color("223440"), Color("1a2730"), Color("a8c7cf")],   # Hanging Gorge
+	[5450.0, Color("16233a"), Color("27384f"), Color("3b5163"), Color("2d4150"), Color("223440"), Color("1a2730"), Color("a8c7cf")],
+	[5900.0, Color("1a2033"), Color("2f3a4d"), Color("4a5668"), Color("3a4557"), Color("2b3443"), Color("202734"), Color("cdd6e0")],   # the mountain
+	[11800.0, Color("1a2033"), Color("2f3a4d"), Color("4a5668"), Color("3a4557"), Color("2b3443"), Color("202734"), Color("cdd6e0")],
+	[12300.0, Color("1d2133"), Color("343148"), Color("4d4552"), Color("3e3a44"), Color("2f2d35"), Color("242229"), Color("c9a86a")],  # Mammoth Steppe
+	[15700.0, Color("1d2133"), Color("343148"), Color("4d4552"), Color("3e3a44"), Color("2f2d35"), Color("242229"), Color("c9a86a")],
+	[16100.0, Color("141a18"), Color("1e2622"), Color("2b352c"), Color("222b24"), Color("19201b"), Color("121715"), Color("c8d44a")],  # Tar Pits
+	[17500.0, Color("141a18"), Color("1e2622"), Color("2b352c"), Color("222b24"), Color("19201b"), Color("121715"), Color("c8d44a")],
+	[18000.0, Color("1a1630"), Color("2a2246"), Color("3d3360"), Color("312a4e"), Color("241f3a"), Color("1a172b"), Color("e8e4ff")],  # Thunder Canyon
+	[22400.0, Color("1a1630"), Color("2a2246"), Color("3d3360"), Color("312a4e"), Color("241f3a"), Color("1a172b"), Color("e8e4ff")],
+	[22900.0, Color("201a2e"), Color("33263c"), Color("4a3246"), Color("3b2a3a"), Color("2b2030"), Color("1f1824"), Color("f0c070")],  # the great tree, the far side
+	[26200.0, Color("201a2e"), Color("33263c"), Color("4a3246"), Color("3b2a3a"), Color("2b2030"), Color("1f1824"), Color("f0c070")],
+	[26600.0, Color("1c1620"), Color("2c2029"), Color("423029"), Color("352720"), Color("271d18"), Color("1b1511"), Color("d47a4a")],  # Boulder Run
+	[28300.0, Color("1c1620"), Color("2c2029"), Color("423029"), Color("352720"), Color("271d18"), Color("1b1511"), Color("d47a4a")],
+	[28700.0, Color("080c14"), Color("0d141f"), Color("131c2a"), Color("101722"), Color("0c121a"), Color("080d13"), Color("5ee0d0")],  # the Long Dark
+	[30600.0, Color("080c14"), Color("0d141f"), Color("131c2a"), Color("101722"), Color("0c121a"), Color("080d13"), Color("5ee0d0")],
+	[32300.0, Color("1a1016"), Color("2b1620"), Color("41202a"), Color("331a21"), Color("261419"), Color("1a0e12"), Color("e2622f")],  # Old Scar (the Toolmaker's home blends in)
+	[33600.0, Color("1a1016"), Color("2b1620"), Color("41202a"), Color("331a21"), Color("261419"), Color("1a0e12"), Color("e2622f")],
+]
+## The underground (UNDER), blended in by depth, not by x: it lies under the Steppe.
+const PALETTE_UNDER := [Color("0c0a0b"), Color("161012"), Color("241a18"), Color("1c1413"), Color("140f0f"), Color("0d0a0a"), Color("d08a3a")]
 const DARKNESS := [[0.0, 0.26], [700.0, 0.40], [1500.0, 0.62], [2600.0, 0.72], [3600.0, 0.74],
 	[3950.0, 0.64], [4300.0, 0.50], [5400.0, 0.50], [5800.0, 0.60],                       # the gorge: the last light of dusk
 	[6000.0, 0.62], [6700.0, 0.56], [7400.0, 0.50], [8300.0, 0.60],
