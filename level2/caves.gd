@@ -669,15 +669,55 @@ class Rat extends Critter:
 		dir = 1 if randf() < 0.5 else -1
 		add_to_group("glow")
 
+	## Its second attack, the LEAP: a squeak and a crouch (the tell), then it
+	## springs at him from a few strides off, teeth first.
+	var _floor_y := INF
+	var _crouch := 0.0
+	var _vy := 0.0
+	var _vx := 0.0
+	var _air := false
+	var _leap_cd := 0.0
+
 	func _tick(delta: float) -> void:
 		t += delta
+		if _floor_y == INF:
+			_floor_y = position.y
+		_leap_cd = maxf(_leap_cd - delta, 0.0)
+		if _air:
+			_vy += 1500.0 * delta
+			position += Vector2(_vx, _vy) * delta
+			position.x = clampf(position.x, left_x, right_x)
+			if position.y >= _floor_y and _vy > 0.0:
+				position.y = _floor_y
+				_air = false
+				Critter.attack_done(self)
+			return
+		if _crouch > 0.0:
+			_crouch -= delta
+			if _crouch <= 0.0 and player != null:
+				var dx2 := player.global_position.x - position.x
+				_vx = clampf(dx2 / 0.45, -520.0, 520.0)
+				_vy = -420.0
+				_air = true
+				dir = 1 if dx2 > 0.0 else -1
+			return
 		if pause > 0.0:
 			pause -= delta
 			return
 		var chasing := false
 		if player != null:
 			var dx := player.global_position.x - position.x
-			chasing = absf(player.global_position.y - position.y) < 60.0 and absf(dx) < 240.0
+			var level := absf(player.global_position.y - position.y) < 60.0
+			if level and absf(dx) > 90.0 and absf(dx) < 210.0 and _leap_cd <= 0.0 and randf() < 0.15 \
+					and Critter.may_attack(self, 1200):
+				_leap_cd = randf_range(2.0, 3.5)
+				_crouch = 0.3
+				tell("!")
+				return
+			# a rush is a turn too; waiting, it skitters back and forth just out of reach
+			chasing = level and absf(dx) < 240.0 and (absf(dx) < 60.0 or Critter.may_attack(self, 900))
+			if level and absf(dx) < 240.0 and not chasing and absf(dx) < 110.0:
+				dir = -1 if dx > 0.0 else 1          # backs off a little, to try again
 			# commits to a rush: only turns once it is well past him
 			if chasing and absf(dx) > 60.0:
 				dir = 1 if dx > 0.0 else -1
@@ -700,6 +740,8 @@ class Rat extends Critter:
 	func _paint() -> void:
 		_st(Vector2.ZERO, 0.0, Vector2(dir, 1))
 		var bob := absf(sin(_run * 0.2)) * 2.0
+		if _crouch > 0.0:
+			bob = -3.0 + sin(t * 60.0) * 1.0          # flattened, trembling: about to spring
 		_pl(PackedVector2Array([Vector2(-12, -6), Vector2(-24, -4), Vector2(-32, -8 + sin(t * 6.0) * 2.0), Vector2(-38, -6)]), Pal.RAT_TAIL, 2.0, true)
 		_oval(Vector2(-2, -8 - bob), 13.0, 7.0, Pal.RAT)
 		_fill(PackedVector2Array([Vector2(8, -13 - bob), Vector2(19, -7 - bob), Vector2(8, -4 - bob)]), Pal.RAT)
@@ -714,6 +756,52 @@ class Rat extends Critter:
 		if dying > 0.0:
 			return
 		g.draw_circle(global_position + Vector2(dir * 12.0, -11.0), 1.4, Color(Pal.EMBER_GLOW, 0.9))
+
+
+## A snake's spit: a glob of green venom lobbed at him. Stings if it lands on
+## him, and leaves a little hissing green splash wherever it comes down.
+class VenomGlob extends Node2D:
+	var vel := Vector2.ZERO
+	var t := 0.0
+
+	func _ready() -> void:
+		z_index = 4
+		add_to_group("glow")
+
+	func _physics_process(delta: float) -> void:
+		t += delta
+		var from := global_position
+		vel.y += 900.0 * delta
+		var to := from + vel * delta
+		var hit := get_world_2d().direct_space_state.intersect_ray(PhysicsRayQueryParameters2D.create(from, to, 1))
+		var p := get_tree().get_first_node_in_group("player") as CaveMan
+		if p != null and not p.dead and p.global_position.distance_to(to + Vector2(0, 36)) < 34.0:
+			p.hurt(1, global_position.x)
+			_splash(to)
+			return
+		if not hit.is_empty() or t > 2.0:
+			_splash(hit["position"] if not hit.is_empty() else to)
+			return
+		global_position = to
+		queue_redraw()
+
+	func _splash(at: Vector2) -> void:
+		var w := Treasure.FloatText.new()
+		w.text = "SSST!"
+		w.position = at + Vector2(-18, -26)
+		get_parent().add_child(w)
+		FX.burst(get_parent(), at, "sparks", 0.0)
+		queue_free()
+
+	func _draw() -> void:
+		draw_circle(Vector2.ZERO, 9.0, Color("2f6b1c"))
+		draw_circle(Vector2(-1, -1), 7.0, Color("8bdc3a"))
+		draw_circle(Vector2(-3, -3), 2.4, Color(1, 1, 1, 0.7))
+		var tail := -vel.normalized() * 12.0
+		draw_line(Vector2.ZERO, tail, Color("8bdc3a", 0.6), 5.0)
+
+	func draw_glow(g) -> void:
+		g.draw_circle(global_position, 16.0, Color(0.55, 1.0, 0.3, 0.25))
 
 
 class Snake extends Critter:
@@ -765,6 +853,22 @@ class Snake extends Critter:
 				if timer <= 0.0 and level and ahead > 0.0 and ahead < REACH + 60.0:
 					state = "rear"
 					timer = 0.45
+				elif timer <= 0.0 and ahead > REACH + 60.0 and ahead < 460.0 and absf(player.global_position.y - position.y) < 160.0 \
+						and Critter.may_attack(self, 1200):
+					# out of reach: it rears up and SPITS venom at him instead
+					state = "spit"
+					timer = 0.5
+					tell("!", Color("9dff6a"))
+			"spit":
+				ext = move_toward(ext, 0.3, delta * 3.0)
+				if timer <= 0.0:
+					var glob := VenomGlob.new()
+					glob.position = global_position + Vector2(dir * 30.0, -12.0)
+					var to := player.global_position + Vector2(0, -30) - glob.position
+					glob.vel = Vector2(to.x / 0.7, to.y / 0.7 - 0.5 * 900.0 * 0.7)     # lobbed to land on him in 0.7 s
+					get_parent().add_child(glob)
+					Critter.attack_done(self)
+					state = "back"
 			"rear":
 				ext = move_toward(ext, 0.2, delta * 3.0)
 				if timer <= 0.0:
@@ -803,7 +907,7 @@ class Snake extends Critter:
 			if open > 0.5:
 				_ln(head + Vector2(d * 12, -3), head + Vector2(d * 12, 1), Pal.TOOTH, 1.5)
 				_ln(head + Vector2(d * 10, 0), head + Vector2(d * (18.0 + sin(t * 30.0) * 3.0), 0), Pal.MAW.lightened(0.3), 1.2)
-		if state == "rear":
+		if state == "rear" or state == "spit":
 			draw_string(ThemeDB.fallback_font, Vector2(d * 8.0 - 12.0, -24), "sss", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Pal.BONE)
 
 	func draw_glow(g) -> void:   # g: the glow layer's Batch

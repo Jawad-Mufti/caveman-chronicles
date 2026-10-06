@@ -62,6 +62,55 @@ func _ready() -> void:
 var kb := 0.0                   ## knock-back speed from the last blow (px/s, sideways)
 
 
+## ---------------------------------------------------------- THE ATTACK DIRECTOR
+## Beasts take TURNS: at most MAX_ATTACKERS go for him at once, and a new one
+## only every TURN_GAP_MS — the rest circle, snarl and feint, waiting for an
+## opening. A beast asks before it commits to an attack (`may_attack`) and
+## hands its turn back after (`attack_done`); a turn also runs out by itself.
+static var _attackers := {}         ## instance id -> when its turn runs out (ms)
+static var _last_grant := -100000
+const MAX_ATTACKERS := 2
+const TURN_GAP_MS := 550
+
+
+static func may_attack(c: Object, hold_ms: int = 1500) -> bool:
+	var now := Time.get_ticks_msec()
+	for id in _attackers.keys():
+		if int(_attackers[id]) < now or not is_instance_id_valid(id):
+			_attackers.erase(id)
+	var me := c.get_instance_id()
+	if _attackers.has(me):
+		return true
+	if _attackers.size() >= MAX_ATTACKERS or now - _last_grant < TURN_GAP_MS:
+		return false
+	_attackers[me] = now + hold_ms
+	_last_grant = now
+	return true
+
+
+## Still mid-attack (a leap, a follow-up bite): its turn is held on a little longer.
+static func keep_attack(c: Object, hold_ms: int = 900) -> void:
+	_attackers[c.get_instance_id()] = Time.get_ticks_msec() + hold_ms
+
+
+static func attack_done(c: Object) -> void:
+	_attackers.erase(c.get_instance_id())
+
+
+## A little "!" (or a word) over a beast that's about to do something: its tell.
+func tell(text: String = "!", col: Color = Color("ffdf5a")) -> void:
+	if not is_inside_tree():
+		return
+	var w := CaveMan.WordPop.new()
+	w.text = text
+	w.size = 22 if text.length() <= 2 else 18
+	w.color = col
+	w.centered = true
+	w.life = 0.5
+	w.position = global_position + Vector2(0, -_body_height() - 46.0)
+	get_parent().add_child(w)
+
+
 ## The damage a blow did, popping off the creature: bigger and hotter for bigger hits.
 class DamageNumber extends Node2D:
 	var value := 1
@@ -329,7 +378,92 @@ func take_hit(dmg: int, from_dir: int) -> void:
 		_begin_death(from_dir)
 
 
+## ---------------------------------------------------------- LAUNCH, JUGGLE, SLAM
+## His uppercut (UP + HIT) LAUNCHES a beast into the air; hit it again up
+## there and it's JUGGLED back up; DOWN + HIT on it SLAMS it into the ground,
+## and the landing knocks over everything round about (a SLAM DUNK).
+## Big beasts (hp at spawn over 20) can't be lifted.
+var airborne := false
+var _air_vy := 0.0
+var _air_ground := 0.0
+var _slammed := false
+
+
+## An ELITE (deep in the level, in the big ambushes): bigger, blood-red, twice
+## the health, and worth twice the orbs.
+var elite := false
+
+
+func make_elite() -> void:
+	elite = true
+	hp = hp * 2 + 1
+	_hp0 = hp
+	modulate = Color(1.0, 0.66, 0.6)
+	scale = Vector2(1.15, 1.15)
+
+
+func can_launch() -> bool:
+	return _hp0 <= 20 and dying <= 0.0 and is_physics_processing()
+
+
+func launch(vy: float) -> void:
+	if not can_launch():
+		return
+	if not airborne:
+		_air_ground = position.y
+	airborne = true
+	_air_vy = vy
+	kb *= 0.15                     # straight UP, not away: it stays in reach for the juggle
+	_slammed = false
+
+
+func slam() -> void:
+	if airborne:
+		_air_vy = 1500.0
+		_slammed = true
+
+
+func _land_from_air() -> void:
+	position.y = _air_ground
+	airborne = false
+	rotation = 0.0
+	if not is_inside_tree():
+		return
+	FX.burst(get_parent(), global_position, "dust", 0.0)
+	if not _slammed:
+		return
+	# SLAM DUNK: the ground jumps, and everything near is knocked flying
+	_slammed = false
+	FX.shards(get_parent(), global_position, Vector2(0, -1), true)
+	var lvl := get_parent()
+	if lvl.has_method("shake"):
+		lvl.shake(7.0, 0.25)
+	var w := CaveMan.WordPop.new()
+	w.text = "SLAM DUNK!!"
+	w.size = 32
+	w.color = Color("ffe066")
+	w.star = Color("c0392b", 0.85)
+	w.centered = true
+	w.life = 0.9
+	w.position = global_position + Vector2(0, -120)
+	lvl.add_child(w)
+	take_hit(3, 0 if hp > 3 else 1)
+	for n in get_tree().get_nodes_in_group("critters"):
+		var c := n as Critter
+		if c == null or c == self or c.dying > 0.0:
+			continue
+		var d := c.global_position - global_position
+		if absf(d.x) < 140.0 and absf(d.y) < 90.0:
+			c.take_hit(3, 1 if d.x >= 0.0 else -1)
+			c.launch(-360.0)
+			if player != null:
+				player.combo_hit()
+
+
 func _begin_death(from_dir: int) -> void:
+	airborne = false
+	rotation = 0.0
+	attack_done(self)            # its turn goes to the next one
 	dying = DEATH_TIME
 	death_t = 0.0
 	flash = 0.2
@@ -523,6 +657,19 @@ func _physics_process(delta: float) -> void:
 		var p := get_tree().get_first_node_in_group("player")
 		if p != null:
 			player = p as CaveMan
+
+	# launched (his uppercut): it flies up helpless, tumbling, and comes back
+	# down where it was — or is SLAMMED down, and the landing shakes the ground
+	if airborne:
+		_air_vy += (1100.0 if not _slammed else 1600.0) * delta       # a floaty arc: time to jump after it
+		position.y += _air_vy * delta
+		position.x += kb * delta
+		kb = move_toward(kb, 0.0, 700.0 * delta)
+		rotation += (8.0 if kb >= 0.0 else -8.0) * delta
+		if position.y >= _air_ground and _air_vy > 0.0:
+			_land_from_air()
+		queue_redraw()
+		return
 
 	# knocked back by a blow: it slides, slowing, then its own moves take over
 	if kb != 0.0:

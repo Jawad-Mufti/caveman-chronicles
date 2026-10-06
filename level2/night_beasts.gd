@@ -192,7 +192,7 @@ class Wolf extends Critter:
 	func _on_hit(from_dir: int) -> void:
 		position.x = clampf(position.x + from_dir * 16.0, left_x, right_x)
 		if hp > 0 and state != "recoil":
-			if randf() < 0.75:
+			if randf() < 0.75 and Critter.may_attack(self, 1400):
 				# it snaps straight back at him
 				state = "crouch"
 				timer = 0.45
@@ -270,12 +270,27 @@ class Wolf extends Critter:
 					state = "stalk"
 					slot_t = 0.0
 					# it charges the moment it sees him: a short crouch (the tell), then the leap
-					if _level() and player.invuln <= 0.0:
+					if _level() and player.invuln <= 0.0 and Critter.may_attack(self, 1400):
 						_last_lunge_ms = Time.get_ticks_msec()
 						state = "crouch"
 						timer = 0.26
 			"stalk":
 				_stalk(dx, delta)
+				if state == "stalk":
+					_restless(dx, delta)
+			"feint":
+				# a fake lunge: in at him, snapping... and straight back out
+				var into := 1.0 if timer > 0.2 else -1.0
+				_move_to(position.x + _feint_dir * into * 40.0, 300.0, delta, false)
+				dir = int(_feint_dir)
+				if timer <= 0.0:
+					state = "stalk"
+			"howl":
+				# head up, calling the pack: when the howl ends, another one comes running
+				dir = 1 if dx > 0.0 else -1
+				if timer <= 0.0:
+					_call_packmate()
+					state = "stalk"
 			"crouch":
 				dir = 1 if dx > 0.0 else -1
 				if timer <= 0.0:
@@ -294,6 +309,8 @@ class Wolf extends Critter:
 					state = "stalk"
 			"hunt":
 				_hunt(dx, delta)
+				if state == "hunt":
+					_restless(dx, delta)
 			"flee":
 				var away := -1 if dx > 0.0 else 1
 				_move_to(position.x + away * 120.0, RETREAT, delta, false)
@@ -304,6 +321,52 @@ class Wolf extends Critter:
 				dir = 1 if dx > 0.0 else -1
 				if not _lit_at(position.x):
 					state = "stalk"
+
+	## Waiting its turn, it doesn't just stand there: it feints at him (a fake
+	## lunge and a snarl), and a hurt or a lone wolf HOWLS for the pack.
+	var _feint_cd := 1.5
+	var _feint_dir := 1.0
+	var _howled := false
+	var _stalk_t := 0.0
+	static var _last_howl_ms := -100000
+	static var _called := 0          ## packmates called and still about
+
+	func _restless(dx: float, delta: float) -> void:
+		_feint_cd -= delta
+		_stalk_t += delta
+		if not _howled and _level() and absf(dx) < 600.0 and _called < 4 \
+				and Time.get_ticks_msec() - _last_howl_ms > 8000 and (hp <= 4 or _stalk_t > 6.0) and randf() < (0.06 if hp <= 4 else 0.02):
+			_howled = true
+			_last_howl_ms = Time.get_ticks_msec()
+			state = "howl"
+			timer = 1.0
+			_say("AWOOOO!")
+			return
+		if _feint_cd <= 0.0 and absf(dx) < 420.0 and _level():
+			_feint_cd = randf_range(1.0, 2.4)
+			_feint_dir = signf(dx) if dx != 0.0 else 1.0
+			state = "feint"
+			timer = 0.4
+			if randf() < 0.45:
+				_say("GRRR!")
+
+	## The howl is answered: a packmate comes running in from beyond the view.
+	func _call_packmate() -> void:
+		if not is_inside_tree() or player == null:
+			return
+		var mate := Wolf.new()
+		mate.left_x = left_x
+		mate.right_x = right_x
+		var side := -1.0 if randf() < 0.5 else 1.0
+		var x := clampf(player.global_position.x + side * (LevelBase.view_half(self).x + 60.0), left_x, right_x)
+		if absf(x - player.global_position.x) < 160.0:
+			x = right_x if player.global_position.x < (left_x + right_x) * 0.5 else left_x
+		mate.position = Vector2(x, floor_y)
+		mate.state = "stalk"
+		mate._howled = true                       # (no chain of howls)
+		mate.tree_exiting.connect(func() -> void: _called = maxi(0, _called - 1))
+		_called += 1
+		get_parent().add_child(mate)
 
 	## Not hunting yet: an even trot from one end of its ground to the other,
 	## a pause to sniff at each end, and it turns back rather than walk into light.
@@ -338,7 +401,7 @@ class Wolf extends Critter:
 			_move_to(player.global_position.x - signf(dx) * 60.0, HUNT, delta, false)
 			dir = 1 if dx > 0.0 else -1
 			if lunge_cd <= 0.0 and absf(dx) < 300.0 and player.invuln <= 0.0 \
-					and Time.get_ticks_msec() - _last_lunge_ms > 600:
+					and Critter.may_attack(self, 1400):
 				_last_lunge_ms = Time.get_ticks_msec()
 				state = "crouch"
 				timer = 0.2
@@ -349,7 +412,7 @@ class Wolf extends Critter:
 			# ground, snarling, and goes for him as soon as it can
 			dir = 1 if dx > 0.0 else -1
 			if lunge_cd <= 0.0 and _level() and absf(dx) < 560.0 and player.invuln <= 0.0 \
-					and Time.get_ticks_msec() - _last_lunge_ms > 600:
+					and Critter.may_attack(self, 1400):
 				_last_lunge_ms = Time.get_ticks_msec()
 				state = "crouch"
 				timer = 0.26
@@ -364,7 +427,7 @@ class Wolf extends Critter:
 		var px := player.global_position.x
 		if lunge_cd <= 0.0 and _level() and absf(dx) < 560.0 \
 				and px > left_x - 40.0 and px < right_x + 40.0 \
-				and Time.get_ticks_msec() - _last_lunge_ms > 600 and player.invuln <= 0.0:
+				and player.invuln <= 0.0 and Critter.may_attack(self, 1400):
 			_last_lunge_ms = Time.get_ticks_msec()
 			state = "crouch"
 			timer = 0.26
@@ -381,11 +444,12 @@ class Wolf extends Critter:
 		var want := clampf(player.global_position.x + side * 100.0, left_x, right_x)
 		if absf(want - position.x) > 20.0:
 			_move_to(want, HUNT * (1.25 if frenzy else 1.0), delta, false)
-		if lunge_cd <= 0.0 and absf(dx) < 260.0 and player.invuln <= 0.0:
+		if lunge_cd <= 0.0 and absf(dx) < 260.0 and player.invuln <= 0.0 and Critter.may_attack(self, 1400):
 			state = "crouch"
 			timer = 0.24
 
 	func _leap(dx: float) -> void:
+		Critter.keep_attack(self, 1100)          # its turn lasts the whole leap
 		# it aims where he'll be when it comes down, not where he is
 		var land := clampf(player.global_position.x + player.velocity.x * 0.42, left_x, right_x)
 		var d := clampf(land - position.x, -470.0, 470.0)
@@ -415,16 +479,19 @@ class Wolf extends Critter:
 			vel = Vector2.ZERO
 			position.x = clampf(position.x, left_x, right_x)
 			# landed right by him after a bite: now and then it snaps again at once
-			if resolved and not _second and absf(player.global_position.x - position.x) < 110.0 and randf() < 0.5:
+			if resolved and not _second and absf(player.global_position.x - position.x) < 110.0 and randf() < 0.5 \
+					and Critter._attackers.has(get_instance_id()):
 				_second = true
 				state = "crouch"
 				timer = 0.2
 				return
 			_second = false
+			Critter.attack_done(self)          # its turn is over: the next one may come
 			state = "hunt" if frenzy else "stalk"
 
 	## The leap broke on the light. It flinches back and stays stunned.
 	func _yelp() -> void:
+		Critter.attack_done(self)
 		state = "recoil"
 		damage = 0
 		var away := -1.0 if player.global_position.x > position.x else 1.0
@@ -454,9 +521,14 @@ class Wolf extends Critter:
 		var stretch := 0.0
 		var tuck := 0.0
 		match state:
-			"crouch":
+			"crouch", "feint":
 				low = 1.0
-			"lunge":
+			"howl":
+				low = 0.0
+				# the howl rolling out from its raised muzzle, ring after ring
+				for k in 3:
+					var q := fmod((1.0 - timer) * 1.6 + k * 0.33, 1.0)
+					_ac(Vector2(40, -58), 12.0 + q * 60.0, -1.3, 0.5, 10, Color(0.8, 0.9, 1.0, 0.7 * (1.0 - q)), 3.0)
 				low = 0.0
 				stretch = 1.0
 			"cower", "recoil":
@@ -597,6 +669,38 @@ class Bat extends Bestiary.Insect:
 		dash_speed = 560.0
 		add_to_group("glow")
 
+	## Its second attack, the SCREECH: it hangs, mouth wide, and lets go a ring
+	## of sound that flies at him. Jump it — or swing and POP it.
+	var _screech_cd := 3.0
+
+	func _tick(delta: float) -> void:
+		_screech_cd -= delta
+		if state == "screech":
+			t += delta
+			timer = maxf(timer - delta, 0.0)
+			vel = vel.move_toward(Vector2.ZERO, 900.0 * delta)
+			global_position += vel * delta
+			if timer <= 0.0:
+				if player != null and is_inside_tree():
+					var wave := SonicWave.new()
+					wave.position = global_position + Vector2(_facing() * 12.0, -6.0)
+					wave.vel = (player.global_position + Vector2(0, -34) - wave.position).normalized() * 380.0
+					get_parent().add_child(wave)
+				Critter.attack_done(self)
+				state = "rest"
+				timer = 1.2
+			return
+		if state == "hover" and _screech_cd <= 0.0 and player != null and not player.dead:
+			var dx := absf(player.global_position.x - global_position.x)
+			var dy := absf(player.global_position.y - 30.0 - global_position.y)
+			if dx > 120.0 and dx < 380.0 and dy < 160.0 and Critter.may_attack(self, 1500):
+				_screech_cd = randf_range(4.0, 7.0)
+				state = "screech"
+				timer = 0.55
+				tell("!")
+				return
+		super._tick(delta)
+
 	func _facing() -> float:
 		if absf(vel.x) > 30.0:
 			return signf(vel.x)
@@ -627,6 +731,12 @@ class Bat extends Bestiary.Insect:
 		# two long fangs
 		_fill(PackedVector2Array([Vector2(2, -7), Vector2(3.4, -1), Vector2(4.2, -7)]), Pal.TOOTH)
 		_fill(PackedVector2Array([Vector2(5.2, -7), Vector2(6.4, -1), Vector2(7.2, -7)]), Pal.TOOTH)
+		if state == "screech":
+			# mouth wide, the shriek building in rings
+			_oval(Vector2(5, -5), 3.5, 4.5, Color("2a0a0a"), 0.0)
+			for k in 3:
+				var q := fmod(t * 3.0 + k * 0.33, 1.0)
+				_ac(Vector2(6, -6), 6.0 + q * 22.0, -0.9, 0.9, 8, Color(1.0, 0.85, 0.95, 0.75 * (1.0 - q)), 2.0, true)
 		_st(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	func draw_glow(g) -> void:   # g: the glow layer's Batch
@@ -638,6 +748,54 @@ class Bat extends Bestiary.Insect:
 			var e := global_position + Vector2(1.0 * f + float(s) * 2.4, -10.0)
 			g.draw_circle(e, 3.5, Color(Color("ff3a2a"), 0.2 * a))
 			g.draw_circle(e, 1.3, Color(Color("ff3a2a"), a))
+
+
+## A bat's screech: a ring of sound flying straight at him. It stings if it
+## reaches him (jump it); a swing POPS it.
+class SonicWave extends Area2D:
+	var vel := Vector2.ZERO
+	var t := 0.0
+
+	func _ready() -> void:
+		z_index = 4
+		collision_layer = 4               # his swing can pop it
+		collision_mask = 0
+		var cs := CollisionShape2D.new()
+		var c := CircleShape2D.new()
+		c.radius = 18.0
+		cs.shape = c
+		add_child(cs)
+		add_to_group("glow")
+
+	func take_hit(_dmg: int, _from_dir: int) -> void:
+		var w := Treasure.FloatText.new()
+		w.text = "POP!"
+		w.position = global_position + Vector2(-16, -24)
+		get_parent().add_child(w)
+		queue_free()
+
+	func _physics_process(delta: float) -> void:
+		t += delta
+		position += vel * delta
+		if t > 1.6:
+			queue_free()
+			return
+		var p := get_tree().get_first_node_in_group("player") as CaveMan
+		if p != null and not p.dead and p.global_position.distance_to(global_position + Vector2(0, 34)) < 32.0:
+			p.hurt(1, global_position.x)
+			queue_free()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		var r := 12.0 + sin(t * 30.0) * 2.0
+		var a := vel.angle()
+		for k in 3:
+			var rr := r + k * 6.0
+			draw_arc(Vector2.ZERO, rr, a - 1.0, a + 1.0, 12, Color(1.0, 0.8, 0.95, 0.85 - k * 0.25), 3.0)
+
+	func draw_glow(g) -> void:
+		g.draw_circle(global_position, 22.0, Color(1.0, 0.7, 0.9, 0.25))
 
 
 ## ================================================================ MONKEYS

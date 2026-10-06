@@ -213,6 +213,9 @@ const SWINGS := {
 	# the club's combo: tap, tap, TAP — BONK, the uppercut back up, then the finisher
 	"club1": [0.18, 0.20, 0.15, 1.00, 40.0, -40.0, 3],
 	"club2": [0.34, 0.42, 0.52, 0.95, 50.0, -30.0, 5],
+	# the combos (2026-10-06): the 4th of the chain, and HIT at a full run
+	"cyclone": [0.46, 0.30, 0.0, 1.00, 42.0, -40.0, 3],      # spins round twice: it hits both sides, again and again
+	"ram": [0.30, 0.28, 0.0, 0.85, 52.0, -36.0, 4],          # a charge: through everything in the way
 }
 const CHARGE_READY := {"club": 0.45, "axe": 0.3, "hammer": 0.5}
 var _swing_kind := "club"
@@ -661,13 +664,25 @@ func _physics_process(delta: float) -> void:
 			_hit_shape.position = Vector2(facing * 6.0, 14.0)     # the ground under his feet
 		else:
 			digging_down = false
-	if armed and attacking > 0.0 and _swing_aim.y < -0.3 and not _swing_kind in ["dig", "spike", "homerun", "hammer"]:
-		# aimed up, or up and across at 45 degrees: the blow lands there
-		_hit_shape.position = Vector2(_swing_aim.x * 46.0, -58.0 + _swing_aim.y * 52.0)
 	if armed:
-		_hit_box.size = CLUB_BOX * (1.5 if _swing_kind == "homerun" and attacking > 0.0 else 1.0)
+		var big := (_swing_kind == "homerun" or _swing_kind == "spike") and attacking > 0.0
+		_hit_box.size = CLUB_BOX * (1.4 if big else 1.0)
 	else:
 		_hit_box.size = FIST_BOX
+	if armed and attacking > 0.0 and _swing_aim.y < -0.3 and not _swing_kind in ["dig", "spike", "homerun", "hammer", "cyclone", "ram"]:
+		# aimed up, or up and across at 45 degrees: the uppercut sweeps from the
+		# ground in front of him up over his head, so it LAUNCHES what stands
+		# there and still hits what flies above
+		_hit_shape.position = Vector2(facing * 26.0 + _swing_aim.x * 18.0, -62.0)
+		_hit_box.size = Vector2(76.0, 136.0)
+	if armed and attacking > 0.0 and _swing_kind == "cyclone":
+		# the CYCLONE: the blow sweeps round him, front, back, front, back —
+		# and every quarter turn it can hit the same beast again
+		var cq := int((1.0 - attacking / _swing_time) * 4.0)
+		_hit_shape.position.x = (_reach if cq % 2 == 0 else -_reach) * facing
+		if cq != _cyc_q:
+			_cyc_q = cq
+			_swing_hits.clear()
 
 	_kick_lock = maxf(_kick_lock - delta, 0.0)
 	if knock <= 0.0 and _kick_lock <= 0.0:
@@ -810,12 +825,21 @@ func _physics_process(delta: float) -> void:
 				if aimed_up:
 					kind = "axe0"                            # aimed up: the rising slash
 			elif kind == "club":
-				_combo = (_combo + 1) % 3 if _combo_t < 0.45 else 0
-				kind = ["club", "club1", "club2"][_combo]
+				# the chain: BONK, uppercut, SMASH... and the 4th, the CYCLONE
+				_combo = (_combo + 1) % 4 if _combo_t < 0.45 else 0
+				kind = ["club", "club1", "club2", "cyclone"][_combo]
 				if aimed_up:
-					kind = "club1"                           # aimed up (or up and across): the uppercut
+					kind = "club1"                           # aimed up (or up and across): the uppercut, a LAUNCHER
+				elif _combo == 0 and is_on_floor() and absf(velocity.x) > SPEED * 0.85:
+					# HIT at a full run: the RAM, a charge right through them
+					kind = "ram"
+					velocity.x = float(facing) * 680.0
+					_kick_lock = 0.22
+					_say_word("RAM!", Color("ffd36b"))
 				elif kind == "club2":
 					velocity.x += float(facing) * 140.0      # a step into the finisher
+				elif kind == "cyclone":
+					_say_word("CYCLONE!", Color("bfe6ff"))
 			_start_swing(kind)
 		else:
 			attack_cd = 0.3
@@ -995,6 +1019,21 @@ func _apply_swing() -> void:
 			# every blow lands with a little freeze-frame: heavier swings, longer
 			var heavy := _swing_kind in ["club2", "axe2", "hammer", "homerun"]
 			Critter.slow_time(get_tree(), 0.05 if heavy else 0.03, 0.06 if heavy else 0.04)
+		if crit and is_instance_valid(area) and (area as Critter).dying <= 0.0:
+			var cr := area as Critter
+			if _swing_kind == "club1" and _swing_aim.y < -0.3 and not cr.airborne and is_on_floor() and cr.can_launch():
+				# the LAUNCHER: up it goes — jump after it!
+				cr.launch(-580.0)                 # ~150 px up, a floaty arc: a jump (or two) to chase it
+				_juggles = 0
+				_say_word("LAUNCH!", Color("bfe6ff"))
+			elif not is_on_floor() and cr.airborne and _swing_kind != "spike":
+				# a JUGGLE: hit it again up there and it stays up; so does he, a little
+				cr.launch(-430.0)
+				velocity.y = minf(velocity.y, -260.0)
+				_juggles += 1
+				_say_word("JUGGLE x%d!" % _juggles, Color("ffe066"))
+			elif _swing_kind == "spike" and cr.airborne:
+				cr.slam()                         # SLAM DUNK: straight down into the ground
 		if _swing_kind == "spike" and (crit or area is Treasure.Breakable):
 			# the POGO: off its head and back up, the air jump given back
 			velocity.y = -640.0
@@ -1048,6 +1087,7 @@ func _charge_ready() -> float:
 func _start_swing(kind: String) -> void:
 	var sw: Array = SWINGS[kind]
 	_swing_kind = kind
+	_cyc_q = -1
 	_swing_time = sw[0]
 	attacking = sw[0]
 	attack_cd = sw[1]
@@ -1488,6 +1528,8 @@ func _drop_carried() -> void:
 ## Where a swing or a throw goes: the arrows, 8 ways (UP + RIGHT = 45 degrees
 ## up and right), straight ahead if no up or down is held. (SPACE jumps.)
 var _swing_aim := Vector2.RIGHT
+var _cyc_q := -1             ## which quarter of the cyclone it is in
+var _juggles := 0            ## hits on a beast held up in the air
 var _throw_aim := Vector2.RIGHT
 
 
@@ -1905,6 +1947,8 @@ func _paint() -> void:
 	if flip_t > 0.0:
 		lean = 0.5 * curl - 0.1 * open_k      # curled forward into the ball
 	lean = lerpf(lean, 0.16, spear)                                  # driving forward into the dive
+	if attacking > 0.0 and _swing_kind == "ram":
+		lean += 0.32                                                  # head down, charging
 	if attacking > 0.0 and _swing_kind == "dig" and has_stick:
 		# digging: stretched up for the lift, hunched over the blow
 		var dp := 1.0 - attacking / _swing_time
@@ -2439,6 +2483,18 @@ func _paint() -> void:
 				trail = -(1.0 - q) * 0.9
 				reach = 60.0
 				smear_col = Color(Pal.BONE, 0.45)
+			"cyclone":
+				# round and round: the club whirls twice right round him, a blur
+				ang = -PI * 0.5 + sp * TAU * 2.0
+				trail = 0.9
+				reach = 54.0
+				smear_col = Color("bfe6ff", 0.55)
+			"ram":
+				# the charge: the club driven straight out in front like a battering ram
+				ang = lerpf(-0.35, 0.12, minf(sp / 0.3, 1.0))
+				trail = 0.15
+				reach = 64.0
+				smear_col = Color("ffd36b", 0.5)
 			_:
 				# the club: a quick overhead bonk
 				if sp < 0.24:
@@ -2456,7 +2512,7 @@ func _paint() -> void:
 		var span := 0.75 * signf(trail if trail != 0.0 else 1.0)
 		for i in 7:
 			smear.append(sh + Vector2.from_angle(ca - span + i * (span / 6.0)) * (reach + 100.0))
-		_pl(smear, smear_col, 9.0 if _swing_kind in ["hammer", "homerun", "axe2"] else 7.0, true)
+		_pl(smear, smear_col, 9.0 if _swing_kind in ["hammer", "homerun", "axe2", "cyclone", "ram"] else 7.0, true)
 		_arm(sh, el, hd, 13.0, false)
 		_club(hd - Vector2.from_angle(ca) * 12.0, hd + Vector2.from_angle(ca) * 112.0, 7.0, 26.0)
 		_fist(hd)

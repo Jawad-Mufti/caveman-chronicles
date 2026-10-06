@@ -67,7 +67,7 @@ class Insect extends Critter:
 					# Only commits when he is roughly level with it. Before this it
 					# would wind up at a player standing far above, dash, fall short,
 					# and then creep back up — which is what looked so wrong.
-					if absf(dx) < 300.0 and absf(dy) < 120.0 and timer <= 0.0:
+					if absf(dx) < 300.0 and absf(dy) < 120.0 and timer <= 0.0 and Critter.may_attack(self, 1600):
 						state = "wind"
 						timer = 0.45
 				global_position = global_position.move_toward(home, 105.0 * delta)
@@ -93,6 +93,7 @@ class Insect extends Critter:
 				global_position += vel * delta
 				if timer <= 0.0:
 					state = "rest"
+					Critter.attack_done(self)       # the dive is done: the next one may go
 					timer = 1.5
 			"rest":
 				# It STAYS where the lunge left it and settles there. Flying back
@@ -103,6 +104,7 @@ class Insect extends Critter:
 				global_position += vel * delta
 				if timer <= 0.0:
 					_settle()
+					Critter.attack_done(self)
 					state = "hover"
 					timer = 1.0
 

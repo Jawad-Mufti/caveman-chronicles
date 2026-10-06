@@ -27,6 +27,9 @@ const POWERS := [
 const MOVES := [
 	["strike", "CLUB SWING", "Whack whatever is in reach. HOLD it to keep swinging: BONK, uppercut, SMASH, again and again. Hold UP to swing straight up, UP + LEFT or RIGHT to swing at 45 degrees. Every hit in a row builds your COMBO, and a big combo hits harder!", "J (hold)  +  arrows to aim", ""],
 	["pogo", "POGO STRIKE", "In the air, hold DOWN and HIT: the club stabs straight down. Hit a beast and you BOUNCE off its head, with your air jump back. Keep bouncing!", "in the air: DOWN + J", ""],
+	["cyclone", "CYCLONE", "Keep the swings coming: BONK, uppercut, SMASH... and the FOURTH is the CYCLONE, the club whirling right round you twice, hitting everything on BOTH sides, again and again.", "J  x4  (or hold)", ""],
+	["ram", "RAM", "Run flat out and HIT: you charge like a mammoth, club out in front, right through everything in the way.", "run + J", ""],
+	["launch", "LAUNCH, JUGGLE, SLAM DUNK", "UP + HIT knocks a beast high into the AIR (LAUNCH!). Jump after it and HIT it up there to keep it flying (JUGGLE!). Then DOWN + HIT drives it into the ground: SLAM DUNK!! and everything near goes flying.", "UP + J, jump, J, DOWN + J", ""],
 	["throw", "STONE TOSS", "Pick up rocks on the way, then throw them at things that bite back. Aim with the arrows: UP throws straight up, UP + RIGHT at 45 degrees, DOWN (in the air) down. A rock BONKS a beast and bounces off to hit another; it CLACKS off rock and bounces.", "K  +  arrows to aim", ""],
 	["grab", "GRAB & BOWL", "BONK a beast and it sees stars. While they spin, press THROW next to it: he lifts it right over his head! THROW (or HIT) again and he bowls it along the ground: everything in the way goes flying. STRIKE!", "J, then K, then K", ""],
 	["leap", "HERCULES LEAP", "Jump, then jump again in mid-air: a somersault, then the spear pose and a softer fall.", "SPACE  twice", ""],
@@ -59,7 +62,7 @@ static func colour(id: String) -> Color:
 ## Is it his yet? Some come with the level, some are learned once and saved.
 static func unlocked(id: String, p: CaveMan) -> bool:
 	match id:
-		"strike", "pogo", "throw", "grab", "leap", "stomp", "dash", "dig":
+		"strike", "pogo", "cyclone", "ram", "launch", "throw", "grab", "leap", "stomp", "dash", "dig":
 			return true
 		"homerun":
 			return p == null or p.has_stick
@@ -129,6 +132,34 @@ static func draw_symbol(b: Batch, id: String, c: Vector2, r: float, col: Color, 
 				b.circle(tip + Vector2.from_angle(i * 2.1 + 0.4) * 9.0 * k, 3.5 * k, dk, 8)
 			for i in 3:
 				b.arc(base, (48.0 + i * 12.0) * k, a - 2.2, a - 1.2, 10, Color(col, 0.75 - i * 0.2), 3.0 * k)
+		"cyclone":
+			# a club whirling round, a ring of blur
+			var a0 := t * 9.0
+			for i in 3:
+				b.arc(c, (30.0 + i * 8.0) * k, a0 + i * 0.6, a0 + i * 0.6 + 2.6, 12, Color(col, 0.75 - i * 0.2), 4.0 * k)
+			var tip := c + Vector2.from_angle(a0 + 2.6) * 34.0 * k
+			b.line(c, tip, dk, w * 2.2)
+			b.line(c, tip, col, w * 1.4)
+			b.circle(tip, 9.0 * k, col, 12)
+		"ram":
+			# a club thrust ahead, speed lines streaming back
+			var x := c.x + (sin(t * 6.0) * 6.0 - 6.0) * k
+			b.line(Vector2(x - 30.0 * k, c.y), Vector2(x + 34.0 * k, c.y), dk, w * 2.4)
+			b.line(Vector2(x - 30.0 * k, c.y), Vector2(x + 34.0 * k, c.y), col, w * 1.6)
+			b.circle(Vector2(x + 36.0 * k, c.y), 11.0 * k, col, 12)
+			for i in 3:
+				var y := c.y + (-16.0 + i * 16.0) * k
+				b.line(Vector2(x - 54.0 * k, y), Vector2(x - 36.0 * k, y), Color(col, 0.6), 3.0 * k)
+		"launch":
+			# a beast flying up, a dotted arc, then the down-arrow of the slam
+			var q := fmod(t * 0.8, 1.0)
+			var by := c.y + (30.0 - sin(q * PI) * 60.0) * k
+			b.circle(Vector2(c.x - 10.0 * k, by), 11.0 * k, dk, 12)
+			b.circle(Vector2(c.x - 10.0 * k, by), 8.0 * k, col, 12)
+			for i in 4:
+				b.circle(Vector2(c.x - 10.0 * k, c.y + (34.0 - i * 16.0) * k), 2.2 * k, Color(col, 0.5), 6)
+			b.line(c + Vector2(24, -26) * k, c + Vector2(24, 18) * k, col, 4.0 * k)
+			b.tri(c + Vector2(16, 14) * k, c + Vector2(32, 14) * k, c + Vector2(24, 28) * k, col)
 		"pogo":
 			# a club stabbing straight down onto a head, and the bounce back up
 			var q := fmod(t * 1.2, 1.0)

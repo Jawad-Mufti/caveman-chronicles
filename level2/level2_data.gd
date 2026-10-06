@@ -245,6 +245,18 @@ const WOLVES := [
 	[2915.0, 3335.0, 3120.0, 700.0], [2915.0, 3335.0, 3220.0, 700.0], [2915.0, 3335.0, 3310.0, 700.0],
 	[24890.0, 25300.0, 25050.0, GROUND_Y], [24890.0, 25300.0, 25200.0, GROUND_Y],
 ]
+## AMBUSHES (level2/ambush.gd): walk into the stretch and beasts burst out at
+## him, one after another; beat them all for a burst of Spirit Orbs. Every visit.
+## ESCALATION: the further along, the harder (tier 1-5 from x: more beasts, waves, elites).
+## [x0, x1, floor y, [kinds: wolf skeleton rat bat], the line on the HUD]
+const AMBUSHES := [
+	[3420.0, 3950.0, 600.0, ["wolf", "bat", "wolf"], "Eyes in the bushes... AMBUSH!"],
+	[8350.0, 8750.0, 830.0, ["skeleton", "skeleton"], "The bones of the Great Cavern stir..."],
+	[15250.0, 15900.0, 600.0, ["skeleton", "skeleton", "skeleton"], "The graveyard... the bones are MOVING!"],
+	[12090.0, 12440.0, 600.0, ["wolf", "wolf", "bat"], "Out on the open Steppe... nowhere to hide!"],
+	[25400.0, 26300.0, 600.0, ["wolf", "wolf", "bat", "wolf"], "The pack was lying in wait!"],
+	[28420.0, 28880.0, 600.0, ["skeleton", "bat", "rat", "skeleton"], "In the last of the light... the dead walk!"],
+]
 const BAT_HOVER := 70.0
 ## [x, the surface this bat belongs to]
 const BATS := [[1880.0, GROUND_Y], [2360.0, 400.0], [35635.0, 700.0], [36840.0, 700.0, 240.0]]

@@ -59,6 +59,7 @@ var _fight := false
 var _scar_beaten := false
 var _met_toolmaker := false
 var moss: Friends.Moss
+const AMBUSH := preload("res://level2/ambush.gd")
 var nutmeg: Friends.Nutmeg
 var _met_nutmeg := false     ## heard about the stolen stone: Old Bongo gets asked about it
 var _near_toolmaker := false
@@ -265,8 +266,19 @@ func _build_critters() -> void:
 		if b.size() > 2:
 			bat.roam_x = b[2]
 		add_child(bat)
+	for a in AMBUSHES:
+		var amb := AMBUSH.new()
+		amb.x0 = a[0]
+		amb.x1 = a[1]
+		amb.floor_y = a[2]
+		amb.kinds = a[3]
+		amb.line = a[4]
+		amb.tier = AMBUSH.tier_at(float(a[0]), LEVEL_W)       # deeper in, harder
+		if float(a[0]) > MOUNTAIN_AT.x and float(a[1]) < 12080.0:
+			amb.terrain = mountain              # inside the mountain: on its floors
+		add_child(amb)
 
-	_note(980, "Eyes in the dark. Bright fire keeps them back.", 4.5)
+	_note(980,"Eyes in the dark. Bright fire keeps them back.", 4.5)
 	_note(1170, "Dead tree. Dry as a bone. Bonk it for wood!", 3.5)
 	_note(2700, "Three wolves down there. Time for FIRE.", 4.0)
 	_note(3800, "Vines over a gorge! Swing high — let go at the TOP.", 5.0)

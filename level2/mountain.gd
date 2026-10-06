@@ -267,6 +267,7 @@ class RisenSkeleton extends Critter:
 	var t := 0.0
 	var _tst := 0.0                ## time in this state
 	var _swung := false
+	var _throw_cd := 1.5
 	const HP := 4
 	const WAKE := 260.0
 	const SPEED := 70.0
@@ -309,14 +310,30 @@ class RisenSkeleton extends Critter:
 					_go("walk")
 			"walk":
 				damage = 1
+				_throw_cd = maxf(_throw_cd - delta, 0.0)
 				if dx != 0.0:
 					dir = 1 if dx > 0.0 else -1
-				if absf(dx) < 70.0 and near:
+				var level_with := player != null and absf(player.global_position.y - global_position.y) < 90.0
+				# close by, it asks for its turn; given it, it closes in for the swing
+				var mine := Critter._attackers.has(get_instance_id())
+				if not mine and near and absf(dx) < 170.0:
+					mine = Critter.may_attack(self, 1800)
+				if mine and absf(dx) < 70.0:
 					_go("swing")
 					_swung = false
+					tell("!")
+				elif not mine and absf(dx) > 170.0 and absf(dx) < 460.0 and level_with and _throw_cd <= 0.0 and Critter.may_attack(self, 1500):
+					# from range: a spinning bone, flung at him; it comes back
+					_go("throw")
+					_swung = false
+					tell("!")
 				else:
-					var sp := SPEED * (1.0 if near else 0.4)
-					position.x = clampf(position.x + dir * sp * delta, left_x, right_x)
+					# not its turn: it keeps its distance, rattling, edging in and out
+					var want := 0.0 if mine else 130.0
+					var gap := absf(dx) - want
+					var step := dir * SPEED * (1.0 if near else 0.4) * (1.0 if gap > 0.0 else -0.6)
+					if absf(gap) > 12.0:
+						position.x = clampf(position.x + step * delta, left_x, right_x)
 					_snap()
 			"swing":
 				# raised... and down: the blow lands at 0.45 s
@@ -325,6 +342,20 @@ class RisenSkeleton extends Critter:
 					if player != null and absf(dx) < 85.0 and absf(player.global_position.y - global_position.y) < 90.0:
 						player.hurt(1, global_position.x)
 				if _tst > 0.9:
+					Critter.attack_done(self)
+					_go("walk")
+			"throw":
+				# wound back... and flung at 0.5 s
+				if not _swung and _tst > 0.5:
+					_swung = true
+					var bone := BoneBoomerang.new()
+					bone.owner_skel = self
+					bone.target_x = player.global_position.x if player != null else global_position.x + dir * 300.0
+					bone.position = global_position + Vector2(dir * 18.0, -60.0)
+					get_parent().add_child(bone)
+				if _tst > 0.8:
+					_throw_cd = randf_range(2.5, 4.0)
+					Critter.attack_done(self)
 					_go("walk")
 			"down":
 				damage = 0
@@ -350,6 +381,7 @@ class RisenSkeleton extends Critter:
 			revives -= 1
 			hp = 0
 			flash = 0.15
+			Critter.attack_done(self)
 			_go("down")
 			var pop := Critter.DeathPop.new()
 			pop.dust = true
@@ -412,6 +444,9 @@ class RisenSkeleton extends Critter:
 		var up := Vector2(-6, -24)
 		var down := Vector2(24, 12)
 		var hand := sh + rest
+		if state == "throw":
+			# the throwing arm: wound back behind the skull, then flung forward
+			hand = sh + (rest.lerp(Vector2(-22, -20), clampf(_tst / 0.4, 0.0, 1.0)) if _tst < 0.5 else Vector2(28, -6))
 		if state == "swing":
 			if _tst < 0.45:
 				hand = sh + rest.lerp(up, clampf(_tst / 0.35, 0.0, 1.0))
@@ -434,3 +469,70 @@ class RisenSkeleton extends Critter:
 				_cc(head + Vector2(e + 1.5, -1), 1.8, EYE)
 		_cc(head + Vector2(1.5, 4), 1.4, Color("1a120c"))
 		_st()
+
+
+## A bone flung by a risen skeleton: it spins out toward where he stood, hangs,
+## and whirls back to the hand that threw it. It hurts on the way out AND back,
+## so he jumps it — or bats it away with a swing (it breaks).
+class BoneBoomerang extends Area2D:
+	var owner_skel: Node2D
+	var target_x := 0.0
+	var t := 0.0
+	var _from := Vector2.ZERO
+	var _hit := false
+
+	func _ready() -> void:
+		z_index = 4
+		_from = position
+		collision_layer = 4               # his swing can knock it out of the air
+		collision_mask = 0
+		var cs := CollisionShape2D.new()
+		var c := CircleShape2D.new()
+		c.radius = 16.0
+		cs.shape = c
+		add_child(cs)
+
+	func take_hit(_dmg: int, _from_dir: int) -> void:
+		FX.shards(get_parent(), global_position, Vector2(0, -1), false)
+		var w := Treasure.FloatText.new()
+		w.text = "CRACK!"
+		w.position = global_position + Vector2(-20, -30)
+		get_parent().add_child(w)
+		queue_free()
+
+	func _physics_process(delta: float) -> void:
+		t += delta
+		var back: Vector2 = owner_skel.global_position + Vector2(0, -60) if is_instance_valid(owner_skel) else _from
+		var out := Vector2(target_x, _from.y + 10.0)
+		var pos: Vector2
+		if t < 0.7:
+			# out: fast, easing to a hang at the far end
+			var q := 1.0 - pow(1.0 - t / 0.7, 2.0)
+			pos = _from.lerp(out, q) + Vector2(0, -sin(q * PI) * 40.0)
+		else:
+			# and back: faster and faster
+			var q2 := clampf((t - 0.7) / 0.6, 0.0, 1.0)
+			pos = out.lerp(back, q2 * q2)
+			if q2 >= 1.0 or t > 1.6:
+				queue_free()
+				return
+		global_position = pos
+		rotation += delta * 18.0
+		var p := get_tree().get_first_node_in_group("player") as CaveMan
+		if p != null and not p.dead and p.global_position.distance_to(global_position + Vector2(0, 30)) < 34.0:
+			p.hurt(1, global_position.x)
+		queue_redraw()
+
+	func _draw() -> void:
+		var b := Batch.new()
+		var bone := Color("e6dcc4")
+		var dk := Color("3a3226")
+		b.line(Vector2(-16, 0), Vector2(16, 0), dk, 9.0)
+		b.line(Vector2(-16, 0), Vector2(16, 0), bone, 6.0)
+		for e in [Vector2(-16, 0), Vector2(16, 0)]:
+			for s in [-1.0, 1.0]:
+				b.circle(e + Vector2(0, s * 4.0), 5.0, dk, 10)
+				b.circle(e + Vector2(0, s * 4.0), 3.6, bone, 10)
+		# a whoosh ring as it spins
+		b.arc(Vector2.ZERO, 22.0, 0.0, 2.2, 10, Color(1, 1, 1, 0.35), 3.0)
+		b.draw(self)
