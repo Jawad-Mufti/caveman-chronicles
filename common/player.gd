@@ -250,7 +250,7 @@ var _vine_a := 0.0        ## angle from straight down
 var _vine_w := 0.0        ## angular speed
 var _vine_cd := 0.0       ## brief no-regrab of the vine he just let go of
 var _last_vine: Node2D = null
-var touch := {"left": false, "right": false, "jump": false, "attack": false, "heal": false, "throw": false, "fire": false, "talk": false, "special": false}
+var touch := {"left": false, "right": false, "jump": false, "attack": false, "heal": false, "throw": false, "fire": false, "talk": false, "special": false, "up": false}
 
 var _jump_prev := false
 var _attack_prev := false
@@ -661,6 +661,9 @@ func _physics_process(delta: float) -> void:
 			_hit_shape.position = Vector2(facing * 6.0, 14.0)     # the ground under his feet
 		else:
 			digging_down = false
+	if armed and attacking > 0.0 and _swing_aim.y < -0.3 and not _swing_kind in ["dig", "spike", "homerun", "hammer"]:
+		# aimed up, or up and across at 45 degrees: the blow lands there
+		_hit_shape.position = Vector2(_swing_aim.x * 46.0, -58.0 + _swing_aim.y * 52.0)
 	if armed:
 		_hit_box.size = CLUB_BOX * (1.5 if _swing_kind == "homerun" and attacking > 0.0 else 1.0)
 	else:
@@ -735,8 +738,6 @@ func _physics_process(delta: float) -> void:
 			_jumps_left = MAX_JUMPS - 1
 
 	var jump_now: bool = Input.is_physical_key_pressed(KEY_SPACE) \
-		or Input.is_physical_key_pressed(KEY_W) \
-		or Input.is_physical_key_pressed(KEY_UP) \
 		or touch["jump"]
 
 	# jump buffer: remember a press so an early tap still fires on landing
@@ -800,14 +801,20 @@ func _physics_process(delta: float) -> void:
 			_start_swing("spike")
 		elif has_stick and not axe_out:
 			var kind := _weapon()
+			_swing_aim = aim()
+			var aimed_up := _swing_aim.y < -0.3
 			if kind == "axe":
 				# slash, back-slash, CHOP — if the taps come quickly enough
 				_combo = (_combo + 1) % 3 if _combo_t < 0.45 else 0
 				kind = "axe%d" % _combo
+				if aimed_up:
+					kind = "axe0"                            # aimed up: the rising slash
 			elif kind == "club":
 				_combo = (_combo + 1) % 3 if _combo_t < 0.45 else 0
 				kind = ["club", "club1", "club2"][_combo]
-				if kind == "club2":
+				if aimed_up:
+					kind = "club1"                           # aimed up (or up and across): the uppercut
+				elif kind == "club2":
 					velocity.x += float(facing) * 140.0      # a step into the finisher
 			_start_swing(kind)
 		else:
@@ -1119,8 +1126,7 @@ func _swing(delta: float, dir: float) -> void:
 	var grip: Vector2 = vine.global_position + Vector2(sin(_vine_a), cos(_vine_a)) * length
 	global_position = grip + Vector2(0, HANG)
 	vine.angle = _vine_a
-	var jump_now: bool = Input.is_physical_key_pressed(KEY_SPACE) or Input.is_physical_key_pressed(KEY_W) \
-		or Input.is_physical_key_pressed(KEY_UP) or touch["jump"]
+	var jump_now: bool = Input.is_physical_key_pressed(KEY_SPACE) or touch["jump"]       # (UP / W aim now; SPACE jumps)
 	if jump_now and not _jump_prev:
 		var tangent := Vector2(cos(_vine_a), -sin(_vine_a)) * _vine_w * length
 		# a vine on something that moves (a flying rock): he keeps its speed too,
@@ -1261,8 +1267,13 @@ func throw_rock() -> bool:
 	rocks_changed.emit(rocks)
 	throwing = 0.28
 	var r := World.ThrownRock.new()
-	r.position = global_position + Vector2(20.0 * facing, -44)
-	r.vel = Vector2(THROW_SPEED * facing, -140.0)
+	_throw_aim = aim()
+	r.position = global_position + Vector2(20.0 * facing, -44) + _throw_aim * 8.0
+	r.thrower = self
+	if _throw_aim.y == 0.0:
+		r.vel = Vector2(THROW_SPEED * facing, -140.0)          # straight ahead: the usual little lob
+	else:
+		r.vel = _throw_aim * THROW_SPEED * 1.1                 # aimed: up, 45 degrees, or down
 	get_parent().add_child(r)
 	return true
 
@@ -1471,6 +1482,27 @@ func _drop_carried() -> void:
 		carrying.global_position = global_position + Vector2(facing * 34.0, 0)
 		carrying.set_physics_process(true)
 	carrying = null
+
+
+## ------------------------------------------------------------ AIMING
+## Where a swing or a throw goes: the arrows, 8 ways (UP + RIGHT = 45 degrees
+## up and right), straight ahead if no up or down is held. (SPACE jumps.)
+var _swing_aim := Vector2.RIGHT
+var _throw_aim := Vector2.RIGHT
+
+
+func aim() -> Vector2:
+	var up: bool = Input.is_physical_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_W) or touch.get("up", false)
+	var down: bool = Input.is_physical_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_S) or touch.get("down", false)
+	var h := 0.0
+	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT) or touch["left"]:
+		h -= 1.0
+	if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT) or touch["right"]:
+		h += 1.0
+	var v := -1.0 if up and not down else (1.0 if down and not up else 0.0)
+	if v == 0.0:
+		return Vector2(float(facing), 0.0)
+	return Vector2(h, v).normalized()
 
 
 ## ------------------------------------------------------------ THE COMBO
@@ -2323,7 +2355,9 @@ func _paint() -> void:
 			_cc(bh + Vector2(16, 0), 11.0, Color(Pal.BONE, 0.5))
 	elif throwing > 0.0:
 		var q := 1.0 - throwing / 0.28
-		var ta := -2.6 + (1.0 - pow(1.0 - q, 3.0)) * 2.4
+		# overhand, ending pointed the way he aimed (ahead, up, 45 degrees, down)
+		var end_a := atan2(_throw_aim.y, absf(_throw_aim.x)) - 0.2
+		var ta := lerpf(-2.6, end_a, 1.0 - pow(1.0 - q, 3.0))
 		var reach := 48.0 + q * 14.0
 		var hd := sh + Vector2.from_angle(ta) * reach
 		var el := sh + Vector2.from_angle(ta) * reach * 0.5 + Vector2.from_angle(ta - PI * 0.5) * 9.0
@@ -3289,8 +3323,12 @@ func shoot_fireball() -> bool:
 	_shot_hand = 1 - _shot_hand
 	throwing = 0.14
 	var fb := Sunfire.Fireball.new()
+	_throw_aim = aim()
 	fb.position = global_position + Vector2(26.0 * facing, -48.0 + _shot_hand * 10.0)
-	fb.vel = Vector2(1000.0 * facing + velocity.x * 0.3, (_shot_hand * 2.0 - 1.0) * 18.0)
+	if _throw_aim.y == 0.0:
+		fb.vel = Vector2(1000.0 * facing + velocity.x * 0.3, (_shot_hand * 2.0 - 1.0) * 18.0)
+	else:
+		fb.vel = _throw_aim * 1000.0                           # aimed, like a rock
 	get_parent().add_child(fb)
 	return true
 

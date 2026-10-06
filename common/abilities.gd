@@ -25,9 +25,9 @@ const POWERS := [
 
 ## [id, name, how to do it, keys, how to unlock it]
 const MOVES := [
-	["strike", "CLUB SWING", "Whack whatever is in reach. HOLD it to keep swinging: BONK, uppercut, SMASH, again and again. Every hit in a row builds your COMBO, and a big combo hits harder!", "J  or  HIT  (hold)", ""],
+	["strike", "CLUB SWING", "Whack whatever is in reach. HOLD it to keep swinging: BONK, uppercut, SMASH, again and again. Hold UP to swing straight up, UP + LEFT or RIGHT to swing at 45 degrees. Every hit in a row builds your COMBO, and a big combo hits harder!", "J (hold)  +  arrows to aim", ""],
 	["pogo", "POGO STRIKE", "In the air, hold DOWN and HIT: the club stabs straight down. Hit a beast and you BOUNCE off its head, with your air jump back. Keep bouncing!", "in the air: DOWN + J", ""],
-	["throw", "STONE TOSS", "Pick up rocks on the way, then throw them at things that bite back.", "K  or  THROW", ""],
+	["throw", "STONE TOSS", "Pick up rocks on the way, then throw them at things that bite back. Aim with the arrows: UP throws straight up, UP + RIGHT at 45 degrees, DOWN (in the air) down. A rock BONKS a beast and bounces off to hit another; it CLACKS off rock and bounces.", "K  +  arrows to aim", ""],
 	["grab", "GRAB & BOWL", "BONK a beast and it sees stars. While they spin, press THROW next to it: he lifts it right over his head! THROW (or HIT) again and he bowls it along the ground: everything in the way goes flying. STRIKE!", "J, then K, then K", ""],
 	["leap", "HERCULES LEAP", "Jump, then jump again in mid-air: a somersault, then the spear pose and a softer fall.", "SPACE  twice", ""],
 	["stomp", "METEOR STOMP", "Jump, then press T: he spins into a ball and drops like a meteor â STOMP! Beasts go flat and cracked slabs in the ground break open. Double-jump first for a MEGA STOMP: the only thing that breaks a gold rune seal.", "jump + T  Â·  double jump + T", ""],

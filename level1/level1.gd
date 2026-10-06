@@ -106,7 +106,7 @@ func _ready() -> void:
 	_build_player(Vector2(140, GROUND_Y))
 	_build_critters()
 	_build_hud()
-	hud.say("A and D to move. Space to jump. J to swing, K to throw. Drop on small things to crush them.", 6.0)
+	hud.say("A and D to move. Space to jump. J to swing, K to throw: hold UP (and a side) to aim up or at 45 degrees. Drop on small things to crush them.", 7.0)
 
 
 func _build_background() -> void:

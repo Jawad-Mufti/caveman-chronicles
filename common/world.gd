@@ -595,10 +595,18 @@ class SpringBush extends Area2D:
 
 class ThrownRock extends Area2D:
 	var _pen: Batch             ## its picture, collected into one draw call
-	## A rock in flight. Hits critters only, arcs under gravity, dies on contact.
+	## A rock in flight, thrown the way he aims. It arcs under gravity. A beast
+	## it hits gets a BONK, chips and sparks fly off the way it was going, and
+	## the rock RICOCHETS up and off (it can catch a second one). Ground and
+	## walls: a CLACK, chips spraying off, and it bounces, a couple of times,
+	## before it shatters.
 	var vel := Vector2.ZERO
 	var life := 2.2
 	var spin := 0.0
+	var thrower: Node = null      ## (CaveMan) for the combo
+	var _bounces := 0
+	var _hits := 0
+	var _no_hit := 0.0            ## just ricocheted off something: not that again at once
 
 	func _ready() -> void:
 		collision_layer = 0
@@ -612,18 +620,63 @@ class ThrownRock extends Area2D:
 
 	func _physics_process(delta: float) -> void:
 		life -= delta
+		_no_hit = maxf(_no_hit - delta, 0.0)
 		vel.y += 900.0 * delta
-		position += vel * delta
-		spin += delta * 14.0
-		for a in get_overlapping_areas():
-			if a.has_method("take_hit"):
-				a.take_hit(3, signi(int(vel.x)))
-				queue_free()
+		var from := global_position
+		var to := from + vel * delta
+		spin += delta * (6.0 + vel.length() * 0.02) * signf(vel.x if vel.x != 0.0 else 1.0)
+		# the ground or a wall: bounce off it, chips flying
+		var q := PhysicsRayQueryParameters2D.create(from, to, 1)
+		var hit := get_world_2d().direct_space_state.intersect_ray(q)
+		if not hit.is_empty():
+			var n: Vector2 = hit["normal"]
+			var at: Vector2 = hit["position"]
+			var fast := vel.length() > 380.0
+			FX.shards(get_parent(), at, vel.bounce(n), fast)
+			if fast:
+				_word("CLACK!", at)
+			_bounces += 1
+			vel = vel.bounce(n) * 0.45
+			global_position = at + n * 6.0
+			if _bounces >= 3 or vel.length() < 150.0:
+				_shatter()
 				return
+		else:
+			global_position = to
+		if _no_hit <= 0.0:
+			for a in get_overlapping_areas():
+				if a.has_method("take_hit"):
+					var d := signi(int(vel.x))
+					a.take_hit(3, d if d != 0 else 1)
+					FX.shards(get_parent(), global_position, vel, true)
+					_word("BONK!", global_position)
+					Critter.slow_time(get_tree(), 0.04, 0.05)
+					if a is Critter and thrower != null and thrower.has_method("combo_hit"):
+						thrower.combo_hit()
+					_hits += 1
+					if _hits >= 2:
+						_shatter()
+						return
+					# the ricochet: up and back off it
+					vel = Vector2(-vel.x * 0.35, -340.0)
+					_no_hit = 0.25
+					break
 		if life <= 0.0:
-			queue_free()
+			_shatter()
 			return
 		queue_redraw()
+
+	## Spent: it breaks into gravel.
+	func _shatter() -> void:
+		FX.shards(get_parent(), global_position, Vector2(0, -1), false)
+		FX.burst(get_parent(), global_position, "dust", 0.0)
+		queue_free()
+
+	func _word(text: String, at: Vector2) -> void:
+		var w := Treasure.FloatText.new()
+		w.text = text
+		w.position = at + Vector2(-20, -30)
+		get_parent().add_child(w)
 
 	func _draw() -> void:
 		_pen = Batch.new()

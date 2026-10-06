@@ -163,6 +163,48 @@ static func burst(parent: Node, at: Vector2, kind: String, dir: float = 0.0) -> 
 	p.finished.connect(p.queue_free)
 
 
+## A rock smacking into something: chips of stone and hot sparks flying off
+## the way it was going (`dir`), spread in a cone, falling under gravity.
+static func shards(parent: Node, at: Vector2, dir: Vector2, big := false) -> void:
+	if parent == null or not parent.is_inside_tree():
+		return
+	var d := dir.normalized() if dir.length() > 0.01 else Vector2.UP
+	for k in 2:
+		var p := CPUParticles2D.new()
+		p.texture = dot()
+		p.one_shot = true
+		p.explosiveness = 1.0
+		p.local_coords = false
+		p.position = at
+		p.direction = d
+		p.gravity = Vector2(0, 1100)
+		if k == 0:
+			# chips of stone
+			p.amount = 14 if big else 9
+			p.lifetime = 0.6
+			p.spread = 50.0
+			p.initial_velocity_min = 160.0
+			p.initial_velocity_max = 380.0
+			p.angular_velocity_min = -600.0
+			p.angular_velocity_max = 600.0
+			p.scale_amount_min = 0.25
+			p.scale_amount_max = 0.55
+			p.color_ramp = _ramp([Color("a39a8e"), Color("7d756b"), Color(0.45, 0.42, 0.38, 0.0)])
+		else:
+			# hot sparks, faster and tighter
+			p.amount = 16 if big else 10
+			p.lifetime = 0.35
+			p.spread = 35.0
+			p.initial_velocity_min = 300.0
+			p.initial_velocity_max = 560.0
+			p.scale_amount_min = 0.12
+			p.scale_amount_max = 0.24
+			p.color_ramp = _ramp([Color(1, 1, 0.9, 1), Color(1.0, 0.8, 0.3, 1), Color(1.0, 0.4, 0.1, 0.0)])
+		parent.add_child(p)
+		p.emitting = true
+		p.finished.connect(p.queue_free)
+
+
 ## ------------------------------------------------------------------ shaders
 ## The whole silhouette flashes white when struck. Set its "flash" (0..1).
 static func flash_material() -> ShaderMaterial:
