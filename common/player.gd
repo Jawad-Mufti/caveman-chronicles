@@ -2658,7 +2658,9 @@ func _paint() -> void:
 					trail = -0.15
 				else:
 					var q := clampf((sp - 0.38) / 0.12, 0.0, 1.0)     # lands at 0.5, as the blow does
-					ang = -2.3 + q * q * 3.75
+					# the club lands slanted, its head on the ground ahead of his feet: driven
+					# straight down, planted in the dirt, it looked just like a shovel
+					ang = -2.3 + q * q * (3.75 if tool == "shovel" else 3.2)
 					trail = (1.0 - q) * 1.0
 					reach = 44.0 - 6.0 * q
 				smear_col = Color(0.85, 0.7, 0.5, 0.45)

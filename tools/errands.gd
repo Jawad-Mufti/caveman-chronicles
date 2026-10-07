@@ -101,6 +101,18 @@ func _run() -> void:
 		await frames(150)
 		check("pip: solved, two quartz", GameState.mystery("pip") == "solved" and Bag.count(p, "quartz") == 2, "quartz %d" % Bag.count(p, "quartz"))
 		await shot("pip_after")
+	# hints: Taka says what is missing; the clay says more each CLANG
+	var keep_bag := GameState.bag.duplicate()
+	p.berries = 0
+	var h1: String = e[1].nag()
+	p.berries = 1
+	GameState.bag["clay"] = 0
+	var h2: String = e[1].nag()
+	GameState.bag = keep_bag
+	check("taka hints", h1.contains("GRAPE VINES") and h2.contains("mud bank"), "%s / %s" % [h1, h2])
+	level._grid.clay_needs_shovel.emit()
+	level._grid.clay_needs_shovel.emit()
+	check("shovel hints grow", level.hud._msg.text == level.SHOVEL_HINTS[1], level.hud._msg.text)
 	# TAKA: 1 clay + 1 berry
 	p.berries = 1
 	if await errand(e[1], "rocks" if p.rocks > 0 else "flint"):

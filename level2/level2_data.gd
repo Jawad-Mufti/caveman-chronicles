@@ -734,6 +734,13 @@ const WINDY_ROCKS := [[3560.0, -260.0, 110.0, 0], [3760.0, -400.0, 120.0, 0], [3
 const WINDY_JELLY := [3470.0, -170.0, 2, 0.0]     ## under the ray's flight; it bounces him up toward the top rocks
 const WINDY_WIND := [3420.0, 4150.0, -800.0, -230.0, -240.0]   ## [x0, x1, y0, y1, strength]: not down on the Moon Garden rock below
 const BRAMBLE_AT := Vector2(3940, -640)
+## What the clay says each time he CLANGs on it without a shovel: a little more each time.
+const SHOVEL_HINTS := [
+	"Packed clay, hard as stone. A SHOVEL could cut it... Look at the old painting on the wall here!",
+	"The painting: a hunter with a shovel. Wind. Floating moon rocks. And a ball of THORNS high in the sky... with the shovel inside!",
+	"The thorns are up in the windy sky over the MOON GARDEN (the sky lane up from the Moonstep Road, at the start). Moss the sloth saw it fall.",
+	"Wet thorns won't burn for a torch. Fill the SUN (hit beasts, grab shells, sit by a fire), then use SUNFIRE on them!",
+]
 
 ## ---------------------------------------------------------------- inside the mountain
 ## (MOUNTAIN_MAP). Floors and roofs are found from the terrain itself, so

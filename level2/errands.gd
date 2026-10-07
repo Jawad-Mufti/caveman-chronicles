@@ -14,6 +14,8 @@ const WORDS := ["NONE", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX"]
 const PIP_AT := Vector2(24700, 600)     ## far side, left of the wolves' beat (24890-25300)
 const TAKA_AT := Vector2(14440, 600)    ## the Steppe, between the river and the Dig
 const OOMA_AT := Vector2(30060, 600)    ## the Long Dark, on the floor 30000-30250
+const BERRY_HINT := "Berries grow on GRAPE VINES: at the foot of the mountain, and high up at its lookout. Pick them when you're NOT hurt, or you'll gobble them up!"
+const CLAY_HINT := "Clay? Dig the dirt in the mountain, or BONK Shivers' mud bank, back at the foot of the mountain."
 
 
 static func build(level: Node) -> Array:
@@ -406,9 +408,17 @@ class Taka extends Errand:
 				["Can you walk?", [["TAKA", "Walk? I can't even wiggle my toes. Look. ...See? Nothing."]]],
 			]},
 			["TAKA", "My mother's healing salve would fix it: ONE clay to hold it on, and ONE berry to make it work. Mash them up!"],
+			["TAKA", BERRY_HINT],
+			["TAKA", CLAY_HINT],
 		]
 
 	func nag() -> String:
+		# what he is still missing, first (a hint where to find it); then just grumbling
+		var p: CaveMan = level.player
+		if p != null and p.berries <= 0:
+			return BERRY_HINT
+		if Bag.count(p, "clay") <= 0:
+			return CLAY_HINT
 		return ["Still sitting. Still sore. Still embarrassed.", "The snail came back. It LAUGHED at me.", "One clay, one berry. Please!"][randi() % 3]
 
 	func wait_line() -> String:
@@ -431,7 +441,7 @@ class Taka extends Errand:
 		return ""
 
 	func short(item: String) -> String:
-		return "No clay? Then it all just drips off my foot." if item == "clay" else "No berry? Then it's just... mud. On my foot."
+		return "No clay! Dig mountain dirt, or BONK Shivers' mud bank." if item == "clay" else "No berry! Pick grape vines when you're NOT hurt (or you eat them)."
 
 	func finish() -> void:
 		healed = true

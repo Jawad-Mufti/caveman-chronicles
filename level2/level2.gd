@@ -1041,6 +1041,7 @@ func _build_friends() -> void:
 
 var _moss_met := false
 var _moss_clue := false          ## she told him where the shovel went
+var _shovel_hint := 0            ## how many times the clay has CLANGed (SHOVEL_HINTS)
 var _talk_again := 0           ## cycles the "again" lines
 
 
@@ -2301,7 +2302,8 @@ func _build_under() -> void:
 	_grid.clay_needs_shovel.connect(func() -> void:
 		if not GameState.has_item("shovel"):
 			GameState.open_mystery("shovel")
-		hud.say("Packed clay, hard as stone. A SHOVEL could cut it... and there are old paintings on the wall.", 4.5))
+		hud.say(SHOVEL_HINTS[mini(_shovel_hint, SHOVEL_HINTS.size() - 1)], 5.5)
+		_shovel_hint += 1)
 	add_child(_grid)
 	# the mound on the crust: a MEGA STOMP opens the shaft
 	_burrow = Underground.Burrow.new()
