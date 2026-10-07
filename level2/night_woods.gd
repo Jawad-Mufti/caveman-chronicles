@@ -324,14 +324,25 @@ class FireBurst extends Node2D:
 	## everything inside it, sends what is just outside it running, catches any
 	## cold bonfire it reaches — and while it lasts it is the brightest light
 	## there is, so it lights the dark for a moment as well.
+	## The show (2026-10-08, "premium"): a white-hot FLASH and a beat of
+	## hit-stop with a shake; a SHOCKWAVE ring racing out ahead of the fire; the
+	## dome of fire in layers (ember, flame, white core) with flickering tongues;
+	## a wall of flame running along the ground; SPARKS flung out that arc and
+	## fall; SMOKE rolling up after; and a SCORCH on the ground, its cracks
+	## glowing, that cools and fades.
 	const RADIUS := 240.0
 	const DAMAGE := 6
 	const GROUND := 40.0     ## it is lit at his chest; his feet are this far below
+	const LIFE := 2.6        ## the fire is done at 1.3 s; smoke and the scorch linger
 	var t := 0.0
+	var _sparks: Array = []  ## [pos, vel, size, life]
+	var _smoke: Array = []   ## [pos, vel, radius, delay]
+	var _cracks: Array = []  ## [where, length, bend]
 
 	func _ready() -> void:
 		z_index = 5
 		add_to_group("light")
+		add_to_group("glow")
 		var from := global_position
 		for c in get_tree().get_nodes_in_group("critters"):
 			var cr := c as Critter
@@ -354,6 +365,22 @@ class FireBurst extends Node2D:
 		for w in get_tree().get_nodes_in_group("webs"):
 			if absf((w as Node2D).global_position.x - from.x) < RADIUS:
 				w.burn()
+		# the moment it goes off: a beat of hit-stop and a shake
+		Critter.slow_time(get_tree(), 0.07, 0.08)
+		var lvl := get_parent()
+		if lvl != null and lvl.has_method("shake"):
+			lvl.shake(9.0, 0.35)
+		var rng := RandomNumberGenerator.new()
+		rng.randomize()
+		for i in 46:
+			var a := rng.randf_range(PI * 1.03, TAU * 0.985)                 # up and out, not into the ground
+			var sp := rng.randf_range(260.0, 720.0)
+			_sparks.append([Vector2(0, rng.randf_range(-6, 6)), Vector2.from_angle(a) * sp, rng.randf_range(2.0, 4.6), rng.randf_range(0.6, 1.4)])
+		for i in 9:
+			var x := rng.randf_range(-RADIUS * 0.8, RADIUS * 0.8)
+			_smoke.append([Vector2(x, GROUND - 20.0), Vector2(rng.randf_range(-14, 14), rng.randf_range(-70, -40)), rng.randf_range(18, 34), rng.randf_range(0.35, 0.8)])
+		for i in 9:
+			_cracks.append([rng.randf_range(-1.0, 1.0), rng.randf_range(0.35, 0.95), rng.randf_range(-0.3, 0.3)])
 
 	func light() -> Vector4:
 		var grow := clampf(t / 0.18, 0.0, 1.0)
@@ -365,50 +392,147 @@ class FireBurst extends Node2D:
 
 	func _process(delta: float) -> void:
 		t += delta
-		if t > 1.3:
+		if t > LIFE:
 			queue_free()
 			return
-		queue_redraw()
+		for s in _sparks:
+			if float(s[3]) <= 0.0:
+				continue
+			s[1] = (s[1] as Vector2) * (1.0 - 1.6 * delta) + Vector2(0, 900.0 * delta)
+			s[0] = (s[0] as Vector2) + (s[1] as Vector2) * delta
+			s[3] = float(s[3]) - delta
+			if (s[0] as Vector2).y > GROUND:                                      # hit the ground: out
+				s[3] = 0.0
+		for m in _smoke:
+			if t > float(m[3]):
+				m[0] = (m[0] as Vector2) + (m[1] as Vector2) * delta
+				m[2] = float(m[2]) + 26.0 * delta
+		if LevelBase.near_view(self):
+			queue_redraw()
 
-	## One Batch a frame: the whole burst in one draw call instead of ~80.
+	## One Batch a frame: the whole burst in one draw call.
 	func _draw() -> void:
 		var bt := Batch.new()
 		var grow := 1.0 - pow(1.0 - clampf(t / 0.25, 0.0, 1.0), 3.0)
 		var fade := 1.0 - clampf((t - 0.3) / 0.9, 0.0, 1.0)
 		var r := RADIUS * grow
-		# A dome of fire standing on the ground, not a ring through it. The
-		# burst starts at his chest, GROUND px above his feet.
-		_dome(bt, r, Color(Pal.FLAME, 0.22 * fade))
-		_dome(bt, r * 0.55, Color(Pal.FLAME_CORE, 0.25 * fade))
-		if fade >= 0.06:
-			# tongues pointing outward
-			for i in 22:
-				var a := TAU * i / 22.0 + t * 0.6
+		_scorch(bt)
+		_smoke_puffs(bt)
+		if fade > 0.0:
+			# the dome of fire in layers: ember red outside, flame, a white-hot heart
+			_dome(bt, r, Color(Pal.EMBER, 0.20 * fade))
+			_dome(bt, r * 0.82, Color(Pal.FLAME, 0.22 * fade))
+			_dome(bt, r * 0.5, Color(Pal.FLAME_CORE, 0.28 * fade))
+			_dome(bt, r * 0.22 * (1.0 + 0.3 * sin(t * 30.0)), Color(1, 1, 0.92, 0.5 * fade))
+			# tongues licking outward from its rim, each flickering on its own
+			for i in 30:
+				var a := TAU * i / 30.0 + t * 0.7
 				var d := Vector2.from_angle(a)
-				var base := d * r * 0.9
+				var base := d * r * 0.88
 				if base.y > GROUND - 6.0:
 					continue
 				var n := Vector2(-d.y, d.x)
-				var len := maxf((34.0 + 18.0 * sin(i * 2.3 + t * 20.0)) * fade, 4.0)
-				bt.tri(base + n * 11.0, base + d * len, base - n * 11.0, Color(Pal.EMBER_GLOW, 0.9 * fade))
-				bt.tri(base + n * 6.0, base + d * len * 0.65, base - n * 6.0, Color(Pal.FLAME, fade))
-			# and a line of flame racing out along the ground under it
-			for i in 12:
-				var gx := lerpf(-r * 0.95, r * 0.95, i / 11.0)
-				var h := (26.0 + 22.0 * sin(i * 1.9 + t * 18.0)) * fade * (1.0 - absf(gx) / maxf(r, 1.0) * 0.5)
-				bt.poly(NightWoods.flame_pts(Vector2(gx, GROUND - 4.0), 9.0, maxf(h, 8.0), sin(t * 9.0 + i) * 4.0), Color(Pal.EMBER_GLOW, 0.85 * fade))
-			for i in 18:
-				var a := TAU * i / 18.0 + i * 0.4
-				var p := Vector2.from_angle(a) * (r * 0.5 + t * 160.0) + Vector2(0, -t * t * 80.0)
-				if p.y < GROUND:
-					bt.circle(p, 3.0 * fade + 0.5, Color(Pal.FLAME_CORE, fade), 6)
+				var len := maxf((40.0 + 26.0 * sin(i * 2.3 + t * 22.0)) * fade, 4.0)
+				var curl := n * sin(t * 14.0 + i) * 8.0
+				bt.tri(base + n * 12.0, base + d * len + curl, base - n * 12.0, Color(Pal.EMBER_GLOW, 0.85 * fade))
+				bt.tri(base + n * 7.0, base + d * len * 0.7 + curl * 0.7, base - n * 7.0, Color(Pal.FLAME, fade))
+				bt.tri(base + n * 3.0, base + d * len * 0.4 + curl * 0.4, base - n * 3.0, Color(Pal.FLAME_CORE, fade))
+			# a wall of flame running out along the ground under it
+			for i in 16:
+				var gx := lerpf(-r, r, i / 15.0)
+				var h := (30.0 + 26.0 * sin(i * 1.9 + t * 18.0)) * fade * (1.0 - absf(gx) / maxf(r, 1.0) * 0.45)
+				var sw := sin(t * 9.0 + i) * 5.0
+				var b0 := Vector2(gx, GROUND - 2.0)
+				bt.tri(b0 + Vector2(-11, 0), b0 + Vector2(sw, -maxf(h, 8.0)), b0 + Vector2(11, 0), Color(Pal.EMBER_GLOW, 0.85 * fade))
+				bt.tri(b0 + Vector2(-6, 0), b0 + Vector2(sw * 0.6, -maxf(h, 8.0) * 0.62), b0 + Vector2(6, 0), Color(Pal.FLAME_CORE, 0.9 * fade))
+		# the SHOCKWAVE: a thin bright ring racing out ahead of the fire
+		var sk := clampf(t / 0.42, 0.0, 1.0)
+		if sk < 1.0:
+			var sr := RADIUS * 1.55 * (1.0 - pow(1.0 - sk, 2.0))
+			var sa := 1.0 - sk
+			_ring(bt, sr, 9.0 * sa + 2.0, Color(1.0, 0.75, 0.4, 0.35 * sa))
+			_ring(bt, sr, 3.0, Color(1, 1, 0.95, 0.8 * sa))
+		# sparks: streaks along their flight
+		for s in _sparks:
+			var life: float = s[3]
+			if life <= 0.0:
+				continue
+			var p: Vector2 = s[0]
+			var v: Vector2 = s[1]
+			var k := clampf(life / 0.5, 0.0, 1.0)
+			var col := Color(1.0, 0.9, 0.5, k) if life > 0.4 else Color(Pal.EMBER_GLOW, k)
+			bt.line(p, p - v * 0.045, col, float(s[2]) + 1.0)
+		# the FLASH: white-hot, gone in a blink
+		if t < 0.16:
+			var fk := 1.0 - t / 0.16
+			bt.circle(Vector2.ZERO, 60.0 + 140.0 * (1.0 - fk), Color(1, 1, 0.9, 0.55 * fk), 24)
+			bt.circle(Vector2.ZERO, 30.0 + 40.0 * (1.0 - fk), Color(1, 1, 1, 0.9 * fk), 18)
 		bt.draw(self)
 
-	## The part of a circle above the ground line: an arc and its chord.
+	## Burnt ground under the burst: a dark patch with glowing cracks, cooling.
+	func _scorch(bt: Batch) -> void:
+		var k := clampf(t / 0.3, 0.0, 1.0) * (1.0 - clampf((t - 1.4) / 1.2, 0.0, 1.0))
+		if k <= 0.0:
+			return
+		bt.ellipse(Vector2(0, GROUND), RADIUS * 0.85, 12.0, Color(0.08, 0.04, 0.02, 0.55 * k))
+		bt.ellipse(Vector2(0, GROUND), RADIUS * 0.5, 7.0, Color(0.05, 0.02, 0.01, 0.6 * k))
+		var heat := 1.0 - clampf((t - 0.5) / 1.6, 0.0, 1.0)            # the cracks cool: yellow, red, out
+		for c in _cracks:
+			var x0 := float(c[0]) * RADIUS * 0.2
+			var x1 := x0 + signf(float(c[0]) + 0.01) * float(c[1]) * RADIUS * 0.7
+			var mid := Vector2((x0 + x1) * 0.5, GROUND + float(c[2]) * 8.0)
+			var col := Color(1.0, 0.55 + 0.4 * heat, 0.2, k * heat)
+			bt.line(Vector2(x0, GROUND), mid, col, 2.0)
+			bt.line(mid, Vector2(x1, GROUND + float(c[2]) * 3.0), col, 1.5)
+
+	## Smoke rolling up once the flames die down.
+	func _smoke_puffs(bt: Batch) -> void:
+		for m in _smoke:
+			var age := t - float(m[3])
+			if age <= 0.0:
+				continue
+			var a := clampf(age / 0.4, 0.0, 1.0) * (1.0 - clampf((age - 0.6) / 1.2, 0.0, 1.0))
+			if a <= 0.0:
+				continue
+			var pos: Vector2 = m[0]
+			var rr: float = m[2]
+			bt.circle(pos, rr * 1.2, Color(0.22, 0.2, 0.2, 0.45 * a), 14)
+			bt.circle(pos + Vector2(-rr * 0.3, -rr * 0.3), rr * 0.6, Color(0.35, 0.32, 0.3, 0.25 * a), 12)
+
+	## A ring, as quads round it (above the ground line only).
+	func _ring(bt: Batch, r: float, w: float, col: Color) -> void:
+		if r < 4.0:
+			return
+		var n := 40
+		for i in n:
+			var a0 := TAU * i / n
+			var a1 := TAU * (i + 1) / n
+			var p0 := Vector2.from_angle(a0) * r
+			var p1 := Vector2.from_angle(a1) * r
+			if p0.y > GROUND and p1.y > GROUND:
+				continue
+			var q0 := Vector2.from_angle(a0) * (r - w)
+			var q1 := Vector2.from_angle(a1) * (r - w)
+			bt.quad(q0, p0, p1, q1, col)
+
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
+		# the sparks shine through the dark (every 2nd one: plenty, and cheaper)
+		for i in range(0, _sparks.size(), 2):
+			var s: Array = _sparks[i]
+			if float(s[3]) > 0.0:
+				g.draw_circle(global_position + (s[0] as Vector2), float(s[2]) * 1.6, Color(1.0, 0.7, 0.3, 0.5 * clampf(float(s[3]) / 0.5, 0.0, 1.0)))
+		var fade := 1.0 - clampf((t - 0.3) / 0.9, 0.0, 1.0)
+		if fade <= 0.0:
+			return
+		var r := RADIUS * (1.0 - pow(1.0 - clampf(t / 0.25, 0.0, 1.0), 3.0))
+		g.draw_circle(global_position, r * 0.9, Color(1.0, 0.45, 0.15, 0.16 * fade))
+		g.draw_circle(global_position, r * 0.45, Color(1.0, 0.75, 0.35, 0.22 * fade))
+
+	## The part of a circle above the ground line: a fan of triangles from the
+	## middle (tri, not poly: it is drawn every frame).
 	func _dome(bt: Batch, r: float, col: Color) -> void:
 		if r < 2.0:
 			return
-		var pts := PackedVector2Array()
 		var a0 := 0.0
 		var a1 := TAU
 		if r > GROUND:
@@ -416,11 +540,12 @@ class FireBurst extends Node2D:
 			a0 = PI - c
 			a1 = TAU + c
 		var n := 28
-		for i in n + 1:
-			pts.append(Vector2.from_angle(lerpf(a0, a1, float(i) / n)) * r)
-		if r <= GROUND:
-			pts.remove_at(pts.size() - 1)
-		bt.poly(pts, col)
+		var prev := Vector2.from_angle(a0) * r
+		var mid := Vector2(0, minf(GROUND, r) * 0.5 - r * 0.25)
+		for i in range(1, n + 1):
+			var p := Vector2.from_angle(lerpf(a0, a1, float(i) / n)) * r
+			bt.tri(mid, prev, p, col)
+			prev = p
 
 
 ## ================================================================ THE LONG DARK
