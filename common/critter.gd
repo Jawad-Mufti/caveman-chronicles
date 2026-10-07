@@ -210,8 +210,16 @@ func death_floor() -> float:
 static var _keeper_alive := false
 
 
+## Each request runs out on its own: time runs at the deepest slow-down still
+## in force. (Taking the longest end AND the deepest scale together made a tiny
+## hit-stop plus the death's slow-motion into 1.3 s at 4% speed: a freeze.)
+static var _slows: Array = []        ## [until_ms, scale] per request
+
+
 static func slow_time(tree: SceneTree, secs: float, time_scale: float) -> void:
-	_slow_until_ms = maxi(_slow_until_ms, Time.get_ticks_msec() + int(secs * 1000.0))
+	var until := Time.get_ticks_msec() + int(secs * 1000.0)
+	_slows.append([until, time_scale])
+	_slow_until_ms = maxi(_slow_until_ms, until)
 	Engine.time_scale = minf(Engine.time_scale, time_scale)
 	if not _keeper_alive:
 		_keeper_alive = true
@@ -223,8 +231,16 @@ class SlowKeeper extends Node:
 		process_mode = Node.PROCESS_MODE_ALWAYS
 
 	func _process(_delta: float) -> void:
-		if Time.get_ticks_msec() >= Critter._slow_until_ms:
-			Engine.time_scale = 1.0
+		var now := Time.get_ticks_msec()
+		var scale := 1.0
+		for i in range(Critter._slows.size() - 1, -1, -1):
+			var s: Array = Critter._slows[i]
+			if int(s[0]) <= now:
+				Critter._slows.remove_at(i)
+			else:
+				scale = minf(scale, float(s[1]))
+		Engine.time_scale = scale
+		if Critter._slows.is_empty():
 			Critter._keeper_alive = false
 			queue_free()
 
@@ -242,37 +258,27 @@ var _bb: Batch = null
 
 func _draw() -> void:
 	_bb = Batch.new()
-	_furs.clear()
 	_paint()
-	if _furs.is_empty():
-		_bb.draw(self)
-	else:
-		# the furred shapes, textured, each in its place among the rest: the batch
-		# is drawn in pieces, cut where each fur shape was asked for
-		var at := 0
-		for f in _furs:
-			_bb.draw_range(self, at, f[6])
-			at = f[6]
-			draw_set_transform_matrix(f[3])
-			draw_colored_polygon(f[0], f[1], f[4], f[2])
-			var ring: PackedVector2Array = f[0].duplicate()
-			ring.append(f[0][0])
-			draw_polyline(ring, f[1].darkened(0.75), f[5])
-			draw_set_transform_matrix(Transform2D.IDENTITY)
-		_bb.draw_range(self, at, _bb.points.size())
+	_bb.draw(self)
 	_bb = null
 
 
-## A shape covered in a fur texture (`tex`, tinted `col`), drawn over the rest.
-## Fur runs along the body: the texture is laid in the shape's own space.
-var _furs: Array = []
+## A shape covered in a fur texture (`tex`, tinted `col`), in its place in the
+## painting order. Fur runs along the body: the texture is laid in the shape's
+## own space. It goes into the same Batch as the rest (Batch.tex_poly), so a
+## furred beast is still ONE draw call; its outline follows it in the batch.
 func _fur_shape(pts: PackedVector2Array, tex: Texture2D, col: Color, w: float = 1.6, tex_scale := 1.0) -> void:
 	var uv := PackedVector2Array()
 	var ts := tex.get_size() * 0.35 * tex_scale
 	for p in pts:
 		uv.append(p.rotated(0.75) / ts)       # (the hair in the texture runs on a slant: laid along the body)
-	var xf: Transform2D = _bb.xf if _bb != null else Transform2D.IDENTITY
-	_furs.append([pts, col, tex, xf, uv, w, _bb.points.size() if _bb != null else 0])
+	if _bb == null:
+		draw_colored_polygon(pts, col, uv, tex)
+		return
+	_bb.tex_poly(pts, col, uv, tex)
+	var ring := pts.duplicate()
+	ring.append(pts[0])
+	_bb.polyline(ring, col.darkened(0.75), w)
 
 
 func _segs(r: float) -> int:
@@ -700,8 +706,16 @@ func _physics_process(delta: float) -> void:
 	# Redrawing is only needed for ANIMATION. A creature far off screen still
 	# moves (its transform updates without re-running _draw), so re-running the
 	# drawing for it is pure waste — and most of a 9,400 px level is off screen.
-	if player == null or absf(player.global_position.x - global_position.x) < 820.0:
+	# Only what the camera can (nearly) see is redrawn. Close to him, every frame (every
+	# blow reads); further off, every other frame, staggered so half the pack takes each
+	# frame — it still MOVES smoothly (that's the transform), only the pose ticks at 30 Hz.
+	# (A pack of 14 wolves redrawn every frame cost ~10 ms.)
+	if player == null:
 		queue_redraw()
+	elif LevelBase.near_view(self, 160.0):
+		if absf(player.global_position.x - global_position.x) < 380.0 \
+				or (Engine.get_physics_frames() + get_instance_id()) % 2 == 0:
+			queue_redraw()
 
 
 ## ---------------------------------------------------------------- drawing

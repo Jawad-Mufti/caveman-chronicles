@@ -377,6 +377,11 @@ class ThrownAxe extends Area2D:
 		cs.shape = c
 		add_child(cs)
 
+	func _exit_tree() -> void:
+		# however it goes (caught, a level change, freed by anything), the axe is his again
+		if man != null and is_instance_valid(man):
+			man.axe_out = false
+
 	func _physics_process(delta: float) -> void:
 		t += delta
 		spin += delta * 24.0 * dir
@@ -602,7 +607,7 @@ func _physics_process(delta: float) -> void:
 	slam_t = maxf(slam_t - delta, 0.0)
 	slam_cd = maxf(slam_cd - delta, 0.0)
 	showing_off = maxf(showing_off - delta, 0.0)
-	var held: bool = Input.is_physical_key_pressed(KEY_J) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or touch["attack"]
+	var held: bool = Input.is_physical_key_pressed(KEY_J) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Time.get_ticks_msec() > ui_click_until) or touch["attack"]
 	# SPECIAL (L): hold to charge the weapon's special, let go to unleash it.
 	# Holding HIT itself keeps swinging (like Terraria). Touch: the SPECIAL button.
 	var special: bool = Input.is_physical_key_pressed(KEY_L) or touch.get("special", false)
@@ -1774,8 +1779,27 @@ func _say_word(text: String, col: Color) -> void:
 	get_parent().add_child(w)
 
 
+## Whatever he was in the middle of ends: a death (or a revive) must not leave a
+## swing running, a special charged (it would fire the moment he is back), a
+## climb or a scorch hanging over him.
+func _reset_actions() -> void:
+	attacking = 0.0
+	attack_cd = 0.0
+	slam_charge = -1.0
+	_charge_by_hold = false
+	_atk_buffer = 0.0
+	_attack_held = 0.0
+	climbing = false
+	digging_down = false
+	throwing = 0.0
+	scorch_t = 0.0
+	combo_hits = 0
+	_kick_lock = 0.0
+
+
 func _die() -> void:
 	_drop_carried()
+	_reset_actions()
 	dead = true
 	stomp_state = ""
 	if sun_t > 0.0:
@@ -1814,6 +1838,7 @@ func revive(spot: Vector2) -> void:
 	if has_torch:
 		torch_fuel = 1.0
 	hp_changed.emit(hp)
+	_reset_actions()
 	getup = 0.0                  # back from the dead: SPLAT, up, and a flex
 
 

@@ -213,7 +213,14 @@ static func flash_material() -> ShaderMaterial:
 		_flash.code = """shader_type canvas_item;
 uniform float flash = 0.0;
 uniform vec4 flash_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+varying vec4 vcol;
+void vertex() {
+	vcol = COLOR;
+}
 void fragment() {
+	if (UV.x < -500.0) {
+		COLOR = vcol;      // a plain triangle in a textured batch (Batch.SOLID_UV): no texture
+	}
 	COLOR.rgb = mix(COLOR.rgb, flash_color.rgb, flash);
 }
 """

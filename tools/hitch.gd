@@ -22,6 +22,15 @@ func _run() -> void:
 	for m in level._mouths:
 		m._noticed = true
 	var spans := [[25600.0, 27700.0], [32000.0, 33500.0], [12300.0, 14800.0]]
+	var over := 50.0
+	var mine := []
+	for a in OS.get_cmdline_user_args():      # args: from-to spans (e.g. 3000-4400), over=<ms>
+		if a.begins_with("over="):
+			over = float(a.substr(5))
+		elif "-" in a:
+			mine.append([float(a.get_slice("-", 0)), float(a.get_slice("-", 1))])
+	if not mine.is_empty():
+		spans = mine
 	for sp in spans:
 		level._move_player(Vector2(sp[0], 590), 1)
 		for i in 30:
@@ -44,7 +53,7 @@ func _run() -> void:
 			sum += dt
 			n += 1
 			worst = maxf(worst, dt)
-			if dt > 50.0:
+			if dt > over:
 				slow.append("x %.0f: %.0f ms (nodes %d)" % [x, dt, Performance.get_monitor(Performance.OBJECT_NODE_COUNT)])
-		print("%5.0f-%5.0f: avg %.1f ms, worst %.0f ms, %d frames over 50 ms %s" % [sp[0], sp[1], sum / n, worst, slow.size(), slow.slice(0, 6)])
+		print("%5.0f-%5.0f: avg %.1f ms, worst %.0f ms, %d frames over %.0f ms %s" % [sp[0], sp[1], sum / n, worst, slow.size(), over, slow.slice(0, 6)])
 	get_tree().quit()

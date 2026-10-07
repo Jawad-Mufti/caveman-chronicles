@@ -245,6 +245,43 @@ func draw_string(font: Font, pos: Vector2, text: String, align: int = 0, width: 
 	_texts.append([xf, font, pos, text, align, width, size, col])
 
 
+## A TEXTURED shape (fur) in its place among the rest, and still ONE draw call:
+## the plain triangles get a UV far off the texture (SOLID_UV), and the critter
+## shader (FX.flash_material) colours those with their vertex colour alone.
+## One texture per batch. Drawn shape by shape, a furred wolf was ~10 draw calls.
+var uvs := PackedVector2Array()
+var tex: Texture2D = null
+const SOLID_UV := Vector2(-1000.0, -1000.0)
+static var _solid := PackedVector2Array()
+
+
+func tex_poly(pts: PackedVector2Array, col: Color, uv: PackedVector2Array, texture: Texture2D) -> void:
+	var tri := Geometry2D.triangulate_polygon(pts)
+	if tri.is_empty():
+		return
+	_uv_catch_up()
+	var flat := PackedVector2Array()
+	flat.resize(tri.size())
+	var fuv := PackedVector2Array()
+	fuv.resize(tri.size())
+	for k in tri.size():
+		flat[k] = pts[tri[k]]
+		fuv[k] = uv[tri[k]]
+	_add(flat, col)
+	uvs.append_array(fuv)
+	tex = texture
+
+
+func _uv_catch_up() -> void:
+	var gap := points.size() - uvs.size()
+	if gap <= 0:
+		return
+	if _solid.size() < gap:
+		_solid.resize(maxi(gap, 4096))
+		_solid.fill(SOLID_UV)
+	uvs.append_array(_solid.slice(0, gap))
+
+
 ## Only the triangles recorded between two marks (`points.size()` at the time):
 ## to draw other things (textured shapes) in between, in order.
 func draw_range(ci: CanvasItem, from: int, to: int) -> void:
@@ -255,7 +292,11 @@ func draw_range(ci: CanvasItem, from: int, to: int) -> void:
 ## Everything recorded so far, as one draw call on this canvas item.
 ## Call it from inside the item's _draw().
 func draw(ci: CanvasItem) -> void:
-	if not points.is_empty():
+	if not points.is_empty() and tex != null:
+		_uv_catch_up()
+		RenderingServer.canvas_item_add_triangle_array(ci.get_canvas_item(), PackedInt32Array(), points, colors,
+			uvs, PackedInt32Array(), PackedFloat32Array(), tex.get_rid())
+	elif not points.is_empty():
 		RenderingServer.canvas_item_add_triangle_array(ci.get_canvas_item(), PackedInt32Array(), points, colors)
 	for t in _texts:
 		ci.draw_set_transform_matrix(t[0])
