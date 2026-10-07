@@ -508,6 +508,7 @@ func dig_at(world: Vector2, reach := 52.0, n := 4) -> bool:
 	for s in broke:
 		_reveal(s)
 	dug.emit(world, mat)
+	Bag.dig_drop(get_parent(), world, mat)        # a stone for his bag, maybe
 	return true
 
 

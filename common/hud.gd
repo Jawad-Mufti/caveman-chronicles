@@ -41,10 +41,12 @@ var _menu: Control
 var _sun_t := 0.0
 var _shown: Array = []          ## what the meters last drew (see _process)
 var _shells_shown := -1
+var _bag: Control
 
 
 func _ready() -> void:
 	layer = 5
+	add_to_group("hud")
 
 	_title = Label.new()
 	_title.text = title
@@ -174,6 +176,10 @@ func _ready() -> void:
 			menu_tapped.emit())
 	add_child(_menu)
 
+	# UGU'S BAG: everything he carries, in small boxes down the right (common/bag.gd)
+	_bag = Bag.View.new()
+	add_child(_bag)
+
 	_fade = ColorRect.new()
 	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_fade.color = Color(0, 0, 0, 0)
@@ -210,7 +216,7 @@ func _process(delta: float) -> void:
 	if _him == null or not is_instance_valid(_him):
 		_him = get_tree().get_first_node_in_group("player") as CaveMan
 	if _him != null:
-		var sig := [_him.hotbar(), _him.hotbar_selected(), _him.rocks, GameState.figs]
+		var sig := [_him.hotbar(), _him.hotbar_selected(), _him.rocks, GameState.figs, Bag.version]
 		if sig != _hb_shown:
 			_hb_shown = sig
 			_hotbar.queue_redraw()
@@ -255,7 +261,7 @@ var _hotbar: Control
 var _hb_shown: Array = []
 const HB_SLOT := 52.0
 const HB_GAP := 6.0
-const HB_W := 7 * (52.0 + 6.0)
+const HB_W := 11 * (52.0 + 6.0)
 
 
 func _hb_x(i: int, n: int) -> float:
@@ -296,44 +302,46 @@ func _draw_hotbar() -> void:
 		_hotbar.draw_rect(r, Color("ffd36b") if on else Color(Pal.BONE, 0.35), false, 3.0 if on else 1.5)
 		var c := r.get_center() + Vector2(0, 2)
 		var a := 0.35 if empty else 1.0
-		_hb_icon(id, c, a)
+		Hud.draw_tool(_hotbar, id, c, a)
 		if empty:
 			_hotbar.draw_rect(r.grow(-2), Color(0.05, 0.04, 0.03, 0.55))      # none left: greyed out
 		_hotbar.draw_string(font, Vector2(x + 4, 16), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(Pal.BONE, 0.7))
-		var count := _him.rocks if id == "rocks" else (GameState.figs if id == "figs" else -1)
+		var count := _him.rocks if id == "rocks" else (GameState.figs if id == "figs" else (Bag.count(_him, id) if Bag.HOTBAR.has(id) else -1))
 		if count >= 0:
 			_hotbar.draw_string(font, Vector2(x + HB_SLOT - 16, HB_SLOT - 2), str(count), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(Pal.BONE, a))
 
 
-## Each tool's little picture, code-drawn like everything else.
-func _hb_icon(id: String, c: Vector2, a: float) -> void:
+## Each tool's little picture, code-drawn like everything else (the hotbar, the bag).
+static func draw_tool(ci: CanvasItem, id: String, c: Vector2, a: float) -> void:
 	var wood := Color(Color("846141"), a)
 	var dark := Color(Color("4a3220"), a)
 	match id:
 		"club":
-			_hotbar.draw_line(c + Vector2(-12, 14), c + Vector2(10, -10), dark, 7.0)
-			_hotbar.draw_line(c + Vector2(-12, 14), c + Vector2(10, -10), wood, 4.5)
-			_hotbar.draw_circle(c + Vector2(11, -11), 7.0, wood)
+			ci.draw_line(c + Vector2(-12, 14), c + Vector2(10, -10), dark, 7.0)
+			ci.draw_line(c + Vector2(-12, 14), c + Vector2(10, -10), wood, 4.5)
+			ci.draw_circle(c + Vector2(11, -11), 7.0, wood)
 		"axe":
-			_hotbar.draw_line(c + Vector2(-12, 14), c + Vector2(8, -12), wood, 4.0)
-			_hotbar.draw_colored_polygon(PackedVector2Array([c + Vector2(2, -16), c + Vector2(16, -14), c + Vector2(14, 0), c + Vector2(4, -6)]), Color(Color("8c9cab"), a))
+			ci.draw_line(c + Vector2(-12, 14), c + Vector2(8, -12), wood, 4.0)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(2, -16), c + Vector2(16, -14), c + Vector2(14, 0), c + Vector2(4, -6)]), Color(Color("8c9cab"), a))
 		"hammer":
-			_hotbar.draw_line(c + Vector2(-12, 14), c + Vector2(6, -8), wood, 4.0)
-			_hotbar.draw_rect(Rect2(c + Vector2(-2, -20), Vector2(20, 14)), Color(Color("7b7469"), a))
-			_hotbar.draw_circle(c + Vector2(8, -13), 3.5, Color(Pal.GEM, a))
+			ci.draw_line(c + Vector2(-12, 14), c + Vector2(6, -8), wood, 4.0)
+			ci.draw_rect(Rect2(c + Vector2(-2, -20), Vector2(20, 14)), Color(Color("7b7469"), a))
+			ci.draw_circle(c + Vector2(8, -13), 3.5, Color(Pal.GEM, a))
 		"shovel":
-			_hotbar.draw_line(c + Vector2(-14, -16), c + Vector2(6, 6), wood, 4.0)
-			_hotbar.draw_line(c + Vector2(-18, -12), c + Vector2(-10, -20), dark, 4.0)
-			_hotbar.draw_colored_polygon(PackedVector2Array([c + Vector2(2, 2), c + Vector2(12, -2), c + Vector2(18, 14), c + Vector2(14, 18), c + Vector2(-2, 12)]), Color(Pal.KEY_BONE, a))
+			ci.draw_line(c + Vector2(-14, -16), c + Vector2(6, 6), wood, 4.0)
+			ci.draw_line(c + Vector2(-18, -12), c + Vector2(-10, -20), dark, 4.0)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(2, 2), c + Vector2(12, -2), c + Vector2(18, 14), c + Vector2(14, 18), c + Vector2(-2, 12)]), Color(Pal.KEY_BONE, a))
 		"rocks":
-			_hotbar.draw_circle(c + Vector2(-4, 4), 10.0, Color(Pal.STONE_DARK, a))
-			_hotbar.draw_circle(c + Vector2(-5, 3), 8.5, Color(Pal.STONE, a))
-			_hotbar.draw_circle(c + Vector2(8, -6), 6.0, Color(Pal.STONE, a))
+			ci.draw_circle(c + Vector2(-4, 4), 10.0, Color(Pal.STONE_DARK, a))
+			ci.draw_circle(c + Vector2(-5, 3), 8.5, Color(Pal.STONE, a))
+			ci.draw_circle(c + Vector2(8, -6), 6.0, Color(Pal.STONE, a))
 		"figs":
-			Hud.draw_fig(_hotbar, c, 1.1)
+			Hud.draw_fig(ci, c, 1.1)
 		"hands":
-			_hotbar.draw_circle(c, 10.0, Color(Color("a67148"), a))
-			_hotbar.draw_circle(c + Vector2(1, -1), 8.0, Color(Color("c89263"), a))
+			ci.draw_circle(c, 10.0, Color(Color("a67148"), a))
+			ci.draw_circle(c + Vector2(1, -1), 8.0, Color(Color("c89263"), a))
+		_:
+			Bag.draw_icon(ci, id, c, 1.05)      # what he made in the bag
 
 
 var _combo: Control

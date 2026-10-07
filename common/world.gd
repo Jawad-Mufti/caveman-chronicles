@@ -604,6 +604,8 @@ class ThrownRock extends Area2D:
 	var life := 2.2
 	var spin := 0.0
 	var thrower: Node = null      ## (CaveMan) for the combo
+	var dmg := 3
+	var flint := false            ## a flint tip (Bag): sharper, and drawn as one
 	var _bounces := 0
 	var _hits := 0
 	var _no_hit := 0.0            ## just ricocheted off something: not that again at once
@@ -647,7 +649,7 @@ class ThrownRock extends Area2D:
 			for a in get_overlapping_areas():
 				if a.has_method("take_hit"):
 					var d := signi(int(vel.x))
-					a.take_hit(3, d if d != 0 else 1)
+					a.take_hit(dmg, d if d != 0 else 1)
 					FX.shards(get_parent(), global_position, vel, true)
 					_word("BONK!", global_position)
 					Critter.slow_time(get_tree(), 0.04, 0.05)
@@ -684,6 +686,13 @@ class ThrownRock extends Area2D:
 		_pen.draw(self)
 
 	func _paint() -> void:
+		if flint:
+			# point first along its flight, a bone shaft trailing
+			_pen.draw_set_transform(Vector2.ZERO, vel.angle(), Vector2.ONE)
+			_pen.draw_line(Vector2(-18, 0), Vector2(0, 0), Color("e9dcbc"), 3.0)
+			_pen.draw_colored_polygon(PackedVector2Array([Vector2(-2, -5), Vector2(12, 0), Vector2(-2, 5)]), Color("5d5f66"))
+			_pen.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			return
 		_pen.draw_set_transform(Vector2.ZERO, spin, Vector2.ONE)
 		_pen.draw_circle(Vector2.ZERO, 8.0, Pal.STONE)
 		_pen.draw_circle(Vector2(-3, -3), 3.0, Pal.STONE_DARK)

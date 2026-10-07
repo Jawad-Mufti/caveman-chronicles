@@ -157,6 +157,7 @@ class DigGrid extends Node2D:
 					lvl._on_treasure_popped(pk)
 				lvl.add_child.call_deferred(pk)
 		dug.emit(kind)
+		Bag.dig_drop(get_parent(), global_position + at, {DIRT: "d", STONE: "o", CLAY: "c"}.get(kind, ""))
 		queue_redraw()
 
 	## The crust breaks (a MEGA STOMP on the mound): its middle blocks go.

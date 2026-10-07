@@ -864,6 +864,8 @@ func _physics_process(delta: float) -> void:
 		throw_rock()                                  # the hotbar's ROCKS: HIT throws one, aimed
 	elif attack_now and not _attack_prev and tool == "figs":
 		eat_fig()                                     # the hotbar's FIGS: HIT eats one
+	elif attack_now and not _attack_prev and Bag.HOTBAR.has(tool):
+		Bag.use(self, tool)                           # made in the bag: tips, salve, wall, ladder, spark kit
 	elif attack_now and attack_cd <= 0.0 and tool == "shovel" and carrying == null:
 		# the SHOVEL: it digs wherever he aims (held, it keeps digging)
 		_dig_aim = aim()
@@ -1656,6 +1658,9 @@ func hotbar() -> Array:
 		out.append("shovel")
 	out.append("rocks")
 	out.append("figs")
+	for id in Bag.HOTBAR:                 # what he has made (the bag's crafting), while he has some
+		if Bag.count(self, id) > 0:
+			out.append(id)
 	return out
 
 
@@ -1688,7 +1693,7 @@ func _select(id: String) -> void:
 		_:
 			tool = id
 	attacking = 0.0
-	_say_word(HOTBAR_NAMES.get(id, id.to_upper()), Color("fff4d6"))
+	_say_word(HOTBAR_NAMES.get(id, Bag.name_of(id)), Color("fff4d6"))
 
 const HOTBAR_NAMES := {"club": "CLUB", "axe": "FLINT AXE", "hammer": "FIRESTONE HAMMER", "hands": "FISTS",
 	"shovel": "SHOVEL", "rocks": "ROCKS", "figs": "ROAST FIGS"}

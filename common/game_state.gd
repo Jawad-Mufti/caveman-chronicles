@@ -38,6 +38,7 @@ static var view := ""                  ## the camera: "close", "normal", "wide";
 static var relics := {}                ## rare finds kept for the shelter: kind -> how many (see Relics)
 static var items: Array = []           ## tools he owns for good: "shovel"
 static var mysteries := {}             ## id -> "open" | "solved" (see CampMenu.MYSTERIES)
+static var bag := {}                   ## stones and things he made: id -> how many (see Bag)
 static var _loaded := false
 
 
@@ -75,6 +76,7 @@ static func ensure_loaded() -> void:
 	relics = d.get("relics", {})
 	items = d.get("items", [])
 	mysteries = d.get("mysteries", {})
+	bag = d.get("bag", {})
 	# an older save that forged the Firestone before weapons were kept
 	if str(gems.get("level2", "")) == "forged" and not weapons.has("hammer"):
 		weapons.append("hammer")
@@ -87,7 +89,7 @@ static func save() -> void:
 		return
 	f.store_string(JSON.stringify({"shells": shells, "upgrades": upgrades, "skins": skins, "skin": skin,
 		"gems": gems, "taken": taken, "trophies": trophies, "weapons": weapons, "weapon": weapon, "figs": figs, "bones": bones, "orbs": orbs,
-		"seen": seen, "abilities": abilities, "equipped": equipped, "equip_picked": equip_picked, "view": view, "relics": relics, "items": items, "mysteries": mysteries}))
+		"seen": seen, "abilities": abilities, "equipped": equipped, "equip_picked": equip_picked, "view": view, "relics": relics, "items": items, "mysteries": mysteries, "bag": bag}))
 
 
 ## A fresh start: everything back to nothing, on disk too.
@@ -111,6 +113,7 @@ static func reset() -> void:
 	relics = {}
 	items = []
 	mysteries = {}
+	bag = {}
 	_loaded = true
 	save()
 
@@ -153,7 +156,7 @@ static func apply_to(p: CaveMan) -> void:
 	p.max_wood = 4 + pouch
 	p.max_rocks = 6 + 2 * pouch
 	p.max_berries = 3 + pouch
-	p.club_bonus = int(upgrades["club"])
+	p.club_bonus = int(upgrades["club"]) + (1 if items.has("obsidian_edge") else 0)
 	p.skin = skin
 	p.axe = weapon == "axe"
 	p.hammer = weapon == "hammer"

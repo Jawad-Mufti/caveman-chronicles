@@ -18,6 +18,8 @@ Level 1 done; Level 2 "Discovery of Fire" (night) nearly done; its map: `docs/le
   shown as close-ups (2-3 variants) first.
 - No bats in or on the mountain; bats live in the caves.
 - Spirit Orbs: their own blue-white currency (beasts respawn each visit); never shells.
+- THE BAG (`Bag`): everything carried, in boxes down the right; I/B or the sack: strip -> big view (tabs,
+  CRAFT) -> hidden. Stones drop from digging (`Bag.DROPS`); new item: a row in `Bag.ITEMS` + `draw_icon`.
 - SPACE is the only jump; UP/W and DOWN/S aim (8 ways, UP+RIGHT = 45 degrees).
 - Terraria-fast combat: hold HIT keeps swinging; combos unlocked from the start; specials on L.
   A Terraria HOTBAR (1-9/wheel/tap; HIT uses the slot: weapon, shovel digs where aimed, rocks, figs).
@@ -28,7 +30,7 @@ Level 1 done; Level 2 "Discovery of Fire" (night) nearly done; its map: `docs/le
 
 ## Files
 common/: `critter.gd` (creature base, attack director, launch), `enemies.gd` (Level 1; Insect base),
-`player.gd` (CaveMan, hotbar), `hud.gd`, `abilities.gd` (MOVES = Tutorial), `terrain.gd`, `game_state.gd`;
+`player.gd` (CaveMan, hotbar), `bag.gd` (inventory: items, stone drops, recipes, the bag UI), `hud.gd`, `abilities.gd` (MOVES = Tutorial), `terrain.gd`, `game_state.gd`;
 the rest one file per system (`ls common`). level2/: `level2_data.gd` (tables), `level2.gd` (builders;
 extends the data: tables are bare names); the rest one file per area or system (`ls level2`).
 
@@ -87,7 +89,7 @@ Screenshots: `<godot> --rendering-driver opengl3 --fixed-fps 60 --path . res://t
 [nodark] [notorch] [freeze]` (PNGs to `C:/tmp/shots`; name it `topic/shot` for a folder).
 Regression set: smoke, jumps, vines, story, boss, finale, econ, bones, loot, landing, caves, sky, airjump,
 wolves, talk, tarpits, hoards, sunfire, boulder, stomp, explore, dig, mountain, dash, getup, canyon, falls,
-steppe, leak, grab, gorgechest, orbs, mtbeasts, combat, aim, swarm, combos, hotbar, weapons, slowmo, soak.
+steppe, leak, grab, gorgechest, orbs, mtbeasts, combat, aim, swarm, combos, hotbar, weapons, slowmo, soak, bag.
 EXPECTED failures (not bugs): `vines` "three swings, let go late" MISS; `landing` prints 12 "no ground
 under" lines; `canyon rocks`/`stones` fail ~1 in 4 (bats); `combos` slam dunk and `grab` (knocked out of reach) fail ~1 in 3.
 What each test does, args, close-up/perf tools, quirks: `docs/testing.md`.
