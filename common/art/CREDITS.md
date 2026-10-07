@@ -12,3 +12,9 @@ credit required. Credited anyway, with thanks.
 | fur.png, fur_grey.png (fabrics_0037; the grey one desaturated for the wolves) | [Fur Texture of Animals](https://www.texturecan.com/details/266/) | TextureCan | CC0 |
 
 Resized to 512 px (256 for dirt, grass and earth) with `tools/prep_art`.
+
+## Fonts (common/art/fonts)
+| File | Source | Author | License |
+|---|---|---|---|
+| LuckiestGuy.ttf (titles, names, comic words) | [Google Fonts: Luckiest Guy](https://fonts.google.com/specimen/Luckiest+Guy) | Astigmatic | Apache 2.0 (LuckiestGuy-LICENSE.txt) |
+| Fredoka.ttf (text: hints, item descriptions) | [Google Fonts: Fredoka](https://fonts.google.com/specimen/Fredoka) | The Fredoka Project Authors | SIL Open Font License 1.1 (Fredoka-OFL.txt) |

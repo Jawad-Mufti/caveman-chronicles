@@ -46,6 +46,8 @@ extends the data: tables are bare names); the rest one file per area or system (
 - Darkness: lights join "light" (`light() -> Vector4(x, y, r, warmth)`, `light_strength()`); glowing ones join
   "glow" (`draw_glow(g)`, world coords, `g` is ONE shared Batch: only draw_circle/line/colored_polygon/
   set_transform, reset the transform). Max 12 lights on screen.
+- Fonts: `Pal.text_font()` (Fredoka, the fallback everywhere via `Pal.install_fonts`) and `Pal.title_font()`
+  (Luckiest Guy: titles, names, comic words). Hints go through `hud.say`: a banner, CAPS words in gold.
 - Textured things set `texture_filter = TEXTURE_FILTER_LINEAR_WITH_MIPMAPS` (project default is NEAREST).
   Paint built-once shapes with `Terrain.paint_poly` / `paint_rect`, tints `Terrain.NIGHT_ROCK/EARTH/GRASS`.
   No flat slate-blue rock: warm painted stone, outlined. Fur shapes: `Critter._fur_shape`, `CaveMan._fur`.

@@ -158,3 +158,32 @@ const ELDER := Color("8f8b83")
 const ELDER_DARK := Color("64615a")
 const ELDER_FACE := Color("d8c9b0")
 const KEY_BONE := Color("e8dfc6")
+
+
+## ---------------------------------------------------------------- FONTS
+## Two kid-friendly fonts (common/art/fonts, credits in common/art/CREDITS.md):
+## LUCKIEST GUY, chunky cartoon capitals, for titles, names and comic words;
+## FREDOKA, round and easy to read, for everything else. install_fonts() makes
+## Fredoka the fallback font, so every label and every draw_string with
+## ThemeDB.fallback_font uses it.
+const TITLE_FONT := preload("res://common/art/fonts/LuckiestGuy.ttf")
+const TEXT_FONT_FILE := preload("res://common/art/fonts/Fredoka.ttf")
+static var _text_font: FontVariation
+
+
+static func text_font() -> Font:
+	if _text_font == null:
+		_text_font = FontVariation.new()
+		_text_font.base_font = TEXT_FONT_FILE
+		var ts := TextServerManager.get_primary_interface()
+		_text_font.variation_opentype = {ts.name_to_tag("wght"): 560}      # a touch bolder than regular: reads at night
+	return _text_font
+
+
+static func title_font() -> Font:
+	return TITLE_FONT
+
+
+static func install_fonts() -> void:
+	if ThemeDB.fallback_font != text_font():
+		ThemeDB.fallback_font = text_font()

@@ -387,7 +387,8 @@ class FloatText extends Node2D:
 			queue_free()
 
 	func _draw() -> void:
-		draw_string(ThemeDB.fallback_font, Vector2.ZERO, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("f3d08a"))
+		draw_string_outline(Pal.title_font(), Vector2.ZERO, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, 5, Color(0.12, 0.06, 0.02))
+		draw_string(Pal.title_font(), Vector2.ZERO, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("f3d08a"))
 
 
 class Breakable extends Area2D:

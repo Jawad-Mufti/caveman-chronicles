@@ -17,6 +17,10 @@ var torch_fuel := 0.0
 
 var _title: Label
 var _msg: Label
+var _say: RichTextLabel          ## the hint banner (see _show_say)
+var _say_shown := ""
+var _say_t := 0.0
+var _say_up := false
 var _hits: Control
 var _berries: Control
 var _boss: Control
@@ -46,12 +50,16 @@ var _bag: Control
 
 func _ready() -> void:
 	layer = 5
+	Pal.install_fonts()
 	add_to_group("hud")
 
 	_title = Label.new()
 	_title.text = title
 	_title.position = Vector2(20, 14)
-	_title.add_theme_font_size_override("font_size", 18)
+	_title.add_theme_font_size_override("font_size", 21)
+	_title.add_theme_font_override("font", Pal.title_font())
+	_title.add_theme_constant_override("outline_size", 6)
+	_title.add_theme_color_override("font_outline_color", Color(0.1, 0.05, 0.02))
 	_title.add_theme_color_override("font_color", Pal.OCHRE)
 	add_child(_title)
 
@@ -87,7 +95,34 @@ func _ready() -> void:
 	_msg.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_msg.add_theme_font_size_override("font_size", 26)
 	_msg.add_theme_color_override("font_color", Pal.BONE)
+	_msg.visible = false            # (it holds the words; the banner below shows them)
 	add_child(_msg)
+	# the hint BANNER: a little stone tablet that pops up, words in Fredoka, KEY WORDS in gold
+	_say = RichTextLabel.new()
+	_say.bbcode_enabled = true
+	_say.fit_content = true
+	_say.scroll_active = false
+	_say.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_say.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_say.add_theme_font_override("normal_font", Pal.text_font())
+	_say.add_theme_font_size_override("normal_font_size", 23)
+	_say.add_theme_color_override("default_color", Pal.BONE)
+	_say.add_theme_constant_override("outline_size", 7)
+	_say.add_theme_color_override("font_outline_color", Color(0.1, 0.05, 0.02))
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.14, 0.095, 0.06, 0.9)
+	sb.border_color = Pal.OCHRE
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(18)
+	sb.shadow_color = Color(0, 0, 0, 0.45)
+	sb.shadow_size = 8
+	sb.content_margin_left = 26
+	sb.content_margin_right = 26
+	sb.content_margin_top = 12
+	sb.content_margin_bottom = 12
+	_say.add_theme_stylebox_override("normal", sb)
+	_say.visible = false
+	add_child(_say)
 
 	# what he is trying to do right now, top right
 	_quest = Label.new()
@@ -145,7 +180,10 @@ func _ready() -> void:
 	_card.position = Vector2(0, 250)
 	_card.size = Vector2(1280, 60)
 	_card.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_card.add_theme_font_size_override("font_size", 48)
+	_card.add_theme_font_size_override("font_size", 56)
+	_card.add_theme_font_override("font", Pal.title_font())
+	_card.add_theme_constant_override("outline_size", 12)
+	_card.add_theme_color_override("font_outline_color", Color(0.1, 0.05, 0.02))
 	_card.add_theme_color_override("font_color", Pal.OCHRE)
 	_card.modulate.a = 0.0
 	add_child(_card)
@@ -203,8 +241,7 @@ func _process(delta: float) -> void:
 			_msg.text = ""
 	# while someone is talking, hints move up out of the way of the dialogue box
 	var talking := get_tree().get_first_node_in_group("dialogue") != null
-	_msg.offset_top = -600.0 if talking else -150.0
-	_msg.offset_bottom = -544.0 if talking else -94.0
+	_show_say(delta, talking)
 	# the meters are redrawn only when what they show has changed
 	var shown := [hp, max_hp, berries, max_berries, rocks, gem, wood, torch_on, snappedf(torch_fuel, 0.004), boss_ratio]
 	if shown != _shown:
@@ -742,3 +779,47 @@ func _draw_menu_button() -> void:
 	Sunfire.flame(b, Vector2(36, 33), 8.0, _sun_t * 1.4, 0.9)
 	b.draw(_menu)
 	_menu.draw_string(ThemeDB.fallback_font, Vector2(14, 44), "MENU  Esc", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(Pal.BONE, 0.7))
+
+
+## ------------------------------------------------------------ THE HINT BANNER
+## The words in _msg, on a little stone tablet: it pops in (a bounce) when the
+## words change, fades out at the end, and while someone is talking it moves
+## up out of the dialogue box's way. Words in CAPITALS (SHOVEL, SUNFIRE...)
+## are the important ones: gold.
+func _show_say(delta: float, talking: bool) -> void:
+	var text := _msg.text
+	if text != _say_shown or talking != _say_up:
+		if text != _say_shown:
+			_say_t = 0.0
+		_say_shown = text
+		_say_up = talking
+		_say.visible = text != ""
+		if text == "":
+			return
+		var font := Pal.text_font()
+		var w := minf(font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 23).x + 60.0, 920.0)
+		_say.text = "[center]" + _gold_caps(text) + "[/center]"
+		_say.custom_minimum_size = Vector2(w, 0)
+		_say.size = Vector2(w, 0)
+		_say.reset_size()
+		_say.position.x = 640.0 - w * 0.5
+	if text == "":
+		return
+	_say_t += delta
+	var h := _say.size.y
+	_say.position.y = 112.0 if talking else 720.0 - 92.0 - h
+	_say.pivot_offset = _say.size * 0.5
+	var pop := clampf(_say_t / 0.22, 0.0, 1.0)
+	var k := lerpf(0.7, 1.0, pop) + sin(pop * PI) * 0.08          # a little bounce past full size
+	_say.scale = Vector2(k, k)
+	_say.modulate.a = clampf(minf(_say_t / 0.12, msg_time / 0.35), 0.0, 1.0)
+
+
+## SHOUTY words (two capital letters or more) in gold.
+static func _gold_caps(text: String) -> String:
+	var out := ""
+	for word in text.split(" "):
+		var core := word.strip_edges().rstrip(".,!?:;)\"'").lstrip("(\"'")
+		var caps := core.length() >= 2 and core == core.to_upper() and core != core.to_lower()
+		out += ("[color=#ffd36b]%s[/color]" % word if caps else word) + " "
+	return out.strip_edges()

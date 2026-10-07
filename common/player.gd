@@ -471,7 +471,7 @@ class WordPop extends Node2D:
 		if t > 0.09:
 			k = lerpf(1.35, 1.0, clampf((t - 0.09) / 0.14, 0.0, 1.0))
 		var a := clampf((life - t) / 0.3, 0.0, 1.0)
-		var font := ThemeDB.fallback_font
+		var font := Pal.title_font()          # comic words in chunky cartoon capitals
 		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 		var o := Vector2(-w * 0.5, size * 0.35) if centered else Vector2.ZERO
 		draw_set_transform(Vector2(0, -t * 40.0), tilt, Vector2(k, k))
@@ -2691,7 +2691,7 @@ func _paint() -> void:
 					trail = -0.2
 				else:
 					var q := clampf((sp - 0.45) / 0.22, 0.0, 1.0)
-					ang = -3.05 + (1.0 - pow(1.0 - q, 3.0)) * 4.45
+					ang = -3.05 + (1.0 - pow(1.0 - q, 3.0)) * 3.7       # lands slanted ahead (straight down, planted, it looked like a shovel)
 					trail = (1.0 - q) * 1.2
 					reach = 52.0 + sin(q * PI) * 22.0
 				smear_col = Color(1.0, 0.9, 0.6, 0.55)
@@ -2731,7 +2731,10 @@ func _paint() -> void:
 		var span := 0.75 * signf(trail if trail != 0.0 else 1.0)
 		for i in 7:
 			smear.append(sh + Vector2.from_angle(ca - span + i * (span / 6.0)) * (reach + 100.0))
-		_pl(smear, smear_col, 9.0 if _swing_kind in ["hammer", "homerun", "axe2", "axe3", "cyclone", "ram"] else 7.0, true)
+		# the smear fades as the swing slows: a still arc left beside the landed club read as a shovel's handle
+		smear_col.a *= clampf(absf(trail) / 0.45, 0.0, 1.0)
+		if smear_col.a > 0.02:
+			_pl(smear, smear_col, 9.0 if _swing_kind in ["hammer", "homerun", "axe2", "axe3", "cyclone", "ram"] else 7.0, true)
 		_arm(sh, el, hd, 13.0, false)
 		_club(hd - Vector2.from_angle(ca) * 12.0, hd + Vector2.from_angle(ca) * 112.0, 7.0, 26.0)
 		_fist(hd)

@@ -631,6 +631,7 @@ class View extends Control:
 	var _sig := []
 	var _mouse := Vector2.ZERO
 	var _t := 0.0
+	var _tip_box: StyleBoxFlat
 
 	func _ready() -> void:
 		set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -813,7 +814,7 @@ class View extends Control:
 		draw_rect(Rect2(P.position, Vector2(P.size.x, 40)), Color(0.18, 0.12, 0.08, 0.95))
 		draw_rect(P, Pal.OCHRE, false, 3.0)
 		var all := Bag.listing(him)
-		draw_string(font, P.position + Vector2(18, 28), "UGU'S BAG", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Pal.OCHRE)
+		draw_string(Pal.title_font(), P.position + Vector2(18, 28), "UGU'S BAG", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Pal.OCHRE)
 		draw_string(font, P.position + Vector2(150, 27), "%d kinds of things" % all.size(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(Pal.BONE, 0.7))
 		# close
 		var x := Rect2(P.end.x - 38, P.position.y + 6, 30, 28)
@@ -846,7 +847,7 @@ class View extends Control:
 		if ids.is_empty():
 			draw_string(font, P.position + GRID + Vector2(0, 150), "Nothing here yet. Go and find some!", HORIZONTAL_ALIGNMENT_CENTER, COLS * CSTEP, 16, Color(Pal.BONE, 0.6))
 		# crafting
-		draw_string(font, P.position + Vector2(CRAFT.position.x, 70), "CRAFT", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Pal.OCHRE)
+		draw_string(Pal.title_font(), P.position + Vector2(CRAFT.position.x, 70), "CRAFT", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Pal.OCHRE)
 		draw_string(font, P.position + Vector2(CRAFT.position.x + 70, 69), "click to make it", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(Pal.BONE, 0.5))
 		for i in Bag.RECIPES.size():
 			var rec: Array = Bag.RECIPES[i]
@@ -883,39 +884,41 @@ class View extends Control:
 		var id: String = _hover[1]
 		var inf := Bag.info(id)
 		var lines: Array = []      # [text, size, colour]
-		lines.append([inf[0], 17, Bag.rarity_col(id)])
-		lines.append(["%s  ·  %s" % [Bag.RARITY[int(inf[2])], inf[1]], 11, Color(Bag.rarity_col(id), 0.75)])
+		lines.append([inf[0], 19, Bag.rarity_col(id)])
+		lines.append(["%s  ·  %s" % [Bag.RARITY[int(inf[2])], inf[1]], 12, Color(Bag.rarity_col(id), 0.75)])
 		if str(inf[3]) != "":
-			lines.append([inf[3], 13, Pal.BONE])
+			lines.append([inf[3], 15, Pal.BONE])
 		if _hover[0] == "recipe":
 			var rec := Bag.recipe(id)
 			var parts: Array = []
 			for need in rec[2]:
 				parts.append("%d %s" % [rec[2][need], Bag.name_of(need)])
-			lines.append(["MAKE: " + " + ".join(parts) + ("  ->  %d" % rec[1] if int(rec[1]) > 1 else ""), 12, Color("ffd36b")])
-			lines.append(["USE: " + str(inf[4]), 12, Color("cfeeff")])
+			lines.append(["MAKE: " + " + ".join(parts) + ("  ->  %d" % rec[1] if int(rec[1]) > 1 else ""), 14, Color("ffd36b")])
+			lines.append(["USE: " + str(inf[4]), 14, Color("cfeeff")])
 			var m := Bag.missing(him, id)
-			lines.append([m if m != "" else "Click to make it!", 12, Color("ff8a6a") if m != "" else Color("8fe07a")])
+			lines.append([m if m != "" else "Click to make it!", 14, Color("ff8a6a") if m != "" else Color("8fe07a")])
 		else:
 			if str(inf[4]) != "":
-				lines.append(["USE: " + str(inf[4]), 12, Color("ffd36b")])
+				lines.append(["USE: " + str(inf[4]), 14, Color("ffd36b")])
 			var into := Bag.goes_into(id)
 			if not into.is_empty():
-				lines.append(["MAKES: " + ", ".join(into), 12, Color("cfeeff")])
+				lines.append(["MAKES: " + ", ".join(into), 14, Color("cfeeff")])
 			if str(inf[5]) != "":
-				lines.append(["FIND: " + str(inf[5]), 12, Color(Pal.BONE, 0.6)])
+				lines.append(["FIND: " + str(inf[5]), 14, Color(Pal.BONE, 0.6)])
 			if Bag.mixer != null and is_instance_valid(Bag.mixer):
-				lines.append(["Click: put it in the mix   Right-click: take it out", 11, Color("8fe07a")])
+				lines.append(["Click: put it in the mix   Right-click: take it out", 12, Color("8fe07a")])
 			elif him != null and him.hotbar().has(id):
-				lines.append(["Click: hold it in your hand", 11, Color("8fe07a")])
+				lines.append(["Click: hold it in your hand", 12, Color("8fe07a")])
 		var font := ThemeDB.fallback_font
-		var w := 270.0
-		var h := 12.0
+		var w := 300.0
+		var h := 20.0
 		var heights: Array = []
-		for l in lines:
-			var lh: float = font.get_multiline_string_size(l[0], HORIZONTAL_ALIGNMENT_LEFT, w - 20.0, l[1]).y
+		for i in lines.size():
+			var l: Array = lines[i]
+			var lf: Font = Pal.title_font() if i == 0 else font
+			var lh: float = lf.get_multiline_string_size(l[0], HORIZONTAL_ALIGNMENT_LEFT, w - 28.0, l[1]).y
 			heights.append(lh)
-			h += lh + 3.0
+			h += lh + (8.0 if i == 1 else 3.0)
 		var at := _mouse + Vector2(18, 16)
 		if Bag.mode == 1:
 			at = Vector2(STRIP.x - w - 12.0, _mouse.y - 20.0)        # the strip is at the edge: to its left
@@ -923,13 +926,26 @@ class View extends Control:
 		at.x = clampf(at.x, 4.0, vs.x - w - 4.0)
 		at.y = clampf(at.y, 4.0, vs.y - h - 4.0)
 		var card := Rect2(at, Vector2(w, h))
-		draw_rect(card, Color(0.07, 0.05, 0.04, 0.95))
-		draw_rect(card, Color(Bag.rarity_col(id), 0.8), false, 2.0)
-		var y := at.y + 8.0
+		# a rounded card, edged in its rarity's colour, a soft shadow under it
+		if _tip_box == null:
+			_tip_box = StyleBoxFlat.new()
+			_tip_box.bg_color = Color(0.09, 0.065, 0.045, 0.96)
+			_tip_box.set_border_width_all(2)
+			_tip_box.set_corner_radius_all(12)
+			_tip_box.shadow_color = Color(0, 0, 0, 0.45)
+			_tip_box.shadow_size = 6
+		_tip_box.border_color = Color(Bag.rarity_col(id), 0.85)
+		draw_style_box(_tip_box, card)
+		var y := at.y + 10.0
 		for i in lines.size():
 			var l: Array = lines[i]
-			draw_multiline_string(font, Vector2(at.x + 10.0, y + float(l[1])), l[0], HORIZONTAL_ALIGNMENT_LEFT, w - 20.0, l[1], -1, l[2])
-			y += float(heights[i]) + 3.0
+			var lf: Font = Pal.title_font() if i == 0 else font
+			if i == 0:
+				draw_multiline_string_outline(lf, Vector2(at.x + 14.0, y + float(l[1])), l[0], HORIZONTAL_ALIGNMENT_LEFT, w - 28.0, l[1], -1, 4, Color(0, 0, 0, 0.7))
+			draw_multiline_string(lf, Vector2(at.x + 14.0, y + float(l[1])), l[0], HORIZONTAL_ALIGNMENT_LEFT, w - 28.0, l[1], -1, l[2])
+			y += float(heights[i]) + (8.0 if i == 1 else 3.0)
+			if i == 1:
+				draw_line(Vector2(at.x + 14.0, y - 4.0), Vector2(at.x + w - 14.0, y - 4.0), Color(Bag.rarity_col(id), 0.35), 1.0)
 
 
 ## ================================================================ THE MIXING SLAB
@@ -1076,7 +1092,7 @@ class Mixer extends Control:
 		draw_rect(r, Color("2a2018"), false, 3.0)
 		for k in 5:
 			draw_circle(r.position + Vector2(40 + k * 77, 130 + (k % 2) * 40), 2.0, Color(0, 0, 0, 0.18))   # speckles
-		draw_string(font, r.position + Vector2(14, 24), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Pal.OCHRE)
+		draw_string(Pal.title_font(), r.position + Vector2(14, 24), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Pal.OCHRE)
 		var c := _close_rect()
 		c.position += sh
 		draw_rect(c, Color("8a3a2a") if _hover == "close" else Color(0.3, 0.15, 0.1, 0.8))
