@@ -191,6 +191,12 @@ func _process(delta: float) -> void:
 	_sun_t += delta
 	_update_bar(delta)
 	_menu.queue_redraw()
+	# the old counters (shells, bones, orbs, figs; berries, rocks, wood) step aside while the bag shows them all
+	var old := Bag.mode == 0
+	if _shells.visible != old:
+		for c in [_shells, _bones, _orbs, _berries]:
+			(c as Control).visible = old
+	_figs.visible = old and figs > 0
 	if msg_time > 0.0:
 		msg_time -= delta
 		if msg_time <= 0.0:

@@ -29,7 +29,7 @@ cocoon chamber); Rattling Cave `CAVE_B` 38400–41240 (crawl tunnel, Stampede Al
 old hearth, hoard).
 
 ## Ambushes (`AMBUSHES`; danger tier from x)
-After the hollow 3420–3950 (1) · Great Cavern 8350–8750 (2) · Steppe start 12090–12440 (2) ·
+After the hollow 3420–3950 (1) · Great Cavern 8350–8750 (2) · Steppe start 12260–12440 (2) ·
 graveyard 15250–15900 (3) · far side 25400–26300 (4) · before the Long Dark 28420–28880 (5).
 
 ## The mountain (x 5640–12080)
@@ -41,6 +41,8 @@ Painted Cave is below the grotto (RED OCHRE r7); a long tunnel east from it join
 the saddle's cave mouth → THE GREAT CAVERN (glowcaps) → down to THE DEEP HOLLOW (chest ch0, THUNDER EGG r11);
 east up to THE SLEEPING HALL (chest ch1, GOLDEN HORN r12) → THE EAGLE SHAFT (`MT_CHIMNEY2`) up to the High
 Peak; a long gallery to THE GLOW HOLLOW, out onto the east slope. Rooms: `MT_ROOMS` (title card once each).
+SIDE MISSION at the foot of the east slope (x 11850-12200, `level2/windbreak.gd`): SHIVERS by his lean-to wants a
+windbreak; the MIXING SLAB (`Bag.Mixer`): 2 wood + 3 rocks + 1 clay (mud bank by the hut). Reward: 2 obsidian, a fig.
 Cave worms (`MT_CAVEWORMS`) and risen skeletons (`MT_SKELETONS`; they guard both chests). Buried finds
 `MT_BURIED`, rare relics r8–r10 deep in the strata (`MT_BURIED_RARE`).
 

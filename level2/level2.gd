@@ -60,7 +60,9 @@ var _scar_beaten := false
 var _met_toolmaker := false
 var moss: Friends.Moss
 const AMBUSH := preload("res://level2/ambush.gd")
+const WINDBREAK := preload("res://level2/windbreak.gd")
 var nutmeg: Friends.Nutmeg
+var shivers: WINDBREAK.Camp   ## the side mission at the foot of the mountain (level2/windbreak.gd)
 var _met_nutmeg := false     ## heard about the stolen stone: Old Bongo gets asked about it
 var _near_toolmaker := false
 var _bongo_helps := 0
@@ -752,7 +754,7 @@ func _talk(lines: Array, after: Callable = Callable(), _speaker: Node = null) ->
 	var d := Dialogue.new()
 	d.lines = lines
 	d.player = player
-	var who_is := {"OLD BONGO": elder, "TOOLMAKER": toolmaker, "MOSS": moss, "NUTMEG": nutmeg}
+	var who_is := {"OLD BONGO": elder, "TOOLMAKER": toolmaker, "MOSS": moss, "NUTMEG": nutmeg, "SHIVERS": shivers}
 	d.line_started.connect(func(who: String) -> void:
 		for nm in who_is:
 			if who_is[nm] != null:
@@ -1029,6 +1031,7 @@ func _build_friends() -> void:
 	nutmeg = Friends.Nutmeg.new()
 	nutmeg.position = NUTMEG_AT
 	add_child(nutmeg)
+	shivers = WINDBREAK.build(self)       # SIDE MISSION: a windbreak for a freezing stranger
 
 
 var _moss_met := false
@@ -1364,6 +1367,7 @@ func _build_talkers() -> void:
 		[nutmeg, 150.0, 60.0, Vector2(-10, -122), _meet_nutmeg],
 		[elder, 190.0, 30.0, Vector2(0, -118), _meet_elder],
 		[toolmaker, 150.0, 40.0, Vector2(0, -150), _meet_toolmaker],
+		[shivers, 260.0, 70.0, Vector2(WINDBREAK.SHIVERS_X, -150), func() -> void: shivers.meet()],
 	]
 
 

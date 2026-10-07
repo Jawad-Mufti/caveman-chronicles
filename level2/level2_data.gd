@@ -253,7 +253,7 @@ const AMBUSHES := [
 	[3420.0, 3950.0, 600.0, ["wolf", "bat", "wolf"], "Eyes in the bushes... AMBUSH!"],
 	[8350.0, 8750.0, 830.0, ["skeleton", "skeleton"], "The bones of the Great Cavern stir..."],
 	[15250.0, 15900.0, 600.0, ["skeleton", "skeleton", "skeleton"], "The graveyard... the bones are MOVING!"],
-	[12090.0, 12440.0, 600.0, ["wolf", "wolf", "bat"], "Out on the open Steppe... nowhere to hide!"],
+	[12260.0, 12440.0, 600.0, ["wolf", "wolf", "bat"], "Out on the open Steppe... nowhere to hide!"],   # (starts past Shivers' camp)
 	[25400.0, 26300.0, 600.0, ["wolf", "wolf", "bat", "wolf"], "The pack was lying in wait!"],
 	[28420.0, 28880.0, 600.0, ["skeleton", "bat", "rat", "skeleton"], "In the last of the light... the dead walk!"],
 ]

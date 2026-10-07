@@ -34,6 +34,7 @@ const MYST_BOX := Rect2(900, 640, 350, 56)  ## the MYSTERIES note, bottom right
 ## The mysteries he has run into (GameState.mysteries): [while open, once solved].
 const MYSTERIES := {
 	"shovel": ["The clay in the Dig needs a SHOVEL... where is one?", "The shovel was in the thorns, up in the windy sky."],
+	"windbreak": ["Shivers, at the foot of the mountain, is freezing. A wall against the wind?", "Shivers has a windbreak, and is Grog again. Toasty!"],
 }
 
 var player: CaveMan

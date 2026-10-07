@@ -19,6 +19,7 @@ extends RefCounted
 static var version := 0          ## bumped on every change: what's drawn redraws only then
 static var mode := 1             ## 0 hidden, 1 the strip, 2 the big view (kept between levels)
 static var dig_luck := 0.0       ## grows with every dig that found nothing
+static var mixer: Mixer = null   ## the mixing slab, while one is out (bag clicks go into it)
 
 const CATS := ["GEAR", "STONES", "BUILD", "FOOD", "TREASURE"]
 const RARITY := ["COMMON", "UNCOMMON", "RARE", "VERY RARE", "LEGENDARY"]
@@ -747,8 +748,14 @@ class View extends Control:
 			"tab":
 				tab = h[1]
 			"item":
-				# a thing he can hold: into his hand
-				if him != null:
+				if Bag.mixer != null and is_instance_valid(Bag.mixer):
+					# the mixing slab is out: into it (right-click: back out of it)
+					if right:
+						Bag.mixer.take(h[1])
+					else:
+						Bag.mixer.put(h[1])
+				elif him != null:
+					# a thing he can hold: into his hand
 					var at: int = him.hotbar().find(h[1])
 					if at >= 0:
 						him.select_slot(at)
@@ -919,7 +926,9 @@ class View extends Control:
 				lines.append(["MAKES: " + ", ".join(into), 12, Color("cfeeff")])
 			if str(inf[5]) != "":
 				lines.append(["FIND: " + str(inf[5]), 12, Color(Pal.BONE, 0.6)])
-			if him != null and him.hotbar().has(id):
+			if Bag.mixer != null and is_instance_valid(Bag.mixer):
+				lines.append(["Click: put it in the mix   Right-click: take it out", 11, Color("8fe07a")])
+			elif him != null and him.hotbar().has(id):
 				lines.append(["Click: hold it in your hand", 11, Color("8fe07a")])
 		var font := ThemeDB.fallback_font
 		var w := 270.0
@@ -943,3 +952,190 @@ class View extends Control:
 			var l: Array = lines[i]
 			draw_multiline_string(font, Vector2(at.x + 10.0, y + float(l[1])), l[0], HORIZONTAL_ALIGNMENT_LEFT, w - 20.0, l[1], -1, l[2])
 			y += float(heights[i]) + 3.0
+
+
+## ================================================================ THE MIXING SLAB
+## A flat stone with four hollows, for building something with someone: he
+## clicks things in his bag to drop them in (right-click, or click a hollow,
+## takes one back out), then MIX!. Whoever opened it checks the mix (`mixed`)
+## and answers with `say`: a hint, or `close` and the building starts. Small,
+## near the top middle, so the strip of the bag stays in sight beside it.
+class Mixer extends Control:
+	signal mixed(mix: Dictionary)
+	signal closed
+	const R := Rect2(452, 132, 376, 214)
+	const SLOTS := 4
+	var title := "MIX"
+	var him: CaveMan
+	var mix := {}                 ## id -> how many (in the order they went in)
+	var note := "Click wood and stones in your bag to drop them in."
+	var note_col := Color("e9dcbc")
+	var goal_icon := "wall"       ## what it makes, shown after the "="
+	var _shake := 0.0
+	var _hover := ""              ## "slot0".."slot3", "mix", "close"
+	var _sig := []
+	var _t := 0.0
+	var _done := false
+
+	func _ready() -> void:
+		set_anchors_preset(Control.PRESET_FULL_RECT)
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		Bag.mixer = self
+		if Bag.mode == 0:
+			Bag.mode = 1            # the bag has to be out to pick from it
+		mouse_exited.connect(func() -> void: _hover = "")
+
+	func _exit_tree() -> void:
+		if Bag.mixer == self:
+			Bag.mixer = null
+
+	func _has_point(at: Vector2) -> bool:
+		return R.has_point(at)
+
+	func put(id: String) -> void:
+		var inf := Bag.info(id)
+		if Bag.unique(id):
+			say("Build with your %s? Then how would you BONK things?" % Bag.name_of(id), false)
+		elif inf[1] == "TREASURE":
+			say("Treasure is for keeping, not for walls!", false)
+		elif int(mix.get(id, 0)) >= Bag.count(him, id):
+			say("That's all the %s you have." % Bag.name_of(id), false)
+		elif not mix.has(id) and mix.size() >= SLOTS:
+			say("The slab is full. Click a hollow to take something out.", false)
+		else:
+			mix[id] = int(mix.get(id, 0)) + 1
+			note = "In it goes. Anything else? Then: MIX!"
+			note_col = Color("e9dcbc")
+		Bag.version += 1
+
+	func take(id: String) -> void:
+		if not mix.has(id):
+			return
+		mix[id] = int(mix[id]) - 1
+		if int(mix[id]) <= 0:
+			mix.erase(id)
+		Bag.version += 1
+
+	## A word about the mix (a hint, or a cheer); a wrong one shakes the slab.
+	func say(text: String, good: bool) -> void:
+		note = text
+		note_col = Color("8fe07a") if good else Color("ffb38a")
+		if not good:
+			_shake = 0.35
+		Bag.version += 1
+
+	func close() -> void:
+		if _done:
+			return
+		_done = true
+		closed.emit()
+		queue_free()
+
+	func _process(delta: float) -> void:
+		_t += delta
+		_shake = maxf(_shake - delta, 0.0)
+		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and R.has_point(get_local_mouse_position()):
+			CaveMan.ui_click_until = Time.get_ticks_msec() + 200
+		var sig := [mix.duplicate(), note, _hover, _shake > 0.0, int(_t * 6.0) if not mix.is_empty() else 0]
+		if sig != _sig or _shake > 0.0:
+			_sig = sig
+			queue_redraw()
+
+	func _input(e: InputEvent) -> void:
+		if e is InputEventKey and e.pressed and not e.echo and (e as InputEventKey).physical_keycode == KEY_ESCAPE:
+			get_viewport().set_input_as_handled()
+			close()
+
+	func _slot_rect(i: int) -> Rect2:
+		return Rect2(R.position + Vector2(18 + i * 64, 48), Vector2(56, 56))
+
+	func _mix_rect() -> Rect2:
+		return Rect2(R.position + Vector2(18, 162), Vector2(150, 38))
+
+	func _close_rect() -> Rect2:
+		return Rect2(R.end.x - 34, R.position.y + 6, 28, 26)
+
+	func _what(at: Vector2) -> String:
+		for i in SLOTS:
+			if _slot_rect(i).has_point(at):
+				return "slot%d" % i
+		if _mix_rect().has_point(at):
+			return "mix"
+		if _close_rect().has_point(at):
+			return "close"
+		return ""
+
+	func _gui_input(e: InputEvent) -> void:
+		if e is InputEventMouseMotion:
+			_hover = _what(e.position)
+		elif (e is InputEventMouseButton and e.pressed) or (e is InputEventScreenTouch and e.pressed):
+			CaveMan.ui_click_until = Time.get_ticks_msec() + 250
+			accept_event()
+			if e is InputEventMouseButton and (e as InputEventMouseButton).button_index > MOUSE_BUTTON_RIGHT:
+				return
+			var w := _what(e.position)
+			if w == "close":
+				close()
+			elif w == "mix":
+				if mix.is_empty():
+					say("The slab is empty! Click things in your bag first.", false)
+				else:
+					mixed.emit(mix.duplicate())
+			elif w.begins_with("slot"):
+				var i := int(w.substr(4))
+				var keys := mix.keys()
+				if i < keys.size():
+					take(keys[i])
+
+	func _draw() -> void:
+		var font := ThemeDB.fallback_font
+		var sh := Vector2(sin(_t * 70.0) * 4.0 * (_shake / 0.35), 0)
+		var r := Rect2(R.position + sh, R.size)
+		# a flat slab of warm stone, outlined
+		draw_rect(r.grow(4), Color(0, 0, 0, 0.35))
+		draw_rect(r, Color("5a4a3c"))
+		draw_rect(Rect2(r.position, Vector2(r.size.x, 34)), Color("6e5a48"))
+		draw_rect(r, Color("2a2018"), false, 3.0)
+		for k in 5:
+			draw_circle(r.position + Vector2(40 + k * 77, 130 + (k % 2) * 40), 2.0, Color(0, 0, 0, 0.18))   # speckles
+		draw_string(font, r.position + Vector2(14, 24), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Pal.OCHRE)
+		var c := _close_rect()
+		c.position += sh
+		draw_rect(c, Color("8a3a2a") if _hover == "close" else Color(0.3, 0.15, 0.1, 0.8))
+		draw_line(c.position + Vector2(8, 7), c.end - Vector2(8, 7), Pal.BONE, 2.5)
+		draw_line(Vector2(c.end.x - 8, c.position.y + 7), Vector2(c.position.x + 8, c.end.y - 7), Pal.BONE, 2.5)
+		# the four hollows
+		var keys := mix.keys()
+		for i in SLOTS:
+			var s := _slot_rect(i)
+			s.position += sh
+			draw_rect(s, Color("2e241c"))
+			draw_rect(Rect2(s.position, Vector2(s.size.x, 5)), Color(0, 0, 0, 0.35))       # its shadowed lip
+			draw_rect(s, Color("ffd36b") if _hover == "slot%d" % i and i < keys.size() else Color(0, 0, 0, 0.5), false, 2.0)
+			if i < keys.size():
+				var id: String = keys[i]
+				var bob := sin(_t * 6.0 + i) * 1.5
+				Bag.draw_icon(self, id, s.get_center() + Vector2(0, bob), 1.05, _t)
+				var txt := "x%d" % int(mix[id])
+				draw_string_outline(font, s.end - Vector2(56, 4), txt, HORIZONTAL_ALIGNMENT_RIGHT, 52, 14, 3, Color(0, 0, 0, 0.9))
+				draw_string(font, s.end - Vector2(56, 4), txt, HORIZONTAL_ALIGNMENT_RIGHT, 52, 14, Pal.BONE)
+			else:
+				draw_string(font, s.position + Vector2(0, 36), "+", HORIZONTAL_ALIGNMENT_CENTER, 56, 22, Color(1, 1, 1, 0.12))
+		# = what it makes (a shadow of it, until it's made)
+		var g := R.position + sh + Vector2(282, 76)
+		draw_string(font, g + Vector2(-26, 8), "=", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(Pal.BONE, 0.6))
+		Bag.draw_icon(self, goal_icon, g + Vector2(28, 0), 1.25, _t)
+		draw_rect(Rect2(g + Vector2(4, -28), Vector2(48, 56)), Color(0.18, 0.14, 0.1, 0.55))
+		draw_string(font, g + Vector2(4, 10), "?", HORIZONTAL_ALIGNMENT_CENTER, 48, 26, Color(Pal.BONE, 0.8))
+		# what Shivers (or whoever) says about it
+		draw_multiline_string(font, R.position + sh + Vector2(16, 128), note, HORIZONTAL_ALIGNMENT_LEFT, R.size.x - 32, 13, 2, note_col)
+		# MIX!
+		var m := _mix_rect()
+		m.position += sh
+		var ready := not mix.is_empty()
+		var pulse := 0.5 + 0.5 * sin(_t * 5.0)
+		draw_rect(m, Color("b86a2c") if _hover == "mix" else (Color("8d5424") if ready else Color("4a3a2c")))
+		draw_rect(m, Color("ffd36b", 0.5 + 0.5 * pulse) if ready else Color(0, 0, 0, 0.5), false, 2.0)
+		draw_string(font, m.position + Vector2(0, 26), "MIX!", HORIZONTAL_ALIGNMENT_CENTER, m.size.x, 20, Pal.BONE if ready else Color(Pal.BONE, 0.5))
+		draw_string(font, R.position + sh + Vector2(184, 186), "Right-click in bag: take out", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(Pal.BONE, 0.5))
+		draw_string(font, R.position + sh + Vector2(184, 200), "Esc: put it away", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(Pal.BONE, 0.5))
