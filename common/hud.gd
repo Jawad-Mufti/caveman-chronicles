@@ -145,13 +145,6 @@ func _ready() -> void:
 	_bones.size = Vector2(130, 30)
 	_bones.draw.connect(_draw_bones)
 	add_child(_bones)
-	# THE HOTBAR: his tools in a row, top centre (Terraria-style); tap one to use it
-	_hotbar = Control.new()
-	_hotbar.position = Vector2(640 - HB_W * 0.5, 54)
-	_hotbar.size = Vector2(HB_W, HB_SLOT + 4)
-	_hotbar.draw.connect(_draw_hotbar)
-	_hotbar.gui_input.connect(_hotbar_input)
-	add_child(_hotbar)
 	# THE COMBO: hits in a row, under the hearts (hidden when there is none)
 	_combo = Control.new()
 	_combo.position = Vector2(20, 96)
@@ -258,11 +251,6 @@ func _process(delta: float) -> void:
 		_shells.queue_redraw()
 	if _him == null or not is_instance_valid(_him):
 		_him = get_tree().get_first_node_in_group("player") as CaveMan
-	if _him != null:
-		var sig := [_him.hotbar(), _him.hotbar_selected(), _him.rocks, GameState.figs, Bag.version]
-		if sig != _hb_shown:
-			_hb_shown = sig
-			_hotbar.queue_redraw()
 	var hits := _him.combo_hits if _him != null else 0
 	if hits != _combo_shown:
 		if hits > _combo_shown:
@@ -300,59 +288,8 @@ func _draw_bones() -> void:
 
 
 ## ------------------------------------------------------------ THE HOTBAR
-var _hotbar: Control
-var _hb_shown: Array = []
-const HB_SLOT := 52.0
-const HB_GAP := 6.0
-const HB_W := 11 * (52.0 + 6.0)
-
-
-func _hb_x(i: int, n: int) -> float:
-	return HB_W * 0.5 - n * (HB_SLOT + HB_GAP) * 0.5 + i * (HB_SLOT + HB_GAP)
-
-
-func _hotbar_input(e: InputEvent) -> void:
-	var at := Vector2.INF
-	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
-		at = e.position
-	elif e is InputEventScreenTouch and e.pressed:
-		at = e.position
-	if at == Vector2.INF or _him == null:
-		return
-	var slots: Array = _him.hotbar()
-	for i in slots.size():
-		var x := _hb_x(i, slots.size())
-		if at.x >= x and at.x <= x + HB_SLOT:
-			CaveMan.ui_click_until = Time.get_ticks_msec() + 250     # (the tap isn't a swing too)
-			_him.select_slot(i)
-			_hotbar.accept_event()
-			return
-
-
-func _draw_hotbar() -> void:
-	if _him == null:
-		return
-	var slots: Array = _him.hotbar()
-	var sel: String = _him.hotbar_selected()
-	var font := ThemeDB.fallback_font
-	for i in slots.size():
-		var id: String = slots[i]
-		var x := _hb_x(i, slots.size())
-		var on := id == sel
-		var r := Rect2(x, 2, HB_SLOT, HB_SLOT)
-		var empty := (id == "rocks" and _him.rocks <= 0) or (id == "figs" and GameState.figs <= 0)
-		_hotbar.draw_rect(r, Color(0.08, 0.06, 0.05, 0.72 if on else 0.5))
-		_hotbar.draw_rect(r, Color("ffd36b") if on else Color(Pal.BONE, 0.35), false, 3.0 if on else 1.5)
-		var c := r.get_center() + Vector2(0, 2)
-		var a := 0.35 if empty else 1.0
-		Hud.draw_tool(_hotbar, id, c, a)
-		if empty:
-			_hotbar.draw_rect(r.grow(-2), Color(0.05, 0.04, 0.03, 0.55))      # none left: greyed out
-		_hotbar.draw_string(font, Vector2(x + 4, 16), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(Pal.BONE, 0.7))
-		var count := _him.rocks if id == "rocks" else (GameState.figs if id == "figs" else (Bag.count(_him, id) if Bag.HOTBAR.has(id) else -1))
-		if count >= 0:
-			_hotbar.draw_string(font, Vector2(x + HB_SLOT - 16, HB_SLOT - 2), str(count), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(Pal.BONE, a))
-
+## (2026-10-08, Jawad: the row of squares up top is gone: the BAG's strip is the
+## hotbar now, numbered 1-9, see Bag.View._strip_ids.)
 
 ## Each tool's little picture, code-drawn like everything else (the hotbar, the bag).
 static func draw_tool(ci: CanvasItem, id: String, c: Vector2, a: float) -> void:

@@ -26,6 +26,7 @@ const RARITY_COL := [Color("e9dcbc"), Color("8fe07a"), Color("6cc4ff"), Color("d
 
 ## id -> [name, category, rarity, what it is, what it's for, where to find it]
 const ITEMS := {
+	"hands": ["FISTS", "GEAR", 0, "Bare hands. Better than nothing!", "HIT punches. Find a good stick!", "Always with you."],
 	"club": ["CLUB", "GEAR", 0, "A good heavy stick. BONK!", "HIT swings it. Hold HIT to keep swinging.", "The first stick, in Level 1."],
 	"axe": ["FLINT AXE", "GEAR", 2, "A sharp stone tied to a strong handle.", "HIT swings; the 4th hit CLEAVES. Hold J to throw it.", "The Toolmaker."],
 	"hammer": ["FIRESTONE HAMMER", "GEAR", 3, "Heavy, hot, and very hard to stop.", "HIT smashes beasts and rock.", "Forged from the Firestone."],
@@ -94,6 +95,8 @@ static func count(p: CaveMan, id: String) -> int:
 	if id.begins_with("relic:"):
 		return int(GameState.relics.get(id.substr(6), 0))
 	match id:
+		"hands":
+			return 1 if p != null and not p.has_stick else 0
 		"club":
 			return 1 if p != null and p.has_stick else 0
 		"axe", "hammer":
@@ -123,7 +126,7 @@ static func count(p: CaveMan, id: String) -> int:
 
 ## One of a kind: no number on its box.
 static func unique(id: String) -> bool:
-	return id in ["club", "axe", "hammer", "shovel", "torch"] or FOREVER.has(id)
+	return id in ["hands", "club", "axe", "hammer", "shovel", "torch"] or FOREVER.has(id)
 
 
 ## Everything he has, sorted: by kind, then the table's order. `cat` "" = all.
@@ -650,7 +653,12 @@ class View extends Control:
 		return false
 
 	func _strip_ids() -> Array:
-		return Bag.listing(him)
+		# the hotbar first, in its order (1-9), even what has run out; then the rest of the bag
+		var out: Array = him.hotbar() if him != null else []
+		for id in Bag.listing(him):
+			if not out.has(id):
+				out.append(id)
+		return out
 
 	func toggle() -> void:
 		Bag.mode = (Bag.mode + 1) % 3 if Bag.mode != 0 else 1
@@ -773,21 +781,30 @@ class View extends Control:
 
 	func _box(r: Rect2, id: String, hot: bool, held: bool, small: bool) -> void:
 		var rc := Bag.rarity_col(id)
+		var n := Bag.count(him, id)
+		var empty := n <= 0                      # a hotbar thing he has run out of (rocks, figs): greyed
 		draw_rect(r, Color(0.08, 0.06, 0.05, 0.78 if hot else 0.6))
 		draw_rect(Rect2(r.position, Vector2(r.size.x, 3)), Color(rc, 0.55))           # its rarity, along the top
 		var edge := Color("ffd36b") if held else (Color(rc, 0.95) if hot else Color(Pal.BONE, 0.3))
 		draw_rect(r, edge, false, 2.5 if held or hot else 1.2)
 		Bag.draw_icon(self, id, r.get_center() + Vector2(0, 1), r.size.x / 46.0, _t)
-		var n := Bag.count(him, id)
+		if empty:
+			draw_rect(r.grow(-2), Color(0.05, 0.04, 0.03, 0.6))
 		var font := ThemeDB.fallback_font
 		var fs := 11 if small else 13
+		# THE HOTBAR: what he can hold has its number (1-9 picks it)
+		var slot: int = him.hotbar().find(id) if him != null else -1
+		if slot >= 0 and slot < 9:
+			var bp := r.position + Vector2(3, 12)
+			draw_string_outline(font, bp, str(slot + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 3, Color(0, 0, 0, 0.85))
+			draw_string(font, bp, str(slot + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("ffd36b") if held else Color(Pal.BONE, 0.8))
 		if id == "torch" and him != null:
 			draw_rect(Rect2(r.position + Vector2(4, r.size.y - 6), Vector2((r.size.x - 8) * him.torch_fuel, 3)), Pal.FLAME)
 		elif not Bag.unique(id):
 			var txt := str(n) if n < 1000 else "%dk" % (n / 1000)
 			var at := r.end - Vector2(3, 3)
 			draw_string_outline(font, at - Vector2(r.size.x, 0), txt, HORIZONTAL_ALIGNMENT_RIGHT, r.size.x, fs, 3, Color(0, 0, 0, 0.85))
-			draw_string(font, at - Vector2(r.size.x, 0), txt, HORIZONTAL_ALIGNMENT_RIGHT, r.size.x, fs, Pal.BONE)
+			draw_string(font, at - Vector2(r.size.x, 0), txt, HORIZONTAL_ALIGNMENT_RIGHT, r.size.x, fs, Color(Pal.BONE, 0.45) if empty else Pal.BONE)
 
 	func _draw_strip() -> void:
 		var ids := _strip_ids()

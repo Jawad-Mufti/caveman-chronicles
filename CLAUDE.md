@@ -24,7 +24,8 @@ Level 1 done; Level 2 "Discovery of Fire" (night) nearly done; its map: `docs/le
   CRAFT) -> hidden. Stones drop from digging (`Bag.DROPS`); new item: a row in `Bag.ITEMS` + `draw_icon`.
 - SPACE is the only jump; UP/W and DOWN/S aim (8 ways, UP+RIGHT = 45 degrees).
 - Terraria-fast combat: hold HIT keeps swinging; combos unlocked from the start; specials on L.
-  A Terraria HOTBAR (1-9/wheel/tap; HIT uses the slot: weapon, shovel digs where aimed, rocks, figs).
+  A Terraria HOTBAR (1-9/wheel/tap; HIT uses the slot: weapon, shovel digs where aimed, rocks, figs): no row
+  of its own (Jawad: remove "these squares"); it is the top of the BAG's strip, numbered.
 - Painted earth under the grass, not the banded soil cut-away ("pixelated").
 - The meteor dash stays short ("reasonable"). He runs faster (330).
 - Ambushes escalate the deeper into a level they are.

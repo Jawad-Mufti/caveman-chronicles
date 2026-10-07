@@ -1637,7 +1637,7 @@ func _drop_carried() -> void:
 
 
 ## ------------------------------------------------------------ THE HOTBAR
-## Terraria-style: every tool he has, in a row on the HUD (Hud._draw_hotbar).
+## Terraria-style: every tool he has, numbered 1-9, first in the bag's strip (Bag.View).
 ## Pick one (1-9, the mouse wheel, or tap it) and HIT uses it: a weapon
 ## swings, the SHOVEL digs wherever he aims, ROCKS are thrown, FIGS eaten.
 var tool := "weapon"                 ## "weapon" (the weapon in hand), "shovel", "rocks", "figs"
