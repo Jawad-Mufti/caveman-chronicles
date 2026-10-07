@@ -5,20 +5,19 @@ extends RefCounted
 ## it's FOR and where to find more. Click the bag (or I / B): the big view,
 ## every box, by kind, and the CRAFTING list; again: hidden; again: back.
 ##
-## STONES come out of the ground as he digs (DROPS, by what he digs into): clay
-## and flint are common, fire-gold and quartz rarer, obsidian very rare. Every
-## dig that finds nothing makes the next a little luckier, so a long dig always
-## pays. Stones and what he makes from them are kept (GameState.bag, saved).
+## STONES are buried in the rock, a fixed number in each level, hidden where
+## their kind belongs (level2_data MT_STONES): clay and flint are common,
+## fire-gold and quartz rarer, obsidian very rare. Dig them out (each only once
+## per save). Stones and what he makes from them are kept (GameState.bag, saved).
 ##
 ## RECIPES turn them into things that DO something: flint tips to throw, a
 ## salve that heals, a stone wall that holds back big beasts, a ladder, a spark
 ## kit that lights the torch, and two for good: the obsidian edge (+1 damage on
-## every swing) and the lucky charm (stones turn up more often). Things that are
+## every swing) and the lucky charm (hidden stones glint in the rock). Things that are
 ## used go in the hotbar by themselves; HIT uses them.
 
 static var version := 0          ## bumped on every change: what's drawn redraws only then
 static var mode := 1             ## 0 hidden, 1 the strip, 2 the big view (kept between levels)
-static var dig_luck := 0.0       ## grows with every dig that found nothing
 static var mixer: Mixer = null   ## the mixing slab, while one is out (bag clicks go into it)
 
 const CATS := ["GEAR", "STONES", "BUILD", "FOOD", "TREASURE"]
@@ -35,7 +34,7 @@ const ITEMS := {
 	"tips": ["FLINT TIPS", "GEAR", 1, "Sharp flint on a bone. Flies fast, bites hard.", "Hold them in the hotbar: HIT throws one. Twice a rock's hit!", "Make them: CRAFT."],
 	"spark": ["SPARK KIT", "GEAR", 1, "Flint and fire-gold. Strike them: SPARKS!", "HIT: the torch burns bright and full again.", "Make it: CRAFT."],
 	"edge": ["OBSIDIAN EDGE", "GEAR", 3, "Black glass, sharper than any tooth.", "Always on: every swing does +1 damage.", "Make it: CRAFT."],
-	"charm": ["LUCKY CHARM", "GEAR", 2, "Quartz on a cord. Stones like it.", "Always on: digging finds stones more often.", "Make it: CRAFT."],
+	"charm": ["LUCKY CHARM", "GEAR", 2, "Quartz on a cord. Stones like it.", "Always on: stones hidden in the rock glint, so you know where to dig.", "Make it: CRAFT."],
 	"rocks": ["ROCKS", "STONES", 0, "Round and heavy. Just right for throwing.", "Hold them in the hotbar: HIT throws one. Three make a STONE WALL.", "Lying about everywhere."],
 	"flint": ["FLINT", "STONES", 0, "A grey stone that breaks into sharp edges.", "Tips, the spark kit, the obsidian edge.", "Dig rock and striped stone."],
 	"clay": ["CLAY", "STONES", 0, "Sticky red mud. It holds things together.", "Walls and healing salve.", "Dig dirt. The clay pit is full of it."],
@@ -69,14 +68,6 @@ const RECIPES := [
 	["charm", 1, {"quartz": 2, "bones": 1}],
 ]
 
-## What a dig can turn up, by what was dug: [stone, chance]. "c" is clay.
-const DROPS := {
-	"d": [["clay", 0.16], ["flint", 0.04]],
-	"=": [["flint", 0.18], ["pyrite", 0.06], ["quartz", 0.03]],
-	"#": [["flint", 0.10], ["pyrite", 0.07], ["quartz", 0.04], ["obsidian", 0.012]],
-	"o": [["quartz", 0.10], ["pyrite", 0.05], ["obsidian", 0.03]],
-	"c": [["clay", 0.6]],
-}
 
 
 ## ------------------------------------------------------------ WHAT HE HAS
@@ -326,27 +317,14 @@ static func _place_ladder(p: CaveMan) -> bool:
 
 
 ## ------------------------------------------------------------ DIGGING FINDS
-## A blow broke rock at `at` (mat: the map's letter). Maybe a stone pops out
-## and flies to him.
-static func dig_drop(parent: Node, at: Vector2, mat: String) -> void:
-	var table: Array = DROPS.get(mat, [])
-	if table.is_empty() or parent == null:
+## A stone buried in the rock (a level's MT_STONES / DIG_STONES, ids by place)
+## has been dug free: out it pops and flies to him. Each one only once per save.
+static func unearth(parent: Node, at: Vector2, id: String, level_id: String, tid: String) -> void:
+	if parent == null or GameState.is_taken(level_id, tid):
 		return
-	var luck := (1.5 if GameState.has_item("lucky_charm") else 1.0) * (1.0 + dig_luck)
-	var roll := randf()
-	var found := ""
-	for e in table:
-		var ch: float = float(e[1]) * luck
-		if roll < ch:
-			found = e[0]
-			break
-		roll -= ch
-	if found == "":
-		dig_luck = minf(dig_luck + 0.04, 1.5)
-		return
-	dig_luck = 0.0
+	GameState.take(level_id, tid, 0)          # (worth no shells: it is not money)
 	var f := Find.new()
-	f.id = found
+	f.id = id
 	f.position = at
 	f.vel = Vector2(randf_range(-90, 90), -380)
 	parent.add_child.call_deferred(f)

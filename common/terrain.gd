@@ -508,7 +508,6 @@ func dig_at(world: Vector2, reach := 52.0, n := 4) -> bool:
 	for s in broke:
 		_reveal(s)
 	dug.emit(world, mat)
-	Bag.dig_drop(get_parent(), world, mat)        # a stone for his bag, maybe
 	return true
 
 
@@ -524,6 +523,9 @@ func _reveal(s: Vector2i) -> void:
 	var at := position + Vector2(s) * CELL
 	var lvl := get_parent()
 	var kind: String = l[0]
+	if kind.begins_with("stone:"):
+		Bag.unearth(lvl, at, kind.substr(6), level_id, l[1])
+		return
 	if kind.begins_with("relic:"):
 		var relic := Relics.Relic.new()
 		relic.kind = kind.substr(6)
@@ -725,11 +727,20 @@ class _Glints extends Node2D:
 		var b := Batch.new()
 		var view := _view()
 		var w := terrain._w
+		var charm := GameState.has_item("lucky_charm")
 		for idx in terrain.loot:
 			var s := Vector2(idx % w, idx / w) * Terrain.CELL
 			if not view.has_point(s):
 				continue
 			var kind: String = terrain.loot[idx][0]
+			if kind.begins_with("stone:"):
+				# stones hide in the rock; the LUCKY CHARM shows them, a faint glint in their colour
+				if charm and fmod(_t * 0.8 + float(idx % 89) * 0.41, 2.2) < 0.5:
+					var sc := Bag.rarity_col(kind.substr(6))
+					b.ellipse(s, 6.0, 4.0, Color(sc, 0.75))
+					b.line(s + Vector2(-9, 0), s + Vector2(9, 0), Color(sc, 0.8), 1.5)
+					b.line(s + Vector2(0, -9), s + Vector2(0, 9), Color(sc, 0.8), 1.5)
+				continue
 			var rare := kind.begins_with("relic:") or kind in ["conch", "tusk"]
 			var col := Relics.colour(kind.substr(6)) if kind.begins_with("relic:") else (Color("ffd9a0") if rare else Color("e8dcc0"))
 			# a little fossil in the stone: a dark socket, the find showing in it

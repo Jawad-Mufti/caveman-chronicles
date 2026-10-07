@@ -25,7 +25,8 @@ const W := 620.0
 const PAD := 14.0
 ## Name tags: each talker has a colour.
 const TAGS := {"CAVEMAN": Color("b9772f"), "OLD BONGO": Color("c9a93e"), "TOOLMAKER": Color("c75a33"),
-	"MOSS": Color("6f9a52"), "NUTMEG": Color("9a6a3e"), "SHIVERS": Color("8fc8e8")}
+	"MOSS": Color("6f9a52"), "NUTMEG": Color("9a6a3e"), "SHIVERS": Color("8fc8e8"),
+	"PIP": Color("f2b05e"), "TAKA": Color("c96b4a"), "OOMA": Color("b48ad8")}
 
 var lines: Array = []
 var player: CaveMan

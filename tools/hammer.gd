@@ -37,6 +37,7 @@ func _run() -> void:
 	# the forging: gem in hand, meet the Toolmaker, pick the forge
 	level.gem_found = true
 	GameState.gems["level2"] = "found"
+	GameState.shells = 400                 # (forging costs shells now)
 	p.global_position = Vector2(30960, 590)
 	await frames(20)
 	await finish_talk()

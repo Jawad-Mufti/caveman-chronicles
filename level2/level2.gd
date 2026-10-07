@@ -61,8 +61,10 @@ var _met_toolmaker := false
 var moss: Friends.Moss
 const AMBUSH := preload("res://level2/ambush.gd")
 const WINDBREAK := preload("res://level2/windbreak.gd")
+const ERRANDS := preload("res://level2/errands.gd")
 var nutmeg: Friends.Nutmeg
 var shivers: WINDBREAK.Camp   ## the side mission at the foot of the mountain (level2/windbreak.gd)
+var errands: Array = []         ## Pip, Taka, Ooma: more side missions (level2/errands.gd)
 var _met_nutmeg := false     ## heard about the stolen stone: Old Bongo gets asked about it
 var _near_toolmaker := false
 var _bongo_helps := 0
@@ -158,7 +160,7 @@ const GUIDE := [
 	]},
 	{"title": "GEMS & SECRET WEAPONS", "tag": "Legends of the forge", "accent": Color("b95ad6"), "items": [
 		["gem", "THE FIRESTONE", "Somewhere a red gem glows. Help old Bongo the monkey find what he lost, and he might give it to you..."],
-		["hammer", "THE FIRESTONE HAMMER", "Take it to the Toolmaker and he'll forge a legend. Hold attack, let go — FIRE SLAM! A wave of fire!"],
+		["hammer", "THE FIRESTONE HAMMER", "Take it to the Toolmaker (with shells for his work) and he'll forge a legend. Hold attack, let go — FIRE SLAM! A wave of fire!"],
 		["weapons", "EVERY WEAPON HAS A SECRET", "Hold attack with any weapon to find its special move: HOME RUN with the club, a boomerang AXE THROW..."],
 	]},
 ]
@@ -755,6 +757,8 @@ func _talk(lines: Array, after: Callable = Callable(), _speaker: Node = null) ->
 	d.lines = lines
 	d.player = player
 	var who_is := {"OLD BONGO": elder, "TOOLMAKER": toolmaker, "MOSS": moss, "NUTMEG": nutmeg, "SHIVERS": shivers}
+	for e in errands:
+		who_is[e.who] = e
 	d.line_started.connect(func(who: String) -> void:
 		for nm in who_is:
 			if who_is[nm] != null:
@@ -1032,6 +1036,7 @@ func _build_friends() -> void:
 	nutmeg.position = NUTMEG_AT
 	add_child(nutmeg)
 	shivers = WINDBREAK.build(self)       # SIDE MISSION: a windbreak for a freezing stranger
+	errands = ERRANDS.build(self)          # and Pip's goat, Taka's foot, Ooma's fire
 
 
 var _moss_met := false
@@ -1368,6 +1373,9 @@ func _build_talkers() -> void:
 		[elder, 190.0, 30.0, Vector2(0, -118), _meet_elder],
 		[toolmaker, 150.0, 40.0, Vector2(0, -150), _meet_toolmaker],
 		[shivers, 260.0, 70.0, Vector2(WINDBREAK.SHIVERS_X, -150), func() -> void: shivers.meet()],
+		[errands[0], 130.0, 70.0, Vector2(-44, -110), func() -> void: errands[0].meet()],
+		[errands[1], 170.0, 70.0, Vector2(0, -130), func() -> void: errands[1].meet()],
+		[errands[2], 170.0, 70.0, Vector2(0, -140), func() -> void: errands[2].meet()],
 	]
 
 
@@ -1451,11 +1459,11 @@ func _shop_items() -> Array:
 					item["note"] = "CARRYING"
 					item["can"] = true
 				elif id == "hammer":
-					item["price"] = 0
+					# forging is the Toolmaker's work: the Firestone AND shells
 					var gem: String = GameState.gems.get("level2", "")
 					if gem == "found":
-						item["note"] = "COSTS THE FIRESTONE"
-						item["can"] = true
+						item["note"] = "THE FIRESTONE + SHELLS"
+						item["can"] = GameState.shells >= item["price"]
 					else:
 						item["status"] = "locked"
 						item["note"] = "NEEDS A FIRESTONE"
@@ -1498,6 +1506,11 @@ func _shop_buy(id: String) -> String:
 			GameState.weapon = id
 			said = "He takes up the %s." % _ware_name(id)
 		elif id == "hammer":
+			var cost := price_of("hammer")
+			if GameState.shells < cost:
+				return "Forging takes the Firestone AND %d shells." % cost
+			GameState.shells -= cost
+			hud.set_shells(GameState.shells)
 			GameState.gems["level2"] = "forged"
 			GameState.weapons.append("hammer")
 			GameState.weapon = "hammer"
@@ -2276,6 +2289,15 @@ func _build_under() -> void:
 			at = free_dirt[(free_dirt.find(at) + 1) % free_dirt.size()]
 		_grid.loot[at] = [DIG_LOOT[i], "dg%d" % i]
 		_count_treasure(DIG_LOOT[i])
+	# stones for the bag, hidden in the dirt (where: this save's own roll)
+	var srng := RandomNumberGenerator.new()
+	srng.seed = 77 + GameState.seed_of_world()
+	for i in DIG_STONES.size():
+		for tries in 20:
+			var at2: int = free_dirt[srng.randi() % free_dirt.size()]
+			if not _grid.loot.has(at2):
+				_grid.loot[at2] = ["stone:" + DIG_STONES[i], "sd%d" % i]
+				break
 	_grid.clay_needs_shovel.connect(func() -> void:
 		if not GameState.has_item("shovel"):
 			GameState.open_mystery("shovel")
@@ -2534,18 +2556,20 @@ func _update_mountain() -> void:
 			hud.title_card(room[1], room[2])
 
 
-## Finds buried in the mountain's rock (MT_BURIED, MT_BURIED_RARE): a seeded roll
-## over its solid samples, at least two in from any open air, the rare ones deep
-## in the strata. They glint through the rock; dig them out. (Ids "mb%d" follow
-## the map: regenerate the map, and the buried ids change.)
+## Finds buried in the mountain's rock (MT_BURIED, MT_BURIED_RARE, MT_STONES): a roll
+## seeded from the save (every save digs its own mountain) over its solid samples,
+## at least two in from any open air; the rare ones deep in the strata, each stone
+## where its kind belongs (MT_STONE_HOME). Treasure glints through the rock; the
+## stones hide. (Ids follow the order: "mb%d", "st%d".)
 func _bury_finds() -> void:
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 2611
+	rng.seed = 2611 + GameState.seed_of_world()
 	var spots := []
-	var deep := []
+	var by_code := {}                       # map letter code -> its buried spots
 	for r in range(2, mountain._h - 3):
 		for c in range(3, mountain._w - 3):
-			if not mountain._is_solid_code(mountain._code(c, r)):
+			var code := mountain._code(c, r)
+			if not mountain._is_solid_code(code):
 				continue
 			var buried := true
 			for d in [Vector2i(-2, 0), Vector2i(2, 0), Vector2i(0, -2), Vector2i(0, 2), Vector2i(-1, -1), Vector2i(1, -1)]:
@@ -2554,18 +2578,36 @@ func _bury_finds() -> void:
 			if not buried:
 				continue
 			spots.append(r * mountain._w + c)
-			if mountain._code(c, r) == 61:          # '=': the deep strata
-				deep.append(r * mountain._w + c)
+			if not by_code.has(code):
+				by_code[code] = []
+			(by_code[code] as Array).append(r * mountain._w + c)
+	var take := func(pool: Array) -> int:
+		while not pool.is_empty():
+			var i: int = pool.pop_at(rng.randi() % pool.size())
+			if not mountain.loot.has(i):
+				return i
+		return -1
 	var n := 0
 	for kind in MT_BURIED:
 		for i in int(MT_BURIED[kind]):
-			if spots.is_empty():
-				return
-			var idx: int = spots.pop_at(rng.randi() % spots.size())
-			mountain.loot[idx] = [kind, "mb%d" % n]
+			var idx: int = take.call(spots)
+			if idx >= 0:
+				mountain.loot[idx] = [kind, "mb%d" % n]
 			n += 1
 	for rare in MT_BURIED_RARE:
-		if deep.is_empty():
-			return
-		var idx2: int = deep.pop_at(rng.randi() % deep.size())
-		mountain.loot[idx2] = ["relic:" + rare[0], rare[1]]
+		var idx2: int = take.call(by_code.get(61, []))          # '=': the deep strata
+		if idx2 >= 0:
+			mountain.loot[idx2] = ["relic:" + rare[0], rare[1]]
+	n = 0
+	for kind in MT_STONES:
+		for i in int(MT_STONES[kind]):
+			var idx3 := -1
+			for code in MT_STONE_HOME[kind]:
+				idx3 = take.call(by_code.get(code, []))
+				if idx3 >= 0:
+					break
+			if idx3 < 0:
+				idx3 = take.call(spots)
+			if idx3 >= 0:
+				mountain.loot[idx3] = ["stone:" + kind, "st%d" % n]
+			n += 1

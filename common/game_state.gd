@@ -39,6 +39,7 @@ static var relics := {}                ## rare finds kept for the shelter: kind 
 static var items: Array = []           ## tools he owns for good: "shovel"
 static var mysteries := {}             ## id -> "open" | "solved" (see CampMenu.MYSTERIES)
 static var bag := {}                   ## stones and things he made: id -> how many (see Bag)
+static var world_seed := 0             ## rolled once per save: where the buried things lie (each save digs its own)
 static var _loaded := false
 
 
@@ -77,6 +78,7 @@ static func ensure_loaded() -> void:
 	items = d.get("items", [])
 	mysteries = d.get("mysteries", {})
 	bag = d.get("bag", {})
+	world_seed = int(d.get("world_seed", 0))
 	# an older save that forged the Firestone before weapons were kept
 	if str(gems.get("level2", "")) == "forged" and not weapons.has("hammer"):
 		weapons.append("hammer")
@@ -89,7 +91,7 @@ static func save() -> void:
 		return
 	f.store_string(JSON.stringify({"shells": shells, "upgrades": upgrades, "skins": skins, "skin": skin,
 		"gems": gems, "taken": taken, "trophies": trophies, "weapons": weapons, "weapon": weapon, "figs": figs, "bones": bones, "orbs": orbs,
-		"seen": seen, "abilities": abilities, "equipped": equipped, "equip_picked": equip_picked, "view": view, "relics": relics, "items": items, "mysteries": mysteries, "bag": bag}))
+		"seen": seen, "abilities": abilities, "equipped": equipped, "equip_picked": equip_picked, "view": view, "relics": relics, "items": items, "mysteries": mysteries, "bag": bag, "world_seed": world_seed}))
 
 
 ## A fresh start: everything back to nothing, on disk too.
@@ -114,8 +116,20 @@ static func reset() -> void:
 	items = []
 	mysteries = {}
 	bag = {}
+	world_seed = 0
 	_loaded = true
 	save()
+
+
+## This save's seed for where buried things lie: rolled the first time it's
+## asked for, then kept (so a dug-up spot stays dug-up, and a reload doesn't
+## move the treasure around).
+static func seed_of_world() -> int:
+	ensure_loaded()
+	if world_seed == 0:
+		world_seed = randi_range(1, 2000000000)
+		save()
+	return world_seed
 
 
 ## How many roast figs he can carry.

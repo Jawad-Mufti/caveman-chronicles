@@ -144,7 +144,9 @@ class DigGrid extends Node2D:
 		FX.burst(get_parent(), global_position + at, "dust")
 		if loot.has(i):
 			var l: Array = loot[i]
-			if not GameState.is_taken(level_id, l[1]):
+			if (l[0] as String).begins_with("stone:"):
+				Bag.unearth(get_parent(), global_position + at, (l[0] as String).substr(6), level_id, l[1])
+			elif not GameState.is_taken(level_id, l[1]):
 				var pk := Treasure.Pickup.new()
 				pk.kind = l[0]
 				pk.level_id = level_id
@@ -157,7 +159,6 @@ class DigGrid extends Node2D:
 					lvl._on_treasure_popped(pk)
 				lvl.add_child.call_deferred(pk)
 		dug.emit(kind)
-		Bag.dig_drop(get_parent(), global_position + at, {DIRT: "d", STONE: "o", CLAY: "c"}.get(kind, ""))
 		queue_redraw()
 
 	## The crust breaks (a MEGA STOMP on the mound): its middle blocks go.
@@ -221,7 +222,7 @@ class DigGrid extends Node2D:
 						var y := 10.0 + k * 10.0
 						b.line(p + Vector2(2, y), p + Vector2(38, y + rng.randf_range(-3, 3)), base.darkened(0.25), 2.0)
 					b.line(p + Vector2(8, 4), p + Vector2(14, 30), Color("3a2414"), 1.5)
-			if loot.has(i) and not GameState.is_taken(level_id, (loot[i] as Array)[1]):
+			if loot.has(i) and not GameState.is_taken(level_id, (loot[i] as Array)[1]) and not str((loot[i] as Array)[0]).begins_with("stone:"):
 				# something pale pokes out of the earth
 				b.ellipse(p + Vector2(24, 26), 7, 5, Color("efe3c8"), 0.4)
 				b.ellipse(p + Vector2(22, 24), 3, 2, Color.WHITE, 0.4)
@@ -246,7 +247,7 @@ class DigGrid extends Node2D:
 			return
 		var k := sin(spark / 0.4 * PI)
 		for i in loot:
-			if cells[i] != AIR and not GameState.is_taken(level_id, (loot[i] as Array)[1]):
+			if cells[i] != AIR and not GameState.is_taken(level_id, (loot[i] as Array)[1]) and not str((loot[i] as Array)[0]).begins_with("stone:"):
 				var p := global_position + Vector2(Vector2i(i % cols, i / cols)) * TILE + Vector2(26, 22)
 				Treasure.glint(g, p, 7.0 * k, Color(1, 0.95, 0.8, k))
 

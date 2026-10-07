@@ -124,7 +124,7 @@ func _run() -> void:
 		mud.take_hit(1, 1)
 		await frames(15)
 	await frames(120)
-	check("mud gives clay", Bag.count(p, "clay") >= before + 4, "%d -> %d" % [before, Bag.count(p, "clay")])
+	check("mud: three lumps, then dry", Bag.count(p, "clay") == before + 3, "%d -> %d" % [before, Bag.count(p, "clay")])
 	# 6. again: a short line, no slab
 	camp.meet()
 	await frames(3)

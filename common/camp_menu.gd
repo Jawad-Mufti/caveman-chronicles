@@ -35,6 +35,9 @@ const MYST_BOX := Rect2(900, 640, 350, 56)  ## the MYSTERIES note, bottom right
 const MYSTERIES := {
 	"shovel": ["The clay in the Dig needs a SHOVEL... where is one?", "The shovel was in the thorns, up in the windy sky."],
 	"windbreak": ["Shivers, at the foot of the mountain, is freezing. A wall against the wind?", "Shivers has a windbreak, and is Grog again. Toasty!"],
+	"pip": ["Pip's baby goat Baa is stuck up a tall rock. A ladder?", "Baa is down, safe in Pip's arms. MEHHH!"],
+	"taka": ["Taka the hunter tripped over a snail. His foot needs a salve.", "Taka's foot is fixed. Wiggle wiggle!"],
+	"ooma": ["Old Ooma sits in the Long Dark. Her fire needs a spark.", "Ooma's fire burns in the Long Dark."],
 }
 
 var player: CaveMan
@@ -729,7 +732,9 @@ func _texts() -> void:
 			if not GameState.mysteries.is_empty():
 				_view.draw_string(f, MYST_BOX.position + Vector2(12, 18), "MYSTERIES", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, AMBER)
 				var y := 36.0
-				for id in GameState.mysteries:
+				var order: Array = GameState.mysteries.keys()      # the open ones first: only two lines fit
+				order.sort_custom(func(a, b) -> bool: return GameState.mysteries[a] != "solved" and GameState.mysteries[b] == "solved")
+				for id in order:
 					if not MYSTERIES.has(id) or y > 52.0:
 						continue
 					var solved: bool = GameState.mysteries[id] == "solved"

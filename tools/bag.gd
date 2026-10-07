@@ -70,18 +70,27 @@ func _run() -> void:
 	var l := Bag.listing(p)
 	check("sorted", l.find("club") < l.find("shovel") and l.find("shovel") < l.find("rocks") and l.find("rocks") < l.find("bones") and l.find("bones") < l.find("shells") and l.has("relic:moonstone"), str(l))
 	check("tooltip text", Bag.goes_into("flint").size() == 3 and Bag.name_of("relic:moonstone") == "MOONSTONE", str(Bag.goes_into("flint")))
-	# 2. digging turns up stones (and a dry run makes the next luckier)
-	Bag.dig_luck = 0.0
-	for i in 200:
-		Bag.dig_drop(level, p.global_position + Vector2(0, -200), "#")
-	await frames(120)
-	var got := 0
-	for k in ["flint", "pyrite", "quartz", "obsidian"]:
-		got += Bag.count(p, k)
-	check("dig finds", got >= 20 and got <= 120, "%d stones from 200 blows %s" % [got, GameState.bag])
-	Bag.dig_luck = 0.0
-	Bag.dig_drop(level, p.global_position, "nothing")
-	check("no table, no find", Bag.dig_luck == 0.0)
+	# 2. stones: a fixed number buried in the mountain, hidden; dug out once each
+	var t: Terrain = level.mountain
+	var stones: Array = []
+	for idx in t.loot:
+		if str(t.loot[idx][0]).begins_with("stone:"):
+			stones.append(idx)
+	var want := 0
+	for k in level.MT_STONES:
+		want += int(level.MT_STONES[k])
+	check("stones buried", stones.size() == want, "%d of %d" % [stones.size(), want])
+	var one: int = stones[0]
+	var kind: String = str(t.loot[one][0]).substr(6)
+	var sid: String = t.loot[one][1]
+	var had_stone := Bag.count(p, kind)
+	t._reveal(Vector2i(one % t._w, one / t._w))
+	await frames(240)
+	check("dug out", Bag.count(p, kind) == had_stone + 1 and GameState.is_taken("level2", sid), "%s %d -> %d" % [kind, had_stone, Bag.count(p, kind)])
+	t.loot[one] = ["stone:" + kind, sid]
+	t._reveal(Vector2i(one % t._w, one / t._w))
+	await frames(150)
+	check("only once", Bag.count(p, kind) == had_stone + 1)
 	# 3. crafting: flint tips
 	GameState.bag = {"flint": 3, "clay": 3, "pyrite": 1, "obsidian": 2, "quartz": 2}
 	var m := Bag.missing(p, "spark")

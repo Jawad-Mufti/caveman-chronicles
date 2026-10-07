@@ -19,6 +19,7 @@ const MUD_AT := Vector2(11806, 630)
 const RIGHT := {"wood": 2, "rocks": 3, "clay": 1}
 const BUILD_TIME := 2.0
 const WORDS := ["NONE", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX"]
+const DATA := preload("res://level2/level2_data.gd")
 
 
 static func build(level: Node) -> Camp:
@@ -441,10 +442,12 @@ class Camp extends Node2D:
 
 ## ================================================================ THE MUD BANK
 ## Red clay by Shivers' hut (it's what holds his hut up). A good BONK knocks
-## a lump loose, more often than not.
+## a lump loose, every second blow, until its MUD_LUMPS are gone (once per save).
 class MudBank extends Area2D:
 	var _cd := 0.0
 	var _wob := 0.0
+	var _hits := 0
+	var _told := false
 
 	func _ready() -> void:
 		collision_layer = 4
@@ -464,12 +467,20 @@ class MudBank extends Area2D:
 		_cd = 0.18
 		_wob = 0.3
 		FX.burst(get_parent(), global_position + Vector2(0, -26), "dust")
-		if randf() < 0.65:
-			var f := Bag.Find.new()
-			f.id = "clay"
-			f.position = global_position + Vector2(0, -30)
-			f.vel = Vector2(randf_range(-80, 80), -360)
-			get_parent().add_child(f)
+		_hits += 1
+		if _hits % 2 == 1:
+			return                      # every second good BONK knocks a lump loose
+		var lumps: int = DATA.MUD_LUMPS
+		for i in lumps:
+			if not GameState.is_taken("level2", "mud%d" % i):
+				Bag.unearth(get_parent(), global_position + Vector2(0, -30), "clay", "level2", "mud%d" % i)
+				return
+		if not _told:
+			_told = true
+			var w := Treasure.FloatText.new()
+			w.text = "All dug out."
+			w.position = global_position + Vector2(-40, -60)
+			get_parent().add_child(w)
 
 	func _process(delta: float) -> void:
 		_cd = maxf(_cd - delta, 0.0)

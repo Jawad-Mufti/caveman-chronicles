@@ -612,13 +612,17 @@ const DARKNESS := [[0.0, 0.26], [700.0, 0.40], [1500.0, 0.62], [2600.0, 0.72], [
 
 ## ---------------------------------------------------------------- the shop
 ## The economy. Prices are worked out from how much treasure the level holds
-## (_treasure_total), so that a player who finds about 60% of it can buy
-## exactly one new weapon, one new costume and three roast figs:
-##     axe 26%  +  a costume ~19%  +  3 figs x 4%   =  57%
-## The upgrades are extra, for the ones who search every corner. Move or add
+## (_treasure_total, now 832), so that what a player finds buys a FEW things,
+## each one an achievement (2026-10-07, Jawad: "a bit costly"):
+##     found 60% (most players)   ~500: ONE weapon + ONE costume      (axe 34% + hood 22% = 56%)
+##     found 80%                  ~665: a SECOND weapon (axe + forging the hammer 30% = 64%) + a fig
+##     found 95%                  ~790: two weapons + a costume, OR one weapon + two costumes
+##     everything found + bonuses (chests, buried finds, stomp loot, not counted here): two of each
+## Forging the Firestone into the hammer costs shells too (the Toolmaker's work).
+## Upgrades are extra, for the ones who search every corner. Move or add
 ## treasure and the prices follow on their own.
-const ECONOMY := {"axe": 0.26, "wolf_hood": 0.16, "ember_paint": 0.18, "bear_cloak": 0.21, "firekeeper": 0.20,
-	"fig": 0.04, "heart": 0.18, "torch": 0.11, "pouch": 0.11}
+const ECONOMY := {"axe": 0.34, "hammer": 0.30, "wolf_hood": 0.22, "ember_paint": 0.24, "firekeeper": 0.26, "bear_cloak": 0.28,
+	"fig": 0.04, "heart": 0.20, "torch": 0.12, "pouch": 0.12}
 
 
 ## ---------------------------------------------------------------- exploring
@@ -686,6 +690,8 @@ const DIG_GRID := [14870.0, 600.0, 8, 27]          ## [x, y, columns, rows] of 4
 const DIG_POCKET := [15, 16, 2, 5]                 ## rows 15-16, columns 2-5: the Sun Stone's hollow
 const DIG_CLAY := [21, 22]                         ## rows of packed clay
 const DIG_LOOT := ["shell", "shell", "shell", "conch", "shell", "shell", "tusk", "shell", "conch", "shell"]   ## ids "dg0"...
+const DIG_STONES := ["clay", "clay", "flint", "pyrite"]   ## in the Dig's dirt (ids "sd%d")
+const MUD_LUMPS := 3                                        ## clay in Shivers' mud bank (ids "mud%d")
 const DEN_PASSAGE := [15190.0, 1080.0, 3, 2]       ## a short dig sideways, off the shaft, into the den
 const DEN := Rect2(15310, 880, 550, 280)           ## THE GULPER's den
 const UNDER_ROCK := [                               ## [x, y, w, h, kind]
@@ -792,6 +798,15 @@ const MT_CHIMNEY := [7300.0, 7380.0, -262.0, 478.0]
 const MT_CHIMNEY2 := [9780.0, 9860.0, -422.0, 278.0]  ## THE EAGLE SHAFT, from the Bat Roost up to the High Peak
 const MT_CAPS := [[8320.0, 830.0, 0], [8800.0, 830.0, 1], [9820.0, 540.0, 2]]   ## glowcaps: two in the Great Cavern, one under the Eagle Shaft (bounce up into it): [x, near floor y, tint]
 ## Buried finds (dug out of the rock; not counted in the shop's prices): how many of each,
-## and the rare ones deep in the strata. Placed by a seeded roll over the map (ids "mb%d").
-const MT_BURIED := {"shell": 40, "bone": 10, "conch": 8, "tusk": 4}
+## (2026-10-07: fewer: "the diggable land is full of items"; was 40 / 10 / 8 / 4)
+## and the rare ones deep in the strata. Placed by a roll seeded from the save (GameState.seed_of_world:
+## every save digs its own mountain; ids "mb%d" by order, so a find is still taken once).
+const MT_BURIED := {"shell": 14, "bone": 6, "conch": 3, "tusk": 2}
 const MT_BURIED_RARE := [["moonstone", "r8"], ["glow_crystal", "r9"], ["star_shard", "r10"]]
+## STONES for the bag (Bag.ITEMS): a fixed number in the level, hidden in the rock (no glint
+## unless he wears the LUCKY CHARM), each where its kind would be: clay in dirt, flint in rock
+## and the striped strata, fire-gold and obsidian deep, quartz in the grey stone. Ids "st%d".
+## The level's whole supply (with the Dig's DIG_STONES, the mud bank's MUD_LUMPS and the errands'
+## gifts) is in docs/level2.md, "The budget".
+const MT_STONES := {"clay": 6, "flint": 9, "pyrite": 4, "quartz": 3, "obsidian": 2}
+const MT_STONE_HOME := {"clay": [100], "flint": [35, 61], "pyrite": [61, 35], "quartz": [111], "obsidian": [61, 111]}   ## map letters (d # = o) to look in first

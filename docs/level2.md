@@ -65,3 +65,30 @@ The Lost Cub (recommended), Painted Cave, Falling Star, Whispering Totems.
 
 ## Lane ideas not yet built
 Tar Pits, Mammoth Ride, River Log Ride.
+
+## The budget (finite: what one save can ever get from Level 2)
+Money (shells, once per save): 832 counted (`_treasure_total`; the shop's prices come from it) + bonuses not
+counted (chests, hoards, buried 14 shells + 3 conches, stomp loot). Prices (`ECONOMY`): axe 34%, forging the
+hammer 30% (+ the Firestone), costumes 22-28%, fig 4%, heart 20%, torch / pouch 12%. 60% found = one weapon
++ one costume; 80% = a second weapon; 95% = two weapons + a costume or one + two costumes.
+
+Stones (in the bag, once per save, hidden at this save's own random spots; the LUCKY CHARM shows them):
+| stone | mountain `MT_STONES` | the Dig `DIG_STONES` | mud bank `MUD_LUMPS` | errand gifts | total | spent on errands |
+|---|---|---|---|---|---|---|
+| clay | 6 | 2 | 3 | | 11 | 2 (Shivers, Taka) |
+| flint | 9 | 1 | | | 10 | 1 (Ooma) |
+| fire-gold | 4 | 1 | | | 5 | 1 (Ooma) |
+| quartz | 3 | | | 2 (Pip) | 5 | |
+| obsidian | 2 | | | 2 (Shivers) + 1 (Ooma) | 5 | |
+Left for crafting: enough for the obsidian edge and the lucky charm once each, ~9 flint tips sets, a few
+salves / walls / spark kits. Every visit (not finite): rocks, wood, berries, bones, spirit orbs.
+
+## Side missions (errands)
+Talk (E), then the MIXING SLAB (`Bag.Mixer`) opens beside the bag; wrong mixes hint and cost nothing; the
+right one: 2 s of work, then thanks and a gift. `GameState.mysteries` (camp menu).
+| who | where | needs | gift |
+|---|---|---|---|
+| SHIVERS (`windbreak.gd`) | foot of the east slope 11905 | 2 wood + 3 rocks + 1 clay: a windbreak | 2 obsidian, a fig |
+| TAKA (`errands.gd`) | Steppe 14440 | 1 clay + 1 berry: a salve for his foot | 3 flint tips |
+| PIP (`errands.gd`) | far side 24700 | 4 bones + 1 wood: a ladder up the goat rock | 2 quartz |
+| OOMA (`errands.gd`) | Long Dark 30060 | 1 flint + 1 fire-gold: sparks for her fire (lights the dark) | 2 figs, 1 obsidian |
