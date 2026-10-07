@@ -2256,11 +2256,17 @@ func _paint() -> void:
 	var face_xf := head_xf * Transform2D(0.0, FACE)
 	# the hair trails his motion on a spring: streams back in a run, flies up
 	# in a fall, flops down and bounces on a landing
-	var dt := get_process_delta_time()
+	# (the step is capped: after one long frame (a hitch) a stiff spring stepped
+	# raw blows up to INF/NaN, and NaN hair is hundreds of errors every frame after)
+	var dt := minf(get_process_delta_time(), 1.0 / 30.0)
 	var hair_to := Vector2(-clampf(velocity.x * facing / SPEED, -1.6, 1.6) * 11.0,
-		clampf(-velocity.y / 900.0, -1.2, 1.2) * 10.0) if not dead else Vector2.ZERO
+		clampf(-velocity.y / 900.0, -1.2, 1.2) * 10.0) if not dead and velocity.is_finite() else Vector2.ZERO
 	_hair_vel += ((hair_to - _hair_off) * 140.0 - _hair_vel * 11.0) * dt
 	_hair_off += _hair_vel * dt
+	if not (_hair_off.is_finite() and _hair_vel.is_finite()):
+		_hair_off = Vector2.ZERO
+		_hair_vel = Vector2.ZERO
+	_hair_off = _hair_off.limit_length(40.0)
 	_stm(head_xf)
 	_mane()
 	_stm(upper)
