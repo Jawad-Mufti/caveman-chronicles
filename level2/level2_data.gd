@@ -262,6 +262,10 @@ const BAT_HOVER := 70.0
 const BATS := [[1880.0, GROUND_Y], [2360.0, 400.0], [35635.0, 700.0], [36840.0, 700.0, 240.0]]
 const ROCK_PILES := [[760.0, GROUND_Y], [2130.0, 490.0], [2785.0, GROUND_Y], [6900.0, -40.0], [23200.0, GROUND_Y], [34900.0, 600.0], [36360.0, 700.0], [39520.0, 600.0]]
 const BERRIES := [[1030.0, 500.0], [2425.0, 400.0], [5970.0, 720.0], [7180.0, -480.0], [36000.0, 700.0], [40700.0, 600.0], [37360.0, 700.0], [39480.0, 600.0]]
+## Grape vines right on the path that GROW BACK (BerryBush.regrow seconds after picking): one near
+## the start, one by Shivers' camp, one beside TAKA (his salve needs a berry), one near PIP.
+const PATH_VINES := [[700.0, 600.0], [12215.0, 600.0], [14360.0, 600.0], [24560.0, 600.0]]
+const VINE_REGROW := 40.0
 
 ## ---------------------------------------------------------------- caves
 ## Each cave: its camera bounds, its rock [x, y, w, h, kind], where he comes in,

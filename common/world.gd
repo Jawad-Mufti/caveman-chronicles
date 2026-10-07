@@ -342,16 +342,31 @@ class BerryBush extends Area2D:
 		add_child(cs)
 		body_entered.connect(_on_body)
 
+	var regrow := 0.0             ## > 0: picked, it grows new grapes after this many seconds
+	var _bare := 0.0              ## > 0: picked, regrowing
+
 	func _on_body(body: Node) -> void:
-		if body is CaveMan:
+		if body is CaveMan and _bare <= 0.0:
 			if not (body as CaveMan).add_berry():
 				return
 			taken.emit()
+			if regrow > 0.0:
+				_bare = regrow
+				visible = false
+				return
 			set_deferred("monitoring", false)
 			call_deferred("queue_free")
 
 	func _process(delta: float) -> void:
 		t += delta
+		if _bare > 0.0:
+			_bare -= delta
+			if _bare <= 0.0:
+				visible = true
+				# he may be standing in it: offer it again
+				for b in get_overlapping_bodies():
+					_on_body(b)
+			return
 		if LevelBase.near_view(self):
 			queue_redraw()
 

@@ -109,7 +109,7 @@ func _run() -> void:
 	GameState.bag["clay"] = 0
 	var h2: String = e[1].nag()
 	GameState.bag = keep_bag
-	check("taka hints", h1.contains("GRAPE VINES") and h2.contains("mud bank"), "%s / %s" % [h1, h2])
+	check("taka hints", h1.contains("GRAPE VINE") and h2.contains("mud bank"), "%s / %s" % [h1, h2])
 	level._grid.clay_needs_shovel.emit()
 	level._grid.clay_needs_shovel.emit()
 	check("shovel hints grow", level.hud._msg.text == level.SHOVEL_HINTS[1], level.hud._msg.text)

@@ -293,6 +293,11 @@ func _build_world() -> void:
 		var rock := World.RockPickup.new()
 		rock.position = Vector2(r[0], r[1])
 		add_child(rock)
+	for v in PATH_VINES:
+		var vine := World.BerryBush.new()
+		vine.position = Vector2(v[0], v[1])
+		vine.regrow = VINE_REGROW
+		add_child(vine)
 	for b in BERRIES:
 		var bush := World.BerryBush.new()
 		bush.position = Vector2(b[0], b[1])

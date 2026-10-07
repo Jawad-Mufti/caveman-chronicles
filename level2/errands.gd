@@ -14,7 +14,7 @@ const WORDS := ["NONE", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX"]
 const PIP_AT := Vector2(24700, 600)     ## far side, left of the wolves' beat (24890-25300)
 const TAKA_AT := Vector2(14440, 600)    ## the Steppe, between the river and the Dig
 const OOMA_AT := Vector2(30060, 600)    ## the Long Dark, on the floor 30000-30250
-const BERRY_HINT := "Berries grow on GRAPE VINES: at the foot of the mountain, and high up at its lookout. Pick them when you're NOT hurt, or you'll gobble them up!"
+const BERRY_HINT := "See the GRAPE VINE right here by the river? Its grapes grow back. Pick them when you're NOT hurt, or you'll gobble them up!"
 const CLAY_HINT := "Clay? Dig the dirt in the mountain, or BONK Shivers' mud bank, back at the foot of the mountain."
 
 
@@ -441,7 +441,7 @@ class Taka extends Errand:
 		return ""
 
 	func short(item: String) -> String:
-		return "No clay! Dig mountain dirt, or BONK Shivers' mud bank." if item == "clay" else "No berry! Pick grape vines when you're NOT hurt (or you eat them)."
+		return "No clay! Dig mountain dirt, or BONK Shivers' mud bank." if item == "clay" else "No berry! The grape vine right here: pick it when you're NOT hurt."
 
 	func finish() -> void:
 		healed = true
