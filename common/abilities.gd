@@ -25,6 +25,7 @@ const POWERS := [
 
 ## [id, name, how to do it, keys, how to unlock it]
 const MOVES := [
+	["hotbar", "THE HOTBAR", "Everything you carry is in the row at the top: your weapons, the shovel, rocks, roast figs. Press 1-9 (or roll the mouse wheel, or tap a slot) to pick one, then HIT uses it: a weapon swings, the SHOVEL digs wherever you aim, ROCKS are thrown, FIGS are eaten.", "1-9  /  wheel  /  tap, then J", ""],
 	["strike", "CLUB SWING", "Whack whatever is in reach. HOLD it to keep swinging: BONK, uppercut, SMASH, again and again. Hold UP to swing straight up, UP + LEFT or RIGHT to swing at 45 degrees. Every hit in a row builds your COMBO, and a big combo hits harder!", "J (hold)  +  arrows to aim", ""],
 	["pogo", "POGO STRIKE", "In the air, hold DOWN and HIT: the club stabs straight down. Hit a beast and you BOUNCE off its head, with your air jump back. Keep bouncing!", "in the air: DOWN + J", ""],
 	["cyclone", "CYCLONE", "Keep the swings coming: BONK, uppercut, SMASH... and the FOURTH is the CYCLONE, the club whirling right round you twice, hitting everything on BOTH sides, again and again.", "J  x4  (or hold)", ""],
@@ -41,7 +42,7 @@ const MOVES := [
 	["wallkick", "WALL KICK", "Between two close walls: hold toward a wall to slide, jump to kick across to the other.", "hold toward wall + SPACE", "Climb the split rock on the Mammoth Steppe."],
 	["torch", "TORCH", "Holds back the dark â and the wolves. It burns down: feed it at every bonfire.", "always lit", "Take a burning branch from a fire."],
 	["slam", "HAMMER SLAM", "Hold SPECIAL to raise the Firestone Hammer, let go: SLAM! A wave of fire rolls along the ground.", "hold  L, let go", "Forge the Firestone Hammer."],
-	["axe", "AXE THROW", "Hold SPECIAL, let go: the stone axe spins out and comes back to his hand.", "hold  L, let go", "Trade for the stone axe."],
+	["axe", "AXE: COMBO AND THROW", "Tap HIT: slash, back-slash, CHOP, then the leaping CLEAVE. HOLD HIT (or L) and let go: the axe spins out and comes back to your hand.", "tap J x4  /  hold J, let go", "Trade for the stone axe."],
 	["spear", "SPEAR THROW", "The broken fang becomes a spear. Throw it far, and fetch it back.", "?", "Level 3."],
 ]
 
@@ -63,7 +64,7 @@ static func colour(id: String) -> Color:
 ## Is it his yet? Some come with the level, some are learned once and saved.
 static func unlocked(id: String, p: CaveMan) -> bool:
 	match id:
-		"strike", "pogo", "cyclone", "ram", "launch", "climb", "throw", "grab", "leap", "stomp", "dash", "dig":
+		"hotbar", "strike", "pogo", "cyclone", "ram", "launch", "climb", "throw", "grab", "leap", "stomp", "dash", "dig":
 			return true
 		"homerun":
 			return p == null or p.has_stick
@@ -133,6 +134,14 @@ static func draw_symbol(b: Batch, id: String, c: Vector2, r: float, col: Color, 
 				b.circle(tip + Vector2.from_angle(i * 2.1 + 0.4) * 9.0 * k, 3.5 * k, dk, 8)
 			for i in 3:
 				b.arc(base, (48.0 + i * 12.0) * k, a - 2.2, a - 1.2, 10, Color(col, 0.75 - i * 0.2), 3.0 * k)
+		"hotbar":
+			# a row of three slots, the middle one picked (it pulses gold)
+			for i in 3:
+				var sx := c.x + (-34.0 + i * 24.0) * k
+				var on := i == 1
+				var rr := Rect2(sx - 10.0 * k, c.y - 12.0 * k, 20.0 * k, 24.0 * k)
+				b.rect(rr, Color(col, 0.25 if not on else 0.45 + 0.2 * sin(t * 5.0)))
+				b.polyline(PackedVector2Array([rr.position, Vector2(rr.end.x, rr.position.y), rr.end, Vector2(rr.position.x, rr.end.y), rr.position]), col, (3.0 if on else 1.5) * k)
 		"climb":
 			# a rock face, and a little figure's hands going up it, an arrow up
 			var q := fmod(t * 0.9, 1.0)

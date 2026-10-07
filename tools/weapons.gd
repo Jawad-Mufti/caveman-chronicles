@@ -29,9 +29,9 @@ func tap(n: int, gap: int) -> Array:
 	for i in n:
 		p.touch["attack"] = true
 		await frames(2)
-		kinds.append(p._swing_kind)
 		p.touch["attack"] = false
 		await frames(gap)
+		kinds.append(p._swing_kind)       # (read after the gap: a buffered tap fires a little later)
 	return kinds
 func _run() -> void:
 	await frames(5)
@@ -46,7 +46,7 @@ func _run() -> void:
 		# taps
 		var w := wolf_at(60.0)
 		var hp0 := w.hp
-		var kinds := await tap(3, 14 if weapon == "axe" else 40)
+		var kinds := await tap(4, 22 if weapon != "hammer" else 40)          # the club and the axe chain four
 		print("%-6s taps: swings %s, damage to a wolf %d" % [weapon, kinds, hp0 - w.hp])
 		w.queue_free()
 		await frames(40)
@@ -63,7 +63,8 @@ func _run() -> void:
 			print("        the smash lands %d frames into the swing (%.2f s)" % [first_hit, first_hit / 60.0])
 			w2.queue_free()
 			await frames(40)
-		# the special: hold, then let go
+		# the special: hold, then let go (the axe: hold J; the club and hammer: hold L, SPECIAL)
+		var key: String = "attack" if weapon == "axe" else "special"
 		var far: float = {"club": 70.0, "axe": 330.0, "hammer": 260.0}[weapon]
 		var w3 := wolf_at(far)
 		w3.hp = 10 if weapon == "club" else 5
@@ -71,10 +72,10 @@ func _run() -> void:
 		w3.left_x = w3.position.x - 2.0
 		w3.right_x = w3.position.x + 2.0
 		var x0 := w3.global_position.x
-		p.touch["attack"] = true
+		p.touch[key] = true
 		await frames(62)
 		var charged := p.slam_charge
-		p.touch["attack"] = false
+		p.touch[key] = false
 		await frames(8)
 		var what := ""
 		if weapon == "club":

@@ -552,8 +552,11 @@ func struck() -> void:
 	if p == null or p.attacking <= 0.0:
 		return                     # (fireballs and the like don't dig)
 	var feet := p.global_position
-	if p.digging_down:
-		dig_at(feet + Vector2(0, 26))
+	if p.tool == "shovel" and not p.digging_down:
+		# the SHOVEL (the hotbar): it bites wherever he aims, and bigger than a club
+		dig_at(feet + Vector2(0, -40) + p._dig_aim * 50.0, 60.0, 6)
+	elif p.digging_down:
+		dig_at(feet + Vector2(0, 26), 60.0 if p.tool == "shovel" else 52.0, 6 if p.tool == "shovel" else 4)
 	elif not p.is_on_floor() and p.velocity.y < 0.0:
 		dig_at(feet + Vector2(0, -104))
 	else:

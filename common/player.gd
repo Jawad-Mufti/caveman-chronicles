@@ -154,6 +154,10 @@ var slam_cd := 0.0
 var showing_off := 0.0          ## > 0: holding a new treasure up high (set by the level)
 var _attack_held := 0.0
 var _special_prev := false
+var _charge_by_hold := false     ## this charge was started by holding J (the axe throw), not L
+const AXE_HOLD := 0.26           ## hold J this long with the axe: the throw
+const ATK_BUFFER := 0.2          ## a tap this early is remembered until the swing is ready
+var _atk_buffer := 0.0
 ## THE COMBO: hits landed in a row (each within COMBO_GAP of the last). It
 ## builds his damage (COMBO_DMG) and is shown big on the HUD; a hit taken, or
 ## a pause, ends it.
@@ -208,6 +212,7 @@ const SWINGS := {
 	"axe0": [0.15, 0.17, 0.10, 0.90, 44.0, -48.0, 3],
 	"axe1": [0.15, 0.17, 0.10, 0.90, 44.0, -30.0, 3],
 	"axe2": [0.30, 0.36, 0.52, 1.00, 42.0, -30.0, 6],
+	"axe3": [0.44, 0.40, 0.52, 1.00, 54.0, -26.0, 7],          # the 4th: the leaping CLEAVE
 	"hammer": [0.44, 0.52, 0.58, 0.88, 50.0, -18.0, 6],
 	"dig": [0.30, 0.34, 0.50, 0.95, 4.0, 14.0, 1],          # DOWN + HIT: the hammer's slam, quick, into the ground
 	"spike": [0.24, 0.20, 0.15, 1.00, 4.0, 22.0, 3],         # DOWN + HIT in the air: the POGO, straight down
@@ -607,7 +612,7 @@ func _physics_process(delta: float) -> void:
 		if not is_on_floor():
 			velocity.y += GRAVITY_DOWN * delta
 		move_and_slide()
-		if not special:
+		if not (held if _charge_by_hold else special):
 			if slam_charge >= _charge_ready():
 				match _weapon():
 					"hammer":
@@ -627,6 +632,17 @@ func _physics_process(delta: float) -> void:
 	if has_stick and not axe_out and is_on_floor() and slam_cd <= 0.0 and special and not _special_prev:
 		attacking = 0.0
 		slam_charge = 0.0
+		_charge_by_hold = false
+	# the AXE: taps chain its combo, but HOLDING J winds up the throw (let go: it
+	# spins out and comes back). If he is still holding in the wind-up of a
+	# swing, the swing is dropped for the throw. (The club: holding J keeps swinging.)
+	elif _weapon() == "axe" and tool == "weapon" and has_stick and not axe_out and is_on_floor() \
+			and slam_cd <= 0.0 and _attack_held > AXE_HOLD:
+		var winding := attacking > 0.0 and (1.0 - attacking / _swing_time) < float(SWINGS[_swing_kind][2])
+		if attacking <= 0.0 or winding:
+			attacking = 0.0
+			slam_charge = 0.0
+			_charge_by_hold = true
 	_special_prev = special
 
 	# scorched: running off in a panic, smoke trailing behind
@@ -677,6 +693,9 @@ func _physics_process(delta: float) -> void:
 		# there and still hits what flies above
 		_hit_shape.position = Vector2(facing * 26.0 + _swing_aim.x * 18.0, -62.0)
 		_hit_box.size = Vector2(76.0, 136.0)
+	if attacking > 0.0 and tool == "shovel" and _swing_kind == "dig" and not digging_down:
+		# the shovel bites where he aims: up, ahead, the diagonals
+		_hit_shape.position = Vector2(0, -40) + _dig_aim * 46.0
 	if armed and attacking > 0.0 and _swing_kind == "cyclone":
 		# the CYCLONE: the blow sweeps round him, front, back, front, back —
 		# and every quarter turn it can hit the same beast again
@@ -824,11 +843,32 @@ func _physics_process(delta: float) -> void:
 	_jump_prev = jump_now
 
 	var attack_now: bool = Input.is_physical_key_pressed(KEY_J) \
-		or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) \
+		or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Time.get_ticks_msec() > ui_click_until) \
 		or touch["attack"]
+	# a tap a little before the last swing is ready is remembered (BUFFERED) and
+	# fires the moment it is: mashing J never loses a hit, so the combos land
+	_atk_buffer = maxf(_atk_buffer - delta, 0.0)
+	if attack_now and not _attack_prev and attack_cd > 0.0:
+		_atk_buffer = ATK_BUFFER
+	var buffered := _atk_buffer > 0.0 and attack_cd <= 0.0
+	if buffered:
+		_atk_buffer = 0.0
 	if attack_now and not _attack_prev and carrying != null:
 		_hurl()
-	elif attack_now and attack_cd <= 0.0 and carrying == null:
+	elif attack_now and not _attack_prev and tool == "rocks":
+		throw_rock()                                  # the hotbar's ROCKS: HIT throws one, aimed
+	elif attack_now and not _attack_prev and tool == "figs":
+		eat_fig()                                     # the hotbar's FIGS: HIT eats one
+	elif attack_now and attack_cd <= 0.0 and tool == "shovel" and carrying == null:
+		# the SHOVEL: it digs wherever he aims (held, it keeps digging)
+		_dig_aim = aim()
+		if _dig_aim.y == 0.0:
+			_dig_aim = Vector2(float(facing), 0.0)
+		digging_down = _dig_aim.y > 0.9 and is_on_floor()     # straight down; DOWN + a side digs the diagonal
+		_start_swing("dig")
+		attack_cd *= 0.8                              # a proper tool digs quicker than a club
+		_swing_hits.clear()
+	elif (attack_now or buffered) and attack_cd <= 0.0 and carrying == null and (buffered or not _attack_prev or _weapon() != "axe" or not has_stick):
 		# held, it keeps swinging (like Terraria): each swing chains on into the next
 		var down_held: bool = Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN) or touch.get("down", false)
 		# DOWN + HIT on the ground: an overhead blow straight down — digging
@@ -843,11 +883,22 @@ func _physics_process(delta: float) -> void:
 			_swing_aim = aim()
 			var aimed_up := _swing_aim.y < -0.3
 			if kind == "axe":
-				# slash, back-slash, CHOP — if the taps come quickly enough
-				_combo = (_combo + 1) % 3 if _combo_t < 0.45 else 0
+				# the axe's chain: slash, back-slash, CHOP... and the 4th, the leaping CLEAVE
+				_combo = (_combo + 1) % 4 if _combo_t < 0.45 else 0
 				kind = "axe%d" % _combo
 				if aimed_up:
-					kind = "axe0"                            # aimed up: the rising slash
+					kind = "axe0"                            # aimed up: the rising slash, a LAUNCHER
+				elif _combo == 0 and is_on_floor() and absf(velocity.x) > SPEED * 0.85:
+					# HIT at a full run: the RAM, axe-first
+					kind = "ram"
+					velocity.x = float(facing) * 680.0
+					_kick_lock = 0.22
+					_say_word("RAM!", Color("ffd36b"))
+				elif kind == "axe3":
+					# the CLEAVE: a hop forward, the axe up over his head... and DOWN
+					if is_on_floor():
+						velocity = Vector2(float(facing) * 260.0, -380.0)
+					_say_word("CLEAVE!", Color("dfeaf2"))
 			elif kind == "club":
 				# the chain: BONK, uppercut, SMASH... and the 4th, the CYCLONE
 				_combo = (_combo + 1) % 4 if _combo_t < 0.45 else 0
@@ -1006,6 +1057,13 @@ func _apply_swing() -> void:
 			FX.burst(lv, global_position, "dust", float(facing))
 			if lv.has_method("shake"):
 				lv.shake(2.5, 0.1)
+		if _swing_kind == "axe3" and not _struck and is_on_floor():
+			# the CLEAVE comes down: the ground cracks, chips fly
+			_struck = true
+			var lv2 := get_parent()
+			if lv2.has_method("shake"):
+				lv2.shake(5.0, 0.15)
+			FX.shards(lv2, global_position + Vector2(facing * 60.0, 0), Vector2(facing * 0.3, -1.0), true)
 		if _swing_kind == "hammer" and not _struck:
 			# the hammer comes down on the ground: it shakes, and sparks fly
 			_struck = true
@@ -1041,11 +1099,11 @@ func _apply_swing() -> void:
 			_hit_word(at)
 			combo_hit()
 			# every blow lands with a little freeze-frame: heavier swings, longer
-			var heavy := _swing_kind in ["club2", "axe2", "hammer", "homerun"]
+			var heavy := _swing_kind in ["club2", "axe2", "axe3", "hammer", "homerun"]
 			Critter.slow_time(get_tree(), 0.05 if heavy else 0.03, 0.06 if heavy else 0.04)
 		if crit and is_instance_valid(area) and (area as Critter).dying <= 0.0:
 			var cr := area as Critter
-			if _swing_kind == "club1" and _swing_aim.y < -0.3 and not cr.airborne and is_on_floor() and cr.can_launch():
+			if _swing_kind in ["club1", "axe0"] and _swing_aim.y < -0.3 and not cr.airborne and is_on_floor() and cr.can_launch():
 				# the LAUNCHER: up it goes — jump after it!
 				cr.launch(-580.0)                 # ~150 px up, a floaty arc: a jump (or two) to chase it
 				_juggles = 0
@@ -1078,7 +1136,7 @@ func _apply_swing() -> void:
 		# the hammer's weight: what it hits and doesn't kill is knocked flat
 		if _swing_kind == "hammer" and is_instance_valid(area) and area.has_method("stagger"):
 			area.stagger(facing, 0.9)
-		if _swing_kind == "club2" and is_instance_valid(area):
+		if _swing_kind in ["club2", "axe3"] and is_instance_valid(area):
 			# the finisher: the world jolts, and what it hits reels back
 			if area.has_method("stagger"):
 				area.stagger(facing, 0.6)
@@ -1569,6 +1627,82 @@ func _drop_carried() -> void:
 		carrying.global_position = global_position + Vector2(facing * 34.0, 0)
 		carrying.set_physics_process(true)
 	carrying = null
+
+
+## ------------------------------------------------------------ THE HOTBAR
+## Terraria-style: every tool he has, in a row on the HUD (Hud._draw_hotbar).
+## Pick one (1-9, the mouse wheel, or tap it) and HIT uses it: a weapon
+## swings, the SHOVEL digs wherever he aims, ROCKS are thrown, FIGS eaten.
+var tool := "weapon"                 ## "weapon" (the weapon in hand), "shovel", "rocks", "figs"
+var _dig_aim := Vector2.DOWN         ## where the shovel was aimed when the blow started
+static var ui_click_until := 0       ## a tap on the HUD isn't also a swing (ms)
+
+
+## The slots, in order: what he has.
+func hotbar() -> Array:
+	var out: Array = []
+	if has_stick:
+		for w in ["club", "axe", "hammer"]:
+			if w == "club" or GameState.weapons.has(w):
+				out.append(w)
+	else:
+		out.append("hands")
+	if GameState.has_item("shovel"):
+		out.append("shovel")
+	out.append("rocks")
+	out.append("figs")
+	return out
+
+
+## Which slot is in use now.
+func hotbar_selected() -> String:
+	if tool != "weapon":
+		return tool
+	if not has_stick:
+		return "hands"
+	return _weapon()
+
+
+func select_slot(i: int) -> void:
+	var slots := hotbar()
+	if i >= 0 and i < slots.size():
+		_select(slots[i])
+
+
+func _select(id: String) -> void:
+	if axe_out or slam_charge >= 0.0 or carrying != null:
+		return
+	match id:
+		"club", "axe", "hammer":
+			GameState.weapon = id
+			axe = id == "axe"
+			hammer = id == "hammer"
+			tool = "weapon"
+		"hands":
+			tool = "weapon"
+		_:
+			tool = id
+	attacking = 0.0
+	_say_word(HOTBAR_NAMES.get(id, id.to_upper()), Color("fff4d6"))
+
+const HOTBAR_NAMES := {"club": "CLUB", "axe": "FLINT AXE", "hammer": "FIRESTONE HAMMER", "hands": "FISTS",
+	"shovel": "SHOVEL", "rocks": "ROCKS", "figs": "ROAST FIGS"}
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if dead or preview or talking:
+		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		var k: int = (event as InputEventKey).physical_keycode
+		if k >= KEY_1 and k <= KEY_9:
+			select_slot(k - KEY_1)
+	elif event is InputEventMouseButton and event.pressed:
+		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			var slots := hotbar()
+			var at := slots.find(hotbar_selected())
+			var step := 1 if mb.button_index == MOUSE_BUTTON_WHEEL_DOWN else -1
+			select_slot(posmod(at + step, slots.size()))
 
 
 ## ------------------------------------------------------------ AIMING
@@ -2469,7 +2603,7 @@ func _paint() -> void:
 				trail = (1.0 - q) * 0.6 * (-1.0 if _swing_kind == "axe0" else 1.0)
 				reach = 56.0
 				smear_col = Color("dfeaf2", 0.4)
-			"axe2":
+			"axe2", "axe3":
 				# up over his head, a beat at the top... then the CHOP
 				if sp < 0.45:
 					ang = lerpf(-0.8, -2.35, sp / 0.45)
@@ -2559,7 +2693,7 @@ func _paint() -> void:
 		var span := 0.75 * signf(trail if trail != 0.0 else 1.0)
 		for i in 7:
 			smear.append(sh + Vector2.from_angle(ca - span + i * (span / 6.0)) * (reach + 100.0))
-		_pl(smear, smear_col, 9.0 if _swing_kind in ["hammer", "homerun", "axe2", "cyclone", "ram"] else 7.0, true)
+		_pl(smear, smear_col, 9.0 if _swing_kind in ["hammer", "homerun", "axe2", "axe3", "cyclone", "ram"] else 7.0, true)
 		_arm(sh, el, hd, 13.0, false)
 		_club(hd - Vector2.from_angle(ca) * 12.0, hd + Vector2.from_angle(ca) * 112.0, 7.0, 26.0)
 		_fist(hd)
@@ -3085,6 +3219,9 @@ func _oval_pts(c: Vector2, rx: float, ry: float, rot: float = 0.0) -> PackedVect
 func _club(p0: Vector2, p1: Vector2, w0: float, w1: float) -> void:
 	if axe_out:
 		return
+	if tool == "shovel":
+		_shovel(p0, p1)
+		return
 	if hammer:
 		_hammer(p0, p1)
 		return
@@ -3121,6 +3258,23 @@ func _club(p0: Vector2, p1: Vector2, w0: float, w1: float) -> void:
 		var k: Vector2 = p0 + d * sf + nrm * ((w0 + (w1 - w0) * pow(sf, 1.4)) * 0.5 * float(q[1]) * 0.85)
 		_dot(k, 4.5, C_WOOD2, 2.5)
 
+
+
+## The shovel (the hotbar's digging tool): a straight haft, a cross-grip at
+## the top, and a broad flat blade of shoulder-bone lashed on at the end.
+func _shovel(p0: Vector2, p1: Vector2) -> void:
+	var d := (p1 - p0).normalized()
+	var n := Vector2(-d.y, d.x)
+	var neck := p1 - d * 34.0
+	_shape(PackedVector2Array([p0 + n * 4.0, neck + n * 4.0, neck - n * 4.0, p0 - n * 4.0]), C_WOOD, 3.0)
+	_ln(p0 - n * 10.0, p0 + n * 10.0, C_WOOD2, 6.0, true)            # the grip
+	var blade := PackedVector2Array([neck + n * 14.0, neck + d * 26.0 + n * 15.0, p1 + d * 10.0 + n * 6.0,
+		p1 + d * 14.0, p1 + d * 10.0 - n * 6.0, neck + d * 26.0 - n * 15.0, neck - n * 14.0])
+	_shape(blade, Pal.KEY_BONE.darkened(0.05), 3.0)
+	_ln(neck + d * 6.0, p1 + d * 4.0, Pal.KEY_BONE.darkened(0.3), 2.0, true)
+	for k in 2:
+		var q := neck + d * (2.0 + k * 6.0)
+		_ln(q + n * 9.0, q - n * 9.0, C_VINE, 3.0, true)              # lashed on
 
 
 ## The Flint Axe: a straight haft, and a blade of knapped flint — blue-grey,
@@ -3619,7 +3773,7 @@ func _hit_word(at: Vector2) -> void:
 		match _swing_kind:
 			"hammer", "dig":
 				words = ["WHAM!", "KRAK!"]
-			"axe0", "axe1", "axe2":
+			"axe0", "axe1", "axe2", "axe3":
 				words = ["SHNK!", "CHOP!"]
 			"homerun":
 				return                       # it has its own: HOME RUN!

@@ -108,6 +108,13 @@ func _ready() -> void:
 	_bones.size = Vector2(130, 30)
 	_bones.draw.connect(_draw_bones)
 	add_child(_bones)
+	# THE HOTBAR: his tools in a row, top centre (Terraria-style); tap one to use it
+	_hotbar = Control.new()
+	_hotbar.position = Vector2(640 - HB_W * 0.5, 54)
+	_hotbar.size = Vector2(HB_W, HB_SLOT + 4)
+	_hotbar.draw.connect(_draw_hotbar)
+	_hotbar.gui_input.connect(_hotbar_input)
+	add_child(_hotbar)
 	# THE COMBO: hits in a row, under the hearts (hidden when there is none)
 	_combo = Control.new()
 	_combo.position = Vector2(20, 96)
@@ -202,6 +209,11 @@ func _process(delta: float) -> void:
 		_shells.queue_redraw()
 	if _him == null or not is_instance_valid(_him):
 		_him = get_tree().get_first_node_in_group("player") as CaveMan
+	if _him != null:
+		var sig := [_him.hotbar(), _him.hotbar_selected(), _him.rocks, GameState.figs]
+		if sig != _hb_shown:
+			_hb_shown = sig
+			_hotbar.queue_redraw()
 	var hits := _him.combo_hits if _him != null else 0
 	if hits != _combo_shown:
 		if hits > _combo_shown:
@@ -236,6 +248,92 @@ func _draw_bones() -> void:
 	b.draw(_bones)
 	_bones.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	_bones.draw_string(ThemeDB.fallback_font, Vector2(34, 22), str(bones), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Pal.BONE)
+
+
+## ------------------------------------------------------------ THE HOTBAR
+var _hotbar: Control
+var _hb_shown: Array = []
+const HB_SLOT := 52.0
+const HB_GAP := 6.0
+const HB_W := 7 * (52.0 + 6.0)
+
+
+func _hb_x(i: int, n: int) -> float:
+	return HB_W * 0.5 - n * (HB_SLOT + HB_GAP) * 0.5 + i * (HB_SLOT + HB_GAP)
+
+
+func _hotbar_input(e: InputEvent) -> void:
+	var at := Vector2.INF
+	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+		at = e.position
+	elif e is InputEventScreenTouch and e.pressed:
+		at = e.position
+	if at == Vector2.INF or _him == null:
+		return
+	var slots: Array = _him.hotbar()
+	for i in slots.size():
+		var x := _hb_x(i, slots.size())
+		if at.x >= x and at.x <= x + HB_SLOT:
+			CaveMan.ui_click_until = Time.get_ticks_msec() + 250     # (the tap isn't a swing too)
+			_him.select_slot(i)
+			_hotbar.accept_event()
+			return
+
+
+func _draw_hotbar() -> void:
+	if _him == null:
+		return
+	var slots: Array = _him.hotbar()
+	var sel: String = _him.hotbar_selected()
+	var font := ThemeDB.fallback_font
+	for i in slots.size():
+		var id: String = slots[i]
+		var x := _hb_x(i, slots.size())
+		var on := id == sel
+		var r := Rect2(x, 2, HB_SLOT, HB_SLOT)
+		var empty := (id == "rocks" and _him.rocks <= 0) or (id == "figs" and GameState.figs <= 0)
+		_hotbar.draw_rect(r, Color(0.08, 0.06, 0.05, 0.72 if on else 0.5))
+		_hotbar.draw_rect(r, Color("ffd36b") if on else Color(Pal.BONE, 0.35), false, 3.0 if on else 1.5)
+		var c := r.get_center() + Vector2(0, 2)
+		var a := 0.35 if empty else 1.0
+		_hb_icon(id, c, a)
+		if empty:
+			_hotbar.draw_rect(r.grow(-2), Color(0.05, 0.04, 0.03, 0.55))      # none left: greyed out
+		_hotbar.draw_string(font, Vector2(x + 4, 16), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(Pal.BONE, 0.7))
+		var count := _him.rocks if id == "rocks" else (GameState.figs if id == "figs" else -1)
+		if count >= 0:
+			_hotbar.draw_string(font, Vector2(x + HB_SLOT - 16, HB_SLOT - 2), str(count), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(Pal.BONE, a))
+
+
+## Each tool's little picture, code-drawn like everything else.
+func _hb_icon(id: String, c: Vector2, a: float) -> void:
+	var wood := Color(Color("846141"), a)
+	var dark := Color(Color("4a3220"), a)
+	match id:
+		"club":
+			_hotbar.draw_line(c + Vector2(-12, 14), c + Vector2(10, -10), dark, 7.0)
+			_hotbar.draw_line(c + Vector2(-12, 14), c + Vector2(10, -10), wood, 4.5)
+			_hotbar.draw_circle(c + Vector2(11, -11), 7.0, wood)
+		"axe":
+			_hotbar.draw_line(c + Vector2(-12, 14), c + Vector2(8, -12), wood, 4.0)
+			_hotbar.draw_colored_polygon(PackedVector2Array([c + Vector2(2, -16), c + Vector2(16, -14), c + Vector2(14, 0), c + Vector2(4, -6)]), Color(Color("8c9cab"), a))
+		"hammer":
+			_hotbar.draw_line(c + Vector2(-12, 14), c + Vector2(6, -8), wood, 4.0)
+			_hotbar.draw_rect(Rect2(c + Vector2(-2, -20), Vector2(20, 14)), Color(Color("7b7469"), a))
+			_hotbar.draw_circle(c + Vector2(8, -13), 3.5, Color(Pal.GEM, a))
+		"shovel":
+			_hotbar.draw_line(c + Vector2(-14, -16), c + Vector2(6, 6), wood, 4.0)
+			_hotbar.draw_line(c + Vector2(-18, -12), c + Vector2(-10, -20), dark, 4.0)
+			_hotbar.draw_colored_polygon(PackedVector2Array([c + Vector2(2, 2), c + Vector2(12, -2), c + Vector2(18, 14), c + Vector2(14, 18), c + Vector2(-2, 12)]), Color(Pal.KEY_BONE, a))
+		"rocks":
+			_hotbar.draw_circle(c + Vector2(-4, 4), 10.0, Color(Pal.STONE_DARK, a))
+			_hotbar.draw_circle(c + Vector2(-5, 3), 8.5, Color(Pal.STONE, a))
+			_hotbar.draw_circle(c + Vector2(8, -6), 6.0, Color(Pal.STONE, a))
+		"figs":
+			Hud.draw_fig(_hotbar, c, 1.1)
+		"hands":
+			_hotbar.draw_circle(c, 10.0, Color(Color("a67148"), a))
+			_hotbar.draw_circle(c + Vector2(1, -1), 8.0, Color(Color("c89263"), a))
 
 
 var _combo: Control

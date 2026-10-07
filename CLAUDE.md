@@ -19,7 +19,8 @@ Level 1 done; Level 2 "Discovery of Fire" (night) nearly done; its map: `docs/le
 - No bats in or on the mountain; bats live in the caves.
 - Spirit Orbs: their own blue-white currency (beasts respawn each visit); never shells.
 - SPACE is the only jump; UP/W and DOWN/S aim (8 ways, UP+RIGHT = 45 degrees).
-- Terraria-fast combat: hold HIT keeps swinging; combo moves unlocked from the start; specials on L.
+- Terraria-fast combat: hold HIT keeps swinging; combos unlocked from the start; specials on L.
+  A Terraria HOTBAR (1-9/wheel/tap; HIT uses the slot: weapon, shovel digs where aimed, rocks, figs).
 - Painted earth under the grass, not the banded soil cut-away ("pixelated").
 - The meteor dash stays short ("reasonable"). He runs faster (330).
 - Ambushes escalate the deeper into a level they are.
@@ -27,12 +28,9 @@ Level 1 done; Level 2 "Discovery of Fire" (night) nearly done; its map: `docs/le
 
 ## Files
 common/: `critter.gd` (creature base, attack director, launch), `enemies.gd` (Level 1; Insect base),
-`player.gd` (CaveMan), `batch.gd`, `abilities.gd` (MOVES = Tutorial), `terrain.gd`, `game_state.gd`, and
-hud, level_base, world, pal, dialogue, treasure, shop, fx, camp_menu, sunfire, stomp, grab, spirit_orbs,
-relics, level_end, item_get, guide.
-level2/: `level2_data.gd` (tables), `level2.gd` (builders; extends the data: tables are bare names), and
-night, night_woods, night_beasts, caves, cave_trials, old_scar, mountain, sky_lanes, sky_creatures,
-underground, dig, steppe, tar_pits, canyon, hoards, friends, turf, ambush.
+`player.gd` (CaveMan, hotbar), `hud.gd`, `abilities.gd` (MOVES = Tutorial), `terrain.gd`, `game_state.gd`;
+the rest one file per system (`ls common`). level2/: `level2_data.gd` (tables), `level2.gd` (builders;
+extends the data: tables are bare names); the rest one file per area or system (`ls level2`).
 
 ## Conventions
 - Talkers: bubble, E/TALK starts (`_talkers`); again = a varied line. Lines short. Choice:
@@ -91,7 +89,7 @@ Regression set: smoke, jumps, vines, story, boss, finale, econ, bones, loot, lan
 wolves, talk, tarpits, hoards, sunfire, boulder, stomp, explore, dig, mountain, dash, getup, canyon, falls,
 steppe, leak, grab, gorgechest, orbs, mtbeasts, combat, aim, swarm, combos.
 EXPECTED failures (not bugs): `vines` "three swings, let go late" MISS; `landing` prints 12 "no ground
-under" lines; `canyon rocks` fails ~1 in 4; `combos` slam dunk misses ~1 in 3 (timing).
+under" lines; `canyon rocks` fails ~1 in 4; `combos` slam dunk and `grab` (knocked out of reach) fail ~1 in 3.
 What each test does, args, close-up/perf tools, quirks: `docs/testing.md`.
 
 ## Pitfalls
