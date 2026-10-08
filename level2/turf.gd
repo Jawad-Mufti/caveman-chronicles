@@ -64,6 +64,12 @@ class Ground extends World.Slab:
 		gp.ground = self
 		add_child(gp)
 
+	## No grass from x0 to x1 (local): rock stands on the turf there, and its
+	## blades would draw across the rock's face.
+	func bare(x0: float, x1: float) -> void:
+		back.bare(x0, x1)
+		front.bare(x0, x1)
+
 	## Is the camera over this stretch of ground (or near it)?
 	func in_view() -> bool:
 		var cx := Turf._cam_x(self)
@@ -184,6 +190,14 @@ class Blades extends Node2D:
 				_flora.append([fx, "shroom" if shroom else "flower", rng.randi() % (SHROOMS.size() if shroom else PETALS.size()), 0.0, 0.0, 0.0])
 				fx += rng.randf_range(110, 280)
 		t = rng.randf() * 10.0
+
+	## Clear the blades (and the flowers) from x0 to x1: rock stands there.
+	func bare(x0: float, x1: float) -> void:
+		for i in _x.size():
+			if _x[i] > x0 - 3.0 and _x[i] < x1 + 3.0:
+				_h[i] = 0.0
+		_flora = _flora.filter(func(fl) -> bool: return float(fl[0]) < x0 - 12.0 or float(fl[0]) > x1 + 12.0)
+		queue_redraw()
 
 	func _player() -> CaveMan:
 		return get_tree().get_first_node_in_group("player") as CaveMan
@@ -308,6 +322,8 @@ class Blades extends Node2D:
 		var i1 := clampi(int((cx + Turf.reach(self)) / _step) + 1, 0, _x.size())
 		var shade := 0.0 if front else 0.18
 		for i in range(i0, i1):
+			if _h[i] <= 0.0:
+				continue                    # bare: rock stands here (Ground.bare)
 			var a := _bend[i]
 			var hgt := _h[i] * (1.0 - 0.35 * minf(absf(a), 1.2))
 			var base := Vector2(_x[i], 2.0)

@@ -109,6 +109,7 @@ func _ready() -> void:
 	_build_the_end()
 	_build_treasure()
 	_build_talkers()
+	_bare_under_rock()
 	night = Night.new()
 	night.table = DARKNESS
 	night.player = player
@@ -366,6 +367,24 @@ func _on_shriek() -> void:
 	if not _told_monkeys:
 		_told_monkeys = true
 		hud.say("Now he's done it. Bananas that miss him are food, at least.", 4.0)
+
+
+## Grass doesn't grow under rock: wherever a crag stands on the turf, that
+## stretch is bare (its grass, drawn in front, would cross the rock's face).
+func _bare_under_rock() -> void:
+	var grounds: Array = []
+	var crags: Array = []
+	for c in get_children():
+		if c is Turf.Ground:
+			grounds.append(c)
+		elif c is NightWoods.Crag:
+			crags.append(c)
+	for k in crags:
+		var r: Rect2 = k.rect
+		for g in grounds:
+			var gr: Rect2 = g.rect
+			if r.position.y <= gr.position.y and r.end.y >= gr.position.y and r.position.x < gr.end.x and r.end.x > gr.position.x:
+				g.bare(r.position.x - gr.position.x, r.end.x - gr.position.x)
 
 
 ## ---------------------------------------------------------------- caves

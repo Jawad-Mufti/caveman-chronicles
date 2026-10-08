@@ -123,6 +123,7 @@ class CaveMouth extends Area2D:
 	var _noticed := false
 
 	func _ready() -> void:
+		z_index = 1                  # over the rock it is cut into (the rock is often built after it)
 		collision_layer = 0
 		collision_mask = 2
 		var cs := CollisionShape2D.new()
