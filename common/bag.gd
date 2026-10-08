@@ -19,6 +19,36 @@ extends RefCounted
 static var version := 0          ## bumped on every change: what's drawn redraws only then
 static var mode := 1             ## 0 hidden, 1 the strip, 2 the big view (kept between levels)
 static var mixer: Mixer = null   ## the mixing slab, while one is out (bag clicks go into it)
+## A MIX someone is waiting for (an errand he said yes to): the bag's button
+## shows a "!", the big view a banner; clicking it opens the mixing slab. Empty:
+## none. {who, title, icon, start: Callable, near: Callable -> bool}
+static var job := {}
+
+
+static func offer_job(who: String, title: String, icon: String, start: Callable, near: Callable) -> void:
+	job = {"who": who, "title": title, "icon": icon, "start": start, "near": near}
+	version += 1
+
+
+static func clear_job() -> void:
+	job = {}
+	version += 1
+
+
+static func job_near() -> bool:
+	return not job.is_empty() and (job["near"] as Callable).call()
+
+
+## The banner clicked: out comes the mixing slab (if he is close enough).
+static func start_job() -> bool:
+	if job.is_empty() or not job_near():
+		return false
+	var start: Callable = job["start"]
+	job = {}
+	version += 1
+	mode = 1                        # the strip stays out to pick from; the big view steps aside
+	start.call()
+	return true
 
 const CATS := ["GEAR", "STONES", "BUILD", "FOOD", "TREASURE"]
 const RARITY := ["COMMON", "UNCOMMON", "RARE", "VERY RARE", "LEGENDARY"]
@@ -36,7 +66,7 @@ const ITEMS := {
 	"spark": ["SPARK KIT", "GEAR", 1, "Flint and fire-gold. Strike them: SPARKS!", "HIT: the torch burns bright and full again.", "Make it: CRAFT."],
 	"edge": ["OBSIDIAN EDGE", "GEAR", 3, "Black glass, sharper than any tooth.", "Always on: every swing does +1 damage.", "Make it: CRAFT."],
 	"charm": ["LUCKY CHARM", "GEAR", 2, "Quartz on a cord. Stones like it.", "Always on: stones hidden in the rock glint, so you know where to dig.", "Make it: CRAFT."],
-	"trap": ["GLARE TRAP", "GEAR", 2, "A clay pot: a sweet berry inside, quartz all round, fire-gold to strike the spark.", "HIT: set it down in Old One-Eye's hall. It can't resist the smell... FLASH! Its eye is blinded: hit it!", "Make it: CRAFT (once you have met Old One-Eye)."],
+	"trap": ["GLARE TRAP", "GEAR", 2, "A clay pot: a sweet berry inside, quartz all round, fire-gold to strike the spark.", "HIT: set it down in Old One-Eye's hall. It can't resist the smell... FLASH! Its eye is blinded: hit it!", "Work out how to mix it: the job in your bag, once you have met Old One-Eye."],
 	"rocks": ["ROCKS", "STONES", 0, "Round and heavy. Just right for throwing.", "Hold them in the hotbar: HIT throws one. Three make a STONE WALL.", "Lying about everywhere."],
 	"flint": ["FLINT", "STONES", 0, "A grey stone that breaks into sharp edges.", "Tips, the spark kit, the obsidian edge.", "Dig rock and striped stone."],
 	"clay": ["CLAY", "STONES", 0, "Sticky red mud. It holds things together.", "Walls and healing salve.", "Dig dirt. The clay pit is full of it."],
@@ -68,7 +98,6 @@ const RECIPES := [
 	["spark", 1, {"flint": 1, "pyrite": 1}],
 	["edge", 1, {"obsidian": 2, "flint": 1, "bones": 2}],
 	["charm", 1, {"quartz": 2, "bones": 1}],
-	["trap", 1, {"berries": 1, "quartz": 1, "pyrite": 1, "clay": 1}],     # only once he has met Old One-Eye (recipe_open)
 ]
 
 
@@ -776,6 +805,8 @@ class View extends Control:
 
 	func toggle() -> void:
 		Bag.mode = (Bag.mode + 1) % 3 if Bag.mode != 0 else 1
+		if not Bag.job.is_empty() and Bag.mode == 0:
+			Bag.mode = 2                 # someone is waiting for a mix: straight to the big view
 		# hidden -> strip -> big view -> hidden
 		_hover = []
 		queue_redraw()
@@ -791,6 +822,8 @@ class View extends Control:
 			GameState.weapons.size(), GameState.items.size(), GameState.relics.hash()]
 		if him != null:
 			sig.append_array([him.rocks, him.wood, him.berries, him.has_stick, him.has_torch, snappedf(him.torch_fuel, 0.05), him.hotbar_selected()])
+		if not Bag.job.is_empty():
+			sig.append(int(_t * 10.0))     # the "!" on the sack pulses
 		if Bag.mode == 2 or not _hover.is_empty():
 			sig.append(_mouse)
 			if Bag.mode == 2:
@@ -860,6 +893,9 @@ class View extends Control:
 					var at: int = him.hotbar().find(h[1])
 					if at >= 0:
 						him.select_slot(at)
+			"job":
+				if not Bag.start_job() and him != null:
+					him.said.emit("Go back to %s to mix it." % str(Bag.job.get("who", "them")).capitalize())
 			"recipe":
 				if him != null and not Bag.craft(him, h[1]):
 					him.said.emit(Bag.missing(him, h[1]))
@@ -889,6 +925,13 @@ class View extends Control:
 		var font := ThemeDB.fallback_font
 		var label: String = ["SHOW", "BIG", "HIDE"][Bag.mode]
 		draw_string(font, BTN.position + Vector2(-34, 26), "I", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(Pal.BONE, 0.55))
+		if not Bag.job.is_empty():
+			# someone is waiting for a mix: a pulsing "!" on the sack
+			var bp := c + Vector2(14, -14)
+			var pk := 1.0 + 0.18 * sin(_t * 7.0)
+			draw_circle(bp, 10.0 * pk, Color(0.15, 0.06, 0.02))
+			draw_circle(bp, 8.5 * pk, Color("ffb02e"))
+			draw_string(Pal.title_font(), bp + Vector2(-3.5, 5.5), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.15, 0.06, 0.02))
 		if on:
 			draw_string_outline(font, BTN.position + Vector2(-46, 46), label, HORIZONTAL_ALIGNMENT_RIGHT, 90, 12, 3, Color(0, 0, 0, 0.8))
 			draw_string(font, BTN.position + Vector2(-46, 46), label, HORIZONTAL_ALIGNMENT_RIGHT, 90, 12, Pal.BONE)
@@ -1006,6 +1049,18 @@ class View extends Control:
 					draw_string(font, r.position + Vector2(ix + 18, 38), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("8fe07a") if have >= want else Color("ff8a6a"))
 					ix += 64.0
 			_hits.append([r, "recipe", id])
+		# someone is waiting for a mix: the job's banner, glowing; click it to start mixing
+		if not Bag.job.is_empty():
+			var jr := Rect2(P.position + Vector2(16, 434), Vector2(556, 38))
+			var near := Bag.job_near()
+			var hov: bool = not _hover.is_empty() and _hover[0] == "job"
+			var glow := 0.5 + 0.5 * sin(_t * 5.0)
+			draw_rect(jr, Color(0.32, 0.2, 0.06, 0.95) if near else Color(0.16, 0.12, 0.08, 0.9))
+			draw_rect(jr, Color("ffb02e", 0.55 + 0.45 * glow) if near else Color(Pal.BONE, 0.3), false, 3.0 if hov else 2.0)
+			Bag.draw_icon(self, str(Bag.job["icon"]), jr.position + Vector2(22, 19), 0.75, _t)
+			draw_string(Pal.title_font(), jr.position + Vector2(46, 26), "MIX " + str(Bag.job["title"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("ffd36b") if near else Color(Pal.BONE, 0.6))
+			draw_string(font, jr.position + Vector2(0, 25), "click: start mixing!" if near else "go back to them", HORIZONTAL_ALIGNMENT_RIGHT, jr.size.x - 12.0, 13, Color("8fe07a") if near else Color(Pal.BONE, 0.5))
+			_hits.append([jr, "job", ""])
 		draw_string(font, P.position + Vector2(18, P.size.y - 12), "Hover: what it is   Click: hold it   Click a recipe: make it   I / B: bag   Right-click the bag: hide",
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(Pal.BONE, 0.55))
 

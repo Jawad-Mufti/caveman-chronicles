@@ -56,6 +56,10 @@ func errand(e: Node, wrong: String) -> bool:
 	await frames(3)
 	await talk_through()
 	await frames(5)
+	await frames(25)
+	check(e.id + ": job in the bag", Bag.mixer == null and not Bag.job.is_empty() and level.hud._hint_text.contains("BAG"), level.hud._hint_text)
+	Bag.start_job()
+	await frames(3)
 	var m := Bag.mixer
 	check(e.id + ": slab opens", m != null and p.talking)
 	if m == null:

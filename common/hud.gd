@@ -104,7 +104,7 @@ func _ready() -> void:
 	# the hint BANNER: a little stone tablet that pops up, words in Fredoka, KEY WORDS in gold
 	_say = RichTextLabel.new()
 	_say.bbcode_enabled = true
-	_say.fit_content = true
+	_say.fit_content = false        # (sized from its wrapped words in _show_say)
 	_say.scroll_active = false
 	_say.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_say.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -754,7 +754,10 @@ func _show_say(delta: float, talking: bool) -> void:
 	if text == "":
 		return
 	_say_t += delta
-	var h := _say.size.y
+	# (its height from the wrapped words, every frame: fit_content alone could keep a
+	# height measured before the words had wrapped, a huge empty box)
+	var h := _say.get_content_height() + 24.0
+	_say.size = Vector2(_say.size.x, h)
 	_say.position.y = 112.0 if talking else 720.0 - 92.0 - h
 	_say.pivot_offset = _say.size * 0.5
 	var pop := clampf(_say_t / 0.22, 0.0, 1.0)

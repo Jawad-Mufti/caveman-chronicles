@@ -148,10 +148,19 @@ func _run() -> void:
 	await frames(150)
 	check("it gives up", not w.fight and w.state == "sleep", "state %s fight %s" % [w.state, w.fight])
 	# 4. the trap: the recipe is known now; make it
-	check("recipe open", Bag.recipe_open("trap") and Bag.known_recipes().size() == Bag.RECIPES.size())
+	check("the trap is a job in the bag (no recipe given)", Bag.job.get("title", "") == "A GLARE TRAP" and Bag.recipe("trap").is_empty(), str(Bag.job.get("title", "")))
 	p.berries = 1
 	GameState.bag["clay"] = 1
-	check("craft the trap", Bag.craft(p, "trap") and Bag.count(p, "trap") == 1)
+	check("start the job", Bag.start_job() and Bag.mixer != null)
+	var m := Bag.mixer
+	for k in ["berries", "quartz", "clay"]:
+		m.put(k)
+	m.mixed.emit(m.mix.duplicate())
+	check("a wrong mix: a nudge", Bag.count(p, "trap") == 0 and m.note.contains("SPARK"), m.note)
+	m.put("pyrite")
+	m.mixed.emit(m.mix.duplicate())
+	await frames(3)
+	check("worked out the trap", Bag.count(p, "trap") == 1 and Bag.mixer == null and Bag.count(p, "quartz") == 0, "traps %d" % Bag.count(p, "trap"))
 	# 5. back in, set it down: up it comes under it, blinded
 	level._move_player(Vector2(15560, 2100), 1)
 	await frames(10)

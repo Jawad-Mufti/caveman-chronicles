@@ -20,7 +20,9 @@ Level 1 done; Level 2 "Discovery of Fire" (night) nearly done; its map: `docs/le
 - Spirit Orbs: their own blue-white currency (beasts respawn each visit); never shells.
 - MYSTERY HINTS: near anything unsolved, a SMALL card left of the bag (`level2._hints`, `Hud.set_hint`).
 - SIDE MISSIONS ("as many as possible", using the bag's items): `windbreak.gd`, `errands.gd` (Errand base:
-  recipe, odd/short lines, beats, finish). Each mixes on the MIXING SLAB.
+  recipe, odd/short lines, beats, finish). Saying yes puts a JOB in the bag (`Bag.offer_job`: a "!" on the
+  sack, a banner in the big view, the small hint): HE opens the bag and starts mixing (`Bag.start_job`).
+  Hints and pages NUDGE (riddles); the exact recipe shows only after two wrong mixes. Old One-Eye's trap too.
 - THE BAG (`Bag`): everything carried, in boxes down the right; I/B or the sack: strip -> big view (tabs,
   CRAFT) -> hidden. Stones drop from digging (`Bag.DROPS`); new item: a row in `Bag.ITEMS` + `draw_icon`.
 - SPACE is the only jump; UP/W and DOWN/S aim (8 ways, UP+RIGHT = 45 degrees).

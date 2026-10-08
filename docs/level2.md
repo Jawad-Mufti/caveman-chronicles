@@ -102,7 +102,8 @@ globs), FAKE (a big rumble over there, a small puff where it really comes up). I
 running, uses less of what he dodges, and by life left (`PHASES`: > 2/3, > 1/3) adds moves (spit, double
 breach, fake), tells faster, rests less. First meeting: it bursts out, title card, two TUTORIAL pages (the
 Guide), a quartz + a fire-gold knocked loose ("ow0", "ow1"). Clubs go TINK; outside the hall it waits. The
-GLARE TRAP (bag recipe, known once met: berry + quartz + fire-gold + clay) set down in the hall lures it up
+GLARE TRAP (a JOB in the bag once met: he works it out on the slab: berry + quartz + fire-gold + clay; the
+pages only say SWEET, SHINES, a SPARK, something to hold it) set down in the hall lures it up
 under it: FLASH, blinded 5 s, only then it takes hits; after a stun it comes for HIM once or twice before the
 bait again. 3 flashes; HP 60 = two stuns. Reward: 2 obsidian, 25 spirit orbs. Mystery "one_eye".
 Once met it hunts him ALL OVER the Root Hollows (`OneEye.HUNT`, x 14600-17580); out: up the Dig's shaft or an

@@ -112,9 +112,18 @@ class Errand extends Node2D:
 	func _open_later() -> void:
 		var d := level.get_tree().get_first_node_in_group("dialogue")
 		if d != null and d.has_signal("finished"):
-			d.finished.connect(open_mixer, CONNECT_ONE_SHOT)
+			d.finished.connect(offer, CONNECT_ONE_SHOT)
 		else:
-			open_mixer.call_deferred()
+			offer.call_deferred()
+
+	## A yes: the job goes in his BAG (a "!" on it); he opens the bag and clicks
+	## it to start mixing (Bag.start_job), here with them.
+	func offer() -> void:
+		if done or build_t >= 0.0:
+			return
+		Bag.offer_job(who, "FOR %s: %s" % [who, title.replace("MIX: ", "")], goal_icon, open_mixer, func() -> bool:
+			return level.player.global_position.distance_to(global_position + Vector2(stand_x, 0)) < 450.0)
+		level.hud.say("Open your BAG (I) and click the job to start mixing!", 3.5)
 
 	## ------------------------------------------ the mixing slab
 	func open_mixer() -> void:
@@ -131,7 +140,8 @@ class Errand extends Node2D:
 		m.mixed.connect(func(mix: Dictionary) -> void: _on_mix(m, mix))
 		m.closed.connect(func() -> void:
 			if build_t < 0.0:
-				p.talking = false)
+				p.talking = false
+				offer())              # not made yet: the job waits in the bag again
 		p.talking = true
 		level.hud.add_child(m)
 

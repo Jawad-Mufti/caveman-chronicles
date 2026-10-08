@@ -1398,24 +1398,24 @@ func _hints() -> Array:
 	var dig := Vector2(DIG_GRID[0], DIG_GRID[1])
 	return [
 		["windbreak", Rect2(shiv.x - 260, shiv.y - 320, 620, 360), func() -> String:
-			return "A freezing stranger. Talk to him (E)!" if GameState.mystery("windbreak") == "" else "WINDBREAK: 2 wood + 3 rocks + 1 clay. Clay: his mud bank."],
+			return "A freezing stranger. Talk to him (E)!" if GameState.mystery("windbreak") == "" else "Granny's rhyme: TWO to stand it, THREE to hold it, ONE to glue it..."],
 		["taka", Rect2(ERRANDS.TAKA_AT.x - 220, ERRANDS.TAKA_AT.y - 300, 440, 340), func() -> String:
-			return "A hurt hunter. Talk to him (E)!" if GameState.mystery("taka") == "" else "SALVE: 1 clay + 1 berry. The grape vine is right here!"],
+			return "A hurt hunter. Talk to him (E)!" if GameState.mystery("taka") == "" else "His mother's salve: something STICKY and something SWEET..."],
 		["pip", Rect2(ERRANDS.PIP_AT.x - 260, ERRANDS.PIP_AT.y - 420, 560, 460), func() -> String:
 			match GameState.mystery("pip"):
 				"":
 					return "A kid in trouble. Talk to her (E)!"
 				"built":
 					return "Climb the ladder and get Baa!"
-			return "BONE LADDER: 4 bones + 1 wood."],
+			return "Grandpa's ladder: BONES for the sides and steps, WOOD to tie them..."],
 		["ooma", Rect2(ERRANDS.OOMA_AT.x - 240, ERRANDS.OOMA_AT.y - 300, 480, 340), func() -> String:
-			return "Someone in the dark... Talk (E)!" if GameState.mystery("ooma") == "" else "SPARKS: 1 flint + 1 fire-gold."],
+			return "Someone in the dark... Talk (E)!" if GameState.mystery("ooma") == "" else "A grey stone and a shiny stone, struck together: SPARKS!"],
 		["one_eye", OneEye.HUNT, func() -> String:
 			if GameState.mystery("one_eye") == "":
 				return ""                                   # (no spoilers: it's a surprise)
 			if Bag.count(player, "trap") > 0:
 				return "Set the GLARE TRAP down here (HIT), then BONK its eye!"
-			return "GLARE TRAP: berry + quartz + fire-gold + clay (bag, CRAFT)."],
+			return "Its eye hates LIGHT, it loves SWEET things... a trap?"],
 		["shovel", Rect2(dig.x - 80, dig.y + (DIG_CLAY[0] - 5) * 40, 480, 320), func() -> String:
 			if GameState.has_item("shovel"):
 				return ""
@@ -1433,7 +1433,10 @@ func _update_hint(delta: float) -> void:
 		return
 	_hint_in = 0.3
 	var text := ""
-	if player != null and not player.dead:
+	if Bag.mixer == null and Bag.job_near():
+		# a mix someone is waiting for comes first: where to start it
+		text = "Open your BAG (I) and click \"MIX %s\" to start mixing!" % str(Bag.job["title"])
+	elif player != null and not player.dead:
 		for h in _hints():
 			if GameState.mystery(h[0]) == "solved" or not (h[1] as Rect2).has_point(player.global_position):
 				continue

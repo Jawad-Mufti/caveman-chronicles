@@ -56,8 +56,8 @@ static func pages() -> Array:
 	return [
 		{"title": "OLD ONE-EYE!", "tag": "The worm that eats mountains", "accent": Color("b48ad8"), "items": [
 			[func(c: CanvasItem, at: Vector2) -> void: OneEye.portrait(c, at, false), "TOO BIG TO FIGHT!", "Your club just bounces off. It bites for TWO hearts, from the floor, the roof, anywhere. RUN! Get out of its hall."],
-			["trap", "MAKE A GLARE TRAP", "Its ONE EYE hates bright light, and it LOVES sweet things. Bag (I), CRAFT: 1 berry + 1 quartz + 1 fire-gold + 1 clay."],
-			["quartz", "THE STONES", "Its crash knocked a QUARTZ and a FIRE-GOLD loose: grab them! Clay: dig the dirt in the Dig. Berries: the grape vines."],
+			["trap", "MAKE A GLARE TRAP", "Its ONE EYE hates bright light, and it LOVES sweet things. Something SWEET to lure it, something that SHINES, a SPARK... and something to hold it all. Work it out in your BAG!"],
+			["quartz", "SOMETHING SHINY", "Its crash knocked two shiny stones loose: grab them! What else? Dig, search, think..."],
 		]},
 		{"title": "THE TRAP", "tag": "Come back and set it", "accent": Color("f0b44a"), "items": [
 			["trap", "SET IT DOWN", "Back in its hall, pick the trap in your bag and HIT: down it goes, in front of you."],
@@ -257,6 +257,10 @@ class Worm extends Node2D:
 					_rewards()
 					queue_free()
 					return
+		# the trap used up (or never made) and it still alive: the job comes back
+		if met and not fight and state == "sleep" and int(_t * 2.0) % 6 == 0 and Bag.job.is_empty() and Bag.mixer == null \
+				and Bag.count(p, "trap") <= 0 and get_tree().get_nodes_in_group("worm_trap").is_empty() and GameState.mystery(ID) != "solved":
+			offer_trap()
 		if fight and not inside and state in ["sleep", "tell"]:
 			fight = false
 			state = "sleep"
@@ -315,8 +319,84 @@ class Worm extends Node2D:
 			var g := Guide.new()
 			g.pages = OneEye.pages()
 			g.player = level.player
-			g.done.connect(func() -> void: hud_say("RUN! Out of its hall!"))
+			g.done.connect(func() -> void:
+				hud_say("RUN! Out of its hall!")
+				offer_trap())
 			level.add_child(g))
+
+	## ------------------------------------------ the trap: he works it out himself
+	## After the meeting a job waits in his bag ("!"); he opens it and mixes on
+	## the slab. No recipe is given: the pages say SWEET, SHINES, a SPARK, and
+	## something to hold it; wrong mixes get a hint; after two, the answer.
+	const TRAP := {"berries": 1, "quartz": 1, "pyrite": 1, "clay": 1}
+	var _trap_wrong := 0
+
+	func offer_trap() -> void:
+		if not met or state == "dead" or Bag.mixer != null or not Bag.job.is_empty():
+			return
+		Bag.offer_job("OLD ONE-EYE", "A GLARE TRAP", "trap", open_trap_mixer, func() -> bool:
+			var x: float = level.player.global_position.x
+			return x > HUNT.position.x - 1600.0 and x < HUNT.end.x + 200.0)      # (round the Dig and below it)
+		if Bag.job_near():
+			level.hud.say("Open your BAG (I): work out the GLARE TRAP!", 3.5)
+
+	func open_trap_mixer() -> void:
+		var p: CaveMan = level.player
+		var m := Bag.Mixer.new()
+		m.title = "MIX: A GLARE TRAP"
+		m.him = p
+		m.goal_icon = "trap"
+		m.note = "Something SWEET to lure it, something that SHINES, a SPARK... and something to hold it."
+		if _trap_wrong >= 2:
+			m.note = "Ugu thinks: ONE berry + ONE quartz + ONE fire-gold + ONE clay!"
+		m.mixed.connect(func(mix: Dictionary) -> void:
+			var hint := _trap_judge(mix)
+			if hint != "":
+				_trap_wrong += 1
+				if _trap_wrong == 2:
+					hint += "  (Maybe: berry, quartz, fire-gold, clay?)"
+				m.say("UGU: " + hint, false)
+				return
+			for k in mix:
+				Bag._spend(p, k, int(mix[k]))
+			Bag.add("trap")
+			m.say("UGU: THAT'S IT! A GLARE TRAP!", true)
+			_word("GLARE TRAP!", p.global_position + Vector2(0, -130), Color("ffd36b"), 30)
+			FX.burst(level, p.global_position + Vector2(0, -60), "sparks")
+			m.close())
+		m.closed.connect(func() -> void:
+			p.talking = false
+			if Bag.count(p, "trap") <= 0:
+				offer_trap())                 # not made yet: the job waits in the bag again
+		p.talking = true
+		level.hud.add_child(m)
+
+	## What Ugu thinks of a mix: "" if it's the trap.
+	func _trap_judge(mix: Dictionary) -> String:
+		for k in mix:
+			if not TRAP.has(k):
+				match k:
+					"rocks", "flint":
+						return "Rocks just go CLONK. Its eye needs a FLASH."
+					"bones", "wood":
+						return "Hmm... that won't make LIGHT."
+					"obsidian":
+						return "Black glass is dark. It needs something that SHINES."
+					"figs", "salve":
+						return "Sweet... but a berry is better bait."
+				return "%s? That won't fool that eye." % Bag.name_of(k)
+		if not mix.has("berries"):
+			return "Nothing SWEET to lure it up!"
+		if not mix.has("quartz"):
+			return "Nothing that SHINES to blind it!"
+		if not mix.has("pyrite"):
+			return "No SPARK to set the shine off!"
+		if not mix.has("clay"):
+			return "It all falls apart: something to HOLD it!"
+		for k in TRAP:
+			if int(mix[k]) > int(TRAP[k]):
+				return "Too much %s! Just ONE of each." % Bag.name_of(k)
+		return ""
 
 	## What next. Never the same thing twice running; less of what he dodges;
 	## after a stun, him once or twice before the bait again.

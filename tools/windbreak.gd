@@ -69,6 +69,18 @@ func _run() -> void:
 	check("talks", dialogue() != null and GameState.mystery("windbreak") == "open")
 	await talk_through()
 	await frames(5)
+	# no slab yet: a job in the bag ("!"), and the hint card says to open the bag
+	await frames(25)
+	check("job in the bag", Bag.mixer == null and not Bag.job.is_empty() and level.hud._hint_text.contains("BAG"), level.hud._hint_text)
+	Bag.mode = 1
+	var v = get_tree().get_first_node_in_group("hud").get("_bag")
+	v.toggle()
+	check("I/B opens the big view", Bag.mode == 2)
+	await frames(3)
+	await shot("job")
+	v._click(["job", ""], false)
+	await frames(3)
+	check("the job opens the slab", Bag.mixer != null and Bag.job.is_empty() and Bag.mode == 1)
 	var m := Bag.mixer
 	check("slab opens", m != null and p.talking and Bag.mode != 0, "mixer %s talking %s" % [m, p.talking])
 	if m == null:
