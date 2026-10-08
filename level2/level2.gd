@@ -1387,6 +1387,62 @@ func _build_talkers() -> void:
 	]
 
 
+## ---------------------------------------------------------------- mystery hints
+## Near something left to solve, a small hint by the bag (Hud.set_hint): where
+## he is and how far along it is decide what it says. [mystery, area, words()].
+var _hint_in := 0.0
+
+
+func _hints() -> Array:
+	var shiv := WINDBREAK.AT
+	var dig := Vector2(DIG_GRID[0], DIG_GRID[1])
+	return [
+		["windbreak", Rect2(shiv.x - 260, shiv.y - 320, 620, 360), func() -> String:
+			return "A freezing stranger. Talk to him (E)!" if GameState.mystery("windbreak") == "" else "WINDBREAK: 2 wood + 3 rocks + 1 clay. Clay: his mud bank."],
+		["taka", Rect2(ERRANDS.TAKA_AT.x - 220, ERRANDS.TAKA_AT.y - 300, 440, 340), func() -> String:
+			return "A hurt hunter. Talk to him (E)!" if GameState.mystery("taka") == "" else "SALVE: 1 clay + 1 berry. The grape vine is right here!"],
+		["pip", Rect2(ERRANDS.PIP_AT.x - 260, ERRANDS.PIP_AT.y - 420, 560, 460), func() -> String:
+			match GameState.mystery("pip"):
+				"":
+					return "A kid in trouble. Talk to her (E)!"
+				"built":
+					return "Climb the ladder and get Baa!"
+			return "BONE LADDER: 4 bones + 1 wood."],
+		["ooma", Rect2(ERRANDS.OOMA_AT.x - 240, ERRANDS.OOMA_AT.y - 300, 480, 340), func() -> String:
+			return "Someone in the dark... Talk (E)!" if GameState.mystery("ooma") == "" else "SPARKS: 1 flint + 1 fire-gold."],
+		["one_eye", OneEye.HUNT, func() -> String:
+			if GameState.mystery("one_eye") == "":
+				return ""                                   # (no spoilers: it's a surprise)
+			if Bag.count(player, "trap") > 0:
+				return "Set the GLARE TRAP down here (HIT), then BONK its eye!"
+			return "GLARE TRAP: berry + quartz + fire-gold + clay (bag, CRAFT)."],
+		["shovel", Rect2(dig.x - 80, dig.y + (DIG_CLAY[0] - 5) * 40, 480, 320), func() -> String:
+			if GameState.has_item("shovel"):
+				return ""
+			return "Packed clay needs a SHOVEL. Look at the old painting!"],
+		["shovel", Rect2(BRAMBLE_AT.x - 420, BRAMBLE_AT.y - 300, 840, 600), func() -> String:
+			if GameState.has_item("shovel"):
+				return ""
+			return "Wet thorns: only SUNFIRE burns them. Fill the sun first!" if not GameState.abilities.has("sunfire") else "Use SUNFIRE on the thorns!"],
+	]
+
+
+func _update_hint(delta: float) -> void:
+	_hint_in -= delta
+	if _hint_in > 0.0:
+		return
+	_hint_in = 0.3
+	var text := ""
+	if player != null and not player.dead:
+		for h in _hints():
+			if GameState.mystery(h[0]) == "solved" or not (h[1] as Rect2).has_point(player.global_position):
+				continue
+			text = (h[2] as Callable).call()
+			if text != "":
+				break
+	hud.set_hint(text)
+
+
 func _update_talkers() -> void:
 	var press: bool = Input.is_physical_key_pressed(KEY_E) or player.touch.get("talk", false)
 	var fresh := press and not _talk_key
@@ -2086,6 +2142,7 @@ func _on_bonfire(fire: NightWoods.Bonfire) -> void:
 
 func _process(delta: float) -> void:
 	_update_talkers()
+	_update_hint(delta)
 	_update_under()
 	_update_mountain()
 	super._process(delta)

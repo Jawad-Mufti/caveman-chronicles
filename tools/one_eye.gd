@@ -82,6 +82,17 @@ func _run() -> void:
 	var hp0 := w.hp
 	w.take_hit(6, 1)
 	check("too tough", w.hp == hp0)
+	# it follows him all over the Root Hollows now, not just its hall
+	level._move_player(Vector2(16700, 2060), 1)
+	var followed := false
+	for i in 300:
+		await frames(1)
+		if w.fight and (w.state == "tell" or w.state == "move") and absf(w.a.x - p.global_position.x) < 420.0:
+			followed = true
+			break
+	check("follows him through the hollows", followed, "state %s a %.0f him %.0f" % [w.state, w.a.x, p.global_position.x])
+	check("mystery hint", level.hud._hint_text.contains("GLARE TRAP"), level.hud._hint_text)
+	level._move_player(Vector2(15550, 2100), 1)
 	# its moves: several kinds, two hearts a bite
 	vuln = true
 	p.max_hp = 60
@@ -101,10 +112,12 @@ func _run() -> void:
 			level._move_player(Vector2(15550, 2100), 1)
 	vuln = false
 	check("many moves", seen.size() >= 3, str(seen.keys()))
-	check("two hearts a bite", not bites.is_empty() and bites.all(func(x): return x == 2), str(bites))
+	check("two hearts a bite (a stalactite: one)", bites.has(2) and bites.all(func(x): return x == 2 or x == 1), str(bites))
 	check("it gets sneakier", OneEye.PHASES[2][0].has("fake") and OneEye.PHASES[1][0].has("spit") and float(OneEye.PHASES[2][1]) < float(OneEye.PHASES[0][1]))
 	# badly hurt, it uses its sneaky moves too (the spit's globs bite for two)
 	w.hp = 15
+	await frames(40)
+	await shot("roar")
 	vuln = true
 	var late := {}
 	var globs := 0
@@ -121,12 +134,17 @@ func _run() -> void:
 			level._move_player(Vector2(15550, 2100), 1)
 	vuln = false
 	check("sneaky moves", late.has("spit") or late.has("fake") or late.has("double"), str(late.keys()) + " globs seen %d" % globs)
+	var stal := 0
+	for c in level.get_children():
+		if c is OneEye.Stalactite:
+			stal += 1
+	check("roared and the roof came down", w._phase_shown == 2 and w._rage > 0.3, "phase %d rage %.2f" % [w._phase_shown, w._rage])
 	w.hp = OneEye.HP
 	p.max_hp = 5
 	p.hp = 5
 	await shot("hunt")
-	# 3. out of the hollow: it gives up
-	level._move_player(Vector2(15000, 2020), -1)
+	# 3. out of the Root Hollows (back up top): it gives up
+	level._move_player(Vector2(14100, 590), -1)
 	await frames(150)
 	check("it gives up", not w.fight and w.state == "sleep", "state %s fight %s" % [w.state, w.fight])
 	# 4. the trap: the recipe is known now; make it

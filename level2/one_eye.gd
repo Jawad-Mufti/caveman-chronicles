@@ -25,6 +25,7 @@ extends RefCounted
 
 const ID := "one_eye"
 const ZONE := Rect2(15400, 1660, 800, 480)    ## THE WORM'S HALL (Root Hollows, right of the Dig): floor 2130, roof 1660
+const HUNT := Rect2(14600, 1500, 2980, 800)   ## once met it follows him ALL OVER the Root Hollows (out: up the shaft or an updraft)
 const HP := 60
 const DMG := 2                                ## every attack: two hearts
 const STUN := 5.0
@@ -138,6 +139,8 @@ class Worm extends Node2D:
 	var _hitbox: Hitbox
 	var _stun_head := Vector2.ZERO
 	var _body: Array = []          ## [pos, radius] this frame, head first (world)
+	var _phase_shown := 0         ## the phase it has roared into
+	var _rage := 0.0              ## 0 calm .. 1 furious (its colour, its eye)
 
 	func _ready() -> void:
 		met = GameState.mystery(ID) != ""
@@ -166,6 +169,10 @@ class Worm extends Node2D:
 	func light_strength() -> float:
 		return 0.0 if _body.is_empty() else 0.8
 
+	## Where it lives: its hall, until he has met it; then the whole of the Root Hollows.
+	func area() -> Rect2:
+		return HUNT if met else ZONE
+
 	func phase() -> Array:
 		return PHASES[0 if hp > HP * 2 / 3 else (1 if hp > HP / 3 else 2)]
 
@@ -176,22 +183,22 @@ class Worm extends Node2D:
 		return INF if hit.is_empty() else float((hit["position"] as Vector2).y)
 
 	func _floor(x: float) -> float:
-		var y := _ray(Vector2(x, ZONE.get_center().y), Vector2(x, ZONE.end.y + 60.0))
-		return y if y < ZONE.end.y + 20.0 else INF
+		var y := _ray(Vector2(x, area().get_center().y), Vector2(x, area().end.y + 60.0))
+		return y if y < area().end.y + 20.0 else INF
 
 	func _roof(x: float) -> float:
-		var y := _ray(Vector2(x, ZONE.get_center().y), Vector2(x, ZONE.position.y - 80.0))
-		return y if y < INF else ZONE.position.y
+		var y := _ray(Vector2(x, area().get_center().y), Vector2(x, area().position.y - 80.0))
+		return y if y < INF else area().position.y
 
 	## A spot on the floor near x (never over the pit), inside the hall.
 	func _spot(x: float) -> Vector2:
-		x = clampf(x, ZONE.position.x + 40.0, ZONE.end.x - 40.0)
+		x = clampf(x, area().position.x + 40.0, area().end.x - 40.0)
 		for d in [0.0, 60.0, -60.0, 130.0, -130.0, 200.0, -200.0]:
-			var xx := clampf(x + d, ZONE.position.x + 40.0, ZONE.end.x - 40.0)
+			var xx := clampf(x + d, area().position.x + 40.0, area().end.x - 40.0)
 			var fy := _floor(xx)
 			if fy < INF:
 				return Vector2(xx, fy)
-		return Vector2(x, ZONE.end.y - 10.0)
+		return Vector2(x, area().end.y - 10.0)
 
 	## ------------------------------------------ the fight
 	func _process(delta: float) -> void:
@@ -201,7 +208,7 @@ class Worm extends Node2D:
 		var p: CaveMan = level.player
 		if p == null:
 			return
-		var inside := ZONE.grow(30.0).has_point(p.global_position) and not p.dead
+		var inside := area().grow(30.0).has_point(p.global_position) and not p.dead
 		match state:
 			"sleep":
 				if inside and not p.talking and (not met or st > 0.0):
@@ -259,6 +266,12 @@ class Worm extends Node2D:
 				hud_say("It sinks back into the rock and waits... Make a GLARE TRAP (bag, CRAFT) and come back!")
 		if fight:
 			level.hud.set_boss(float(hp) / HP)
+			# into a new phase: it ROARS, the roof rains stalactites, it goes redder
+			var ph_i := 0 if hp > HP * 2 / 3 else (1 if hp > HP / 3 else 2)
+			if ph_i > _phase_shown and state != "dead":
+				_phase_shown = ph_i
+				_roar(p)
+			_rage = move_toward(_rage, ph_i / 2.0, delta * 0.8)
 		_shape()
 		_hitbox.position = (_body[0][0] - global_position) if not _body.is_empty() else Vector2(-99999, -99999)
 		if LevelBase.near_view(self):
@@ -321,7 +334,7 @@ class Worm extends Node2D:
 			return
 		if _again <= 0:
 			for tr in get_tree().get_nodes_in_group("worm_trap"):
-				if ZONE.has_point((tr as Node2D).global_position) and tr.charges > 0:
+				if area().has_point((tr as Node2D).global_position) and tr.charges > 0:
 					lured = tr
 					break
 		if lured != null:
@@ -360,16 +373,16 @@ class Worm extends Node2D:
 				_aim_breach(p)
 				_tell_at(a, false)
 			"drop":
-				var x := clampf(p.global_position.x + p.velocity.x * 0.35, ZONE.position.x + 40.0, ZONE.end.x - 40.0)
+				var x := clampf(p.global_position.x + p.velocity.x * 0.35, area().position.x + 40.0, area().end.x - 40.0)
 				a = Vector2(x, _roof(x))
 				b = _spot(x)
 				_tell_at(a, true)
 			"charge":
-				var side := -1.0 if p.global_position.x > ZONE.get_center().x else 1.0
+				var side := -1.0 if randf() < 0.5 else 1.0
 				mound = _spot(p.global_position.x + side * 340.0)
 				_word("!", mound + Vector2(0, -50), Color("ff6a4a"))
 			"spit":
-				var far := -1.0 if p.global_position.x > ZONE.get_center().x else 1.0
+				var far := -1.0 if randf() < 0.5 else 1.0
 				a = _spot(p.global_position.x + far * 300.0)
 				_tell_at(a, false)
 			"fake":
@@ -397,7 +410,33 @@ class Worm extends Node2D:
 			peak = _roof(a.x) + 50.0
 		FX.burst(level, a + Vector2(0, -8 if m != "drop" else 8), "dust")
 		FX.shards(level, a, Vector2.UP if m != "drop" else Vector2.DOWN, true)
-		level.shake(7.0, 0.3)
+		FX.shards(level, a + Vector2(20, 0), Vector2(0.6, -1) if m != "drop" else Vector2(0.6, 1), false)
+		level.shake(7.0 + 3.0 * _rage, 0.3)
+		if m != "drop":
+			var rip := Ripple.new()
+			rip.position = a
+			level.add_child(rip)
+		else:
+			_rain(level.player, 2 + _phase_shown)            # the roof it tore out of rains stalactites
+
+	## Into a new phase: it rears and ROARS, the hall shakes, the roof comes down.
+	func _roar(p: CaveMan) -> void:
+		var at: Vector2 = _body[0][0] if not _body.is_empty() else p.global_position + Vector2(0, -160)
+		_word("ROAAAR!", at + Vector2(0, -90), Color("ff5a3a"), 48)
+		level.shake(14.0, 1.0)
+		Critter.slow_time(get_tree(), 0.25, 0.3)
+		_rain(p, 4 + _phase_shown * 2)
+		hud_say("It's FURIOUS! Faster, sneakier... watch the roof!" if _phase_shown == 1 else "It's going WILD! It can fake you out now: watch for the LITTLE puff!")
+
+	## Stalactites shaking loose from the roof round him: each one shakes first.
+	func _rain(p: CaveMan, n: int) -> void:
+		for i in n:
+			var x := p.global_position.x + randf_range(-300.0, 300.0)
+			var s := Stalactite.new()
+			s.level = level
+			s.position = Vector2(x, _roof(x))
+			s.delay = 0.45 + i * 0.18 + randf() * 0.2
+			level.add_child(s)
 
 	## Its body this frame (world), head first, only what's out in the hall.
 	func _shape() -> void:
@@ -514,6 +553,10 @@ class Worm extends Node2D:
 		d.position = h + Vector2(-12, -70)
 		level.add_child(d)
 		Critter.slow_time(get_tree(), 0.03, 0.1)
+		FX.burst(level, h + Vector2(0, -10), "sparks", float(signi(_from_dir)))
+		level.shake(3.0, 0.12)
+		if randf() < 0.35:
+			_word(["CRACK!", "SPLAT!", "WHACK!", "IN THE EYE!"][randi() % 4], h + Vector2(randf_range(-40, 40), -100), Color("ffe14a"), 26)
 		if hp <= 0:
 			hp = 0
 			state = "dead"
@@ -521,6 +564,11 @@ class Worm extends Node2D:
 			fight = false
 			level.hud.set_boss(-1.0)
 			level.shake(12.0, 0.8)
+			# it bursts all along its length
+			for i in range(0, _body.size(), 2):
+				FX.burst(level, _body[i][0], "sparks")
+				FX.shards(level, _body[i][0], Vector2.UP, true)
+			Critter.slow_time(get_tree(), 0.5, 0.25)
 			level.hud.title_card("OLD ONE-EYE IS BEATEN!", "the Root Hollows are quiet again")
 
 	func _rewards() -> void:
@@ -544,6 +592,9 @@ class Worm extends Node2D:
 			g.draw_circle(at, 30.0 + 10.0 * sin(_t * 30.0), Color(1.0, 0.4, 0.3, 0.25))
 		if not _body.is_empty() and state != "dead":
 			g.draw_circle(_body[0][0], 60.0, Color(0.7, 0.5, 1.0, 0.14))
+			if _rage > 0.02 and state != "stunned":
+				# its eye burns red with anger, pulsing
+				g.draw_circle(_body[0][0] + Vector2(0, -14), 26.0 + 6.0 * sin(_t * 9.0), Color(1.0, 0.2, 0.1, 0.3 * _rage))
 
 	func _draw() -> void:
 		var bt := Batch.new()
@@ -580,6 +631,13 @@ class Worm extends Node2D:
 		var flash := _hurt > 0.0
 		for i in range(_body.size() - 1, 0, -1):
 			_seg(bt, _body[i][0] + o, float(_body[i][1]), i, flash)
+			if _rage > 0.02:
+				bt.circle(_body[i][0] + o, float(_body[i][1]), Color(1.0, 0.15, 0.1, 0.22 * _rage * (0.7 + 0.3 * sin(_t * 8.0 + i))), 14)
+		# slime dripping off it
+		for i in range(2, _body.size(), 3):
+			var q := fmod(_t * 1.6 + i * 0.37, 1.0)
+			var sp: Vector2 = _body[i][0] + o + Vector2(0, float(_body[i][1]) * 0.8 + q * 46.0)
+			bt.ellipse(sp, 2.6, 3.6 + q * 2.0, Color(0.75, 0.95, 0.85, 0.75 * (1.0 - q)))
 		var p: CaveMan = level.player
 		var h: Vector2 = _body[0][0]
 		var look := (p.global_position + Vector2(0, -30) - h).normalized() if p != null else Vector2.ZERO
@@ -656,6 +714,84 @@ class Glob extends Node2D:
 			b.circle(Vector2.ZERO, 9.0, Color("3f7a1a"), 12)
 			b.circle(Vector2.ZERO, 7.0, Color("9be15d"), 12)
 			b.circle(Vector2(-2, -3), 2.5, Color(1, 1, 0.8, 0.9), 6)
+		b.draw(self)
+
+
+## A stalactite shaken loose by its rage: it hangs from the roof, SHAKES (the
+## tell), then drops; a heart if it lands on him; it shatters on the floor.
+class Stalactite extends Node2D:
+	var level: Node
+	var delay := 0.6
+	var vel := 0.0
+	var t := 0.0
+	var _fell := false
+
+	func _ready() -> void:
+		z_index = 4
+
+	func _process(delta: float) -> void:
+		t += delta
+		if t < delay:
+			queue_redraw()
+			return
+		if not _fell:
+			_fell = true
+			FX.burst(level, global_position + Vector2(0, 6), "dust")
+		vel += 1500.0 * delta
+		var to := global_position + Vector2(0, vel * delta)
+		var q := PhysicsRayQueryParameters2D.create(global_position + Vector2(0, 30), to + Vector2(0, 30), 1)
+		var hit := get_world_2d().direct_space_state.intersect_ray(q)
+		if not hit.is_empty() or t > delay + 2.5:
+			FX.shards(level, global_position + Vector2(0, 30), Vector2.UP, true)
+			FX.burst(level, global_position + Vector2(0, 30), "dust")
+			queue_free()
+			return
+		global_position = to
+		var p: CaveMan = level.player
+		if p != null and absf(p.global_position.x - global_position.x) < 24.0 and absf(p.global_position.y - 30.0 - (global_position.y + 20.0)) < 40.0:
+			p.hurt_toss(1, global_position.x, Vector2(signf(p.global_position.x - global_position.x + 0.1) * 220.0, -300.0))
+			FX.shards(level, global_position + Vector2(0, 20), Vector2.UP, true)
+			queue_free()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		var b := Batch.new()
+		var shake := sin(t * 60.0) * 2.5 if t < delay else 0.0
+		b.tri(Vector2(-12 + shake, 0), Vector2(12 + shake, 0), Vector2(shake, 44), Color("5a524c"))
+		b.tri(Vector2(-7 + shake, 0), Vector2(5 + shake, 0), Vector2(shake - 1, 34), Color("8d857a"))
+		b.line(Vector2(-3 + shake, 4), Vector2(-1 + shake, 26), Color(1, 1, 1, 0.3), 1.5)
+		if t < delay:
+			for i in 3:                                          # grit trickling off it: the tell
+				var q := fmod(t * 3.0 + i * 0.33, 1.0)
+				b.circle(Vector2(-6.0 + i * 6.0, 8.0 + q * 70.0), 1.8, Color(0.6, 0.55, 0.5, 1.0 - q), 6)
+		b.draw(self)
+
+
+## The floor heaving where it bursts out: a ring racing out along the ground.
+class Ripple extends Node2D:
+	var t := 0.0
+
+	func _ready() -> void:
+		z_index = 2
+
+	func _process(delta: float) -> void:
+		t += delta
+		if t > 0.5:
+			queue_free()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		var b := Batch.new()
+		var k := t / 0.5
+		var r := 30.0 + 190.0 * k
+		var a := (1.0 - k) * 0.8
+		for s in [-1.0, 1.0]:
+			for i in 6:
+				var x0: float = s * (r - i * 6.0)
+				b.ellipse(Vector2(x0, -3), 7.0, 3.5, Color(0.85, 0.75, 0.6, a * (1.0 - i / 6.0)))
+		b.ellipse(Vector2(0, -2), r * 0.5, 5.0, Color(0.1, 0.05, 0.03, 0.3 * (1.0 - k)))
 		b.draw(self)
 
 

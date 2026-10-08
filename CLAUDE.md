@@ -18,6 +18,7 @@ Level 1 done; Level 2 "Discovery of Fire" (night) nearly done; its map: `docs/le
   shown as close-ups (2-3 variants) first.
 - No bats in or on the mountain; bats live in the caves.
 - Spirit Orbs: their own blue-white currency (beasts respawn each visit); never shells.
+- MYSTERY HINTS: near anything unsolved, a SMALL card left of the bag (`level2._hints`, `Hud.set_hint`).
 - SIDE MISSIONS ("as many as possible", using the bag's items): `windbreak.gd`, `errands.gd` (Errand base:
   recipe, odd/short lines, beats, finish). Each mixes on the MIXING SLAB.
 - THE BAG (`Bag`): everything carried, in boxes down the right; I/B or the sack: strip -> big view (tabs,

@@ -105,3 +105,12 @@ Guide), a quartz + a fire-gold knocked loose ("ow0", "ow1"). Clubs go TINK; outs
 GLARE TRAP (bag recipe, known once met: berry + quartz + fire-gold + clay) set down in the hall lures it up
 under it: FLASH, blinded 5 s, only then it takes hits; after a stun it comes for HIM once or twice before the
 bait again. 3 flashes; HP 60 = two stuns. Reward: 2 obsidian, 25 spirit orbs. Mystery "one_eye".
+Once met it hunts him ALL OVER the Root Hollows (`OneEye.HUNT`, x 14600-17580); out: up the Dig's shaft or an
+updraft. Effects: a shockwave ripple where it bursts out, slime dripping, it goes red and its eye burns as it
+gets hurt; into each new phase it ROARS and the roof rains STALACTITES (they shake first; 1 heart each); a
+ceiling drop shakes some down too; CRACK! pops and sparks on hits; it bursts all along its length when beaten.
+
+## Mystery hints (`_hints`, `Hud.set_hint`)
+Near anything not yet solved, a small card left of the bag (a gold "?", small letters) says what to do next:
+meet the stranger, the recipe, where the ingredient is, climb the ladder, the clay needs a shovel, SUNFIRE the
+thorns. Old One-Eye gets none until it has been met (a surprise).

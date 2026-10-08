@@ -18,6 +18,10 @@ var torch_fuel := 0.0
 var _title: Label
 var _msg: Label
 var _say: RichTextLabel          ## the hint banner (see _show_say)
+var _hint: Control              ## the small mystery hint by the bag (set_hint)
+var _hint_text := ""
+var _hint_t := 0.0
+var _hint_box: StyleBoxFlat
 var _say_shown := ""
 var _say_t := 0.0
 var _say_up := false
@@ -208,6 +212,12 @@ func _ready() -> void:
 	add_child(_menu)
 
 	# UGU'S BAG: everything he carries, in small boxes down the right (common/bag.gd)
+	# the MYSTERY HINT: a small card left of the bag, near anything left to solve
+	_hint = Control.new()
+	_hint.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hint.draw.connect(_draw_hint)
+	add_child(_hint)
 	_bag = Bag.View.new()
 	add_child(_bag)
 
@@ -235,6 +245,7 @@ func _process(delta: float) -> void:
 	# while someone is talking, hints move up out of the way of the dialogue box
 	var talking := get_tree().get_first_node_in_group("dialogue") != null
 	_show_say(delta, talking)
+	_hint_step(delta)
 	# the meters are redrawn only when what they show has changed
 	var shown := [hp, max_hp, berries, max_berries, rocks, gem, wood, torch_on, snappedf(torch_fuel, 0.004), boss_ratio]
 	if shown != _shown:
@@ -760,3 +771,50 @@ static func _gold_caps(text: String) -> String:
 		var caps := core.length() >= 2 and core == core.to_upper() and core != core.to_lower()
 		out += ("[color=#ffd36b]%s[/color]" % word if caps else word) + " "
 	return out.strip_edges()
+
+
+## ------------------------------------------------------------ THE MYSTERY HINT
+## A small card just left of the bag: a gold "?" and a line or two in small
+## letters, there while he is near something left to solve. It slides in when
+## it changes, and goes again when he walks away. "" hides it.
+func set_hint(text: String) -> void:
+	if text == _hint_text:
+		return
+	_hint_text = text
+	_hint_t = 0.0
+	_hint.queue_redraw()
+
+
+func _hint_step(delta: float) -> void:
+	if _hint_text == "":
+		return
+	if _hint_t < 0.3:
+		_hint_t += delta
+		_hint.queue_redraw()
+
+
+func _draw_hint() -> void:
+	if _hint_text == "":
+		return
+	var font := Pal.text_font()
+	var fs := 13
+	var w := minf(font.get_string_size(_hint_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x, 210.0)
+	var h := font.get_multiline_string_size(_hint_text, HORIZONTAL_ALIGNMENT_LEFT, w + 1.0, fs).y
+	var k := clampf(_hint_t / 0.25, 0.0, 1.0)
+	var slide := (1.0 - k) * (1.0 - k) * 30.0
+	var box := Rect2(Vector2(1192.0 - w - 46.0 + slide, 190.0), Vector2(w + 44.0, maxf(h + 14.0, 34.0)))
+	if _hint_box == null:
+		_hint_box = StyleBoxFlat.new()
+		_hint_box.bg_color = Color(0.12, 0.085, 0.06, 0.88)
+		_hint_box.border_color = Color("f0b44a", 0.8)
+		_hint_box.set_border_width_all(2)
+		_hint_box.set_corner_radius_all(10)
+		_hint_box.shadow_color = Color(0, 0, 0, 0.35)
+		_hint_box.shadow_size = 4
+	_hint.modulate.a = k
+	_hint.draw_style_box(_hint_box, box)
+	# a little gold "?" bubble
+	var q := box.position + Vector2(17, minf(box.size.y * 0.5, 17.0))
+	_hint.draw_circle(q, 10.0, Color("f0b44a"))
+	_hint.draw_string(Pal.title_font(), q + Vector2(-5, 6), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.15, 0.08, 0.03))
+	_hint.draw_multiline_string(font, box.position + Vector2(34, 7 + fs), _hint_text, HORIZONTAL_ALIGNMENT_LEFT, w + 1.0, fs, 4, Pal.BONE)
