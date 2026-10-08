@@ -477,6 +477,7 @@ func dig_at(world: Vector2, reach := 52.0, n := 4) -> bool:
 			_damaged[idx] = true
 	if broke.is_empty():
 		_glints.chip(world, CHIP.get(mat, Color.GRAY), 4)
+		FX.dig_flash(get_parent(), world, CHIP.get(mat, Color.GRAY), false)
 		return true
 	var lo := Vector2i(_w, _h)
 	var hi := Vector2i(-1, -1)
@@ -504,6 +505,7 @@ func dig_at(world: Vector2, reach := 52.0, n := 4) -> bool:
 	_build_chunk(main, _dirty[main])
 	_dirty.erase(main)
 	_glints.chip(world, CHIP.get(mat, Color.GRAY), 12)
+	FX.dig_flash(get_parent(), world, CHIP.get(mat, Color.GRAY), true)
 	FX.burst(get_parent(), world, "dust")
 	for s in broke:
 		_reveal(s)

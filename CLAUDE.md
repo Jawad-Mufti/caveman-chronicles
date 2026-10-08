@@ -25,6 +25,8 @@ Level 1 done; Level 2 "Discovery of Fire" (night) nearly done; its map: `docs/le
   Hints and pages NUDGE (riddles); the exact recipe shows only after two wrong mixes. Old One-Eye's trap too.
 - THE BAG (`Bag`): everything carried, in boxes down the right; I/B or the sack: strip -> big view (tabs,
   CRAFT) -> hidden. Stones drop from digging (`Bag.DROPS`); new item: a row in `Bag.ITEMS` + `draw_icon`.
+  The big view and a mixing slab PAUSE the world (`Bag.hold_world`; never another pause, e.g. the menu).
+  Every dig blow flashes light + sparks (`FX.dig_flash`).
 - SPACE is the only jump; UP/W and DOWN/S aim (8 ways, UP+RIGHT = 45 degrees).
 - Terraria-fast combat: hold HIT keeps swinging; combos unlocked from the start; specials on L.
   A Terraria HOTBAR (1-9/wheel/tap; HIT uses the slot: weapon, shovel digs where aimed, rocks, figs): no row

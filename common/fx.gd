@@ -273,3 +273,89 @@ void fragment() {
 	m.shader = _shimmer
 	r.material = m
 	return r
+
+
+## DIGGING LIGHT: every blow into earth or rock throws a flash of warm light
+## (a "light": it opens up the dark), a ring, and glowing sparks that arc out
+## and fade; the blow that breaks a block flashes bigger, with chips in the
+## stuff's own colour. Three at most at once (the oldest goes).
+static func dig_flash(parent: Node, at: Vector2, col: Color, broke: bool) -> void:
+	if parent == null or not parent.is_inside_tree():
+		return
+	var live := parent.get_tree().get_nodes_in_group("dig_flash")
+	if live.size() >= 3:
+		(live[0] as Node).queue_free()
+	var f := DigFlash.new()
+	f.position = at
+	f.col = col
+	f.big = broke
+	parent.add_child(f)
+
+
+class DigFlash extends Node2D:
+	var col := Color.WHITE
+	var big := false
+	var _t := 0.0
+	var _life := 0.35
+	var _sparks: Array = []      ## [pos (local), vel, life left, life, gold?]
+
+	func _ready() -> void:
+		z_index = 4
+		add_to_group("dig_flash")
+		add_to_group("light")
+		add_to_group("glow")
+		_life = 0.55 if big else 0.35
+		for i in (16 if big else 7):
+			var a := randf_range(-PI, 0.0) if randf() < 0.8 else randf_range(0.0, PI)
+			var l := randf_range(0.25, 0.6 if big else 0.4)
+			_sparks.append([Vector2.ZERO, Vector2.from_angle(a) * randf_range(140.0, 380.0 if big else 260.0), l, l, randf() < 0.55])
+
+	func light() -> Vector4:
+		return Vector4(global_position.x, global_position.y, (170.0 if big else 110.0) * _k(), 1.0)
+
+	func light_strength() -> float:
+		return 0.0
+
+	## The flash: 1 at the blow, fading to 0.
+	func _k() -> float:
+		return clampf(1.0 - _t / _life, 0.0, 1.0)
+
+	func _process(delta: float) -> void:
+		_t += delta
+		var alive := false
+		for s in _sparks:
+			s[1] = (s[1] as Vector2) + Vector2(0, 700) * delta
+			s[0] = (s[0] as Vector2) + (s[1] as Vector2) * delta
+			s[2] = float(s[2]) - delta
+			alive = alive or float(s[2]) > 0.0
+		if _t > _life and not alive:
+			queue_free()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		var b := Batch.new()
+		var k := _k()
+		if k > 0.0:
+			b.arc(Vector2.ZERO, lerpf(8.0, 46.0 if big else 30.0, 1.0 - k), 0.0, TAU, 20, Color(1.0, 0.9, 0.6, 0.7 * k), 1.0 + 3.0 * k)
+		for s in _sparks:
+			var l := float(s[2])
+			if l <= 0.0:
+				continue
+			var q := l / float(s[3])
+			var p: Vector2 = s[0]
+			var v: Vector2 = s[1]
+			var c: Color = Color(1.0, 0.85, 0.45) if s[4] else col.lightened(0.45)
+			b.line(p, p - v * 0.03, Color(c, 0.9 * q), 2.5)
+			b.circle(p, 2.0, Color(1.0, 0.98, 0.85, q), 6)
+		b.draw(self)
+
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
+		var k := _k()
+		var o := global_position
+		if k > 0.0:
+			g.draw_circle(o, (60.0 if big else 38.0) * (0.6 + 0.4 * k), Color(1.0, 0.75, 0.35, 0.35 * k))
+			g.draw_circle(o, (16.0 if big else 10.0) * k, Color(1.0, 0.97, 0.85, 0.9 * k))
+		for s in _sparks:
+			if float(s[2]) > 0.0:
+				g.draw_circle(o + (s[0] as Vector2), 4.0, Color(1.0, 0.8, 0.4, 0.5 * float(s[2]) / float(s[3])))

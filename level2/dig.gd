@@ -115,6 +115,7 @@ class DigGrid extends Node2D:
 		var at := Vector2(c) * TILE + Vector2(TILE, TILE) * 0.5
 		if kind == CRUST:
 			_spark(at, Color("c9a06e"), 4)
+			FX.dig_flash(get_parent(), global_position + at, Color("c9a06e"), false)
 			var p := get_tree().get_first_node_in_group("player") as CaveMan
 			if p != null and _clang <= 0.0:
 				_clang = 2.0
@@ -122,6 +123,7 @@ class DigGrid extends Node2D:
 			return
 		if kind == CLAY and not GameState.has_item("shovel"):
 			_spark(at, Color("c9b49a"), 4)
+			FX.dig_flash(get_parent(), global_position + at, Color("c9b49a"), false)
 			if _clang <= 0.0:
 				_clang = 2.0
 				var pop := Treasure.FloatText.new()
@@ -133,6 +135,7 @@ class DigGrid extends Node2D:
 		hits[i] -= 1
 		if hits[i] > 0:
 			_spark(at, Color("cfc7bd") if kind == STONE else Color("a06a44"), 5)
+			FX.dig_flash(get_parent(), global_position + at, Color("cfc7bd") if kind == STONE else Color("a06a44"), false)
 			queue_redraw()
 			return
 		cells[i] = AIR
@@ -141,6 +144,7 @@ class DigGrid extends Node2D:
 			_shapes[i] = null
 		var col: Color = {DIRT: Color("7a5236"), STONE: Color("8d857a"), CLAY: Color("a2553a")}.get(kind, Color("7a5236"))
 		_spark(at, col, 12)
+		FX.dig_flash(get_parent(), global_position + at, col, true)
 		FX.burst(get_parent(), global_position + at, "dust")
 		if loot.has(i):
 			var l: Array = loot[i]

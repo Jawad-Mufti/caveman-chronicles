@@ -198,5 +198,33 @@ func _run() -> void:
 	v.toggle()
 	check("hidden", Bag.mode == 0 and not v._has_point(Bag.View.STRIP + Vector2(10, 10)) and v._has_point(Bag.View.BTN.get_center()))
 	v.toggle()
+	# the world waits while the big view (or a mixing slab) is open; a pause made by the camp menu is left alone
+	Bag.mode = 2
+	await frames(2)
+	var big_paused := get_tree().paused and Bag.holding
+	Bag.mode = 1
+	await frames(2)
+	var big_free := not get_tree().paused
+	var mx := Bag.Mixer.new()
+	mx.him = p
+	level.hud.add_child(mx)
+	await frames(2)
+	var mix_paused := get_tree().paused
+	mx.queue_free()
+	await frames(3)
+	var mix_free := not get_tree().paused
+	level.open_menu()
+	await frames(2)
+	Bag.mode = 2
+	await frames(2)
+	Bag.mode = 1
+	await frames(2)
+	var menu_kept := get_tree().paused and not Bag.holding
+	var menu: CampMenu = get_tree().get_first_node_in_group("camp_menu")
+	if menu != null:
+		menu._close()
+	await frames(2)
+	check("the world waits while the bag's big view or a mix is open", big_paused and big_free and mix_paused and mix_free and menu_kept and not get_tree().paused,
+		"big %s/%s, mix %s/%s, menu's pause kept %s" % [big_paused, big_free, mix_paused, mix_free, menu_kept])
 	print("DONE")
 	get_tree().quit()

@@ -19,6 +19,20 @@ extends RefCounted
 static var version := 0          ## bumped on every change: what's drawn redraws only then
 static var mode := 1             ## 0 hidden, 1 the strip, 2 the big view (kept between levels)
 static var mixer: Mixer = null   ## the mixing slab, while one is out (bag clicks go into it)
+static var holding := false      ## the bag paused the world (and will let it go)
+
+
+## While the big view or a mixing slab is open the world WAITS: thinking out a
+## mix with Old One-Eye about is no time to be bitten. A pause someone else
+## made (the camp menu, the guide) is theirs, left alone.
+static func hold_world(tree: SceneTree) -> void:
+	var want := mode == 2 or (mixer != null and is_instance_valid(mixer))
+	if want and not holding and not tree.paused:
+		holding = true
+		tree.paused = true
+	elif not want and holding:
+		holding = false
+		tree.paused = false
 ## A MIX someone is waiting for (an errand he said yes to): the bag's button
 ## shows a "!", the big view a banner; clicking it opens the mixing slab. Empty:
 ## none. {who, title, icon, start: Callable, near: Callable -> bool}
@@ -782,7 +796,13 @@ class View extends Control:
 	func _ready() -> void:
 		set_anchors_preset(Control.PRESET_FULL_RECT)
 		mouse_filter = Control.MOUSE_FILTER_STOP
+		process_mode = Node.PROCESS_MODE_ALWAYS     # it runs while the world waits for it
 		mouse_exited.connect(func() -> void: _hover = [])
+
+	func _exit_tree() -> void:
+		if Bag.holding:
+			Bag.holding = false
+			get_tree().paused = false
 
 	func _has_point(at: Vector2) -> bool:
 		if BTN.has_point(at):
@@ -818,7 +838,8 @@ class View extends Control:
 		# a click (or a held press) on the bag is never a swing too
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and _has_point(get_local_mouse_position()):
 			CaveMan.ui_click_until = Time.get_ticks_msec() + 200
-		var sig := [Bag.mode, tab, _hover, Bag.version, GameState.shells, GameState.orbs, GameState.bones, GameState.figs,
+		Bag.hold_world(get_tree())
+		var sig := [Bag.mode, Bag.holding, tab, _hover, Bag.version, GameState.shells, GameState.orbs, GameState.bones, GameState.figs,
 			GameState.weapons.size(), GameState.items.size(), GameState.relics.hash()]
 		if him != null:
 			sig.append_array([him.rocks, him.wood, him.berries, him.has_stick, him.has_torch, snappedf(him.torch_fuel, 0.05), him.hotbar_selected()])
@@ -833,6 +854,8 @@ class View extends Control:
 			queue_redraw()
 
 	func _input(e: InputEvent) -> void:
+		if get_tree().paused and not Bag.holding:
+			return                      # the camp menu (or the guide) has the game stopped: not ours
 		if e is InputEventKey and e.pressed and not e.echo:
 			var k: int = (e as InputEventKey).physical_keycode
 			if k == KEY_I or k == KEY_B:
@@ -905,6 +928,14 @@ class View extends Control:
 	## ---------------------------------------------------------- drawing
 	func _draw() -> void:
 		_hits.clear()
+		if Bag.holding:
+			# the world waits: dimmed behind, and a word saying so
+			var vs := get_viewport_rect().size
+			draw_rect(Rect2(Vector2.ZERO, vs), Color(0.02, 0.01, 0.03, 0.35))
+			var pf := Pal.title_font()
+			var pw := pf.get_string_size("PAUSED", HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x
+			draw_string_outline(pf, Vector2((vs.x - pw) * 0.5, 92), "PAUSED", HORIZONTAL_ALIGNMENT_LEFT, -1, 26, 6, Color(0, 0, 0, 0.7))
+			draw_string(pf, Vector2((vs.x - pw) * 0.5, 92), "PAUSED", HORIZONTAL_ALIGNMENT_LEFT, -1, 26, Color("ffe066"))
 		_draw_button()
 		if Bag.mode == 1:
 			_draw_strip()
@@ -1162,6 +1193,7 @@ class Mixer extends Control:
 		set_anchors_preset(Control.PRESET_FULL_RECT)
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		Bag.mixer = self
+		process_mode = Node.PROCESS_MODE_ALWAYS     # the world waits while he mixes (Bag.hold_world)
 		if Bag.mode == 0:
 			Bag.mode = 1            # the bag has to be out to pick from it
 		mouse_exited.connect(func() -> void: _hover = "")

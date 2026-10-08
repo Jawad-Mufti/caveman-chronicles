@@ -42,6 +42,7 @@ Run forms (Godot path, headless, screenshots) and the regression set are in the 
 | `swarm` | `shots`: wolves take turns, each new attack, the howl, an ambush fires and clears |
 | `combos` | `shots`: cyclone, ram, launch, juggle, slam dunk, ambush escalation |
 | `airkick` | `shots` (paused frame sequence, kick_*): UP+HIT in the air = snap kick then FLASH KICK, UP+side = club, hits above, lands, bare-handed |
+| `shotdigflash` | (rendering) the digging light in the Dig, a paused frame every 3 through two blows: digflash_* |
 
 ## Other tools
 - `wolfrock`; `vinereach` (`length=N`: how far a release flings him by angle, with/without the air jump; use it to space vines).
