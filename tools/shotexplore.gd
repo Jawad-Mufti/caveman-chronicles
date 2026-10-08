@@ -77,7 +77,7 @@ func _run() -> void:
 	level.open_menu()
 	await get_tree().process_frame
 	var m: CampMenu = get_tree().get_first_node_in_group("camp_menu")
-	m._choose(1)
+	m._choose_id("shelter")
 	for i in 30:
 		await get_tree().process_frame
 	await shot("shelter")

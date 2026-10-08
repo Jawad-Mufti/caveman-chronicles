@@ -8,6 +8,7 @@ extends Node
 ##             TUTORIAL shows SPEAR locked; SAVE saves; closing un-pauses
 ##   slots   - only the two carried powers work; putting one down and back
 ##             in the menu; the fire ring works carried
+##   load    - SAVE keeps his spot; LOAD rebuilds the level with him there, torch lit
 ## args: any of the above (default all)
 var level: Node
 var p: CaveMan
@@ -207,21 +208,21 @@ func _run() -> void:
 		var spear_locked := false
 		var saved := false
 		if m != null:
-			m._choose(2)                      # ABILITIES: his powers
+			m._choose_id("abilities")         # ABILITIES: his powers
 			for i in Abilities.POWERS.size():
 				m._pick = i
 				m._show_ability()
 				if Abilities.POWERS[i][0] == "sunfire":
 					sun_ok = m._status.text.contains("CARRIED") and m._name.text == "SUNFIRE"
 			m._go("main")
-			m._choose(3)                      # TUTORIAL: the special moves
+			m._choose_id("tutorial")          # TUTORIAL: the special moves
 			for i in Abilities.MOVES.size():
 				m._pick = i
 				m._show_ability()
 				if Abilities.MOVES[i][0] == "spear":
 					spear_locked = m._status.text == "LOCKED"
 			m._go("main")
-			m._choose(0)                      # SAVE
+			m._choose_id("save")              # SAVE
 			saved = m._saved_t >= 0.0 and FileAccess.file_exists(GameState.PATH)
 			m._close()
 		await get_tree().process_frame
@@ -259,6 +260,26 @@ func _run() -> void:
 		var ring := p.fury >= 0.0
 		report("slots: two carried powers, swapped in the menu", both and bar_on and blocked and back and works and ring,
 			"both %s, circles %s, down-blocked %s, carried again %s, works %s, fire ring %s" % [both, bar_on, blocked, back, works, ring])
+
+	if has(args, "load"):
+		# SAVE keeps his spot; LOAD builds the level again with him there, torch lit, no opening
+		await put(Vector2(1150, 560))
+		await frames(40)
+		var firm: bool = level._standing_safe()
+		level.save_spot()
+		var at: Vector2 = Vector2(float(GameState.spot["x"]), float(GameState.spot["y"]))
+		var kept := absf(at.x - p.global_position.x) < 60.0 and str(GameState.spot["level"]) == "res://level2/level2.tscn"
+		level.queue_free()
+		await get_tree().process_frame
+		GameState.resume = true
+		level = load("res://level2/level2.tscn").instantiate()
+		add_child(level)
+		await frames(6)
+		p = level.player
+		var woke: bool = p.global_position.distance_to(at) < 60.0 and level.resumed and p.has_torch
+		var once := not GameState.resume
+		report("load: wakes where he saved", kept and woke and once,
+			"firm %s, saved at %s, woke at %s, torch %s, resumed %s" % [firm, at, p.global_position, p.has_torch, level.resumed])
 
 	print("%d scenarios, %d failed" % [runs, fails])
 	get_tree().quit()

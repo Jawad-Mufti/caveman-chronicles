@@ -1,16 +1,17 @@
 class_name CampMenu
 extends CanvasLayer
-## The Camp Menu: the game stops, and we are in a firelit cave. On the wall,
-## four carved tablets — SAVE (a spiral of memory in a clay pot), SHELTER (a
-## hut of tusks and hide; built later), ABILITIES (a hand of fire) and
-## TUTORIAL (a cave painting of him leaping).
-##   ABILITIES  his powers (Abilities.POWERS): he carries TWO — pick one and
-##              press Space (or tap CARRY) to put it in a slot or take it out.
-##              The two show as circles at the bottom of the screen.
-##   TUTORIAL   his special moves (Abilities.MOVES), and how to do each.
-## On both walls every unlocked medallion glows the same sun-gold and every
-## locked one is cold slate in chains; the big tablet on the right shows the
-## chosen one up close.
+## The Camp Menu: the game stops, and we are in a firelit cave. A list down
+## the left — RESUME, SAVE, LOAD, ABILITIES, SPECIAL MOVES, SHELTER — and a
+## card on the right about the chosen row, with what he has gathered.
+##   SAVE       everything, and WHERE he stands (GameState.spot).
+##   LOAD       the level again, from where he last saved (asks twice).
+##   ABILITIES  his powers (Abilities.POWERS) on a ROADMAP: he carries TWO —
+##              pick one and press Space (or tap CARRY) to put it in a slot or
+##              take it out. The two show as circles at the bottom of the screen.
+##   TUTORIAL   his special moves (Abilities.MOVES), a roadmap too.
+## On a roadmap the stops he has unlocked glow sun-gold on a lit trail; locked
+## ones are slate and padlocked on a dotted one, the next to get pulsing. The
+## card on the right shows the chosen one up close.
 ##
 ## Keys: arrows / WASD choose, Space / Enter / J pick, Esc / K back, Tab / M
 ## close. Mouse and touch: hover or tap.
@@ -21,16 +22,29 @@ const TEAL := Color("3ee0c8")
 const AMBER := Color("ffae42")
 const MAGENTA := Color("ff4fd8")
 const LIME := Color("9be15d")
-const TABLETS := [
-	["save", "SAVE", "Keep what he's found", TEAL],
-	["shelter", "SHELTER", "Build his home", AMBER],
-	["abilities", "ABILITIES", "Pick his two powers", MAGENTA],
-	["tutorial", "TUTORIAL", "His special moves", LIME],
+const SKY := Color("7fb8ff")
+const ITEMS := [
+	["resume", "RESUME", "Back to the night, right where he is.", INK],
+	["save", "SAVE", "Keep everything he has found, and the spot where he stands.", TEAL],
+	["load", "LOAD", "Wake up where he last saved.", SKY],
+	["abilities", "ABILITIES", "His powers, and the road to unlocking them. He carries TWO.", MAGENTA],
+	["tutorial", "SPECIAL MOVES", "Every move he knows, and how to do it.", LIME],
+	["shelter", "SHELTER", "Build his home from bones. Coming soon.", AMBER],
+	["restart", "RESTART LEVEL", "Start this level again from the very beginning. What he has found stays found.", Color("ff8a5c")],
+	["exit", "EXIT GAME", "Close the game. Everything earned is already kept; SAVE first to keep his spot.", Color("d8c8b0")],
 ]
-const COLS := 3
-const CARRY := Rect2(820, 604, 300, 46)     ## the CARRY IT / PUT IT DOWN button
-const VIEW_BTN := Rect2(40, 650, 260, 40)   ## VIEW: CLOSE / NORMAL / WIDE (also the V key)
-const MYST_BOX := Rect2(900, 640, 350, 56)  ## the MYSTERIES note, bottom right
+const LIST := Vector2(72, 196)              ## the top left of the list
+const ROW := Vector2(400, 44)               ## one row of it
+const ROW_GAP := 52.0
+const CARD := Rect2(528, 196, 690, 384)     ## the card about the chosen row
+const VIEW_BTN := Rect2(72, 626, 400, 44)   ## VIEW: CLOSE / NORMAL / WIDE (also the V key)
+const MYST_BOX := Rect2(528, 596, 690, 74)  ## the MYSTERIES note, under the card
+const CLOSE := Rect2(1150, 24, 110, 44)
+const MAP := Rect2(36, 150, 632, 486)       ## a roadmap's panel
+const INFO := Rect2(700, 150, 540, 486)     ## the card about the chosen stop
+const CARRY := Rect2(820, 584, 300, 40)     ## the CARRY IT / PUT IT DOWN button
+const STOP_R := 26.0                        ## a stop on the roadmap
+const TOP := 214.0                          ## the first row of stops
 ## The mysteries he has run into (GameState.mysteries): [while open, once solved].
 const MYSTERIES := {
 	"shovel": ["The Dig's clay needs a SHOVEL. The painting by the clay shows where it went.", "The shovel was in the thorns, up in the windy sky."],
@@ -61,6 +75,8 @@ var _was_paused := false
 var _flash := 0.0           ## > 0: just put in a slot; < 0: just taken out
 var _counter := ""          ## "n / m unlocked", worked out while drawing the wall
 var _view_flash := 0.0      ## > 0: the VIEW button was just pressed
+var _confirm := 0.0         ## > 0: LOAD was pressed once; again loads
+var _box: StyleBoxFlat
 
 
 func _ready() -> void:
@@ -74,12 +90,13 @@ func _ready() -> void:
 	_view.mouse_filter = Control.MOUSE_FILTER_STOP
 	_view.draw.connect(_draw_view)
 	add_child(_view)
-	_name = _label(Vector2(740, 330), Vector2(460, 50), 36, INK, HORIZONTAL_ALIGNMENT_CENTER)
-	_status = _label(Vector2(740, 380), Vector2(460, 30), 17, Sunfire.GOLD, HORIZONTAL_ALIGNMENT_CENTER)
-	_desc = _label(Vector2(760, 412), Vector2(420, 110), 17, INK, HORIZONTAL_ALIGNMENT_CENTER)
+	_name = _label(Vector2(720, 336), Vector2(500, 44), 32, INK, HORIZONTAL_ALIGNMENT_CENTER)
+	_name.add_theme_font_override("font", Pal.title_font())
+	_status = _label(Vector2(720, 380), Vector2(500, 26), 16, Sunfire.GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	_desc = _label(Vector2(740, 410), Vector2(460, 100), 16, INK, HORIZONTAL_ALIGNMENT_CENTER)
 	_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_keys = _label(Vector2(760, 532), Vector2(420, 26), 17, Sunfire.GOLD, HORIZONTAL_ALIGNMENT_CENTER)
-	_how = _label(Vector2(760, 560), Vector2(420, 40), 15, DIM, HORIZONTAL_ALIGNMENT_CENTER)
+	_keys = _label(Vector2(740, 514), Vector2(460, 24), 16, Sunfire.GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	_how = _label(Vector2(740, 540), Vector2(460, 40), 14, DIM, HORIZONTAL_ALIGNMENT_CENTER)
 	_how.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	for i in 46:
 		_embers.append(_new_ember(true))
@@ -110,6 +127,7 @@ func _new_ember(anywhere: bool) -> Array:
 func _go(page: String) -> void:
 	_page = page
 	_page_t = 0.0
+	_confirm = 0.0
 	var grid := _grid()
 	for l in [_name, _status, _desc, _keys, _how]:
 		l.visible = grid
@@ -152,6 +170,7 @@ func _process(delta: float) -> void:
 	_page_t += delta
 	_flash = move_toward(_flash, 0.0, delta)
 	_view_flash = maxf(_view_flash - delta, 0.0)
+	_confirm = maxf(_confirm - delta, 0.0)
 	if _saved_t >= 0.0:
 		_saved_t += delta
 		if _saved_t > 1.8:
@@ -172,10 +191,10 @@ func _input(event: InputEvent) -> void:
 		match _page:
 			"main":
 				match k:
-					KEY_LEFT, KEY_A:
-						_sel = (_sel + TABLETS.size() - 1) % TABLETS.size()
-					KEY_RIGHT, KEY_D:
-						_sel = (_sel + 1) % TABLETS.size()
+					KEY_UP, KEY_W, KEY_LEFT, KEY_A:
+						_select((_sel + ITEMS.size() - 1) % ITEMS.size())
+					KEY_DOWN, KEY_S, KEY_RIGHT, KEY_D:
+						_select((_sel + 1) % ITEMS.size())
 					KEY_SPACE, KEY_ENTER, KEY_KP_ENTER, KEY_J:
 						_choose(_sel)
 					KEY_V:
@@ -192,11 +211,9 @@ func _input(event: InputEvent) -> void:
 						_pick = (_pick + 1) % n
 						_show_ability()
 					KEY_UP, KEY_W:
-						_pick = (_pick + n - _cols()) % n
-						_show_ability()
+						_step_row(-1)
 					KEY_DOWN, KEY_S:
-						_pick = (_pick + _cols()) % n
-						_show_ability()
+						_step_row(1)
 					KEY_SPACE, KEY_ENTER, KEY_KP_ENTER, KEY_J:
 						if _page == "abilities":
 							_carry()
@@ -217,7 +234,7 @@ func _input(event: InputEvent) -> void:
 		var hit := _hit(at)
 		if hit >= 0:
 			if _page == "main":
-				_sel = hit
+				_select(hit)
 			elif _grid() and hit != _pick:
 				_pick = hit
 				_show_ability()
@@ -226,7 +243,7 @@ func _input(event: InputEvent) -> void:
 		var at2: Vector2 = event.position
 		if _page == "main" and VIEW_BTN.has_point(at2):
 			_cycle_view()
-		elif Rect2(1150, 24, 110, 44).has_point(at2):
+		elif CLOSE.has_point(at2):
 			if _page == "main":
 				_close()
 			else:
@@ -234,7 +251,7 @@ func _input(event: InputEvent) -> void:
 		else:
 			var hit2 := _hit(at2)
 			if _page == "main" and hit2 >= 0:
-				_sel = hit2
+				_select(hit2)
 				_choose(hit2)
 			elif _page == "abilities" and CARRY.has_point(at2):
 				_carry()
@@ -251,43 +268,108 @@ func _input(event: InputEvent) -> void:
 ## Which tablet / medallion is under the pointer (-1: none).
 func _hit(at: Vector2) -> int:
 	if _page == "main":
-		for i in TABLETS.size():
-			if Rect2(_tablet_x(i) - 118.0, 240.0, 236.0, 300.0).has_point(at):
+		for i in ITEMS.size():
+			if _row_rect(i).has_point(at):
 				return i
 	elif _grid():
 		for i in _list().size():
-			if at.distance_to(_medal_at(i)) < 62.0:
+			if at.distance_to(_medal_at(i)) < STOP_R + 12.0:
 				return i
 	return -1
 
 
+func _select(i: int) -> void:
+	if i != _sel:
+		_confirm = 0.0
+	_sel = i
+
+
 func _choose(i: int) -> void:
-	match TABLETS[i][0]:
+	_choose_id(ITEMS[i][0])
+
+
+func _choose_id(id: String) -> void:
+	match id:
+		"resume":
+			if player == null or not player.dead:
+				_close()
+		"restart", "exit":
+			if _confirm <= 0.0:
+				_confirm = 3.0                # once more to really do it
+				return
+			get_tree().paused = false
+			if id == "exit":
+				get_tree().quit()
+			else:
+				get_tree().reload_current_scene()
 		"save":
-			GameState.save()
+			var level := _level()
+			if level != null:
+				level.save_spot()
+			else:
+				GameState.save()
 			_saved_t = 0.0
-		"shelter":
-			_go("shelter")
-		"abilities":
-			_go("abilities")
-		"tutorial":
-			_go("tutorial")
+		"load":
+			if GameState.spot.is_empty() or _level() == null:
+				return
+			if _confirm <= 0.0:
+				_confirm = 3.0                # once more to really load
+				return
+			_level().load_spot()
+		"shelter", "abilities", "tutorial":
+			_go(id)
+
+
+func row_of(id: String) -> int:
+	for i in ITEMS.size():
+		if ITEMS[i][0] == id:
+			return i
+	return 0
+
+
+func _level() -> LevelBase:
+	return player.get_parent() as LevelBase if player != null else null
 
 
 ## ------------------------------------------------------------------ layout
-func _tablet_x(i: int) -> float:
-	return 205.0 + i * 290.0
+func _row_rect(i: int) -> Rect2:
+	return Rect2(LIST + Vector2(0, i * ROW_GAP), ROW)
 
 
-## Three across; four when the wall has more than nine.
+## Stops along a row of the roadmap: five on the long one, three on a short one.
 func _cols() -> int:
-	return 4 if _list().size() > 9 else COLS
+	return 5 if _list().size() > 9 else 3
 
 
+## The road snakes: left to right, then back right to left on the next row.
 func _medal_at(i: int) -> Vector2:
-	if _cols() == 4:
-		return Vector2(110.0 + (i % 4) * 140.0, 232.0 + (i / 4) * 150.0)
-	return Vector2(150.0 + (i % COLS) * 170.0, 232.0 + (i / COLS) * 150.0)
+	var cols := _cols()
+	var row := i / cols
+	var col := i % cols
+	if row % 2 == 1:
+		col = cols - 1 - col
+	var x0 := MAP.position.x + 88.0
+	var x1 := MAP.end.x - 88.0
+	return Vector2(x0 + (x1 - x0) * col / (cols - 1), TOP + row * (118.0 if cols == 5 else 128.0))
+
+
+## Up or down a row of the roadmap: the stop nearest straight above / below.
+func _step_row(d: int) -> void:
+	var cols := _cols()
+	var n := _list().size()
+	var row := _pick / cols + d
+	if row < 0 or row * cols >= n:
+		return
+	var x := _medal_at(_pick).x
+	var best := _pick
+	var bd := INF
+	for i in range(row * cols, mini((row + 1) * cols, n)):
+		var dx := absf(_medal_at(i).x - x)
+		if dx < bd:
+			bd = dx
+			best = i
+	_pick = best
+	_show_ability()
 
 
 func _show_ability() -> void:
@@ -320,8 +402,10 @@ func _show_ability() -> void:
 
 ## ------------------------------------------------------------------ drawing
 func _draw_view() -> void:
-	var b := Batch.new()
-	_draw_cave(b)
+	var bg := Batch.new()
+	_draw_cave(bg)
+	bg.draw(_view)
+	var b := Batch.new()             # the panels go straight on the view, between the two
 	match _page:
 		"main":
 			_draw_main(b)
@@ -336,7 +420,7 @@ func _draw_view() -> void:
 		var life: float = clampf(float(e[2]) / 2.0, 0.0, 1.0)
 		b.circle(e[0], 2.2 + hue * 1.6, Color(col, 0.75 * life), 6)
 	# the close button
-	b.circle(Vector2(1205, 46), 20.0, Color(0, 0, 0, 0.4), 18)
+	b.circle(CLOSE.get_center(), 20.0, Color(0, 0, 0, 0.4), 18)
 	b.line(Vector2(1196, 37), Vector2(1214, 55), INK, 3.0)
 	b.line(Vector2(1214, 37), Vector2(1196, 55), INK, 3.0)
 	b.draw(_view)
@@ -393,78 +477,210 @@ func _handprint(b: Batch, at: Vector2, s: float, col: Color) -> void:
 		b.line(at + Vector2.from_angle(a) * 10.0 * s, at + Vector2.from_angle(a) * (10.0 * s + fl), col, 7.0 * s)
 
 
-## The four tablets.
+## A rounded panel, straight on the view (under the batch drawn after it).
+func _panel(r: Rect2, edge: Color, fill: Color = Color(0.07, 0.045, 0.035, 0.84)) -> void:
+	if _box == null:
+		_box = StyleBoxFlat.new()
+		_box.set_border_width_all(2)
+		_box.set_corner_radius_all(12)
+		_box.shadow_color = Color(0, 0, 0, 0.4)
+		_box.shadow_size = 8
+		_box.shadow_offset = Vector2(0, 4)
+	_box.bg_color = fill
+	_box.border_color = edge
+	_view.draw_style_box(_box, r)
+
+
+## The list on the left, the card about the chosen row on the right.
 func _draw_main(b: Batch) -> void:
-	_campfire(b, Vector2(640, 690), 1.0)
-	for i in TABLETS.size():
-		var tab: Array = TABLETS[i]
-		var accent: Color = tab[3]
+	b.rect(Rect2(LIST.x, 170, CARD.end.x - LIST.x, 2), Color(Sunfire.GOLD, 0.35))
+	for i in ITEMS.size():
+		var r := _row_rect(i)
+		var accent: Color = ITEMS[i][3]
 		var on := i == _sel
-		var enter := clampf((_page_t - i * 0.08) / 0.35, 0.0, 1.0)
-		var bounce := 1.0 - pow(1.0 - enter, 3.0)
-		var lift := (-16.0 + sin(_t * 3.0) * 3.0) if on else 0.0
-		var c := Vector2(_tablet_x(i), 390.0 + lift + (1.0 - bounce) * 300.0)
-		var s := 1.06 if on else 1.0
-		# the slab: a chunky stone, a little uneven, its rim lit in its colour
-		var slab := PackedVector2Array()
-		var rng := RandomNumberGenerator.new()
-		rng.seed = 11 + i
-		for j in 20:
-			var a := j * TAU / 20.0
-			var rx := 114.0 * s
-			var ry := 150.0 * s
-			var p := Vector2(clampf(cos(a) * 1.5, -1.0, 1.0) * rx, clampf(sin(a) * 1.4, -1.0, 1.0) * ry)
-			slab.append(c + p + Vector2(rng.randf_range(-6, 6), rng.randf_range(-6, 6)))
+		var enter := clampf((_page_t - i * 0.05) / 0.3, 0.0, 1.0)
+		r.position.x -= 40.0 * pow(1.0 - enter, 3.0)
 		if on:
-			var glow := 0.35 + 0.15 * sin(_t * 5.0)
-			for g in 3:
-				b.poly(_grow(slab, c, 1.0 + 0.035 * (g + 1)), Color(accent, glow / (g + 1.5)))
-		b.poly(_grow(slab, c + Vector2(6, 10), 1.0), Color(0, 0, 0, 0.45))
-		b.poly(slab, Color("4a3a33") if on else Color("3a2e29"))
-		b.poly(_grow(slab, c, 0.9), Color("57463d") if on else Color("43352f"))
-		b.polyline(_closed(slab), Color(accent, 0.9 if on else 0.3), 4.0 if on else 2.0)
-		# cracks and chisel marks
-		b.line(c + Vector2(-90, -116) * s, c + Vector2(-62, -88) * s, Color(0, 0, 0, 0.25), 2.0)
-		b.line(c + Vector2(80, 106) * s, c + Vector2(52, 124) * s, Color(0, 0, 0, 0.25), 2.0)
-		# the medallion and its symbol
-		var mc := c + Vector2(0, -36) * s
-		b.circle(mc, 74.0 * s, Color(0.08, 0.05, 0.05, 0.85), 40)
-		b.arc(mc, 74.0 * s, 0.0, TAU, 48, Color(accent, 0.8 if on else 0.35), 4.0)
-		for d in 12:
-			var a2 := d * TAU / 12.0 + (_t * 0.6 if on else 0.0)
-			b.circle(mc + Vector2.from_angle(a2) * 84.0 * s, 3.0, Color(accent, 0.8 if on else 0.25), 6)
-		var tt := _t * (1.6 if on else 0.6)
-		match tab[0]:
-			"save":
-				_symbol_save(b, mc, 52.0 * s, accent, tt)
-			"shelter":
-				_symbol_shelter(b, mc, 52.0 * s, accent, tt)
-			"abilities":
-				_symbol_abilities(b, mc, 52.0 * s, accent, tt)
-			"tutorial":
-				_symbol_tutorial(b, mc, 52.0 * s, accent, tt)
-		# the SAVED! stamp
-		if tab[0] == "save" and _saved_t >= 0.0:
-			var k := clampf(_saved_t / 0.18, 0.0, 1.0)
-			var sz := 2.0 - k
-			for r in 10:
-				var a3 := r * TAU / 10.0 + _saved_t * 2.0
-				b.line(mc + Vector2.from_angle(a3) * 50.0 * sz, mc + Vector2.from_angle(a3) * (90.0 + 50.0 * _saved_t) * sz, Color(TEAL, 0.8 * (1.0 - _saved_t / 1.8)), 5.0)
-	# the mysteries he has met, on a scrap of hide: open ones first
-	if not GameState.mysteries.is_empty():
-		b.rect(MYST_BOX, Color("2a1d14", 0.85))
-		b.rect(Rect2(MYST_BOX.position, Vector2(MYST_BOX.size.x, 3)), Color(AMBER, 0.7))
-	# the VIEW button, bottom left
-	var vb := VIEW_BTN.grow(_view_flash * 8.0)
-	b.rect(vb, Color(0, 0, 0, 0.45))
-	b.rect(Rect2(vb.position, Vector2(vb.size.x, 3)), Color(TEAL, 0.6 + _view_flash))
+			_panel(r.grow(2.0), accent, Color(accent.darkened(0.72), 0.94))
+			b.rect(Rect2(r.position + Vector2(10, 12), Vector2(4, r.size.y - 24)), accent)
+		else:
+			_panel(r, Color(1, 1, 1, 0.07), Color(0.06, 0.04, 0.03, 0.62))
+		var lit := 1.0 if on else (0.25 if _row_off(i) else 0.6)
+		_symbol(b, ITEMS[i][0], r.position + Vector2(44, r.size.y * 0.5), 14.0, Color(accent, lit), _t * 1.6 if on else 0.0)
+	# the card
+	var item: Array = ITEMS[_sel]
+	var accent2: Color = item[3]
+	_panel(CARD, Color(accent2, 0.55))
+	var mc := CARD.position + Vector2(130, 150)
+	var pop := 1.0 + 0.12 * maxf(0.0, 1.0 - _page_t * 5.0)
+	b.circle(mc, 84.0, Color(accent2, 0.08 + 0.04 * sin(_t * 3.0)), 36)
+	b.circle(mc, 72.0 * pop, Color(0.08, 0.05, 0.05, 0.9), 40)
+	b.arc(mc, 72.0 * pop, 0.0, TAU, 48, accent2, 3.0)
+	for d in 12:
+		var a := d * TAU / 12.0 + _t * 0.5
+		b.circle(mc + Vector2.from_angle(a) * 82.0, 2.5, Color(accent2, 0.7), 6)
+	_symbol(b, item[0], mc, 48.0 * pop, accent2, _t * 1.6)
+	if _saved_t >= 0.0:
+		var sz := 2.0 - clampf(_saved_t / 0.18, 0.0, 1.0)
+		for r2 in 10:
+			var a3 := r2 * TAU / 10.0 + _saved_t * 2.0
+			b.line(mc + Vector2.from_angle(a3) * 50.0 * sz, mc + Vector2.from_angle(a3) * (90.0 + 50.0 * _saved_t) * sz, Color(TEAL, 0.8 * (1.0 - _saved_t / 1.8)), 5.0)
+	if item[0] == "load" and _confirm > 0.0:
+		b.rect(Rect2(CARD.position + Vector2(260, 236), Vector2(400.0 * _confirm / 3.0, 3)), SKY)
+	# what he has gathered, along the bottom of the card
+	var sy := CARD.end.y - 76.0
+	b.rect(Rect2(CARD.position.x + 24, sy, CARD.size.x - 48, 1), Color(1, 1, 1, 0.12))
 	for i in 3:
-		var on: bool = ["close", "normal", "wide"][i] == GameState.view_name()
-		b.rect(Rect2(VIEW_BTN.position + Vector2(180.0 + i * 24.0, 12.0 + (2 - i) * 4.0), Vector2(16.0, 16.0 - (2 - i) * 4.0)), TEAL if on else Color(1, 1, 1, 0.25))
-	# the soon ribbon on the shelter tablet
-	var sx := _tablet_x(1) + 70.0
-	var sy := 260.0 + (-16.0 if _sel == 1 else 0.0)
-	b.quad(Vector2(sx - 46, sy - 12), Vector2(sx + 46, sy + 4), Vector2(sx + 42, sy + 26), Vector2(sx - 50, sy + 10), Color("c0392b"))
+		var sx := CARD.position.x + CARD.size.x * (i + 1) / 4.0
+		b.rect(Rect2(sx, sy + 16, 1, 44), Color(1, 1, 1, 0.1))
+	# the VIEW button
+	_panel(VIEW_BTN.grow(_view_flash * 6.0), Color(TEAL, 0.35 + _view_flash), Color(0.06, 0.04, 0.03, 0.62))
+	for i in 3:
+		var on2: bool = ["close", "normal", "wide"][i] == GameState.view_name()
+		b.rect(Rect2(VIEW_BTN.position + Vector2(320.0 + i * 22.0, 14.0 + (2 - i) * 4.0), Vector2(14.0, 16.0 - (2 - i) * 4.0)), TEAL if on2 else Color(1, 1, 1, 0.25))
+	if not GameState.mysteries.is_empty():
+		_panel(MYST_BOX, Color(AMBER, 0.45))
+
+
+## A row that can't do anything now (LOAD with nothing saved, RESUME when he
+## did not make it).
+func _row_off(i: int) -> bool:
+	match ITEMS[i][0]:
+		"load":
+			return GameState.spot.is_empty()
+		"resume":
+			return player != null and player.dead
+	return false
+
+
+## The little note at the right end of a row.
+func _row_note(id: String) -> String:
+	match id:
+		"save", "load":
+			return str(GameState.spot.get("when", "")).substr(11) if not GameState.spot.is_empty() else ("" if id == "save" else "nothing yet")
+		"abilities":
+			return "%d / %d" % [_unlocked(Abilities.POWERS), Abilities.POWERS.size()]
+		"tutorial":
+			return "%d / %d" % [_unlocked(Abilities.MOVES), Abilities.MOVES.size()]
+		"shelter":
+			return "SOON"
+		"restart", "exit":
+			return "press twice" if _confirm > 0.0 and ITEMS[_sel][0] == id else ""
+	return ""
+
+
+## The line under the card's words: where, when, how many.
+func _card_note(id: String) -> String:
+	var when := "%s,  %s" % [str(GameState.spot.get("title", "")).replace("   ", " · "), str(GameState.spot.get("when", ""))]
+	match id:
+		"resume":
+			return "He did not make it: RESTART LEVEL, or LOAD." if player != null and player.dead else level_name.replace("   ", " · ")
+		"save":
+			return "Last saved: " + when if not GameState.spot.is_empty() else "Not saved yet."
+		"load":
+			if GameState.spot.is_empty():
+				return "Nothing saved yet: SAVE first."
+			if _confirm > 0.0:
+				return "Press again to load. Steps since the save are lost; what he found stays found."
+			return "Saved: " + when
+		"restart":
+			return "Press again to restart the level." if _confirm > 0.0 else "Treasure he found stays found."
+		"exit":
+			return "Press again to close the game." if _confirm > 0.0 else ""
+		"abilities":
+			var names: Array = []
+			for c in Abilities.slots(player):
+				names.append(Abilities.row(c)[1])
+			return "Carrying: " + (", ".join(names) if not names.is_empty() else "nothing yet")
+		"tutorial":
+			return "%d of %d moves learned." % [_unlocked(Abilities.MOVES), Abilities.MOVES.size()]
+		"shelter":
+			return "Bones gathered: %d" % GameState.bones
+	return ""
+
+
+func _unlocked(list: Array) -> int:
+	var n := 0
+	for r in list:
+		if Abilities.unlocked(r[0], player):
+			n += 1
+	return n
+
+
+func _relic_count() -> int:
+	var n := 0
+	for k in GameState.relics:
+		n += int(GameState.relics[k])
+	return n
+
+
+## A stop's short name on the roadmap: "LAUNCH, JUGGLE..." is LAUNCH.
+func _short(name: String) -> String:
+	return name.split(",")[0].split(":")[0]
+
+
+func _symbol(b: Batch, id: String, c: Vector2, r: float, col: Color, t: float) -> void:
+	match id:
+		"resume":
+			_symbol_resume(b, c, r, col, t)
+		"save":
+			_symbol_save(b, c, r, col, t)
+		"load":
+			_symbol_load(b, c, r, col, t)
+		"shelter":
+			_symbol_shelter(b, c, r, col, t)
+		"abilities":
+			_symbol_abilities(b, c, r, col, t)
+		"tutorial":
+			_symbol_tutorial(b, c, r, col, t)
+		"restart":
+			_symbol_restart(b, c, r, col, t)
+		"exit":
+			_symbol_exit(b, c, r, col, t)
+
+
+## Round again: an arrow chasing its own tail.
+func _symbol_restart(b: Batch, c: Vector2, r: float, col: Color, t: float) -> void:
+	var a0 := -t * 1.5
+	var w := maxf(0.14 * r, 2.5)
+	b.arc(c, 0.6 * r, a0, a0 + TAU * 0.78, 24, col, w)
+	var tip := c + Vector2.from_angle(a0) * 0.6 * r
+	var back := Vector2.from_angle(a0 - PI * 0.5)       # the way the arc is heading at its start
+	var side := Vector2.from_angle(a0)
+	b.tri(tip + back * 0.36 * r, tip + side * 0.3 * r, tip - side * 0.3 * r, col)
+
+
+## The way out: the cave mouth, and a little arrow going through it.
+func _symbol_exit(b: Batch, c: Vector2, r: float, col: Color, t: float) -> void:
+	var w := maxf(0.12 * r, 2.0)
+	b.polyline(PackedVector2Array([c + Vector2(0.1, -0.75) * r, c + Vector2(-0.6, -0.75) * r, c + Vector2(-0.6, 0.75) * r, c + Vector2(0.1, 0.75) * r]), col, w)
+	var push := fmod(t * 0.5, 1.0) * 0.15 * r
+	b.line(c + Vector2(-0.2 * r + push, 0), c + Vector2(0.5 * r + push, 0), col, w)
+	b.tri(c + Vector2(0.85 * r + push, 0), c + Vector2(0.45 * r + push, -0.32 * r), c + Vector2(0.45 * r + push, 0.32 * r), col)
+
+
+## On his way again: a fat arrow, with streaks of speed behind it.
+func _symbol_resume(b: Batch, c: Vector2, r: float, col: Color, t: float) -> void:
+	var push := sin(t * 3.0) * 0.06 * r
+	b.tri(c + Vector2(-0.3 * r + push, -0.62 * r), c + Vector2(0.7 * r + push, 0), c + Vector2(-0.3 * r + push, 0.62 * r), col)
+	for i in 3:
+		var y := (-0.3 + i * 0.3) * r
+		b.line(c + Vector2(-0.9 * r, y), c + Vector2(-0.5 * r, y), Color(col, col.a * 0.6), maxf(0.1 * r, 2.0))
+
+
+## The pot of memory, its spiral turning back, and him rising out of it.
+func _symbol_load(b: Batch, c: Vector2, r: float, col: Color, t: float) -> void:
+	var pot := PackedVector2Array([c + Vector2(-0.5, 0.85) * r, c + Vector2(-0.75, 0.3) * r, c + Vector2(-0.55, -0.15) * r,
+		c + Vector2(0.55, -0.15) * r, c + Vector2(0.75, 0.3) * r, c + Vector2(0.5, 0.85) * r])
+	b.poly(pot, Color(Color("a4623a"), col.a))
+	var sp := PackedVector2Array()
+	for i in 24:
+		var q := i / 23.0
+		sp.append(c + Vector2(0, 0.38 * r) + Vector2.from_angle(-q * TAU * 1.6 - t * 2.0) * (2.0 + q * 0.3 * r))
+	b.polyline(sp, col, maxf(0.08 * r, 2.0))
+	var up := fmod(t * 0.5, 1.0) * 0.12 * r
+	b.tri(c + Vector2(0, -0.95 * r - up), c + Vector2(0.32 * r, -0.5 * r - up), c + Vector2(-0.32 * r, -0.5 * r - up), col)
+	b.rect(Rect2(c + Vector2(-0.1 * r, -0.52 * r - up), Vector2(0.2 * r, 0.3 * r)), col)
 
 
 func _grow(pts: PackedVector2Array, c: Vector2, k: float) -> PackedVector2Array:
@@ -536,108 +752,143 @@ func _campfire(b: Batch, at: Vector2, s: float) -> void:
 		Sunfire.flame(b, at + Vector2(-24.0 + i * 16.0, -6.0) * s, (44.0 + 14.0 * sin(_t * 3.0 + i)) * s, _t * 1.2 + i * 1.7)
 
 
-## A wall of medallions (the powers, or the moves), and the chosen one up close.
+## A roadmap (the powers, or the moves): stops along a snaking trail, lit as
+## far as he has got, and the chosen one up close on the card at the right.
 func _draw_grid(b: Batch) -> void:
 	var list := _list()
 	var carried := Abilities.slots(player)
 	var n := list.size()
-	var got := 0
+	var open: Array = []
 	for i in n:
-		var row: Array = list[i]
-		var id: String = row[0]
-		var open := Abilities.unlocked(id, player)
-		if open:
-			got += 1
-		var on := i == _pick
-		var enter := clampf((_page_t - i * 0.035) / 0.3, 0.0, 1.0)
-		var c := _medal_at(i)
-		var r := 54.0 * (1.12 if on else 1.0) * (0.3 + 0.7 * (1.0 - pow(1.0 - enter, 3.0)))
-		if open:
-			b.circle(c, r + 12.0 + 3.0 * sin(_t * 3.0 + i), Color(Abilities.GOLD, 0.12), 28)
-			b.circle(c, r, Color("2a1a12"), 32)
-			b.circle(c, r * 0.9, Color("3b2619"), 32)
-			b.arc(c, r, 0.0, TAU, 40, Abilities.GOLD, 4.0)
-			Abilities.draw_symbol(b, id, c, r * 0.76, Abilities.GOLD, _t * (1.4 if on else 0.5) + i)
-		else:
-			b.circle(c, r, Color("1c1e25"), 32)
-			b.circle(c, r * 0.9, Color("262933"), 32)
-			b.arc(c, r, 0.0, TAU, 40, Abilities.SLATE, 3.0)
-			Abilities.draw_symbol(b, id, c, r * 0.72, Color(Abilities.SLATE, 0.55), 0.0)
-			# chains across, and a padlock
-			for s in [-1.0, 1.0]:
-				for j in 7:
-					var q := (j - 3) / 3.5
-					var p := c + Vector2(q * r, q * r * 0.55 * s)
-					b.arc(p, 6.0, 0.0, TAU, 10, Color("6c7385"), 3.0)
-			b.rect(Rect2(c + Vector2(-11, r * 0.5), Vector2(22, 18)), Color("8a8f9e"))
-			b.arc(c + Vector2(0, r * 0.5), 8.0, PI, TAU, 10, Color("8a8f9e"), 3.5)
-			b.circle(c + Vector2(0, r * 0.5 + 9.0), 3.0, Color("2a2c33"), 6)
-		# carried: a badge in the power's own colour, with its slot number
-		var slot := carried.find(id) if _page == "abilities" else -1
-		if slot >= 0:
-			var bp := c + Vector2(r * 0.72, -r * 0.72)
-			b.circle(bp, 15.0, Color(0, 0, 0, 0.5), 16)
-			b.circle(bp, 13.0, Abilities.colour(id), 16)
-		if on:
-			# a turning dotted ring round the chosen one
-			for d in 16:
-				var a := d * TAU / 16.0 + _t * 1.5
-				b.circle(c + Vector2.from_angle(a) * (r + 16.0), 3.0, Color(INK, 0.9) if d % 2 == 0 else Color(MAGENTA if _page == "abilities" else LIME, 0.9), 6)
+		open.append(Abilities.unlocked(list[i][0], player))
+	var got := open.count(true)
+	var next := open.find(false)              # the next stop to unlock pulses
+	var pid: String = list[_pick][0]
+	var popen: bool = open[_pick]
+	var tint := (Abilities.colour(pid) if _page == "abilities" else Abilities.GOLD) if popen else Abilities.SLATE
+	_panel(MAP, Color(1, 1, 1, 0.08), Color(0.05, 0.035, 0.03, 0.72))
+	_panel(INFO, Color(tint, 0.55))
+	for i in n - 1:
+		_road(b, i, open[i] and open[i + 1])
+	for i in n:
+		_stop(b, i, list[i][0], open[i], i == next, carried)
 	if _page == "abilities":
 		_draw_slots(b, carried)
-	# the big tablet on the right
-	var tc := Vector2(970, 400)
-	var slab := PackedVector2Array([tc + Vector2(-250, -330), tc + Vector2(240, -322), tc + Vector2(256, 268), tc + Vector2(-244, 276)])
-	b.poly(_grow(slab, tc + Vector2(8, 12), 1.0), Color(0, 0, 0, 0.45))
-	b.poly(slab, Color("3a2e29"))
-	b.poly(_grow(slab, tc, 0.96), Color("4a3a33"))
-	var pick: Array = list[_pick]
-	var pid: String = pick[0]
-	var popen := Abilities.unlocked(pid, player)
-	var bc := Vector2(970, 196)
-	var pop := 1.0 + 0.25 * maxf(0.0, 1.0 - _page_t * 4.0)
+	# the chosen one, up close
+	var bc := Vector2(INFO.get_center().x, 262)
+	var pop := 1.0 + 0.2 * maxf(0.0, 1.0 - _page_t * 4.0)
 	if popen:
-		var ray_col := Abilities.colour(pid) if _page == "abilities" else Abilities.GOLD
 		for i in 16:
 			var a := i * TAU / 16.0 + _t * 0.4
-			b.tri(bc + Vector2.from_angle(a + 0.1) * 70.0, bc + Vector2.from_angle(a) * (128.0 + 10.0 * sin(_t * 4.0 + i)), bc + Vector2.from_angle(a - 0.1) * 70.0, Color(ray_col, 0.25))
-		b.circle(bc, 92.0 * pop, Color("2a1a12"), 40)
-		b.arc(bc, 92.0 * pop, 0.0, TAU, 48, Abilities.GOLD, 5.0)
-		Abilities.draw_symbol(b, pid, bc, 74.0 * pop, Abilities.GOLD, _t * 1.6)
+			b.tri(bc + Vector2.from_angle(a + 0.1) * 62.0, bc + Vector2.from_angle(a) * (90.0 + 8.0 * sin(_t * 4.0 + i)), bc + Vector2.from_angle(a - 0.1) * 62.0, Color(tint, 0.22))
+		b.circle(bc, 58.0 * pop, Color("2a1a12"), 40)
+		b.arc(bc, 58.0 * pop, 0.0, TAU, 48, Abilities.GOLD, 4.0)
+		Abilities.draw_symbol(b, pid, bc, 46.0 * pop, Abilities.GOLD, _t * 1.6)
 	else:
-		b.circle(bc, 92.0, Color("1c1e25"), 40)
-		b.arc(bc, 92.0, 0.0, TAU, 48, Abilities.SLATE, 4.0)
-		Abilities.draw_symbol(b, pid, bc, 60.0, Color(Abilities.SLATE, 0.5), 0.0)
-		b.polyline(PackedVector2Array([bc + Vector2(-60, -50), bc + Vector2(-20, -10), bc + Vector2(-34, 20), bc + Vector2(10, 64)]), Color(0, 0, 0, 0.6), 3.0)
+		b.circle(bc, 58.0, Color("1c1e25"), 40)
+		b.arc(bc, 58.0, 0.0, TAU, 48, Abilities.SLATE, 3.0)
+		Abilities.draw_symbol(b, pid, bc, 40.0, Color(Abilities.SLATE, 0.5), 0.0)
+		_padlock(b, bc + Vector2(40, 40), 1.6)
 	# the CARRY IT / PUT IT DOWN button
 	if _page == "abilities" and popen:
 		var on2 := carried.has(pid)
 		var col := Abilities.colour(pid)
 		var glow := 0.5 + 0.5 * sin(_t * 4.0)
-		b.rect(CARRY.grow(4.0 + 3.0 * glow), Color(col, 0.18) if not on2 else Color(0, 0, 0, 0.0))
-		b.rect(CARRY, col.darkened(0.55) if on2 else col.darkened(0.15))
-		b.rect(Rect2(CARRY.position, Vector2(CARRY.size.x, 4)), Color(1, 1, 1, 0.25))
+		_panel(CARRY.grow(0.0 if on2 else 2.0 * glow), Color(col, 0.9), col.darkened(0.6) if on2 else col.darkened(0.25))
 	_counter = "%d / %d unlocked" % [got, n]
 
 
-## The two slots under the wall: what he carries, in their own colours —
+## The trail from stop i to the next: straight along a row, a U-turn at its end.
+func _road(b: Batch, i: int, lit: bool) -> void:
+	var a := _medal_at(i)
+	var c := _medal_at(i + 1)
+	var bulge := Vector2.ZERO
+	if absf(a.y - c.y) > 1.0:
+		bulge = Vector2((1.0 if a.x > MAP.get_center().x else -1.0) * 70.0, 0.0)
+	var pts := PackedVector2Array()
+	for k in 21:
+		var q := k / 20.0
+		var u := 1.0 - q
+		pts.append(a * u * u * u + (a + bulge) * 3.0 * u * u * q + (c + bulge) * 3.0 * u * q * q + c * q * q * q)
+	if lit:
+		b.polyline(pts, Color(Abilities.GOLD.darkened(0.6), 0.9), 9.0)
+		b.polyline(pts, Abilities.GOLD, 4.0)
+		for s in 2:                           # sparks running along it
+			var q2 := fmod(_t * 0.45 + s * 0.5 + i * 0.17, 1.0)
+			b.circle(pts[int(q2 * 20.0)], 3.0, Color(1.0, 0.95, 0.75, 0.9), 6)
+		return
+	b.polyline(pts, Color(0, 0, 0, 0.35), 6.0)
+	var gap := 0.0                            # a dotted trail, a dot every 13 px
+	for k in pts.size() - 1:
+		var seg := pts[k].distance_to(pts[k + 1])
+		while gap <= seg:
+			b.circle(pts[k].lerp(pts[k + 1], gap / seg), 2.5, Color(Abilities.SLATE, 0.85), 6)
+			gap += 13.0
+		gap -= seg
+
+
+## One stop on the road: gold and glowing if he has it, slate and padlocked
+## if not; a badge with its slot number if he carries it.
+func _stop(b: Batch, i: int, id: String, open: bool, next: bool, carried: Array) -> void:
+	var on := i == _pick
+	var enter := clampf((_page_t - i * 0.03) / 0.25, 0.0, 1.0)
+	var c := _medal_at(i)
+	var r := STOP_R * (1.15 if on else 1.0) * (0.3 + 0.7 * (1.0 - pow(1.0 - enter, 3.0)))
+	b.circle(c + Vector2(2, 4), r + 3.0, Color(0, 0, 0, 0.45), 24)
+	if open:
+		b.circle(c, r + 7.0 + 2.0 * sin(_t * 3.0 + i), Color(Abilities.GOLD, 0.14), 24)
+		b.circle(c, r, Color("2a1a12"), 28)
+		b.circle(c, r * 0.86, Color("3b2619"), 28)
+		b.arc(c, r, 0.0, TAU, 32, Abilities.GOLD, 3.0)
+		Abilities.draw_symbol(b, id, c, r * 0.7, Abilities.GOLD, _t * (1.4 if on else 0.5) + i)
+	else:
+		if next:
+			var q := fmod(_t * 0.8, 1.0)
+			b.arc(c, r + 4.0 + 12.0 * q, 0.0, TAU, 32, Color(Abilities.GOLD, 0.6 * (1.0 - q)), 2.0)
+		b.circle(c, r, Color("1c1e25"), 28)
+		b.circle(c, r * 0.86, Color("262933"), 28)
+		b.arc(c, r, 0.0, TAU, 32, Color(Abilities.GOLD, 0.6) if next else Abilities.SLATE, 2.5)
+		Abilities.draw_symbol(b, id, c, r * 0.66, Color(Abilities.SLATE, 0.55), 0.0)
+		_padlock(b, c + Vector2(r * 0.68, r * 0.68), 1.0)
+	var slot := carried.find(id) if _page == "abilities" else -1
+	if slot >= 0:
+		var bp := c + Vector2(r * 0.72, -r * 0.72)
+		b.circle(bp, 11.0, Color(0, 0, 0, 0.5), 14)
+		b.circle(bp, 9.5, Abilities.colour(id), 14)
+	if on:
+		for d in 14:
+			var a := d * TAU / 14.0 + _t * 1.5
+			b.circle(c + Vector2.from_angle(a) * (r + 9.0), 2.5, Color(INK, 0.9) if d % 2 == 0 else Color(MAGENTA if _page == "abilities" else LIME, 0.9), 6)
+
+
+func _padlock(b: Batch, at: Vector2, s: float) -> void:
+	b.circle(at, 10.0 * s, Color("15161b"), 14)
+	b.arc(at + Vector2(0, -2.0 * s), 4.5 * s, PI, TAU, 8, Color("a3a9b8"), 2.0 * s)
+	b.rect(Rect2(at + Vector2(-6.0, -2.0) * s, Vector2(12.0, 8.0) * s), Color("a3a9b8"))
+
+
+## The two slots under the road: what he carries, in their own colours —
 ## the same circles he sees at the bottom of the screen in the game.
 func _draw_slots(b: Batch, carried: Array) -> void:
 	for i in Abilities.SLOTS:
-		var c := Vector2(250.0 + i * 140.0, 590.0)
+		var c := _slot_at(i)
 		if i < carried.size():
 			var id: String = carried[i]
 			var col := Abilities.colour(id)
 			var pulse := 1.0 + (0.12 * absf(_flash) / 0.6 if i == carried.size() - 1 else 0.0)
 			for g in 3:
-				b.circle(c, (44.0 + g * 6.0 + 3.0 * sin(_t * 4.0 + i)) * pulse, Color(col, 0.13 - g * 0.035), 28)
-			b.circle(c, 40.0 * pulse, Color("2a1a12"), 30)
-			b.arc(c, 40.0 * pulse, 0.0, TAU, 36, col, 4.0)
-			Abilities.draw_symbol(b, id, c, 28.0 * pulse, col, _t * 1.5)
+				b.circle(c, (38.0 + g * 5.0 + 3.0 * sin(_t * 4.0 + i)) * pulse, Color(col, 0.13 - g * 0.035), 28)
+			b.circle(c, 34.0 * pulse, Color("2a1a12"), 30)
+			b.arc(c, 34.0 * pulse, 0.0, TAU, 36, col, 3.5)
+			Abilities.draw_symbol(b, id, c, 24.0 * pulse, col, _t * 1.5)
 		else:
-			for d in 18:
-				var a := d * TAU / 18.0 + _t * 0.3
-				b.circle(c + Vector2.from_angle(a) * 40.0, 2.5, Color(1, 1, 1, 0.3), 6)
+			for d in 16:
+				var a := d * TAU / 16.0 + _t * 0.3
+				b.circle(c + Vector2.from_angle(a) * 34.0, 2.5, Color(1, 1, 1, 0.3), 6)
+
+
+func _slot_at(i: int) -> Vector2:
+	return Vector2(MAP.get_center().x - 70.0 + i * 140.0, 540.0)
 
 
 ## A cave painting of him mid-leap, arrows of motion around him.
@@ -708,61 +959,77 @@ func _relic_slot(i: int) -> Vector2:
 	return Vector2(820.0 + (i % 3) * 155.0, 270.0 + (i / 3) * 150.0)
 
 
-## Text drawn straight on the view (titles, names under tablets, hints).
+## Text drawn straight on the view (titles, names, the cards, hints).
 func _texts() -> void:
 	var f := ThemeDB.fallback_font
+	var tf := Pal.title_font()
 	match _page:
 		"main":
-			_centred(f, "THE CAMP", Vector2(640, 110), 64, Sunfire.GOLD, true)
-			_centred(f, level_name, Vector2(640, 150), 18, DIM, false)
-			for i in TABLETS.size():
-				var tab: Array = TABLETS[i]
+			_left(tf, "THE CAMP", Vector2(LIST.x, 132), 58, Sunfire.GOLD, true)
+			_view.draw_string(f, Vector2(LIST.x, 132), level_name, HORIZONTAL_ALIGNMENT_RIGHT, CARD.end.x - LIST.x, 17, DIM)
+			for i in ITEMS.size():
+				var it: Array = ITEMS[i]
+				var r := _row_rect(i)
+				r.position.x -= 40.0 * pow(1.0 - clampf((_page_t - i * 0.05) / 0.3, 0.0, 1.0), 3.0)
 				var on := i == _sel
-				var y := 500.0 + (-16.0 if on else 0.0)
-				_centred(f, tab[1], Vector2(_tablet_x(i), y), 30 if on else 26, tab[3] if on else INK, true)
-				_centred(f, tab[2], Vector2(_tablet_x(i), y + 26.0), 15, DIM, false)
-			_view.draw_set_transform(Vector2(_tablet_x(1) + 60.0, 278.0 + (-16.0 if _sel == 1 else 0.0)), 0.17, Vector2.ONE)
-			_view.draw_string(f, Vector2(-26, 0), "SOON", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, INK)
-			_view.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+				var col := INK if on else (Color(DIM, 0.5) if _row_off(i) else DIM.lightened(0.15))
+				_left(tf, it[1], r.position + Vector2(76, 31), 21, col, on)
+				_view.draw_string(f, r.position + Vector2(0, 28), _row_note(it[0]), HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 18.0, 14, Color(it[3], 0.85 if on else 0.5))
+			# the card
+			var item: Array = ITEMS[_sel]
+			var tx := CARD.position + Vector2(260, 0)
+			var tw := CARD.size.x - 290.0
+			_left(tf, item[1], tx + Vector2(0, 98), 40, item[3], true)
+			_view.draw_multiline_string(f, tx + Vector2(0, 134), item[2], HORIZONTAL_ALIGNMENT_LEFT, tw, 18, -1, INK)
+			_view.draw_multiline_string(f, tx + Vector2(0, 204), _card_note(item[0]), HORIZONTAL_ALIGNMENT_LEFT, tw, 16, -1, Sunfire.GOLD if _confirm > 0.0 else DIM)
 			if _saved_t >= 0.0:
 				var a := clampf(1.0 - (_saved_t - 1.2) / 0.6, 0.0, 1.0)
-				var sz := int(46.0 * (2.0 - clampf(_saved_t / 0.18, 0.0, 1.0)))
-				_centred(f, "SAVED!", Vector2(_tablet_x(0), 380), sz, Color(TEAL.lightened(0.3), a), true)
-			_centred(f, "← →  choose      SPACE  open      ESC  back to the game", Vector2(640, 606), 16, DIM, false)
-			_view.draw_string(f, VIEW_BTN.position + Vector2(14, 27), "VIEW: %s   V" % GameState.view_name().to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, INK)
+				var sz := int(40.0 * (2.0 - clampf(_saved_t / 0.18, 0.0, 1.0)))
+				_centred(tf, "SAVED!", CARD.position + Vector2(130, 164), sz, Color(TEAL.lightened(0.3), a), true)
+			var stats := [["SHELLS", GameState.shells], ["SPIRIT ORBS", GameState.orbs], ["BONES", GameState.bones], ["RARE FINDS", _relic_count()]]
+			for i in stats.size():
+				var cx := CARD.position.x + CARD.size.x * (i + 0.5) / 4.0
+				_centred(tf, str(stats[i][1]), Vector2(cx, CARD.end.y - 26.0), 26, INK, true)
+				_centred(f, stats[i][0], Vector2(cx, CARD.end.y - 54.0), 12, DIM, false)
+			_view.draw_string(f, VIEW_BTN.position + Vector2(18, 28), "VIEW:  %s" % GameState.view_name().to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, INK)
+			_view.draw_string(f, VIEW_BTN.position + Vector2(0, 28), "V", HORIZONTAL_ALIGNMENT_RIGHT, 300.0, 14, DIM)
 			if not GameState.mysteries.is_empty():
-				_view.draw_string(f, MYST_BOX.position + Vector2(12, 18), "MYSTERIES", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, AMBER)
-				var y := 36.0
+				_view.draw_string(tf, MYST_BOX.position + Vector2(16, 24), "MYSTERIES", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, AMBER)
+				var y := 44.0
 				var order: Array = GameState.mysteries.keys()      # the open ones first: only two lines fit
 				order.sort_custom(func(a, b) -> bool: return GameState.mysteries[a] != "solved" and GameState.mysteries[b] == "solved")
 				for id in order:
-					if not MYSTERIES.has(id) or y > 52.0:
+					if not MYSTERIES.has(id) or y > 62.0:
 						continue
 					var solved: bool = GameState.mysteries[id] == "solved"
 					var line: String = (MYSTERIES[id] as Array)[1 if solved else 0]
-					_view.draw_string(f, MYST_BOX.position + Vector2(12, y + 6), ("✓ " if solved else "? ") + line, HORIZONTAL_ALIGNMENT_LEFT, MYST_BOX.size.x - 20.0, 13, Color("9be15d") if solved else INK)
-					y += 18.0
-		"abilities":
-			_centred(f, "ABILITIES", Vector2(320, 92), 50, Sunfire.GOLD, true)
-			_centred(f, "%s  ·  he carries TWO" % _counter, Vector2(320, 126), 18, DIM, false)
-			_centred(f, "CARRIED", Vector2(320, 530), 16, INK, true)
+					_view.draw_string(f, MYST_BOX.position + Vector2(16, y), ("✓ " if solved else "? ") + line, HORIZONTAL_ALIGNMENT_LEFT, MYST_BOX.size.x - 32.0, 13, Color("9be15d") if solved else INK)
+					y += 19.0
+			_centred(f, "↑ ↓  choose      SPACE  select      V  view      ESC  back to the game", Vector2(640, 700), 15, DIM, false)
+		"abilities", "tutorial":
+			var title := "ABILITIES" if _page == "abilities" else "SPECIAL MOVES"
+			var mx := MAP.get_center().x
+			_centred(tf, title, Vector2(mx, 96), 46, Sunfire.GOLD if _page == "abilities" else LIME, true)
+			_centred(f, _counter + ("  ·  he carries TWO" if _page == "abilities" else "  ·  always his, once learned"), Vector2(mx, 128), 17, DIM, false)
+			var list := _list()
 			var carried := Abilities.slots(player)
-			for i in Abilities.SLOTS:
-				_centred(f, str(i + 1), Vector2(250.0 + i * 140.0, 650.0), 14, DIM, false)
-			for i in _list().size():
-				var slot := carried.find(_list()[i][0])
+			for i in list.size():
+				var open := Abilities.unlocked(list[i][0], player)
+				var r := STOP_R * (1.15 if i == _pick else 1.0)
+				var c := _medal_at(i)
+				_centred(f, _short(list[i][1]), c + Vector2(0, r + 20.0), 12, (INK if i == _pick else DIM.lightened(0.2)) if open else Color(DIM, 0.6), false)
+				var slot := carried.find(list[i][0]) if _page == "abilities" else -1
 				if slot >= 0:
-					var r := 54.0 * (1.12 if i == _pick else 1.0)
-					_centred(f, str(slot + 1), _medal_at(i) + Vector2(r * 0.72, -r * 0.72 + 6.0), 17, Color.BLACK, false)
-			var pr: Array = _list()[_pick]
-			if Abilities.unlocked(pr[0], player):
-				var label := "PUT IT DOWN" if carried.has(pr[0]) else ("CARRY IT" if carried.size() < Abilities.SLOTS else "CARRY IT (swap)")
-				_centred(f, label + "   SPACE", CARRY.get_center() + Vector2(0, 7), 20, INK, true)
-			_centred(f, "ARROWS  choose      SPACE  carry      ESC  back", Vector2(320, 690), 15, DIM, false)
-		"tutorial":
-			_centred(f, "SPECIAL MOVES", Vector2(320, 92), 46, LIME, true)
-			_centred(f, "%s  ·  always his, once learned" % _counter, Vector2(320, 126), 18, DIM, false)
-			_centred(f, "ARROWS  choose      ESC  back", Vector2(320, 690), 15, DIM, false)
+					_centred(f, str(slot + 1), c + Vector2(r * 0.72, -r * 0.72 + 5.0), 13, Color.BLACK, false)
+			if _page == "abilities":
+				_centred(tf, "CARRIED", Vector2(mx, 488), 16, INK, true)
+				for i in Abilities.SLOTS:
+					_centred(f, str(i + 1), _slot_at(i) + Vector2(0, 56), 13, DIM, false)
+				var pr: Array = list[_pick]
+				if Abilities.unlocked(pr[0], player):
+					var label := "PUT IT DOWN" if carried.has(pr[0]) else ("CARRY IT" if carried.size() < Abilities.SLOTS else "CARRY IT (swap)")
+					_centred(tf, label + "   SPACE", CARRY.get_center() + Vector2(0, 7), 18, INK, true)
+			_centred(f, "ARROWS  choose" + ("      SPACE  carry" if _page == "abilities" else "") + "      ESC  back", Vector2(mx, 668), 15, DIM, false)
 		"shelter":
 			_centred(f, "THE SHELTER", Vector2(640, 110), 56, AMBER, true)
 			_centred(f, "Coming soon: build his home from bones — and the rare finds out in the world.", Vector2(640, 150), 19, INK, false)
@@ -794,3 +1061,9 @@ func _cycle_view() -> void:
 		level.apply_view()
 	_view_flash = 0.5
 
+
+
+func _left(f: Font, text: String, at: Vector2, size: int, col: Color, shadow: bool) -> void:
+	if shadow:
+		_view.draw_string(f, at + Vector2(3, 3), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(0, 0, 0, 0.6 * col.a))
+	_view.draw_string(f, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)

@@ -125,7 +125,9 @@ func _ready() -> void:
 	wind.first_gust.connect(func() -> void:
 		hud.say("WIND! Lean into it — or hide behind a rock.", 5.0))
 	# the guide first (once per save), then the story begins
-	if not GameState.seen.has("level2"):
+	if resumed:
+		pass                              # LOAD: straight back to it
+	elif not GameState.seen.has("level2"):
 		var guide := Guide.new()
 		guide.pages = GUIDE
 		guide.player = player

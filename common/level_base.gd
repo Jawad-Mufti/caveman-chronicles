@@ -22,6 +22,7 @@ var has_checkpoint := false
 var _shake_power := 0.0
 var _shake_time := 0.0
 var checkpoint := Vector2.ZERO
+var resumed := false      ## LOAD put him at his saved spot (no opening story)
 
 
 static var _cam_frame := -1
@@ -60,13 +61,24 @@ static func view_half(n: Node2D) -> Vector2:
 
 
 func _build_player(start: Vector2) -> void:
+	# LOAD: he wakes where he last saved
+	var saved := GameState.take_resume(scene_file_path)
+	resumed = not saved.is_empty()
+	if resumed:
+		start = Vector2(float(saved["x"]), float(saved["y"]))
 	player = CaveMan.new()
 	player.position = start
 	last_safe = start
 	add_child(player)
 	GameState.apply_to(player)
+	if resumed:
+		if bool(saved.get("torch", false)):
+			player.give_torch()
+		set_checkpoint(start)
+		_unstick.call_deferred()
 
 	cam = Camera2D.new()
+	cam.position = start + Vector2(0, -150)
 	cam.limit_left = 0
 	cam.limit_right = int(level_w)
 	cam.limit_top = cam_top
@@ -101,9 +113,51 @@ func _build_hud() -> void:
 	player.ate_fig.connect(func() -> void: hud.set_figs(GameState.figs))
 	hud.player = player
 	hud.ability_tapped.connect(use_ability)
-	hud.menu_tapped.connect(open_menu)
+	hud.menu_tapped.connect(func() -> void: open_menu(not has_checkpoint))
 	if DisplayServer.is_touchscreen_available():
 		hud.add_touch_controls(player)
+	if resumed:
+		hud.say("He wakes where he last saved.", 3.0)
+
+
+## SAVE (Camp Menu): everything, and where he stands — on firm ground, or
+## the last firm ground he stood on.
+func save_spot() -> void:
+	var at := player.global_position if _standing_safe() else last_safe
+	GameState.save_spot(scene_file_path, at, player.has_torch, title)
+
+
+## LOAD (Camp Menu): the level again, and him at his saved spot.
+func load_spot() -> void:
+	var path := str(GameState.spot.get("level", ""))
+	if path == "":
+		return
+	GameState.resume = true
+	get_tree().paused = false
+	get_tree().change_scene_to_file(path)
+
+
+## LOAD: a tunnel he dug is rock again on a new visit. Buried? Lift him
+## (his capsule) until he is clear.
+func _unstick() -> void:
+	await get_tree().physics_frame
+	var cap := CapsuleShape2D.new()
+	cap.radius = 13.0
+	cap.height = 64.0
+	var q := PhysicsShapeQueryParameters2D.new()
+	q.shape = cap
+	q.collision_mask = 1
+	q.exclude = [player.get_rid()]
+	var space := get_world_2d().direct_space_state
+	for i in 60:
+		var at := player.global_position + Vector2(0, -20.0 * i)
+		q.transform = Transform2D(0.0, at + Vector2(0, -32))
+		if space.intersect_shape(q, 1).is_empty():
+			if i > 0:
+				player.global_position = at
+				player.velocity = Vector2.ZERO
+				set_checkpoint(at)
+			return
 
 
 func set_checkpoint(at: Vector2) -> void:
@@ -113,7 +167,10 @@ func set_checkpoint(at: Vector2) -> void:
 
 func _on_died() -> void:
 	if not has_checkpoint:
-		hud.say("He did not make it. Press R.", 999.0)
+		hud.say("He did not make it.", 2.0)
+		await get_tree().create_timer(1.6).timeout
+		if is_instance_valid(player) and player.dead:
+			open_menu(true)                # RESTART LEVEL waits there
 		return
 	hud.say("He did not make it.", 2.0)
 	await get_tree().create_timer(2.2).timeout
@@ -222,15 +279,13 @@ func _standing_safe() -> bool:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if (event as InputEventKey).physical_keycode == KEY_R:
-			get_tree().reload_current_scene()
-		elif (event as InputEventKey).physical_keycode in [KEY_ESCAPE, KEY_TAB, KEY_M]:
-			open_menu()
+		if (event as InputEventKey).physical_keycode in [KEY_ESCAPE, KEY_TAB, KEY_M]:
+			open_menu(not has_checkpoint)     # dead for good: the menu has RESTART
 
 
 ## The Camp Menu (Esc, Tab, M, or the tent at the top): save, shelter, abilities.
-func open_menu() -> void:
-	if player == null or player.dead or player.talking:
+func open_menu(dead_ok: bool = false) -> void:
+	if player == null or (player.dead and not dead_ok) or player.talking:
 		return
 	if get_tree().get_first_node_in_group("camp_menu") != null:
 		return
@@ -238,6 +293,8 @@ func open_menu() -> void:
 	m.player = player
 	m.level_name = title
 	add_child(m)
+	if player.dead:
+		m._select(m.row_of("restart"))
 
 
 ## A tap on one of the two ability circles.
