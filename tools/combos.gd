@@ -152,6 +152,10 @@ func _run() -> void:
 		w.global_position = Vector2(1240, 600)
 		side.global_position = Vector2(1320, 600)
 		await frames(5)
+		for i in 30:                    # on his feet: UP + HIT in the air is a KICK now, not the launcher
+			if p.is_on_floor():
+				break
+			await frames(1)
 		p.touch["up"] = true
 		p.touch["attack"] = true
 		await frames(8)

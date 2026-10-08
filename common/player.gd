@@ -223,6 +223,9 @@ const SWINGS := {
 	# the combos (2026-10-06): the 4th of the chain, and HIT at a full run
 	"cyclone": [0.46, 0.30, 0.0, 1.00, 42.0, -40.0, 3],      # spins round twice: it hits both sides, again and again
 	"ram": [0.30, 0.28, 0.0, 0.85, 52.0, -36.0, 4],          # a charge: through everything in the way
+	# UP + HIT in the air, no side held (2026-10-08): the AIR KICKS — a snap kick straight up, then the FLASH KICK
+	"kick1": [0.20, 0.16, 0.20, 0.85, 30.0, -86.0, 3],
+	"kick2": [0.40, 0.34, 0.18, 0.80, 20.0, -80.0, 5],
 }
 const CHARGE_READY := {"club": 0.45, "axe": 0.3, "hammer": 0.5}
 var _swing_kind := "club"
@@ -710,6 +713,11 @@ func _physics_process(delta: float) -> void:
 			_cyc_q = cq
 			_swing_hits.clear()
 
+	if _kicking():
+		# the kicks reach up over his head: the snap straight up, the flash kick's whole crescent
+		_hit_shape.position = Vector2(facing * 30.0, -90.0) if _swing_kind == "kick1" else Vector2(facing * 6.0, -84.0)
+		_hit_box.size = Vector2(64, 76) if _swing_kind == "kick1" else Vector2(120, 120)
+
 	_kick_lock = maxf(_kick_lock - delta, 0.0)
 	if knock <= 0.0 and _kick_lock <= 0.0:
 		var a := (ACCEL if is_on_floor() else AIR_ACCEL) * _sun_mul()
@@ -793,6 +801,7 @@ func _physics_process(delta: float) -> void:
 	if is_on_floor():
 		_coyote = COYOTE_TIME
 		_jumps_left = MAX_JUMPS
+		_air_kicks = 0
 		_air_glide = false
 	else:
 		_coyote = maxf(_coyote - delta, 0.0)
@@ -879,9 +888,13 @@ func _physics_process(delta: float) -> void:
 	elif (attack_now or buffered) and attack_cd <= 0.0 and carrying == null and tool == "weapon" and (buffered or not _attack_prev or _weapon() != "axe" or not has_stick):
 		# held, it keeps swinging (like Terraria): each swing chains on into the next
 		var down_held: bool = Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN) or touch.get("down", false)
+		# UP + HIT in the air with no side held: the AIR KICKS (a side held: the club, aimed, as ever)
+		var kick := up_held and not down_held and dir == 0.0 and not is_on_floor() and vine == null and not wall_cling and not climbing
 		# DOWN + HIT on the ground: an overhead blow straight down — digging
 		digging_down = is_on_floor() and down_held
-		if digging_down and has_stick and not axe_out:
+		if kick:
+			_air_kick()
+		elif digging_down and has_stick and not axe_out:
 			_start_swing("dig")
 		elif down_held and not is_on_floor() and has_stick and not axe_out and vine == null:
 			# DOWN + HIT in the air: the POGO — a spike straight down; hit something and he bounces off it
@@ -927,6 +940,7 @@ func _physics_process(delta: float) -> void:
 		else:
 			attack_cd = 0.3
 			attacking = PUNCH_TIME
+			_swing_kind = "club"           # a punch, not a kick left over
 		if sun_t > 0.0:
 			attack_cd *= 0.55          # burning fists are quick fists
 		_punch_beat = 0
@@ -936,7 +950,7 @@ func _physics_process(delta: float) -> void:
 	# The club connects across the WHOLE swing, not on one frame. Checking only
 	# at the keypress meant anything that was not already touching him was a miss.
 	if attacking > 0.0:
-		if not has_stick or axe_out:
+		if (not has_stick or axe_out) and not _kicking():
 			# the cross is a fresh strike, so the same target can be hit by both
 			var beat := 1 if (1.0 - attacking / PUNCH_TIME) >= 0.5 else 0
 			if beat != _punch_beat:
@@ -1050,7 +1064,8 @@ func _process(delta: float) -> void:
 ## Runs every frame the swing is live. Each target can only be hit once per swing.
 func _apply_swing() -> void:
 	var dmg := 1
-	if has_stick and not axe_out:
+	var kicking := _kicking()
+	if (has_stick and not axe_out) or kicking:
 		var sw: Array = SWINGS[_swing_kind]
 		var prog := 1.0 - attacking / _swing_time
 		if prog < float(sw[2]) or prog > float(sw[3]):
@@ -1107,11 +1122,15 @@ func _apply_swing() -> void:
 			_hit_word(at)
 			combo_hit()
 			# every blow lands with a little freeze-frame: heavier swings, longer
-			var heavy := _swing_kind in ["club2", "axe2", "axe3", "hammer", "homerun"]
+			var heavy := _swing_kind in ["club2", "axe2", "axe3", "hammer", "homerun", "kick2"]
 			Critter.slow_time(get_tree(), 0.05 if heavy else 0.03, 0.06 if heavy else 0.04)
 		if crit and is_instance_valid(area) and (area as Critter).dying <= 0.0:
 			var cr := area as Critter
-			if _swing_kind in ["club1", "axe0"] and _swing_aim.y < -0.3 and not cr.airborne and is_on_floor() and cr.can_launch():
+			if _swing_kind == "kick2" and not cr.airborne and cr.can_launch():
+				# the FLASH KICK sends it up: kick it again up there
+				cr.launch(-560.0)
+				_juggles = 0
+			elif _swing_kind in ["club1", "axe0"] and _swing_aim.y < -0.3 and not cr.airborne and is_on_floor() and cr.can_launch():
 				# the LAUNCHER: up it goes — jump after it!
 				cr.launch(-580.0)                 # ~150 px up, a floaty arc: a jump (or two) to chase it
 				_juggles = 0
@@ -1137,7 +1156,17 @@ func _apply_swing() -> void:
 			get_parent().add_child(boom)
 		if not is_instance_valid(area):
 			continue
-		if has_stick:
+		if kicking:
+			# a kick lands: a white ring where the foot met it, and the flash kick jolts the world
+			var foot := global_position + _hit_shape.position
+			FX.burst(get_parent(), foot, "ring")
+			FX.burst(get_parent(), foot, "sparks", float(facing))
+			if _swing_kind == "kick2" and not _struck:
+				_struck = true
+				var lvk := get_parent()
+				if lvk.has_method("shake"):
+					lvk.shake(4.5, 0.14)
+		elif has_stick:
 			FX.burst(get_parent(), (area as Node2D).global_position + Vector2(-facing * 10.0, -34.0), "sparks", float(facing))
 		if flings and is_instance_valid(area):
 			area.fling = 1.0
@@ -1182,8 +1211,30 @@ func _start_swing(kind: String) -> void:
 	attacking = sw[0]
 	attack_cd = sw[1]
 	_struck = false
-	if kind.begins_with("axe") or kind.begins_with("club"):
+	if kind.begins_with("axe") or kind.begins_with("club") or kind.begins_with("kick"):
 		_combo_t = 0.0
+
+
+func _kicking() -> bool:
+	return attacking > 0.0 and _swing_kind.begins_with("kick")
+
+
+## UP + HIT in the air, no side held: the AIR KICKS, with or without a weapon.
+## A snap kick straight up, then the FLASH KICK: a backflip, the foot drawing
+## a blazing crescent overhead (it LAUNCHES what it catches; up there, both
+## kicks JUGGLE). The first two of a jump lift him a little; later ones don't.
+func _air_kick() -> void:
+	var second := _swing_kind == "kick1" and _combo_t < 0.45
+	_start_swing("kick2" if second else "kick1")
+	_swing_aim = Vector2.UP
+	if _air_kicks < 2:
+		velocity.y = minf(velocity.y, -320.0 if second else -200.0)
+	_air_kicks += 1
+	if second:
+		FX.burst(get_parent(), global_position + Vector2(0, -30), "ring")
+		_say_word("FLASH KICK!", Color("ffd36b"))
+	else:
+		FX.burst(get_parent(), global_position, "kick", float(facing))
 
 
 ## The Wooden Club's special: a huge sweep from low behind him, round in front.
@@ -1722,6 +1773,7 @@ func _unhandled_input(event: InputEvent) -> void:
 var _swing_aim := Vector2.RIGHT
 var _cyc_q := -1             ## which quarter of the cyclone it is in
 var _juggles := 0            ## hits on a beast held up in the air
+var _air_kicks := 0          ## air kicks this jump (only the first two lift him)
 var _throw_aim := Vector2.RIGHT
 
 
@@ -2035,7 +2087,7 @@ func _paint() -> void:
 	var speed_k := clampf(absf(velocity.x) / SPEED, 0.0, 1.0) if on_floor else 0.0
 	var running := speed_k > 0.08 and not dead
 	var ph := _run_phase
-	var boxing := attacking > 0.0 and not has_stick and throwing <= 0.0
+	var boxing := attacking > 0.0 and not has_stick and throwing <= 0.0 and not _kicking()
 	var wince := invuln > 0.8 and not dead
 	var tumble := _tumble if air else 0.0
 	var spear := _spear * (1.0 - _tumble) if air else 0.0
@@ -2148,6 +2200,15 @@ func _paint() -> void:
 		# a ball is smaller than a man: squeeze him in while he's curled
 		base = Transform2D(0.0, pivot) * Transform2D(ang, Vector2.ONE * (1.0 - 0.14 * curl)) * Transform2D(0.0, -pivot) * base
 
+	var kick_k := -1.0              ## 0 -> 1 through an air kick; -1: not kicking
+	if _kicking() and not dead:
+		kick_k = 1.0 - attacking / _swing_time
+		if _swing_kind == "kick2":
+			# the FLASH KICK: a whole backflip, the lead leg held straight out
+			var e := kick_k * kick_k * (3.0 - 2.0 * kick_k)
+			var kp := Vector2(0, -38)
+			base = Transform2D(0.0, kp) * Transform2D(-float(facing) * TAU * e, Vector2.ONE) * Transform2D(0.0, -kp) * base
+
 	# ---- pelvis: rises through each stride, sinks on a landing, leans into a run
 	var bob := land_k * 9.0
 	var lean := 0.0
@@ -2234,6 +2295,16 @@ func _paint() -> void:
 			bend = maxf(bend, 0.7 * rage)
 			foot_f.x += 8.0 * rage
 			foot_b.x -= 8.0 * rage
+	if kick_k >= 0.0:
+		bend = 1.0
+		if _swing_kind == "kick1":
+			# the SNAP KICK: knee chambered... then the foot whipped straight up over his head
+			var up := sin(clampf(kick_k / 0.55, 0.0, 1.0) * PI * 0.5) * (1.0 - 0.45 * clampf((kick_k - 0.7) / 0.3, 0.0, 1.0))
+			foot_f = Vector2(44, -40).lerp(Vector2(72, -108), up)
+			foot_b = Vector2(-22, -14)
+		else:
+			foot_f = Vector2(62, -110)       # straight out: the flip carries it round
+			foot_b = Vector2(-8, -32)        # the other tucked
 	if spear > 0.0:
 		# the lead leg reaching out in front, the back one tucked up behind
 		foot_f = foot_f.lerp(Vector2(58, -30), spear)
@@ -2626,7 +2697,7 @@ func _paint() -> void:
 		_arm(sh, el, hd, 11.0, false)
 		_dot(hd, 15.0, Pal.STONE)
 		_dot(hd + Vector2(-2, 4), 9.0, _skin, 4.0)
-	elif has_stick and attacking > 0.0 and not axe_out:
+	elif has_stick and attacking > 0.0 and not axe_out and not _kicking():
 		var sp := 1.0 - attacking / _swing_time
 		var ang := 0.0
 		var trail := 0.0
@@ -2739,6 +2810,12 @@ func _paint() -> void:
 		_arm(sh, el, hd, 13.0, false)
 		_club(hd - Vector2.from_angle(ca) * 12.0, hd + Vector2.from_angle(ca) * 112.0, 7.0, 26.0)
 		_fist(hd)
+	elif has_stick and kick_k >= 0.0:
+		# kicking: the club flung up and back for balance, out of the leg's way
+		var hd := Vector2(66, -184)
+		_arm(sh, Vector2(70, -150), hd, 10.0, false)
+		_club(hd + Vector2(10, 4), hd + Vector2(-92, -36), 7.0, 26.0)
+		_fist(hd)
 	elif has_stick:
 		# carries the club on his shoulder; it rides the body's bob and lean
 		var lift := -8.0 if air else 0.0
@@ -2750,9 +2827,14 @@ func _paint() -> void:
 		var na := _pose_arm(sh, 1.0, running, air, ph, speed_k)
 		_arm(sh, na[0], na[1], 10.0, true)
 
+	if kick_k >= 0.0:
+		# kicking: the leg comes round in FRONT of everything, club and all
+		_stm(base)
+		_leg(hip_f, foot_f, 1.0)
 	_st(Vector2.ZERO, 0.0, Vector2.ONE)
 	if sun_t > 0.0:
 		_paint_sun_flames()
+	_paint_kick()
 
 
 ## The torch arm. Held up and behind his head so the light falls on both
@@ -3655,6 +3737,42 @@ func _paint_sun_aura() -> void:
 
 
 ## Fire in both fists and in his hair; the embers he sheds.
+## The air kicks' light, in his own upright frame (it doesn't flip with him):
+## the snap kick's whoosh up to a star at the foot, and the flash kick's
+## crescent, white-hot at the foot and fading to orange, chasing it round.
+func _paint_kick() -> void:
+	if not _kicking() or dead:
+		return
+	var k := 1.0 - attacking / _swing_time
+	_stm(Transform2D(0.0, Vector2(ART * facing, ART), 0.0, Vector2.ZERO))
+	if _swing_kind == "kick1":
+		var hip := Vector2(22, -62)
+		var up := sin(clampf(k / 0.55, 0.0, 1.0) * PI * 0.5)
+		var fade := 1.0 - clampf((k - 0.45) / 0.55, 0.0, 1.0)
+		var a1 := lerpf(0.785, -0.744, up)
+		for w in 3:
+			_ac(hip, 68.0 - w * 9.0, a1, 0.785, 12, Color(0.85, 0.95, 1.0, (0.85 - w * 0.25) * fade), 10.0 - w * 3.0)
+		if up > 0.95 and fade > 0.2:
+			var tip := Vector2(80, -114)
+			var s := 26.0 * fade
+			_ln(tip + Vector2(0, -s), tip + Vector2(0, s), Color(1, 1, 1, 0.9 * fade), 5.0)
+			_ln(tip + Vector2(-s, 0), tip + Vector2(s, 0), Color(1, 1, 1, 0.9 * fade), 5.0)
+	else:
+		var e := k * k * (3.0 - 2.0 * k)
+		var pivot := Vector2(0, -38)
+		var now := -0.860 - TAU * e              # where the foot is: it started up and ahead
+		var tail := minf(TAU * e, 2.6)
+		var fade := 1.0 - clampf((k - 0.75) / 0.25, 0.0, 1.0)
+		for l in [[110.0, 22.0, Color(1.0, 0.55, 0.12, 0.35)], [104.0, 13.0, Color(1.0, 0.82, 0.3, 0.7)], [100.0, 6.0, Color(1.0, 0.98, 0.85, 0.95)]]:
+			var col: Color = l[2]
+			_ac(pivot, l[0], now, now + tail, 24, Color(col, col.a * fade), l[1])
+		for i in 5:                              # embers flung off the crescent
+			var a := now + tail * (i / 5.0) + sin(anim_t * 20.0 + i) * 0.05
+			_cc(pivot + Vector2.from_angle(a) * (120.0 + 10.0 * sin(anim_t * 13.0 + i * 2.0)), 4.0, Color(1.0, 0.8, 0.3, 0.8 * fade))
+		_cc(pivot + Vector2.from_angle(now) * 95.0, 16.0, Color(1.0, 0.95, 0.7, 0.45 * fade))
+	_st(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
 func _paint_sun_flames() -> void:
 	var warn := sun_t < Sunfire.WARN and fmod(sun_t * 6.0, 1.0) < 0.5
 	var a := 0.45 if warn else 1.0

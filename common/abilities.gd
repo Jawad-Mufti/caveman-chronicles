@@ -28,6 +28,7 @@ const MOVES := [
 	["hotbar", "THE HOTBAR", "Everything you carry is in the row at the top: your weapons, the shovel, rocks, roast figs. Press 1-9 (or roll the mouse wheel, or tap a slot) to pick one, then HIT uses it: a weapon swings, the SHOVEL digs wherever you aim, ROCKS are thrown, FIGS are eaten.", "1-9  /  wheel  /  tap, then J", ""],
 	["strike", "CLUB SWING", "Whack whatever is in reach. HOLD it to keep swinging: BONK, uppercut, SMASH, again and again. Hold UP to swing straight up, UP + LEFT or RIGHT to swing at 45 degrees. Every hit in a row builds your COMBO, and a big combo hits harder!", "J (hold)  +  arrows to aim", ""],
 	["pogo", "POGO STRIKE", "In the air, hold DOWN and HIT: the club stabs straight down. Hit a beast and you BOUNCE off its head, with your air jump back. Keep bouncing!", "in the air: DOWN + J", ""],
+	["airkick", "AIR KICKS", "In the air, hold UP and HIT (no LEFT or RIGHT): a snap kick straight up... and again: the FLASH KICK, a backflip with a blazing crescent that sends beasts flying up. Keep kicking to juggle them! (UP + a side + HIT still swings the club.)", "in the air: UP + J, J", ""],
 	["cyclone", "CYCLONE", "Keep the swings coming: BONK, uppercut, SMASH... and the FOURTH is the CYCLONE, the club whirling right round you twice, hitting everything on BOTH sides, again and again.", "J  x4  (or hold)", ""],
 	["ram", "RAM", "Run flat out and HIT: you charge like a mammoth, club out in front, right through everything in the way.", "run + J", ""],
 	["launch", "LAUNCH, JUGGLE, SLAM DUNK", "UP + HIT knocks a beast high into the AIR (LAUNCH!). Jump after it and HIT it up there to keep it flying (JUGGLE!). Then DOWN + HIT drives it into the ground: SLAM DUNK!! and everything near goes flying.", "UP + J, jump, J, DOWN + J", ""],
@@ -64,7 +65,7 @@ static func colour(id: String) -> Color:
 ## Is it his yet? Some come with the level, some are learned once and saved.
 static func unlocked(id: String, p: CaveMan) -> bool:
 	match id:
-		"hotbar", "strike", "pogo", "cyclone", "ram", "launch", "climb", "throw", "grab", "leap", "stomp", "dash", "dig":
+		"hotbar", "strike", "pogo", "airkick", "cyclone", "ram", "launch", "climb", "throw", "grab", "leap", "stomp", "dash", "dig":
 			return true
 		"homerun":
 			return p == null or p.has_stick
@@ -181,6 +182,16 @@ static func draw_symbol(b: Batch, id: String, c: Vector2, r: float, col: Color, 
 				b.circle(Vector2(c.x - 10.0 * k, c.y + (34.0 - i * 16.0) * k), 2.2 * k, Color(col, 0.5), 6)
 			b.line(c + Vector2(24, -26) * k, c + Vector2(24, 18) * k, col, 4.0 * k)
 			b.tri(c + Vector2(16, 14) * k, c + Vector2(32, 14) * k, c + Vector2(24, 28) * k, col)
+		"airkick":
+			# a leg kicked high, foot up, and the flash kick's crescent swept round over it
+			var q := fmod(t * 0.8, 1.0)
+			var hip := c + Vector2(-10, 26) * k
+			var foot := c + Vector2(26, -30) * k
+			b.line(hip, foot, dk, w * 2.6)
+			b.line(hip, foot, col, w * 1.8)
+			b.ellipse(foot + Vector2(4, -2) * k, 11.0 * k, 6.0 * k, col, -0.9)
+			b.arc(c + Vector2(-6, 8) * k, 44.0 * k, -PI * 0.95 + q * 0.4, -PI * 0.25 + q * 0.4, 12, Color(col, 0.75), 4.0 * k)
+			b.arc(c + Vector2(-6, 8) * k, 34.0 * k, -PI * 0.85 + q * 0.4, -PI * 0.35 + q * 0.4, 10, Color(col, 0.45), 3.0 * k)
 		"pogo":
 			# a club stabbing straight down onto a head, and the bounce back up
 			var q := fmod(t * 1.2, 1.0)
