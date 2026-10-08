@@ -36,7 +36,7 @@ const ITEMS := {
 	"spark": ["SPARK KIT", "GEAR", 1, "Flint and fire-gold. Strike them: SPARKS!", "HIT: the torch burns bright and full again.", "Make it: CRAFT."],
 	"edge": ["OBSIDIAN EDGE", "GEAR", 3, "Black glass, sharper than any tooth.", "Always on: every swing does +1 damage.", "Make it: CRAFT."],
 	"charm": ["LUCKY CHARM", "GEAR", 2, "Quartz on a cord. Stones like it.", "Always on: stones hidden in the rock glint, so you know where to dig.", "Make it: CRAFT."],
-	"trap": ["GLARE TRAP", "GEAR", 2, "A clay pot: a sweet berry inside, quartz all round, fire-gold to strike the spark.", "HIT: set it down. Old One-Eye can't resist the smell... FLASH! Its eye is blinded: hit it!", "Make it: CRAFT (once you have met Old One-Eye)."],
+	"trap": ["GLARE TRAP", "GEAR", 2, "A clay pot: a sweet berry inside, quartz all round, fire-gold to strike the spark.", "HIT: set it down in Old One-Eye's hall. It can't resist the smell... FLASH! Its eye is blinded: hit it!", "Make it: CRAFT (once you have met Old One-Eye)."],
 	"rocks": ["ROCKS", "STONES", 0, "Round and heavy. Just right for throwing.", "Hold them in the hotbar: HIT throws one. Three make a STONE WALL.", "Lying about everywhere."],
 	"flint": ["FLINT", "STONES", 0, "A grey stone that breaks into sharp edges.", "Tips, the spark kit, the obsidian edge.", "Dig rock and striped stone."],
 	"clay": ["CLAY", "STONES", 0, "Sticky red mud. It holds things together.", "Walls and healing salve.", "Dig dirt. The clay pit is full of it."],

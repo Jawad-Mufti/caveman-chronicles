@@ -9,6 +9,7 @@ var level: Node
 var p: CaveMan
 var shots := false
 var w: OneEye.Worm
+var vuln := false
 
 func _ready() -> void:
 	GameState.reset()
@@ -20,7 +21,8 @@ func _ready() -> void:
 func frames(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
-		p.invuln = 1.0
+		if not vuln:
+			p.invuln = 1.0
 		for c in level.get_children():
 			if c is Dialogue:
 				p.talking = false
@@ -59,9 +61,9 @@ func _run() -> void:
 	w = level.one_eye
 	check("worm waits", w != null and not w.met and w.state == "sleep")
 	# 1. into the hollow: it bursts out in front of him
-	level._move_player(Vector2(11330, 630), 1)
+	level._move_player(Vector2(15470, 2100), 1)
 	await frames(20)
-	check("first meeting", w.met and GameState.mystery("one_eye") == "open" and w.state == "breach", "state %s" % w.state)
+	check("first meeting", w.met and GameState.mystery("one_eye") == "open" and w.state == "move", "state %s" % w.state)
 	await frames(30)
 	await shot("breach")
 	await frames(90)
@@ -73,16 +75,58 @@ func _run() -> void:
 	if g != null:
 		g._finish()
 	# 2. it hunts him, and a club does nothing
-	var hunted := await wait_state("rumble", 240)
+	var hunted := await wait_state("tell", 300)
 	check("it hunts him", hunted and w.fight)
-	await wait_state("breach", 120)
+	await wait_state("move", 200)
 	await frames(20)
 	var hp0 := w.hp
 	w.take_hit(6, 1)
 	check("too tough", w.hp == hp0)
+	# its moves: several kinds, two hearts a bite
+	vuln = true
+	p.max_hp = 60
+	p.hp = 60
+	var seen := {}
+	var bites: Array = []
+	var last_hp := p.hp
+	for i in 840:
+		await frames(1)
+		if w.state == "move" or w.state == "tell":
+			seen[w.move] = true
+		if p.hp < last_hp:
+			bites.append(last_hp - p.hp)
+		last_hp = p.hp
+		p.invuln = 0.0 if p.invuln > 0.6 else p.invuln
+		if p.global_position.x < 15420.0 or p.global_position.x > 16180.0:
+			level._move_player(Vector2(15550, 2100), 1)
+	vuln = false
+	check("many moves", seen.size() >= 3, str(seen.keys()))
+	check("two hearts a bite", not bites.is_empty() and bites.all(func(x): return x == 2), str(bites))
+	check("it gets sneakier", OneEye.PHASES[2][0].has("fake") and OneEye.PHASES[1][0].has("spit") and float(OneEye.PHASES[2][1]) < float(OneEye.PHASES[0][1]))
+	# badly hurt, it uses its sneaky moves too (the spit's globs bite for two)
+	w.hp = 15
+	vuln = true
+	var late := {}
+	var globs := 0
+	for i in 1500:
+		await frames(1)
+		if w.state == "tell" or w.state == "move":
+			late[w._last] = true
+		for c in level.get_children():
+			if c is OneEye.Glob:
+				globs += 1
+		p.invuln = 0.0 if p.invuln > 0.6 else p.invuln
+		p.hp = maxi(p.hp, 20)
+		if p.global_position.x < 15420.0 or p.global_position.x > 16180.0:
+			level._move_player(Vector2(15550, 2100), 1)
+	vuln = false
+	check("sneaky moves", late.has("spit") or late.has("fake") or late.has("double"), str(late.keys()) + " globs seen %d" % globs)
+	w.hp = OneEye.HP
+	p.max_hp = 5
+	p.hp = 5
 	await shot("hunt")
 	# 3. out of the hollow: it gives up
-	level._move_player(Vector2(11000, 600), -1)
+	level._move_player(Vector2(15000, 2020), -1)
 	await frames(150)
 	check("it gives up", not w.fight and w.state == "sleep", "state %s fight %s" % [w.state, w.fight])
 	# 4. the trap: the recipe is known now; make it
@@ -91,7 +135,7 @@ func _run() -> void:
 	GameState.bag["clay"] = 1
 	check("craft the trap", Bag.craft(p, "trap") and Bag.count(p, "trap") == 1)
 	# 5. back in, set it down: up it comes under it, blinded
-	level._move_player(Vector2(11420, 630), 1)
+	level._move_player(Vector2(15560, 2100), 1)
 	await frames(10)
 	p.select_slot(p.hotbar().find("trap"))
 	await frames(2)
@@ -100,7 +144,7 @@ func _run() -> void:
 	p.touch["attack"] = false
 	var traps := get_tree().get_nodes_in_group("worm_trap")
 	check("trap set", traps.size() == 1)
-	level._move_player(Vector2(11300, 630), -1)       # (step back from it)
+	level._move_player(Vector2(15450, 2100), -1)       # (step back from it)
 	var stunned := await wait_state("stunned", 400)
 	check("blinded by the trap", stunned and traps.size() > 0 and is_instance_valid(traps[0]) and traps[0].charges == 2, "state %s" % w.state)
 	await frames(10)
@@ -109,8 +153,8 @@ func _run() -> void:
 	check("hurt while blinded", w.hp == 30, "hp %d" % w.hp)
 	# 6. the second stun beats it
 	stunned = await wait_state("dive", 400)
-	stunned = await wait_state("stunned", 600)
-	check("blinded again", stunned)
+	stunned = await wait_state("stunned", 1200)
+	check("blinded again (after one at him)", stunned)
 	w.take_hit(30, 1)
 	check("beaten", w.state == "dead")
 	await frames(330)

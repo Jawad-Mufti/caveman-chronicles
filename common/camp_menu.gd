@@ -38,7 +38,7 @@ const MYSTERIES := {
 	"pip": ["Pip's baby goat Baa is stuck up a tall rock. A ladder?", "Baa is down, safe in Pip's arms. MEHHH!"],
 	"taka": ["Taka the hunter tripped over a snail. His foot needs a salve.", "Taka's foot is fixed. Wiggle wiggle!"],
 	"ooma": ["Old Ooma sits in the Long Dark. Her fire needs a spark.", "Ooma's fire burns in the Long Dark."],
-	"one_eye": ["A giant one-eyed worm lives in the Glow Hollow. It hates LIGHT: a GLARE TRAP?", "Old One-Eye is beaten! The mountain is quiet."],
+	"one_eye": ["A giant one-eyed worm lives under the Dig, in the Root Hollows. It hates LIGHT: a GLARE TRAP?", "Old One-Eye is beaten! The mountain is quiet."],
 }
 
 var player: CaveMan

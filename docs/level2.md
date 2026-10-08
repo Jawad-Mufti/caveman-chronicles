@@ -94,10 +94,14 @@ right one: 2 s of work, then thanks and a gift. `GameState.mysteries` (camp menu
 | OOMA (`errands.gd`) | Long Dark 30060 | 1 flint + 1 fire-gold: sparks for her fire (lights the dark) | 2 figs, 1 obsidian |
 
 ## Semi-boss: OLD ONE-EYE (`level2/one_eye.gd`, class OneEye)
-A giant one-eyed worm in the GLOW HOLLOW (`OneEye.ZONE`, x 11230-11760, the low gallery at the mountain's east
-foot, by Shivers' camp). It BREACHES like a whale: up out of the floor, an arc through the tunnel, back in;
-each breach is told first (cracks, hopping pebbles, "!"). First meeting: it bursts out ahead of him, title
-card, two TUTORIAL pages (the Guide), and knocks a quartz + a fire-gold loose ("ow0", "ow1"). It can't be hurt
-(TINK); leave the hollow and it waits. The GLARE TRAP (bag recipe, known once met: 1 berry + 1 quartz + 1
-fire-gold + 1 clay) set down in the hollow lures it up under it: FLASH, blinded 5 s (only then it takes
-hits). 3 flashes; HP 60 = two stuns with a club. Reward: 2 obsidian, 25 spirit orbs. Mystery "one_eye".
+A giant one-eyed worm in THE WORM'S HALL (`OneEye.ZONE`, x 15400-16200, y 1660-2130): the first cave of the Root
+Hollows right of the Dig's shaft, reached only by cutting the packed clay with the SHOVEL. It swims through the
+rock. FIVE ATTACKS, each 2 hearts, each told: BREACH (cracks, "!"), DROP from the roof (dust trickling), CHARGE
+(a mound races at him under the floor, then it erupts), SPIT (peeks up far off, eye glowing green, three acid
+globs), FAKE (a big rumble over there, a small puff where it really comes up). It never repeats a move twice
+running, uses less of what he dodges, and by life left (`PHASES`: > 2/3, > 1/3) adds moves (spit, double
+breach, fake), tells faster, rests less. First meeting: it bursts out, title card, two TUTORIAL pages (the
+Guide), a quartz + a fire-gold knocked loose ("ow0", "ow1"). Clubs go TINK; outside the hall it waits. The
+GLARE TRAP (bag recipe, known once met: berry + quartz + fire-gold + clay) set down in the hall lures it up
+under it: FLASH, blinded 5 s, only then it takes hits; after a stun it comes for HIM once or twice before the
+bait again. 3 flashes; HP 60 = two stuns. Reward: 2 obsidian, 25 spirit orbs. Mystery "one_eye".
