@@ -65,6 +65,7 @@ const ERRANDS := preload("res://level2/errands.gd")
 var nutmeg: Friends.Nutmeg
 var shivers: WINDBREAK.Camp   ## the side mission at the foot of the mountain (level2/windbreak.gd)
 var errands: Array = []         ## Pip, Taka, Ooma: more side missions (level2/errands.gd)
+var one_eye: OneEye.Worm         ## the semi-boss in the Glow Hollow (level2/one_eye.gd); null once beaten
 var _met_nutmeg := false     ## heard about the stolen stone: Old Bongo gets asked about it
 var _near_toolmaker := false
 var _bongo_helps := 0
@@ -1042,6 +1043,7 @@ func _build_friends() -> void:
 	add_child(nutmeg)
 	shivers = WINDBREAK.build(self)       # SIDE MISSION: a windbreak for a freezing stranger
 	errands = ERRANDS.build(self)          # and Pip's goat, Taka's foot, Ooma's fire
+	one_eye = OneEye.build(self)           # SEMI-BOSS: the one-eyed worm in the Glow Hollow (it wants a trap)
 
 
 var _moss_met := false

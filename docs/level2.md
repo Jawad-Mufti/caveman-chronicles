@@ -92,3 +92,12 @@ right one: 2 s of work, then thanks and a gift. `GameState.mysteries` (camp menu
 | TAKA (`errands.gd`) | Steppe 14440 | 1 clay + 1 berry: a salve for his foot | 3 flint tips |
 | PIP (`errands.gd`) | far side 24700 | 4 bones + 1 wood: a ladder up the goat rock | 2 quartz |
 | OOMA (`errands.gd`) | Long Dark 30060 | 1 flint + 1 fire-gold: sparks for her fire (lights the dark) | 2 figs, 1 obsidian |
+
+## Semi-boss: OLD ONE-EYE (`level2/one_eye.gd`, class OneEye)
+A giant one-eyed worm in the GLOW HOLLOW (`OneEye.ZONE`, x 11230-11760, the low gallery at the mountain's east
+foot, by Shivers' camp). It BREACHES like a whale: up out of the floor, an arc through the tunnel, back in;
+each breach is told first (cracks, hopping pebbles, "!"). First meeting: it bursts out ahead of him, title
+card, two TUTORIAL pages (the Guide), and knocks a quartz + a fire-gold loose ("ow0", "ow1"). It can't be hurt
+(TINK); leave the hollow and it waits. The GLARE TRAP (bag recipe, known once met: 1 berry + 1 quartz + 1
+fire-gold + 1 clay) set down in the hollow lures it up under it: FLASH, blinded 5 s (only then it takes
+hits). 3 flashes; HP 60 = two stuns with a club. Reward: 2 obsidian, 25 spirit orbs. Mystery "one_eye".

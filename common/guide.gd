@@ -139,7 +139,10 @@ func _draw_card() -> void:
 		var disc := row + Vector2(62, 58 + bob)
 		c.draw_circle(disc, 56.0, Color(accent, 0.18 * a))
 		c.draw_circle(disc, 56.0, Color(accent, 0.5 * a), false, 3.0, true)
-		_icon(c, String(it[0]), disc, a)
+		if it[0] is Callable:
+			(it[0] as Callable).call(c, disc)          # a picture of its own (a level's beast)
+		else:
+			_icon(c, String(it[0]), disc, a)
 		c.draw_string(font, row + Vector2(144, 34), it[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(GOLD, a))
 		_wrap(c, font, String(it[2]), row + Vector2(144, 62), 790.0, 19, Color(INK, a))
 	# page dots
@@ -261,4 +264,7 @@ func _icon(c: Control, kind: String, at: Vector2, a: float) -> void:
 			Shop.draw_icon(c, "club", at + Vector2(-20, 6), 0.55)
 			Shop.draw_icon(c, "axe", at + Vector2(18, 0), 0.55)
 		_:
-			c.draw_circle(at, 20.0, Color(INK, a))
+			if Bag.ITEMS.has(kind):
+				Bag.draw_icon(c, kind, at, 1.5)        # anything in the bag
+			else:
+				c.draw_circle(at, 20.0, Color(INK, a))

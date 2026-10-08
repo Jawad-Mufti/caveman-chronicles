@@ -875,7 +875,8 @@ func _physics_process(delta: float) -> void:
 		_start_swing("dig")
 		attack_cd *= 0.8                              # a proper tool digs quicker than a club
 		_swing_hits.clear()
-	elif (attack_now or buffered) and attack_cd <= 0.0 and carrying == null and (buffered or not _attack_prev or _weapon() != "axe" or not has_stick):
+	# (only with the weapon in hand: held HIT with rocks, figs or a bag thing used to swing the club too)
+	elif (attack_now or buffered) and attack_cd <= 0.0 and carrying == null and tool == "weapon" and (buffered or not _attack_prev or _weapon() != "axe" or not has_stick):
 		# held, it keeps swinging (like Terraria): each swing chains on into the next
 		var down_held: bool = Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN) or touch.get("down", false)
 		# DOWN + HIT on the ground: an overhead blow straight down — digging

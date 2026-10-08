@@ -36,6 +36,7 @@ const ITEMS := {
 	"spark": ["SPARK KIT", "GEAR", 1, "Flint and fire-gold. Strike them: SPARKS!", "HIT: the torch burns bright and full again.", "Make it: CRAFT."],
 	"edge": ["OBSIDIAN EDGE", "GEAR", 3, "Black glass, sharper than any tooth.", "Always on: every swing does +1 damage.", "Make it: CRAFT."],
 	"charm": ["LUCKY CHARM", "GEAR", 2, "Quartz on a cord. Stones like it.", "Always on: stones hidden in the rock glint, so you know where to dig.", "Make it: CRAFT."],
+	"trap": ["GLARE TRAP", "GEAR", 2, "A clay pot: a sweet berry inside, quartz all round, fire-gold to strike the spark.", "HIT: set it down. Old One-Eye can't resist the smell... FLASH! Its eye is blinded: hit it!", "Make it: CRAFT (once you have met Old One-Eye)."],
 	"rocks": ["ROCKS", "STONES", 0, "Round and heavy. Just right for throwing.", "Hold them in the hotbar: HIT throws one. Three make a STONE WALL.", "Lying about everywhere."],
 	"flint": ["FLINT", "STONES", 0, "A grey stone that breaks into sharp edges.", "Tips, the spark kit, the obsidian edge.", "Dig rock and striped stone."],
 	"clay": ["CLAY", "STONES", 0, "Sticky red mud. It holds things together.", "Walls and healing salve.", "Dig dirt. The clay pit is full of it."],
@@ -54,7 +55,7 @@ const ITEMS := {
 }
 
 ## Things HIT uses from the hotbar (they join it when he has some).
-const HOTBAR := ["tips", "salve", "wall", "ladder", "spark"]
+const HOTBAR := ["tips", "salve", "wall", "ladder", "spark", "trap"]
 ## Made once, kept for good: id -> GameState item
 const FOREVER := {"edge": "obsidian_edge", "charm": "lucky_charm"}
 
@@ -67,6 +68,7 @@ const RECIPES := [
 	["spark", 1, {"flint": 1, "pyrite": 1}],
 	["edge", 1, {"obsidian": 2, "flint": 1, "bones": 2}],
 	["charm", 1, {"quartz": 2, "bones": 1}],
+	["trap", 1, {"berries": 1, "quartz": 1, "pyrite": 1, "clay": 1}],     # only once he has met Old One-Eye (recipe_open)
 ]
 
 
@@ -155,12 +157,23 @@ static func add(id: String, n: int = 1) -> void:
 static func goes_into(id: String) -> Array:
 	var out: Array = []
 	for r in RECIPES:
-		if (r[2] as Dictionary).has(id):
+		if (r[2] as Dictionary).has(id) and recipe_open(r[0]):
 			out.append(name_of(r[0]))
 	return out
 
 
 ## ------------------------------------------------------------ CRAFTING
+## Some recipes are secrets until something shows them to him: the GLARE TRAP,
+## once he has met Old One-Eye (level2/one_eye.gd).
+static func recipe_open(id: String) -> bool:
+	return id != "trap" or GameState.mystery("one_eye") != ""
+
+
+## The recipes he knows, in order.
+static func known_recipes() -> Array:
+	return RECIPES.filter(func(r: Array) -> bool: return recipe_open(r[0]))
+
+
 static func recipe(id: String) -> Array:
 	for r in RECIPES:
 		if r[0] == id:
@@ -172,6 +185,8 @@ static func recipe(id: String) -> Array:
 static func missing(p: CaveMan, id: String) -> String:
 	if FOREVER.has(id) and count(p, id) > 0:
 		return "You have it already."
+	if not recipe_open(id):
+		return "You don't know how to make that yet."
 	var r := recipe(id)
 	var short: Array = []
 	for need in r[2]:
@@ -253,6 +268,16 @@ static func use(p: CaveMan, id: String) -> bool:
 				p.torch_fuel = 1.0
 				p._say_word("SPARK!", Color("ffd36b"))
 				FX.burst(p.get_parent(), p.global_position + Vector2(18 * p.facing, -60), "embers")
+				ok = true
+		"trap":
+			var fy := _floor(p, p.global_position.x + 40.0 * p.facing, p.global_position.y - 30.0)
+			if fy == INF or fy - p.global_position.y > 90.0:          # (ground right under him: on bumpy rock is_on_floor flickers)
+				p.said.emit("Set the trap down on the ground.")
+			else:
+				var tr := GlareTrap.new()
+				tr.position = Vector2(p.global_position.x + 40.0 * p.facing, fy)
+				p.get_parent().add_child(tr)
+				p._say_word("TRAP SET!", Color("ffd36b"))
 				ok = true
 	if ok:
 		GameState.bag[id] = int(GameState.bag.get(id, 0)) - 1
@@ -483,6 +508,83 @@ class Ladder extends Node2D:
 		b.draw(self)
 
 
+## The GLARE TRAP, set down: a clay pot with a berry poking out (the smell
+## draws Old One-Eye), quartz round its rim and a fire-gold striker. When
+## the worm bursts up at it: FLASH! (flash(); 3 in it, then it's spent).
+## Whoever hunts by smell finds it in the group "worm_trap".
+class GlareTrap extends Node2D:
+	var charges := 3
+	var _t := 0.0
+	var _flash := 0.0              ## > 0: just went off
+
+	func _ready() -> void:
+		z_index = 2
+		add_to_group("worm_trap")
+		add_to_group("glow")
+		add_to_group("light")
+		FX.burst(get_parent(), position + Vector2(0, -10), "dust")
+
+	func flash() -> void:
+		if charges <= 0:
+			return
+		charges -= 1
+		_flash = 0.6
+		FX.burst(get_parent(), global_position + Vector2(0, -24), "sparks")
+		var w := CaveMan.WordPop.new()
+		w.text = "FLASH!"
+		w.size = 34
+		w.color = Color("fff7c8")
+		w.star = Color(1.0, 0.85, 0.3, 0.8)
+		w.centered = true
+		w.position = global_position + Vector2(0, -90)
+		get_parent().add_child(w)
+
+	func light() -> Vector4:
+		return Vector4(global_position.x, global_position.y - 20.0, 60.0 + 420.0 * _flash, 1.0)
+
+	func light_strength() -> float:
+		return clampf(0.35 + _flash * 1.5, 0.0, 1.0)
+
+	func _process(delta: float) -> void:
+		_t += delta
+		_flash = maxf(_flash - delta, 0.0)
+		if charges <= 0 and _flash <= 0.0:
+			FX.shards(get_parent(), global_position + Vector2(0, -14), Vector2.UP, true)
+			queue_free()
+			return
+		if LevelBase.near_view(self):
+			queue_redraw()
+
+	func draw_glow(g) -> void:   # g: the glow layer's Batch
+		if _flash > 0.0:
+			g.draw_circle(global_position + Vector2(0, -20), 40.0 + 260.0 * (0.6 - _flash), Color(1, 0.97, 0.8, _flash * 1.2))
+		for i in charges:
+			g.draw_circle(global_position + Vector2(-14.0 + i * 14.0, -30), 4.0, Color(0.75, 0.95, 1.0, 0.5 + 0.3 * sin(_t * 5.0 + i)))
+
+	func _draw() -> void:
+		var b := Batch.new()
+		# the sweet smell rising off it: pink wavy wisps
+		for k in 3:
+			var q := fmod(_t * 0.5 + k * 0.33, 1.0)
+			var x := sin(q * 9.0 + k) * 8.0
+			b.circle(Vector2(x - 6 + k * 6, -34.0 - q * 60.0), 3.0 * (1.0 - q) + 1.0, Color(1.0, 0.6, 0.85, 0.5 * (1.0 - q)), 8)
+		# the pot
+		b.ellipse(Vector2(0, -12), 20.0, 14.0, Color("5a2a1a"))
+		b.ellipse(Vector2(0, -13), 18.0, 12.0, Color("b4583a"))
+		b.rect(Rect2(-14, -28, 28, 5), Color("8a3c26"))
+		b.circle(Vector2(0, -30), 6.0, Color("7b3aa0"), 10)                       # the berry bait
+		b.circle(Vector2(-2, -32), 2.0, Color("d9b8ef"), 6)
+		# quartz all round the rim, one per flash left
+		for i in 3:
+			var c := Vector2(-14.0 + i * 14.0, -28)
+			var col := Color("bfe8f2") if i < charges else Color(0.4, 0.4, 0.45)
+			b.tri(c + Vector2(-4, 0), c + Vector2(0, -12), c + Vector2(4, 0), col)
+		b.rect(Rect2(10, -14, 9, 9), Color("d9b43a"))                              # the fire-gold striker
+		if _flash > 0.0:
+			b.circle(Vector2(0, -20), 30.0 + 120.0 * (0.6 - _flash), Color(1, 1, 0.9, _flash), 24)
+		b.draw(self)
+
+
 ## ------------------------------------------------------------ PICTURES
 ## An item's picture, centred on c; s = 1.0 fills a ~40 px box.
 static func draw_icon(ci: CanvasItem, id: String, c: Vector2, s: float, t: float = 0.0) -> void:
@@ -588,6 +690,18 @@ static func draw_icon(ci: CanvasItem, id: String, c: Vector2, s: float, t: float
 			ci.draw_colored_polygon(PackedVector2Array([Vector2(-6, 8), Vector2(14, -16), Vector2(2, 10)]), Color("1a1424"))
 			ci.draw_line(Vector2(-3, 6), Vector2(13, -14), Color(0.8, 0.7, 1.0, 0.9), 1.5)
 			ci.draw_circle(Vector2(11, -11), 1.5 + absf(sin(t * 3.0)) * 1.5, Color.WHITE)
+		"trap":
+			ci.draw_circle(Vector2(0, 6), 12.0, Color("5a2a1a"))
+			ci.draw_circle(Vector2(0, 5), 10.5, Color("b4583a"))
+			ci.draw_rect(Rect2(-9, -6, 18, 4), Color("8a3c26"))
+			ci.draw_circle(Vector2(0, -8), 4.5, Color("7b3aa0"))
+			for i in 3:
+				var qc := Vector2(-8.0 + i * 8.0, -6)
+				ci.draw_colored_polygon(PackedVector2Array([qc + Vector2(-3, 0), qc + Vector2(0, -8), qc + Vector2(3, 0)]), Color("bfe8f2"))
+			ci.draw_rect(Rect2(6, 2, 6, 6), Color("d9b43a"))
+			var z := 0.5 + 0.5 * sin(t * 6.0)
+			ci.draw_line(Vector2(-14, -14), Vector2(-10, -10), Color(1, 1, 0.8, z), 1.5)
+			ci.draw_line(Vector2(14, -14), Vector2(10, -10), Color(1, 1, 0.8, 1.0 - z), 1.5)
 		"charm":
 			ci.draw_arc(Vector2(0, -6), 11.0, PI * 1.05, PI * 1.95, 12, Color("846141"), 2.0)
 			ci.draw_line(Vector2(-11, -8), Vector2(-2, 2), Color("846141"), 2.0)
@@ -624,7 +738,7 @@ class View extends Control:
 	const CSTEP := 56.0
 	const COLS := 10
 	const CROWS := 6
-	const CRAFT := Rect2(594, 92, 310, 46) ## first recipe row (in the panel)
+	const CRAFT := Rect2(594, 92, 310, 43) ## first recipe row (in the panel)
 	const TABS := ["ALL", "GEAR", "STONES", "BUILD", "FOOD", "TREASURE"]
 
 	var him: CaveMan
@@ -866,8 +980,9 @@ class View extends Control:
 		# crafting
 		draw_string(Pal.title_font(), P.position + Vector2(CRAFT.position.x, 70), "CRAFT", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Pal.OCHRE)
 		draw_string(font, P.position + Vector2(CRAFT.position.x + 70, 69), "click to make it", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(Pal.BONE, 0.5))
-		for i in Bag.RECIPES.size():
-			var rec: Array = Bag.RECIPES[i]
+		var known := Bag.known_recipes()
+		for i in known.size():
+			var rec: Array = known[i]
 			var id: String = rec[0]
 			var r := Rect2(P.position + CRAFT.position + Vector2(0, i * (CRAFT.size.y + 4)), CRAFT.size)
 			var can := Bag.missing(him, id) == ""

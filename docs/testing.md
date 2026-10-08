@@ -51,6 +51,7 @@ Run forms (Godot path, headless, screenshots) and the regression set are in the 
 - `bag -- [shots]` (headless): the bag: sorting, stones from digging, every recipe, the made things used from the hotbar (tips thrown, salve, wall solid, ladder stood on, spark relights), edge/charm, saved, the view modes. Screenshots to `C:/tmp/shots/bag`.
 - `windbreak -- [shots]` (headless): Shivers' side mission: the talk opens the mixing slab, wrong mixes hint and cost nothing, the right one is spent and built in 2 s, the reward, the mud bank, talking again after. Screenshots to `C:/tmp/shots/windbreak`.
 - `idle -- [min=12] [safe]` (WITH rendering, real time): he stands idle; every minute the real frame time, nodes, objects, memory and what node kinds changed. 2026-10-08: flat over 12 min (no leak; the start area runs ~30 ms/frame rendered on this PC while dark, then ~17).
+- `one_eye -- [shots]` (headless): Old One-Eye: the first meeting (tutorial pages, stones), TINK, it gives up outside, the trap recipe, set the trap, blinded twice, beaten, rewards.
 - `snap` writes to `/tmp/shots`, which Godot can't save to on Windows: use `snapw`.
 
 ## Quirks
