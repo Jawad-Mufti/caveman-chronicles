@@ -227,6 +227,7 @@ class Pickup extends Area2D:
 		_base_y = position.y
 		_home = position
 		add_to_group("glow")
+		Sleeper.enrol(self)          # 300-odd of them across a level: only the near ones bob
 
 	func _on_body(b: Node) -> void:
 		if _gone or not (b is CaveMan) or vel != Vector2.ZERO:
@@ -411,6 +412,7 @@ class Breakable extends Area2D:
 	var _t := 0.0
 
 	func _ready() -> void:
+		Sleeper.enrol(self)          # far from the camera it sleeps (common/sleeper.gd)
 		collision_layer = 4          # his swing and his rocks find it
 		collision_mask = 0
 		monitoring = false
@@ -622,6 +624,7 @@ class ShellTotem extends Area2D:
 	var _given := 0
 
 	func _ready() -> void:
+		Sleeper.enrol(self)          # far from the camera it sleeps (common/sleeper.gd)
 		collision_layer = 4
 		collision_mask = 0
 		monitoring = false

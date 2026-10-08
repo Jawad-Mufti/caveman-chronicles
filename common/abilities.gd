@@ -1,10 +1,10 @@
 class_name Abilities
 extends RefCounted
-## What he can do, as the Camp Menu shows it â two different things:
+## What he can do, as the Camp Menu shows it — two different things:
 ##   POWERS   abilities: big, spent and recharged. He carries TWO at a time
 ##            (picked in the menu); their circles sit at the bottom of the
 ##            screen, shining while ready, dark while spent.
-##   MOVES    special moves: always his once learned â the TUTORIAL shows how.
+##   MOVES    special moves: always his once learned — the TUTORIAL shows how.
 ## Every one has a carved symbol drawn in code. In the menu the unlocked ones
 ## all glow the same gold and the locked ones are slate; on the HUD each power
 ## burns in its own colour.
@@ -15,7 +15,7 @@ const SLOTS := 2
 
 ## [id, name, what it does, key, how to unlock it, its own colour]
 const POWERS := [
-	["sunfire", "SUNFIRE", "Fire in both fists for 30 seconds! Faster, stronger, burning blows â and fireballs. Then the sun must fill again: hit beasts, grab shells, sit by fires.", "Q", "Find the Sun Stone, deep in the Dig.", Color("ffb020")],
+	["sunfire", "SUNFIRE", "Fire in both fists for 30 seconds! Faster, stronger, burning blows — and fireballs. Then the sun must fill again: hit beasts, grab shells, sit by fires.", "Q", "Find the Sun Stone, deep in the Dig.", Color("ffb020")],
 	["firering", "FIRE RING", "He gets angry... and a ring of flame bursts out around him: it burns what's close and scares off the rest. Costs two bundles of dry wood.", "F", "Carry a torch.", Color("ff4a2a")],
 	["thunderclap", "THUNDER CLAP", "One clap of his hands and the ground shakes: every beast around falls down dizzy.", "?", "A later age.", Color("5ad1ff")],
 	["stoneskin", "STONE SKIN", "Skin like granite for a while: nothing can hurt him.", "?", "A later age.", Color("9ad06a")],
@@ -36,12 +36,12 @@ const MOVES := [
 	["throw", "STONE TOSS", "Pick up rocks on the way, then throw them at things that bite back. Aim with the arrows: UP throws straight up, UP + RIGHT at 45 degrees, DOWN (in the air) down. A rock BONKS a beast and bounces off to hit another; it CLACKS off rock and bounces.", "K  +  arrows to aim", ""],
 	["grab", "GRAB & BOWL", "BONK a beast and it sees stars. While they spin, press THROW next to it: he lifts it right over his head! THROW (or HIT) again and he bowls it along the ground: everything in the way goes flying. STRIKE!", "J, then K, then K", ""],
 	["leap", "HERCULES LEAP", "Jump, then jump again in mid-air: a somersault, then the spear pose and a softer fall.", "SPACE  twice", ""],
-	["stomp", "METEOR STOMP", "Jump, then press T: he spins into a ball and drops like a meteor â STOMP! Beasts go flat and cracked slabs in the ground break open. Double-jump first for a MEGA STOMP: the only thing that breaks a gold rune seal.", "jump + T  Â·  double jump + T", ""],
+	["stomp", "METEOR STOMP", "Jump, then press T: he spins into a ball and drops like a meteor — STOMP! Beasts go flat and cracked slabs in the ground break open. Double-jump first for a MEGA STOMP: the only thing that breaks a gold rune seal.", "jump + T  ·  double jump + T", ""],
 	["dash", "METEOR DASH", "Jump, then press T while holding LEFT or RIGHT: he spins, then shoots that way like a meteor, flat through the air. Beasts in the way go flying; a wall goes BOOM; and mountain rock... he drills right through it. Double-jump first for the long gold one.", "jump + T + LEFT / RIGHT", ""],
-	["dig", "DIG", "Hold DOWN and HIT to dig the earth under him; HIT alone digs what is in front. Dirt goes in one blow, stones take three. Packed clay needs a SHOVEL.", "DOWN + J  Â·  J", ""],
+	["dig", "DIG", "Hold DOWN and HIT to dig the earth under him; HIT alone digs what is in front. Dirt goes in one blow, stones take three. Packed clay needs a SHOVEL.", "DOWN + J  ·  J", ""],
 	["homerun", "HOME RUN", "Hold SPECIAL to wind up the club... let go: beasts go flying.", "hold  L, let go", "Find a club."],
 	["wallkick", "WALL KICK", "Between two close walls: hold toward a wall to slide, jump to kick across to the other.", "hold toward wall + SPACE", "Climb the split rock on the Mammoth Steppe."],
-	["torch", "TORCH", "Holds back the dark â and the wolves. It burns down: feed it at every bonfire.", "always lit", "Take a burning branch from a fire."],
+	["torch", "TORCH", "Holds back the dark — and the wolves. It burns down: feed it at every bonfire.", "always lit", "Take a burning branch from a fire."],
 	["slam", "HAMMER SLAM", "Hold SPECIAL to raise the Firestone Hammer, let go: SLAM! A wave of fire rolls along the ground.", "hold  L, let go", "Forge the Firestone Hammer."],
 	["axe", "AXE: COMBO AND THROW", "Tap HIT: slash, back-slash, CHOP, then the leaping CLEAVE. HOLD HIT (or L) and let go: the axe spins out and comes back to your hand.", "tap J x4  /  hold J, let go", "Trade for the stone axe."],
 	["spear", "SPEAR THROW", "The broken fang becomes a spear. Throw it far, and fetch it back.", "?", "Level 3."],

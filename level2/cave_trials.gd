@@ -621,6 +621,7 @@ class Crystals extends Node2D:
 	var _spec: Array = []         ## [x, height, width, lean]
 
 	func _ready() -> void:
+		Sleeper.enrol(self)          # far from the camera it sleeps (common/sleeper.gd)
 		z_index = -1
 		var rng := RandomNumberGenerator.new()
 		rng.seed = int(position.x) * 3 + int(position.y)

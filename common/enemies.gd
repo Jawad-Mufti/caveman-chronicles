@@ -284,6 +284,7 @@ class Shockwave extends Critter:
 	var life := 4.0
 
 	func _setup() -> void:
+		sleeps_far = false           # it rolls on out of sight and frees itself
 		hp = 9999
 		damage = 1
 		stompable = false
@@ -347,6 +348,7 @@ class Boar extends Critter:
 	var enraged := false      ## below half health he abandons the charge entirely
 
 	func _setup() -> void:
+		sleeps_far = false           # the boss: he charges in from off screen
 		hp = max_hp
 		damage = 2
 		# He can be ridden. Worth little while he is up — the club and the

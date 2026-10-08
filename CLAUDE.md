@@ -40,7 +40,8 @@ Level 1 done; Level 2 "Discovery of Fire" (night) nearly done; its map: `docs/le
 
 ## Files
 common/: `critter.gd` (creature base, attack director, launch), `enemies.gd` (Level 1; Insect base),
-`player.gd` (CaveMan, hotbar), `bag.gd` (inventory: items, stone drops, recipes, the bag UI), `hud.gd`, `abilities.gd` (MOVES = Tutorial), `terrain.gd`, `game_state.gd`;
+`player_body.gd` (CaveManBody: what he DOES: moving, combat, torch, hotbar, SUNFIRE, STOMP), `player.gd`
+(CaveMan extends it: only how he LOOKS; the game uses CaveMan), `sleeper.gd` (far things sleep), `bag.gd` (inventory: items, stone drops, recipes, the bag UI), `hud.gd`, `abilities.gd` (MOVES = Tutorial), `terrain.gd`, `game_state.gd`;
 the rest one file per system (`ls common`). level2/: `level2_data.gd` (tables), `level2.gd` (builders;
 extends the data: tables are bare names); the rest one file per area or system (`ls level2`).
 
@@ -85,6 +86,12 @@ extends the data: tables are bare names); the rest one file per area or system (
   ~45 degrees can't be walked. Place things with `ground_y` / `roof_y` / `is_inside`. `MOUNTAIN_MAP` comes
   from `tools/mountain_gen` (regenerating changes the buried "mb" ids).
 - Perf: `perf` vs a HEAD worktree, same session (this PC drifts). Rock blow ~7 ms worst; `leak` levels off.
+  Measure before fixing (`spotcost`, `sleepcost`, `freeze`; `perfsplit` alternates: ~1 ms noise). Budget 16.7 ms at
+  1080p (60 Hz): the heavy spots (the Dig, the graveyard) run ~10-17. It is CPU (scripts), not fill rate.
+- SLEEP what only matters near him: `Sleeper.enrol(self)` in `_ready` (pickups, beasts, ambient things).
+  Never: bosses (`sleeps_far = false` in `_setup`), level-wide managers, moving platforms, self-freeing
+  projectiles. Asleep = not processed; collisions stay. A teleport calls `sleeper.wake_all()`.
+- A new particle kind or shader goes in `FX.warm_up` too (first draws compile: a 50-500 ms freeze).
 - New class file: commit its `.uid`; Jawad must Project > Reload. A `preload`-ed file needs neither.
 
 ## Player numbers (for level design)
@@ -106,6 +113,7 @@ wolves, talk, tarpits, hoards, sunfire, boulder, stomp, explore, dig, mountain, 
 steppe, leak, grab, gorgechest, orbs, mtbeasts, combat, aim, swarm, combos, hotbar, weapons, slowmo, soak, bag, windbreak, errands, one_eye, airkick.
 EXPECTED failures (not bugs): `vines` "three swings, let go late" MISS; `landing` prints 12 "no ground
 under" lines; `canyon rocks`/`stones` fail ~1 in 4 (bats); `combos` slam dunk and `grab` (knocked out of reach) fail ~1 in 3.
+New tests: `extends "res://tools/harness.gd"`, override `run()` (Level 2 built, `p`, frames/put/release/check/shot).
 What each test does, args, close-up/perf tools, quirks: `docs/testing.md`.
 
 ## Pitfalls

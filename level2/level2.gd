@@ -627,6 +627,7 @@ func _move_player(at: Vector2, facing: int) -> void:
 	last_safe = at
 	_apply_region(_region_at(at.x))
 	_moving = false
+	sleeper.wake_all()            # what is near him now is awake at once
 
 
 func _region_at(x: float) -> int:

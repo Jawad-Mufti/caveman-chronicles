@@ -39,6 +39,8 @@ static var _slow_until_ms := 0
 ## Stomping. Landing on a critter from above crushes it.
 ## Big or spiked things set stompable = false so the player learns the exception.
 var stompable := true
+## Far from the camera it sleeps (Sleeper). A boss that must act unseen sets false in _setup().
+var sleeps_far := true
 var stomp_top := -14.0    ## y offset of this critter's top, relative to its origin
 var stomp_damage := 99    ## a clean landing kills almost anything small
 var stomp_push := 0.0     ## sideways shove handed to the player, so big things throw him clear
@@ -56,6 +58,8 @@ func _ready() -> void:
 	material = FX.flash_material()
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS     # painted fur: smooth, not blocky
 	_setup()
+	if sleeps_far:
+		Sleeper.enrol(self)
 	_hp0 = hp
 
 

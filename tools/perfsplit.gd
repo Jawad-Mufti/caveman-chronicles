@@ -60,17 +60,17 @@ func _run() -> void:
 	level._panicked = true
 	for m in level._mouths:
 		m._noticed = true
-	var xs := []
+	var xs := []          ## x, or x:y
 	for a in OS.get_cmdline_user_args():
-		if a.is_valid_float():
-			xs.append(float(a))
+		if a.is_valid_float() or (a.contains(":") and a.get_slice(":", 0).is_valid_float()):
+			xs.append(Vector2(float(a.get_slice(":", 0)), float(a.get_slice(":", 1)) if a.contains(":") else 590.0))
 	if xs.is_empty():
-		xs = [1400.0, 1800.0]
+		xs = [Vector2(1400, 590), Vector2(1800, 590)]
 	var names := class_names()
 	for x in xs:
-		p.global_position = Vector2(x, 590)
+		level._move_player(x, 1)
 		p.velocity = Vector2.ZERO
-		await measure(30)
+		await measure(180)                  # settle: ambushes, first draws
 		var base := await measure(120)
 		# group the level's direct children by kind
 		var kinds := {}
@@ -83,27 +83,44 @@ func _run() -> void:
 			kinds[k].append(c)
 		var rows := []
 		for k in kinds:
+			# alternate on / off three times (each switch settles first: re-enabling
+			# can spike), and take the median of each: one spike can't fake a cost
 			var nodes: Array = kinds[k]
-			var saved := []
-			for n in nodes:
-				if not is_instance_valid(n):
-					saved.append([0, true])
-					continue
-				saved.append([n.process_mode, n.visible if n is CanvasItem else true])
-				n.process_mode = Node.PROCESS_MODE_DISABLED
-				if n is CanvasItem:
-					n.visible = false
-			var t := await measure(60)
-			for i in nodes.size():
-				if not is_instance_valid(nodes[i]):
-					continue
-				var n: Node = nodes[i]
-				n.process_mode = saved[i][0]
-				if n is CanvasItem:
-					n.visible = saved[i][1]
-			rows.append([k, nodes.size(), base - t])
+			var ons: Array = []
+			var offs: Array = []
+			for round in 3:
+				ons.append(await measure(40))
+				var saved := _switch_off(nodes)
+				offs.append(await measure(40))
+				_switch_back(nodes, saved)
+			ons.sort()
+			offs.sort()
+			rows.append([k, nodes.size(), float(ons[1]) - float(offs[1])])
 		rows.sort_custom(func(a, b): return a[2] > b[2])
-		print("x %.0f: frame %.2f ms; the costliest kinds (time saved with them off):" % [x, base])
+		print("%s: frame %.2f ms; the costliest kinds (time saved with them off):" % [x, base])
 		for r in rows.slice(0, 14):
 			print("   %-28s x%-4d %5.2f ms" % [r[0], r[1], r[2]])
 	get_tree().quit()
+
+
+func _switch_off(nodes: Array) -> Array:
+	var saved := []
+	for n in nodes:
+		if not is_instance_valid(n):
+			saved.append([0, true])
+			continue
+		saved.append([n.process_mode, n.visible if n is CanvasItem else true])
+		n.process_mode = Node.PROCESS_MODE_DISABLED
+		if n is CanvasItem:
+			n.visible = false
+	return saved
+
+
+func _switch_back(nodes: Array, saved: Array) -> void:
+	for i in nodes.size():
+		if not is_instance_valid(nodes[i]):
+			continue
+		var n: Node = nodes[i]
+		n.process_mode = saved[i][0]
+		if n is CanvasItem:
+			n.visible = saved[i][1]

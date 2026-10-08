@@ -251,7 +251,7 @@ class Impact extends Node2D:
 
 ## ================================================================ WORD
 class Word extends Node2D:
-	## "SUNFIRE!" â big, gold, wobbling, rising off him.
+	## "SUNFIRE!" — big, gold, wobbling, rising off him.
 	var text := "SUNFIRE!"
 	var size := 46
 	var t := 0.0

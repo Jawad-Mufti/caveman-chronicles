@@ -49,7 +49,7 @@ func _run() -> void:
 	await at("ray", Vector2(3300, -340))
 	await at("firefly_bridge", Vector2(16460, 0))
 	await at("feather_peaks", Vector2(24570, -610))
-	await at("burrow", Vector2(DEEP_X() - 120.0, 590))
+	await at("dig_mouth", Vector2(float(level.DIG_GRID[0]) - 120.0, 590))     # (the underground has no door now: the Dig opens under the graveyard)
 	await at("hollows_in", Vector2(41860, 690))
 	await at("hollows_worms", Vector2(43000, 770))
 	await at("hollows_angler", Vector2(43500, 730))
@@ -83,5 +83,3 @@ func _run() -> void:
 	await shot("shelter")
 	get_tree().quit()
 
-func DEEP_X() -> float:
-	return level.DEEP_BURROW

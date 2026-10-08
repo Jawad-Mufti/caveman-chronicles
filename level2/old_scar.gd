@@ -101,6 +101,7 @@ var _hit_dir := 1
 
 
 func _setup() -> void:
+	sleeps_far = false               # the boss of the Long Dark acts whether or not he is seen
 	hp = MAX_HP
 	damage = 0
 	stompable = false

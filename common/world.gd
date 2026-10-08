@@ -225,6 +225,7 @@ class RockPickup extends Area2D:
 	var t := 0.0
 
 	func _ready() -> void:
+		Sleeper.enrol(self)          # far from the camera it sleeps (common/sleeper.gd)
 		collision_layer = 0
 		collision_mask = 2
 		var cs := CollisionShape2D.new()
@@ -332,6 +333,7 @@ class BerryBush extends Area2D:
 	var t := 0.0
 
 	func _ready() -> void:
+		Sleeper.enrol(self)          # far from the camera it sleeps (common/sleeper.gd)
 		collision_layer = 0
 		collision_mask = 2
 		var cs := CollisionShape2D.new()
@@ -517,6 +519,7 @@ class SpringBush extends Area2D:
 	var t := 0.0
 
 	func _ready() -> void:
+		Sleeper.enrol(self)          # far from the camera it sleeps (common/sleeper.gd)
 		collision_layer = 0
 		collision_mask = 2
 		monitoring = true

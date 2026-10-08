@@ -143,7 +143,7 @@ const STEPPE_LOOT := [
 
 ## ---------------------------------------------------------------- the Tar Pits
 ## Past the graveyard (it's why the bones are there): three pools of black,
-## bubbling tar, each wider than the last. Logs float on them â until he
+## bubbling tar, each wider than the last. Logs float on them — until he
 ## stands on one, and it slowly sinks. The last two are too wide to jump, so
 ## he hops log to log and keeps moving. In the tar he's stuck: hauled out on
 ## the near bank, a heart lighter.
@@ -163,7 +163,7 @@ const TAR_LOOT := [                                ## [x, y, kind]; ids "t0", "t
 ## ---------------------------------------------------------------- Thunder Canyon
 ## Past Nutmeg's creek, before the great tree: a deep canyon. Falling in costs
 ## a heart, as any pit does.
-##   Sky Stones (17950-16900): flying rocks with vines, each in its own space â
+##   Sky Stones (17950-16900): flying rocks with vines, each in its own space —
 ##     drifting, bobbing or circling. They share one beat (STONE_BEAT s), and
 ##     their closest moments come in a wave along the line: each one swings
 ##     close to the next (130-150 px) every half beat. They never touch.
@@ -362,7 +362,7 @@ const SNUFF_AT := 28650.0         ## the roar, and the dark
 ## ---------------------------------------------------------------- the Boulder Run
 ## A boulder on a crumbling ledge breaks loose as he passes beneath it and
 ## rolls after him down the pass: over fallen logs (it smashes them), across
-## gaps, until it plunges into the ravine at the end â and the crash shakes a
+## gaps, until it plunges into the ravine at the end — and the crash shakes a
 ## stash loose from the cliff. Caught, he is flattened (dead: he wakes by the
 ## fire just before the pass); fallen into a gap, he starts the run again.
 const RUN_START := 26540.0
@@ -377,7 +377,7 @@ const TOOLMAKER_AT := Vector2(31060, 600)
 const CAMP_AT := Vector2(31000, 600)       ## his home under the overhang
 ## The Three Fires: a trial between his home and the clearing. A cracked
 ## boulder bars the way; a pack of wolves waits in the dark; three stone bowls
-## must all burn â then the old palisade across the path burns down.
+## must all burn — then the old palisade across the path burns down.
 const TRIAL_ROCK := Vector2(31470, 600)
 const TRIAL_BOWLS := [[31640.0, 600.0], [31890.0, 480.0], [32130.0, 600.0]]
 const TRIAL_LEDGE := [31820.0, 480.0, 140.0]
@@ -476,7 +476,7 @@ const POTS := [
 ## Optional roads of floating stone above the ground road. Each starts with a
 ## bounce bloom on the ground ("pad": [x, y]) that throws him up to the first
 ## rock; then it is hops and bounces from stone to stone. [x, top y, width,
-## flags] â flags: 1 = a bounce bloom on the rock, 2 = a lamp (a real light in
+## flags] — flags: 1 = a bounce bloom on the rock, 2 = a lamp (a real light in
 ## the dark). A lane over solid ground costs nothing to fall from: the ground
 ## catches him. Each ends above solid ground, and he just steps off.
 ## Reach budget: hops of up to ~90 up and ~130 across; a bloom carries ~330
@@ -545,7 +545,7 @@ const STOMP_SPOTS := [[1100.0, "crack"], [2350.0, "crack"], [3800.0, "seal"], [1
 	[15500.0, "seal"], [23350.0, "crack"], [25000.0, "seal"], [26000.0, "crack"]]
 const STOMP_CRACK := ["shell", "shell", "conch"]
 const STOMP_SEAL := ["conch", "shell", "shell", "shell", "conch"]
-## Golden Hares: [left x, right x, start x, ground y] â catch one for a shower of treasure.
+## Golden Hares: [left x, right x, start x, ground y] — catch one for a shower of treasure.
 const HARES := [[3380.0, 3960.0, 3800.0, 600.0], [23060.0, 23700.0, 23560.0, 600.0], [24420.0, 24880.0, 24700.0, 600.0]]
 const HARE_VALUE := 18
 ## Moonpuffs: bounce bushes on the mountain's way down, where he lands
@@ -630,7 +630,7 @@ const ECONOMY := {"axe": 0.34, "hammer": 0.30, "wolf_hood": 0.22, "ember_paint":
 
 
 ## ---------------------------------------------------------------- exploring
-## More sky lanes, going UP from places he can already reach â with jellies to
+## More sky lanes, going UP from places he can already reach — with jellies to
 ## bounce on, rays to ride, a cache and a rare find at the top. Their own ids
 ## ("k2_%d" shells, "sc2_%d" caches): SKY_LANES above must never change.
 ##   start  where the lane begins (the top of something he already stands on)
@@ -684,7 +684,7 @@ const SKY_LANES_2 := [
 ##               sits in a hollow halfway down. Under the clay it breaks through
 ##               into the Root Hollows' first hall.
 ##   The den     off the shaft, behind bones and claw marks in the wall: dig
-##               sideways, and the rocks fall in behind him â THE GULPER.
+##               sideways, and the rocks fall in behind him — THE GULPER.
 ##   The Root Hollows  the halls under the Tar Pits.
 ##   Updrafts    two chimneys of warm, rising air float him back up to the
 ##               ground: one beside the shaft (the root tunnel above the clay
@@ -733,7 +733,7 @@ const DEEP_LOOT := [                                ## [x, y, kind]; ids "u0", "
 
 ## The windy heights: up from the Moon Garden, before the gorge's first rope.
 ## Gusts blow here (only up in the sky); at the top, the bramble with the
-## SHOVEL in it â only SUNFIRE burns it, and SUNFIRE is found in the Dig.
+## SHOVEL in it — only SUNFIRE burns it, and SUNFIRE is found in the Dig.
 const WINDY_ROCKS := [[3560.0, -260.0, 110.0, 0], [3760.0, -400.0, 120.0, 0], [3600.0, -530.0, 100.0, 0], [3850.0, -640.0, 180.0, 2]]
 const WINDY_JELLY := [3470.0, -170.0, 2, 0.0]     ## under the ray's flight; it bounces him up toward the top rocks
 const WINDY_WIND := [3420.0, 4150.0, -800.0, -230.0, -240.0]   ## [x0, x1, y0, y1, strength]: not down on the Moon Garden rock below

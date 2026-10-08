@@ -23,6 +23,7 @@ var _shake_power := 0.0
 var _shake_time := 0.0
 var checkpoint := Vector2.ZERO
 var resumed := false      ## LOAD put him at his saved spot (no opening story)
+var sleeper: Sleeper      ## puts what is far from the camera to sleep (common/sleeper.gd)
 
 
 static var _cam_frame := -1
@@ -66,6 +67,8 @@ func _build_player(start: Vector2) -> void:
 	resumed = not saved.is_empty()
 	if resumed:
 		start = Vector2(float(saved["x"]), float(saved["y"]))
+	sleeper = Sleeper.new()
+	add_child(sleeper)
 	player = CaveMan.new()
 	player.position = start
 	last_safe = start
@@ -118,6 +121,7 @@ func _build_hud() -> void:
 		hud.add_touch_controls(player)
 	if resumed:
 		hud.say("He wakes where he last saved.", 3.0)
+	FX.warm_up(self, player.global_position + Vector2(0, -40))      # shaders compile now, not mid-jump
 
 
 ## SAVE (Camp Menu): everything, and where he stands — on firm ground, or

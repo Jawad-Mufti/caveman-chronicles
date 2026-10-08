@@ -37,6 +37,7 @@ class Bonfire extends Area2D:
 	var _inside: CaveMan = null
 
 	func _ready() -> void:
+		Sleeper.enrol(self)          # far from the camera it sleeps (common/sleeper.gd)
 		collision_layer = 0
 		collision_mask = 2
 		var cs := CollisionShape2D.new()
@@ -202,6 +203,7 @@ class DeadTree extends Area2D:
 	var t := 0.0
 
 	func _ready() -> void:
+		Sleeper.enrol(self)          # far from the camera it sleeps (common/sleeper.gd)
 		# on the creature layer, so his swing and his rocks find it
 		collision_layer = 4
 		collision_mask = 0
@@ -1296,6 +1298,7 @@ class FireflySwarm extends Node2D:
 	var t := 0.0
 
 	func _ready() -> void:
+		Sleeper.enrol(self)          # far from the camera it sleeps (common/sleeper.gd)
 		t = randf() * 10.0
 		add_to_group("light")
 		add_to_group("glow")

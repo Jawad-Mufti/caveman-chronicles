@@ -16,6 +16,7 @@ static var _dot: Texture2D
 static var _flash: Shader
 static var _sway: Shader
 static var _shimmer: Shader
+static var _ramps := {}         ## colours.hash() -> Gradient
 
 
 ## A soft round dot, white in the middle fading to nothing at the edge.
@@ -35,13 +36,19 @@ static func dot() -> Texture2D:
 	return _dot
 
 
+## A colour ramp, built once per set of colours and shared (bursts happen many
+## times a second: a running foot kicks one up with every stride).
 static func _ramp(cols: Array) -> Gradient:
+	var key := cols.hash()
+	if _ramps.has(key):
+		return _ramps[key]
 	var g := Gradient.new()
 	var offs := PackedFloat32Array()
 	for i in cols.size():
 		offs.append(float(i) / float(cols.size() - 1))
 	g.offsets = offs
 	g.colors = PackedColorArray(cols)
+	_ramps[key] = g
 	return g
 
 
@@ -273,6 +280,35 @@ void fragment() {
 	m.shader = _shimmer
 	r.material = m
 	return r
+
+
+## SHADER WARM-UP. The compatibility renderer compiles a shader the first time
+## something drawn with it reaches the screen, and that frame freezes (50 to
+## 500 ms): the first dust puff, the first white flash of a struck beast. A
+## level calls this once as it starts: every particle kind and shader is drawn
+## for a moment, nearly invisible and behind everything, so the compiling
+## happens while the level loads instead of in the middle of a jump.
+const BURSTS := ["sparks", "dust", "kick", "ring", "smoke", "embers"]
+
+
+static func warm_up(parent: Node2D, at: Vector2) -> void:
+	var holder := Node2D.new()
+	holder.position = at
+	holder.z_index = RenderingServer.CANVAS_ITEM_Z_MIN
+	holder.modulate = Color(1, 1, 1, 0.02)
+	parent.add_child(holder)
+	for kind in BURSTS:
+		burst(holder, Vector2.ZERO, kind, 1.0)
+	shards(holder, Vector2.ZERO, Vector2.UP, true)
+	holder.add_child(embers())
+	for m in [flash_material(), sway_material(0.0)]:
+		var r := ColorRect.new()
+		r.size = Vector2(8, 8)
+		r.material = m
+		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		holder.add_child(r)
+	holder.add_child(shimmer(8.0, 8.0))
+	parent.get_tree().create_timer(0.4, false).timeout.connect(holder.queue_free)
 
 
 ## DIGGING LIGHT: every blow into earth or rock throws a flash of warm light

@@ -41,11 +41,11 @@ func _run() -> void:
 	await wait(5)
 	p.give_torch()
 	p.invuln = 99999.0
-	# the burrow, then the top of the Dig
-	level._move_player(Vector2(level.DEEP_BURROW - 140.0, 590), 1)
+	# beside the Dig, then on top of it (the underground has no door now: the Dig opens under the graveyard)
+	level._move_player(Vector2(float(level.DIG_GRID[0]) - 140.0, 590), 1)
 	await wait(40)
-	await shot("burrow")
-	level._move_player(level.DIG_IN, 1)
+	await shot("beside")
+	level._move_player(Vector2(float(level.DIG_GRID[0]) + 4.5 * Dig.TILE, float(level.DIG_GRID[1]) - 10.0), 1)
 	await wait(40)
 	await shot("top")
 	for i in 7:
