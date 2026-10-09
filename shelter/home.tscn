@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://d3t07eapoa8d4"]
 
-[ext_resource type="Script" path="res://shelter/home.gd" id="1"]
+[ext_resource type="Script" uid="uid://cw4ukot1bby53" path="res://shelter/home.gd" id="1"]
 
 [node name="Home" type="Node3D"]
 script = ExtResource("1")
