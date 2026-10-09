@@ -12,6 +12,8 @@ rules (`docs/inventory_plan.md`) feed it: nothing looted is junk; the shelter is
   (their real 2D rigs drawn into a SubViewport on a billboard). A fixed tilted camera: kids never steer it.
   The levels stay 2D.
 - **It must be BIG**: room for a steam-age town by Level 6.
+- **Getting there (Jawad, 2026-10-09)**: the cave is reached from the CAMP MENU (its SHELTER row), unlocked once
+  Level 2 is finished; until then the row stays locked. The eras are `docs/eras.md` (Ugu the Unbowed).
 - **Horses**: in their own age (Farming); before that a mammoth calf.
 
 ## The ages (proposed; one per level)
