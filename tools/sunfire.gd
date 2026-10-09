@@ -223,7 +223,7 @@ func _run() -> void:
 					spear_locked = m._status.text == "LOCKED"
 			m._go("main")
 			m._choose_id("save")              # SAVE
-			saved = m._saved_t >= 0.0 and FileAccess.file_exists(GameState.PATH)
+			saved = m._saved_t >= 0.0 and FileAccess.file_exists(GameState.save_path())
 			m._close()
 		await get_tree().process_frame
 		report("menu: camp, abilities, save, and back", opened and sun_ok and spear_locked and saved and not get_tree().paused,

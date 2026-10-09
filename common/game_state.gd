@@ -11,6 +11,7 @@ extends RefCounted
 ## bought or forged; he carries one. Roast figs: eaten to heal.
 
 const PATH := "user://caveman_save.json"
+const TEST_PATH := "user://caveman_save_test.json"   ## the test tools' own save: NEVER the player's
 const UPGRADE_MAX := {"heart": 2, "torch": 1, "pouch": 1, "club": 1}
 
 static var shells := 0
@@ -49,9 +50,9 @@ static func ensure_loaded() -> void:
 	if _loaded:
 		return
 	_loaded = true
-	if not FileAccess.file_exists(PATH):
+	if not FileAccess.file_exists(save_path()):
 		return
-	var f := FileAccess.open(PATH, FileAccess.READ)
+	var f := FileAccess.open(save_path(), FileAccess.READ)
 	if f == null:
 		return
 	var d = JSON.parse_string(f.get_as_text())
@@ -89,7 +90,7 @@ static func ensure_loaded() -> void:
 
 
 static func save() -> void:
-	var f := FileAccess.open(PATH, FileAccess.WRITE)
+	var f := FileAccess.open(save_path(), FileAccess.WRITE)
 	if f == null:
 		return
 	f.store_string(JSON.stringify({"shells": shells, "upgrades": upgrades, "skins": skins, "skin": skin,
@@ -269,3 +270,18 @@ static func take_resume(level: String) -> Dictionary:
 	var ok := resume and str(spot.get("level", "")) == level
 	resume = false
 	return spot if ok else {}
+
+
+## Where the save lives. A run of a test tool (any scene under res://tools/,
+## from the command line or the editor) gets its own file: the tests reset and
+## scribble on it constantly, and must never wipe the player's game.
+static var _path := ""
+
+
+static func save_path() -> String:
+	if _path == "":
+		_path = PATH
+		for a in OS.get_cmdline_args():
+			if a.begins_with("res://tools/"):
+				_path = TEST_PATH
+	return _path
