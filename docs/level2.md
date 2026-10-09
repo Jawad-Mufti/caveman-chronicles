@@ -80,6 +80,8 @@ Stones (in the bag, once per save, hidden at this save's own random spots; the L
 | fire-gold | 4 | 1 | | | 5 | 1 (Ooma) |
 | quartz | 3 | | | 2 (Pip) | 5 | |
 | obsidian | 2 | | | 2 (Shivers) + 1 (Ooma) | 5 | |
+Since 2026-10-09 clay and flint ALSO drop as he digs, every visit (`Bag.DIG_DROPS`: dirt 1 in 6 clay, rock 1 in 8
+flint): COMMON, never short. The finite ones above are bonuses; fire-gold, quartz and obsidian stay finite.
 Left for crafting: enough for the obsidian edge and the lucky charm once each, ~9 flint tips sets, a few
 salves / walls / spark kits. Every visit (not finite): rocks, wood, berries, bones, spirit orbs.
 

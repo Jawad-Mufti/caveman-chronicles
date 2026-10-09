@@ -91,6 +91,19 @@ func _run() -> void:
 	t._reveal(Vector2i(one % t._w, one / t._w))
 	await frames(150)
 	check("only once", Bag.count(p, kind) == had_stone + 1)
+	# 2b. COMMON stones come up as he digs, every visit (never "taken once"); precious ones never do
+	Bag.drop_chance = 100.0
+	var clay0 := Bag.count(p, "clay")
+	var flint0 := Bag.count(p, "flint")
+	Bag.dig_drop(level, p.global_position + Vector2(0, -20), "d")
+	Bag.dig_drop(level, p.global_position + Vector2(0, -20), "d")
+	Bag.dig_drop(level, p.global_position + Vector2(0, -20), "#")
+	Bag.dig_drop(level, p.global_position + Vector2(0, -20), "o")      # grey stone: no common drop
+	await frames(200)
+	Bag.drop_chance = 1.0
+	check("digging hands out common stones, again and again", Bag.count(p, "clay") == clay0 + 2 and Bag.count(p, "flint") == flint0 + 1,
+		"clay %d -> %d, flint %d -> %d" % [clay0, Bag.count(p, "clay"), flint0, Bag.count(p, "flint")])
+	check("rarity = effort", int(Bag.info("flint")[2]) == 0 and int(Bag.info("clay")[2]) == 0 and int(Bag.info("quartz")[2]) == 2 and int(Bag.info("obsidian")[2]) == 3 and int(Bag.info("hammer")[2]) == 4)
 	# 3. crafting: flint tips
 	GameState.bag = {"flint": 3, "clay": 3, "pyrite": 1, "obsidian": 2, "quartz": 2}
 	var m := Bag.missing(p, "spark")

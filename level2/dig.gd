@@ -144,6 +144,7 @@ class DigGrid extends Node2D:
 			_shapes[i] = null
 		var col: Color = {DIRT: Color("7a5236"), STONE: Color("8d857a"), CLAY: Color("a2553a")}.get(kind, Color("7a5236"))
 		_spark(at, col, 12)
+		Bag.dig_drop(get_parent(), global_position + at, {DIRT: "dirt", STONE: "stone", CLAY: "clay"}.get(kind, ""))
 		FX.dig_flash(get_parent(), global_position + at, col, true)
 		FX.burst(get_parent(), global_position + at, "dust")
 		if loot.has(i):

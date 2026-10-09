@@ -73,27 +73,27 @@ const ITEMS := {
 	"hands": ["FISTS", "GEAR", 0, "Bare hands. Better than nothing!", "HIT punches. Find a good stick!", "Always with you."],
 	"club": ["CLUB", "GEAR", 0, "A good heavy stick. BONK!", "HIT swings it. Hold HIT to keep swinging.", "The first stick, in Level 1."],
 	"axe": ["FLINT AXE", "GEAR", 2, "A sharp stone tied to a strong handle.", "HIT swings; the 4th hit CLEAVES. Hold J to throw it.", "The Toolmaker."],
-	"hammer": ["FIRESTONE HAMMER", "GEAR", 3, "Heavy, hot, and very hard to stop.", "HIT smashes beasts and rock.", "Forged from the Firestone."],
-	"shovel": ["SHOVEL", "GEAR", 1, "A flat bone on a stick. Dirt is scared of it.", "Hold it in the hotbar: HIT digs where you aim. Digging finds STONES!", "Found in the Dig."],
+	"hammer": ["FIRESTONE HAMMER", "GEAR", 4, "Heavy, hot, and very hard to stop.", "HIT smashes beasts and rock.", "Forged from the Firestone."],
+	"shovel": ["SHOVEL", "GEAR", 2, "A flat bone on a stick. Dirt is scared of it.", "Hold it in the hotbar: HIT digs where you aim. Digging finds STONES!", "Found in the Dig."],
 	"torch": ["TORCH", "GEAR", 0, "Fire on a stick. Wolves keep away from it.", "It burns down. Sit by a fire, or use a SPARK KIT.", "The first fire."],
-	"tips": ["FLINT TIPS", "GEAR", 1, "Sharp flint on a bone. Flies fast, bites hard.", "Hold them in the hotbar: HIT throws one. Twice a rock's hit!", "Make them: CRAFT."],
+	"tips": ["FLINT TIPS", "GEAR", 0, "Sharp flint on a bone. Flies fast, bites hard.", "Hold them in the hotbar: HIT throws one. Twice a rock's hit!", "Make them: CRAFT."],
 	"spark": ["SPARK KIT", "GEAR", 1, "Flint and fire-gold. Strike them: SPARKS!", "HIT: the torch burns bright and full again.", "Make it: CRAFT."],
 	"edge": ["OBSIDIAN EDGE", "GEAR", 3, "Black glass, sharper than any tooth.", "Always on: every swing does +1 damage.", "Make it: CRAFT."],
 	"charm": ["LUCKY CHARM", "GEAR", 2, "Quartz on a cord. Stones like it.", "Always on: stones hidden in the rock glint, so you know where to dig.", "Make it: CRAFT."],
 	"trap": ["GLARE TRAP", "GEAR", 2, "A clay pot: a sweet berry inside, quartz all round, fire-gold to strike the spark.", "HIT: set it down in Old One-Eye's hall. It can't resist the smell... FLASH! Its eye is blinded: hit it!", "Work out how to mix it: the job in your bag, once you have met Old One-Eye."],
 	"rocks": ["ROCKS", "STONES", 0, "Round and heavy. Just right for throwing.", "Hold them in the hotbar: HIT throws one. Three make a STONE WALL.", "Lying about everywhere."],
-	"flint": ["FLINT", "STONES", 0, "A grey stone that breaks into sharp edges.", "Tips, the spark kit, the obsidian edge.", "Dig rock and striped stone."],
-	"clay": ["CLAY", "STONES", 0, "Sticky red mud. It holds things together.", "Walls and healing salve.", "Dig dirt. The clay pit is full of it."],
+	"flint": ["FLINT", "STONES", 0, "A grey stone that breaks into sharp edges.", "Tips, the spark kit, the obsidian edge.", "Common: rock and striped stone chip it off as you dig, every visit."],
+	"clay": ["CLAY", "STONES", 0, "Sticky red mud. It holds things together.", "Walls and healing salve.", "Common: it comes up as you dig dirt, every visit. The clay pit is full of it."],
 	"pyrite": ["FIRE-GOLD", "STONES", 1, "Shiny like gold, but it isn't. Hit it with flint: SPARKS!", "The spark kit.", "Dig deep rock and striped stone."],
-	"quartz": ["QUARTZ", "STONES", 1, "Clear as ice. It catches the light.", "The lucky charm.", "Dig hard grey stone."],
-	"obsidian": ["OBSIDIAN", "STONES", 2, "Black glass, from deep under the fire mountain.", "The obsidian edge.", "Very rare. Dig deep into hard stone."],
+	"quartz": ["QUARTZ", "STONES", 2, "Clear as ice. It catches the light.", "The lucky charm.", "Dig hard grey stone."],
+	"obsidian": ["OBSIDIAN", "STONES", 3, "Black glass, from deep under the fire mountain.", "The obsidian edge.", "Very rare. Dig deep into hard stone."],
 	"wood": ["WOOD", "BUILD", 0, "Dry dead wood, tied in a bundle.", "Two make a fire. One makes a ladder.", "Hit dead trees."],
 	"bones": ["BONES", "BUILD", 0, "Old bones. Strong and light.", "The shelter, flint tips, ladders, the obsidian edge.", "Beasts and old bone piles, every visit."],
-	"wall": ["STONE WALL", "BUILD", 1, "Rocks stuck together with clay. Big beasts can't get past.", "HIT: a wall goes up in front of you. It crumbles after 30 seconds.", "Make it: CRAFT."],
-	"ladder": ["BONE LADDER", "BUILD", 1, "Bones tied up with wood. Up we go!", "HIT: a ladder stands where you are. Jump up the rungs.", "Make it: CRAFT."],
+	"wall": ["STONE WALL", "BUILD", 0, "Rocks stuck together with clay. Big beasts can't get past.", "HIT: a wall goes up in front of you. It crumbles after 30 seconds.", "Make it: CRAFT."],
+	"ladder": ["BONE LADDER", "BUILD", 0, "Bones tied up with wood. Up we go!", "HIT: a ladder stands where you are. Jump up the rungs.", "Make it: CRAFT."],
 	"berries": ["BERRIES", "FOOD", 0, "Sweet and juicy.", "Eaten by themselves when you're hurt. Also: healing salve.", "Bushes and vines."],
-	"figs": ["ROAST FIGS", "FOOD", 1, "Warm from the fire. Yum.", "H (or HIT in the hotbar): two hearts back.", "Roast them by a fire."],
-	"salve": ["HEALING SALVE", "FOOD", 1, "Berries mashed in clay. Smells awful, works great.", "HIT: three hearts back.", "Make it: CRAFT."],
+	"figs": ["ROAST FIGS", "FOOD", 0, "Warm from the fire. Yum.", "H (or HIT in the hotbar): two hearts back.", "Roast them by a fire."],
+	"salve": ["HEALING SALVE", "FOOD", 0, "Berries mashed in clay. Smells awful, works great.", "HIT: three hearts back.", "Make it: CRAFT."],
 	"shells": ["SHELLS", "TREASURE", 0, "Money! Conches and amber count big.", "Upgrades from the trader and the Toolmaker.", "Everywhere: paths, secret spots, smashed logs."],
 	"orbs": ["SPIRIT ORBS", "TREASURE", 1, "The light of the beasts you beat.", "Saved up for upgrades.", "Beat beasts. They come back each visit."],
 }
@@ -394,6 +394,33 @@ static func unearth(parent: Node, at: Vector2, id: String, level_id: String, tid
 	if parent == null or GameState.is_taken(level_id, tid):
 		return
 	GameState.take(level_id, tid, 0)          # (worth no shells: it is not money)
+	pop(parent, at, id)
+
+
+## COMMON stones are easy (docs/inventory_plan.md, R2): as he digs, a broken
+## block now and then hands one out, every visit, never "taken once". By the
+## stuff dug: [id, chance per broken block]. (Map letters: d dirt, # rock,
+## = striped strata; the Dig's blocks by name.) Precious stones (fire-gold,
+## quartz, obsidian) are never dropped like this: a fixed few, hidden.
+const DIG_DROPS := {"d": ["clay", 1.0 / 6.0], "#": ["flint", 1.0 / 8.0], "=": ["flint", 1.0 / 6.0],
+	"dirt": ["clay", 1.0 / 6.0], "clay": ["clay", 0.5], "stone": ["flint", 1.0 / 8.0]}
+
+
+## A broken block of `what`: maybe a common stone pops out of it.
+static var drop_chance := 1.0     ## scales every DIG_DROPS chance (tuning; tests use 0 or 100)
+
+
+static func dig_drop(parent: Node, at: Vector2, what: String) -> void:
+	if not DIG_DROPS.has(what) or parent == null:
+		return
+	var d: Array = DIG_DROPS[what]
+	if randf() < float(d[1]) * drop_chance:
+		pop(parent, at, d[0])
+
+
+## A stone out of the ground, straight into the bag (not remembered: there
+## are always more where it came from).
+static func pop(parent: Node, at: Vector2, id: String) -> void:
 	var f := Find.new()
 	f.id = id
 	f.position = at

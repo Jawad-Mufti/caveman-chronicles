@@ -484,6 +484,7 @@ func dig_at(world: Vector2, reach := 52.0, n := 4) -> bool:
 	var changed := []
 	for s in broke:
 		var was := char(_g[s.y * _w + s.x])
+		Bag.dig_drop(get_parent(), position + Vector2(s) * CELL, was)     # a common stone, now and then
 		if MATS.has(was) and not changed.has(was):
 			changed.append(was)
 		_g[s.y * _w + s.x] = C_IN
@@ -736,8 +737,10 @@ class _Glints extends Node2D:
 				continue
 			var kind: String = terrain.loot[idx][0]
 			if kind.begins_with("stone:"):
-				# stones hide in the rock; the LUCKY CHARM shows them, a faint glint in their colour
-				if charm and fmod(_t * 0.8 + float(idx % 89) * 0.41, 2.2) < 0.5:
+				# a COMMON stone (clay, flint) glints by itself: easy to find. The precious ones
+				# hide; the LUCKY CHARM shows them, a faint glint in their colour
+				var common := int(Bag.info(kind.substr(6))[2]) == 0
+				if (charm or common) and fmod(_t * 0.8 + float(idx % 89) * 0.41, 2.2) < 0.5:
 					var sc := Bag.rarity_col(kind.substr(6))
 					b.ellipse(s, 6.0, 4.0, Color(sc, 0.75))
 					b.line(s + Vector2(-9, 0), s + Vector2(9, 0), Color(sc, 0.8), 1.5)

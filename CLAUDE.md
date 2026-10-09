@@ -24,7 +24,9 @@ Level 1 done; Level 2 "Discovery of Fire" (night) nearly done; its map: `docs/le
   sack, a banner in the big view, the small hint): HE opens the bag and starts mixing (`Bag.start_job`).
   Hints and pages NUDGE (riddles); the exact recipe shows only after two wrong mixes. Old One-Eye's trap too.
 - THE BAG (`Bag`): everything carried, in boxes down the right; I/B or the sack: strip -> big view (tabs,
-  CRAFT) -> hidden. Stones drop from digging (`Bag.DROPS`); new item: a row in `Bag.ITEMS` + `draw_icon`.
+  CRAFT) -> hidden. COMMON stones (clay, flint) drop as he digs, every visit (`Bag.DIG_DROPS`);
+  new item: a row in `Bag.ITEMS` + `draw_icon`. INVENTORY RULES: `docs/inventory_plan.md` (nothing looted is junk:
+  NOW / LATER / HOME; rarity = effort; the shelter is the sink). Read it before adding loot or a level.
   The big view and a mixing slab PAUSE the world (`Bag.hold_world`; never another pause, e.g. the menu).
   Every dig blow flashes light + sparks (`FX.dig_flash`).
 - SPACE is the only jump; UP/W and DOWN/S aim (8 ways, UP+RIGHT = 45 degrees).
@@ -72,7 +74,7 @@ extends the data: tables are bare names); the rest one file per area or system (
   v, q%d_%d, sac<x>, k, k2_, sc, sc2_, m, t, n, h, g, ch, gw, u, mt, mb, r (relics, shared), x0/x1 (hoards),
   st (mountain stones), sd (the Dig's stones), mud (the mud bank).
 - Economy: prices = fraction x the level's one-time shell total (`ECONOMY`, now 832; "a bit costly": see
-  docs/level2.md "The budget"). Stones are finite per level too (`MT_STONES`...). Bonuses (chests,
+  docs/level2.md "The budget"). PRECIOUS stones are finite per level (`MT_STONES`...); common ones renew. Bonuses (chests,
   buried finds, stomp loot) are NOT counted. Relics are not money.
 - One-shot kills call `end_sunfire()` first.
 - Shared helpers (don't copy the maths): `CaveMan.hurt_toss`, `Pickup.aim_at`, `Pickup.homing`,
