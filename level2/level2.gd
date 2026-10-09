@@ -373,14 +373,15 @@ func _on_shriek() -> void:
 ## stretch is bare (its grass, drawn in front, would cross the rock's face).
 func _bare_under_rock() -> void:
 	var grounds: Array = []
-	var crags: Array = []
+	var rocks: Array = []          ## Rect2s: the crags, and the split rock's kick walls
 	for c in get_children():
 		if c is Turf.Ground:
 			grounds.append(c)
 		elif c is NightWoods.Crag:
-			crags.append(c)
-	for k in crags:
-		var r: Rect2 = k.rect
+			rocks.append((c as NightWoods.Crag).rect)
+		elif c is Steppe.KickWall:
+			rocks.append(Rect2(c.position, Vector2(c.w, c.h)))
+	for r in rocks:
 		for g in grounds:
 			var gr: Rect2 = g.rect
 			if r.position.y <= gr.position.y and r.end.y >= gr.position.y and r.position.x < gr.end.x and r.end.x > gr.position.x:

@@ -83,13 +83,87 @@ class Ground extends World.Slab:
 		rng.seed = int(rect.position.x) * 13 + 5
 		var sd := rng.randf() * 10.0
 		var b := Batch.new()
-		# the earth itself is painted (Terrain.paint_rect in _ready, behind this);
-		# here it just darkens smoothly with depth, no bands
-		var dk := Color(0.05, 0.03, 0.02, 0.0)
-		var deep := Color(0.05, 0.03, 0.02, 0.7)
-		b.quad(Vector2(0, 30), Vector2(w, 30), Vector2(w, h), Vector2(0, h), dk,
-			PackedColorArray([dk, dk, deep, deep]))
+		# the earth itself is painted (Terrain.paint_rect in _ready, behind this); over it,
+		# drawn once: what lives in the soil. No bands (they read as pixels): things IN it.
 		crystals.clear()
+		# warm light soaking in under the grass, the earth going dark with depth
+		var lit := Color(1.0, 0.75, 0.45, 0.10)
+		var clear := Color(1.0, 0.75, 0.45, 0.0)
+		b.quad(Vector2(0, 0), Vector2(w, 0), Vector2(w, 40), Vector2(0, 40), lit, PackedColorArray([lit, lit, clear, clear]))
+		var dk := Color(0.05, 0.03, 0.02, 0.0)
+		var deep := Color(0.05, 0.03, 0.02, 0.78)
+		b.quad(Vector2(0, 26), Vector2(w, 26), Vector2(w, h), Vector2(0, h), dk, PackedColorArray([dk, dk, deep, deep]))
+		# roots, from the grass down into the soil: a main root and a fork or two
+		var rx := rng.randf_range(4.0, 20.0)
+		while rx < w - 4.0:
+			var ln := rng.randf_range(18.0, 54.0)
+			var root := PackedVector2Array()
+			for q in 6:
+				var k3 := q / 5.0
+				root.append(Vector2(rx + sin(k3 * 4.0 + rx) * 4.0 * k3, 6.0 + ln * k3))
+			b.polyline(root, Color(0.16, 0.1, 0.06, 0.75), 2.6 - 0.8 * float(int(ln) % 2))
+			if ln > 30.0:
+				var fork: Vector2 = root[3]
+				b.polyline(PackedVector2Array([fork, fork + Vector2(rng.randf_range(-12, 12), 10), fork + Vector2(rng.randf_range(-16, 16), 18)]), Color(0.16, 0.1, 0.06, 0.6), 1.4)
+			rx += rng.randf_range(16.0, 38.0)
+		# stones IN the earth: lots of small pebbles near the top, fewer and bigger deeper down;
+		# each outlined, shaded below, lit on top, darker the deeper it sits
+		var n := int(w / 16.0)
+		for i in n:
+			var py := 22.0 + pow(rng.randf(), 1.8) * minf(h - 40.0, 300.0)
+			var big := rng.randf() < 0.12 + py / 1400.0
+			var r := rng.randf_range(9.0, 16.0) if big else rng.randf_range(2.5, 6.0)
+			var p := Vector2(rng.randf_range(r, w - r), py)
+			var depth := clampf(py / 260.0, 0.0, 1.0)
+			var col: Color = (PEBBLES[rng.randi() % PEBBLES.size()] as Color).darkened(0.15 + 0.55 * depth)
+			var rot := rng.randf_range(-0.6, 0.6)
+			var ry := r * rng.randf_range(0.6, 0.85)
+			b.ellipse(p, r + 1.6, ry + 1.6, Color(OUTLINE, 0.85 - 0.4 * depth), rot, 14)
+			b.ellipse(p, r, ry, col, rot, 14)
+			b.ellipse(p + Vector2(0, ry * 0.35), r * 0.8, ry * 0.5, Color(0, 0, 0, 0.22), rot, 12)
+			b.ellipse(p + Vector2(-r * 0.25, -ry * 0.35), r * 0.45, ry * 0.3, Color(1, 1, 1, 0.22 * (1.0 - depth)), rot, 10)
+			if big and rng.randf() < 0.5:
+				b.line(p + Vector2(-r * 0.4, -ry * 0.2), p + Vector2(r * 0.1, ry * 0.3), Color(OUTLINE, 0.5), 1.2)
+		# now and then a FOSSIL: a curled shell, or a little bone (he lives in the Stone Age:
+		# the ground is full of older things)
+		var fx := rng.randf_range(120.0, 420.0)
+		while fx < w - 40.0:
+			var fp := Vector2(fx, rng.randf_range(70.0, minf(h - 40.0, 200.0)))
+			var fcol := Color("cdbf9f").darkened(0.35 + 0.3 * clampf(fp.y / 260.0, 0.0, 1.0))
+			if rng.randf() < 0.55:
+				var sp := PackedVector2Array()
+				for q in 22:
+					var ka := q / 21.0
+					sp.append(fp + Vector2.from_angle(ka * TAU * 1.6) * (1.0 + ka * 9.0))
+				b.ellipse(fp, 11.0, 10.0, Color(OUTLINE, 0.55), 0.0, 14)
+				b.ellipse(fp, 9.5, 8.6, fcol, 0.0, 14)
+				b.polyline(sp, fcol.darkened(0.45), 1.6)
+			else:
+				var ang := rng.randf_range(-0.5, 0.5)
+				var d := Vector2.from_angle(ang) * 12.0
+				b.line(fp - d, fp + d, Color(OUTLINE, 0.6), 6.0)
+				b.line(fp - d, fp + d, fcol, 3.6)
+				for e in [fp - d, fp + d]:
+					b.circle(e + Vector2(0, -2.5), 3.4, fcol, 8)
+					b.circle(e + Vector2(0, 2.5), 3.4, fcol, 8)
+			fx += rng.randf_range(380.0, 760.0)
+		# a few little crystals deep in the soil (they glow in the dark: draw_turf_glow)
+		var cx2 := rng.randf_range(200.0, 600.0)
+		while cx2 < w - 30.0:
+			var cp := Vector2(cx2, rng.randf_range(90.0, minf(h - 30.0, 220.0)))
+			var ci := rng.randi() % CRYSTALS.size()
+			var ccol: Color = CRYSTALS[ci]
+			for j in 3:
+				var tilt := (j - 1) * 0.45
+				var tip := cp + Vector2.from_angle(-PI * 0.5 + tilt) * (12.0 - absf(j - 1) * 4.0)
+				b.tri(cp + Vector2(-3.0, 0).rotated(tilt), tip, cp + Vector2(3.0, 0).rotated(tilt), ccol.darkened(0.25))
+				b.line(cp, tip, ccol.lightened(0.35), 1.0)
+			crystals.append([cp, ci])
+			cx2 += rng.randf_range(500.0, 900.0)
+		# a soft shadow tucked under the lip of moss, so the grass stands out
+		var sh0 := Color(0.03, 0.02, 0.01, 0.55)
+		var sh1 := Color(0.03, 0.02, 0.01, 0.0)
+		b.quad(Vector2(0, 6), Vector2(w, 6), Vector2(w, 20), Vector2(0, 20), sh0, PackedColorArray([sh0, sh0, sh1, sh1]))
 		# the cliff faces at both ends, with roots dangling off them
 		for side in [0.0, w]:
 			var s := -1.0 if side == 0.0 else 1.0

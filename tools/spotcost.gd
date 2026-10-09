@@ -6,7 +6,7 @@ extends Node
 ## on screen.  args: names from SPOTS (default all), dig (hold DOWN + HIT there)
 const SPOTS := {
 	"start": Vector2(400, 590), "woods": Vector2(3000, 590), "mountain": Vector2(6200, 280),
-	"mtdeep": Vector2(7000, 640), "steppe": Vector2(12150, 600), "dig": Vector2(15020, 640),
+	"mtdeep": Vector2(7000, 640), "steppe": Vector2(12150, 600), "herd": Vector2(13300, 590), "dig": Vector2(15020, 640),
 	"hollows": Vector2(15550, 2100), "graveyard": Vector2(15400, 590), "canyon": Vector2(21000, 590),
 	"cave": Vector2(36240, 700), "end": Vector2(33000, 590),
 }

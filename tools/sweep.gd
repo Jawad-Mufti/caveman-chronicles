@@ -3,7 +3,7 @@ extends "res://tools/harness.gd"
 ## any vine) at each spot and the picture is taken once he has settled.
 ## Run with rendering; PNGs to C:/tmp/shots/sweep_*.
 ##   args: x:y spots (default: the surface every 1600 px, then the underground
-##   and the caves); `step=N` for another spacing along the surface
+##   and the caves); `step=N` for another spacing along the surface; `zoom=N` a close-up
 
 
 func run() -> void:
@@ -13,8 +13,11 @@ func run() -> void:
 	p.give_torch()
 	var spots: Array = []
 	var step := 1600.0
+	var zoom := 0.0                       ## zoom=N: a close-up (0: the game's own view)
 	for a in args:
-		if a.begins_with("step="):
+		if a.begins_with("zoom="):
+			zoom = float(a.substr(5))
+		elif a.begins_with("step="):
 			step = float(a.substr(5))
 		elif a.contains(":"):
 			spots.append(Vector2(float(a.get_slice(":", 0)), float(a.get_slice(":", 1))))
@@ -31,6 +34,8 @@ func run() -> void:
 		await put(at)
 		p.hp = p.max_hp
 		await frames(50)
+		if zoom > 0.0:
+			level.cam.zoom = Vector2(zoom, zoom)
 		for c in level.hud.get_children():
 			if c.has_method("dismiss"):
 				c.dismiss()
