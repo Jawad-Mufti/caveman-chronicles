@@ -29,7 +29,7 @@ const ITEMS := [
 	["load", "LOAD", "Wake up where he last saved.", SKY],
 	["abilities", "ABILITIES", "His powers, and the road to unlocking them. He carries TWO.", MAGENTA],
 	["tutorial", "SPECIAL MOVES", "Every move he knows, and how to do it.", LIME],
-	["shelter", "SHELTER", "Build his home from bones. Coming soon.", AMBER],
+	["shelter", "UGU'S CAVE", "His home, between the eras: cook, trade with Kekko, see what he has brought back.", AMBER],
 	["restart", "RESTART LEVEL", "Start this level again from the very beginning. What he has found stays found.", Color("ff8a5c")],
 	["exit", "EXIT GAME", "Close the game. Everything earned is already kept; SAVE first to keep his spot.", Color("d8c8b0")],
 ]
@@ -260,8 +260,6 @@ func _input(event: InputEvent) -> void:
 					_carry()                # a second tap on the chosen one carries it
 				_pick = hit2
 				_show_ability()
-			elif _page == "shelter":
-				_go("main")
 		get_viewport().set_input_as_handled()
 
 
@@ -316,7 +314,10 @@ func _choose_id(id: String) -> void:
 				_confirm = 3.0                # once more to really load
 				return
 			_level().load_spot()
-		"shelter", "abilities", "tutorial":
+		"shelter":
+			if GameState.home_unlocked() and _level() != null:
+				_level().go_home()
+		"abilities", "tutorial":
 			_go(id)
 
 
@@ -411,8 +412,6 @@ func _draw_view() -> void:
 			_draw_main(b)
 		"abilities", "tutorial":
 			_draw_grid(b)
-		"shelter":
-			_draw_shelter(b)
 	# embers over everything, in fire colours with a few magic ones
 	for e in _embers:
 		var hue: float = e[3]
@@ -548,6 +547,8 @@ func _row_off(i: int) -> bool:
 	match ITEMS[i][0]:
 		"load":
 			return GameState.spot.is_empty()
+		"shelter":
+			return not GameState.home_unlocked()
 		"resume":
 			return player != null and player.dead
 	return false
@@ -563,7 +564,7 @@ func _row_note(id: String) -> String:
 		"tutorial":
 			return "%d / %d" % [_unlocked(Abilities.MOVES), Abilities.MOVES.size()]
 		"shelter":
-			return "SOON"
+			return "" if GameState.home_unlocked() else "LOCKED"
 		"restart", "exit":
 			return "press twice" if _confirm > 0.0 and ITEMS[_sel][0] == id else ""
 	return ""
@@ -595,7 +596,7 @@ func _card_note(id: String) -> String:
 		"tutorial":
 			return "%d of %d moves learned." % [_unlocked(Abilities.MOVES), Abilities.MOVES.size()]
 		"shelter":
-			return "Bones gathered: %d" % GameState.bones
+			return ("Bones gathered: %d. Walk in!" % GameState.bones) if GameState.home_unlocked() else "Drive Old Scar off (finish Level 2) to open it."
 	return ""
 
 
@@ -913,52 +914,6 @@ func _symbol_tutorial(b: Batch, c: Vector2, r: float, col: Color, t: float) -> v
 
 
 
-## The shelter: just a dream for now — the outline of a hut, in bones.
-func _draw_shelter(b: Batch) -> void:
-	_campfire(b, Vector2(640, 690), 0.8)
-	var c := Vector2(380, 380)
-	for s in [-1.0, 1.0]:
-		var pts := PackedVector2Array()
-		for i in 9:
-			var q := i / 8.0
-			pts.append(c + Vector2(s * (220.0 - q * 200.0), 160.0 - sin(q * PI * 0.5) * 300.0))
-		for i in pts.size() - 1:
-			if i % 2 == 0:
-				b.line(pts[i], pts[i + 1], Color(AMBER, 0.6), 6.0)
-	b.line(c + Vector2(-260, 160), c + Vector2(260, 160), Color(AMBER, 0.4), 4.0)
-	for i in 6:
-		var bx := -200.0 + i * 80.0
-		b.line(c + Vector2(bx - 18, 196), c + Vector2(bx + 18, 196), Color("efe6cf"), 7.0)
-		b.circle(c + Vector2(bx - 20, 192), 5.0, Color("efe6cf"), 8)
-		b.circle(c + Vector2(bx - 20, 200), 5.0, Color("efe6cf"), 8)
-		b.circle(c + Vector2(bx + 20, 192), 5.0, Color("efe6cf"), 8)
-		b.circle(c + Vector2(bx + 20, 200), 5.0, Color("efe6cf"), 8)
-	# the rare finds, on a shelf: found ones in their colours, the rest dark
-	var kinds := Relics.KINDS.keys()
-	for i in kinds.size():
-		var at := _relic_slot(i)
-		var have := int(GameState.relics.get(kinds[i], 0))
-		b.circle(at, 46.0, Color(0, 0, 0, 0.4), 28)
-		if have > 0:
-			var col := Relics.colour(kinds[i])
-			b.circle(at, 44.0 + 3.0 * sin(_t * 3.0 + i), Color(col, 0.18), 28)
-			b.arc(at, 44.0, 0.0, TAU, 32, col, 3.0)
-			Relics.draw_icon(b, kinds[i], at, 24.0, _t + i)
-		else:
-			b.arc(at, 44.0, 0.0, TAU, 32, Color(1, 1, 1, 0.15), 2.0)
-			var sil := Batch.new()
-			Relics.draw_icon(sil, kinds[i], at, 24.0, 0.0)
-			for k in sil.colors.size():
-				sil.colors[k] = Color(0.05, 0.04, 0.05, 0.85)
-			b.points.append_array(sil.points)
-			b.colors.append_array(sil.colors)
-	b.rect(Rect2(740, 548, 470, 10), Color("5e452f"))
-
-
-func _relic_slot(i: int) -> Vector2:
-	return Vector2(820.0 + (i % 3) * 155.0, 270.0 + (i / 3) * 150.0)
-
-
 ## Text drawn straight on the view (titles, names, the cards, hints).
 func _texts() -> void:
 	var f := ThemeDB.fallback_font
@@ -1030,19 +985,6 @@ func _texts() -> void:
 					var label := "PUT IT DOWN" if carried.has(pr[0]) else ("CARRY IT" if carried.size() < Abilities.SLOTS else "CARRY IT (swap)")
 					_centred(tf, label + "   SPACE", CARRY.get_center() + Vector2(0, 7), 18, INK, true)
 			_centred(f, "ARROWS  choose" + ("      SPACE  carry" if _page == "abilities" else "") + "      ESC  back", Vector2(mx, 668), 15, DIM, false)
-		"shelter":
-			_centred(f, "THE SHELTER", Vector2(640, 110), 56, AMBER, true)
-			_centred(f, "Coming soon: build his home from bones — and the rare finds out in the world.", Vector2(640, 150), 19, INK, false)
-			_centred(f, "Bones gathered:  %d" % GameState.bones, Vector2(380, 620), 24, Color("efe6cf"), true)
-			_centred(f, "RARE FINDS", Vector2(975, 205), 24, AMBER, true)
-			var kinds := Relics.KINDS.keys()
-			for i in kinds.size():
-				var have := int(GameState.relics.get(kinds[i], 0))
-				var at := _relic_slot(i)
-				_centred(f, Relics.name_of(kinds[i]) if have > 0 else "?", at + Vector2(0, 66), 13, INK if have > 0 else DIM, false)
-				if have > 1:
-					_centred(f, "x%d" % have, at + Vector2(34, -30), 15, Color.WHITE, true)
-			_centred(f, "any key  back", Vector2(640, 662), 16, DIM, false)
 
 
 func _centred(f: Font, text: String, at: Vector2, size: int, col: Color, shadow: bool) -> void:

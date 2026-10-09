@@ -72,14 +72,6 @@ func _run() -> void:
 	p.global_position = Vector2(r[0], r[1] + 30.0)
 	await wait(18)
 	await shot("relic_moment")
-	# the Shelter page with it on the shelf
-	GameState.add_relic("moonstone")
-	level.open_menu()
-	await get_tree().process_frame
-	var m: CampMenu = get_tree().get_first_node_in_group("camp_menu")
-	m._choose_id("shelter")
-	for i in 30:
-		await get_tree().process_frame
-	await shot("shelter")
+	# (the shelter is its own scene now: tools/homeflow -- shots, shelter/home.tscn -- shot)
 	get_tree().quit()
 

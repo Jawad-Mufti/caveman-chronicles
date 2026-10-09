@@ -43,6 +43,8 @@ static var bag := {}                   ## stones and things he made: id -> how m
 static var world_seed := 0             ## rolled once per save: where the buried things lie (each save digs its own)
 static var spot := {}                  ## where he last SAVED: level (scene path), x, y, torch, title, when
 static var resume := false             ## LOAD: the level about to be built puts him at the spot
+static var away := {}                  ## where he left a level to go HOME (not saved): back there after
+static var from_home := false          ## he is coming back from HOME (the level says so, not "he wakes")
 static var _loaded := false
 
 
@@ -267,9 +269,11 @@ static func save_spot(level: String, at: Vector2, torch: bool, title: String) ->
 ## saved in ({} otherwise).
 static func take_resume(level: String) -> Dictionary:
 	ensure_loaded()
-	var ok := resume and str(spot.get("level", "")) == level
+	var from := away if not away.is_empty() else spot        # back from home, or a LOAD
+	var ok := resume and str(from.get("level", "")) == level
 	resume = false
-	return spot if ok else {}
+	away = {}
+	return from if ok else {}
 
 
 ## Where the save lives. A run of a test tool (any scene under res://tools/,
@@ -285,3 +289,16 @@ static func save_path() -> String:
 			if a.begins_with("res://tools/"):
 				_path = TEST_PATH
 	return _path
+
+
+## HOME, Ugu's Cave (docs/shelter_plan.md): open once Level 2 is finished
+## (Old Scar's fang taken), from the Camp Menu.
+static func home_unlocked() -> bool:
+	ensure_loaded()
+	return trophies.has("sabre_fang")
+
+
+## The era the home has reached: one per finished level (it grows with the game).
+static func home_era() -> int:
+	ensure_loaded()
+	return 2 if trophies.has("sabre_fang") else 1

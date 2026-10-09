@@ -120,7 +120,8 @@ func _build_hud() -> void:
 	if DisplayServer.is_touchscreen_available():
 		hud.add_touch_controls(player)
 	if resumed:
-		hud.say("He wakes where he last saved.", 3.0)
+		hud.say("Back from the cave. Off he goes again!" if GameState.from_home else "He wakes where he last saved.", 3.0)
+		GameState.from_home = false
 	FX.warm_up(self, player.global_position + Vector2(0, -40))      # shaders compile now, not mid-jump
 
 
@@ -140,6 +141,19 @@ func load_spot() -> void:
 	get_tree().paused = false
 	get_tree().change_scene_to_file(path)
 
+
+
+## HOME (the Camp Menu's UGU'S CAVE): off to the cave; leaving it brings him
+## back here, where he stood (not his SAVE spot: that is untouched).
+const HOME := "res://shelter/home.tscn"
+
+
+func go_home() -> void:
+	var at := player.global_position if _standing_safe() else last_safe
+	GameState.away = {"level": scene_file_path, "x": at.x, "y": at.y, "torch": player.has_torch}
+	GameState.save()
+	get_tree().paused = false
+	get_tree().change_scene_to_file(HOME)
 
 ## LOAD: a tunnel he dug is rock again on a new visit. Buried? Lift him
 ## (his capsule) until he is clear.
