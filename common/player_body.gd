@@ -2073,7 +2073,7 @@ func _update_stomp(delta: float) -> void:
 		flip_dir = float(facing)
 		flip_back = false
 		flip_turns = float(stomp_level)
-		flip_len = Stomp.CHARGE[stomp_level]
+		flip_len = Stomp.CHARGE[stomp_level] if lr == 0 else Stomp.DASH_CHARGE[stomp_level]
 		flip_t = flip_len
 		_ghosts.clear()
 		_flipped = true
@@ -2091,7 +2091,7 @@ func _update_stomp(delta: float) -> void:
 			_stomp_t += delta
 			# hanging in the air: a little lift, then still
 			velocity = Vector2(0.0, -70.0 if _stomp_t < 0.08 else 0.0)
-			if _stomp_t >= Stomp.CHARGE[stomp_level]:
+			if _stomp_t >= (Stomp.CHARGE[stomp_level] if stomp_dir == 0 else Stomp.DASH_CHARGE[stomp_level]):
 				stomp_state = "dive" if stomp_dir == 0 else "dash"
 				_stomp_t = 0.0
 				flip_t = 0.0

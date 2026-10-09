@@ -119,8 +119,8 @@ func _run() -> void:
 		await put(Vector2(8840, 160))
 		var r5: Dictionary = await dash(1, true)
 		var ty: float = r5["y"] - 38.0
-		var tx := p.global_position.x + 40.0      # the tunnel he drilled, just ahead of where the dash ran out
-		var tunnel := t.is_inside(Vector2(tx, ty)) and not t.is_solid(Vector2(tx, ty)) and tx > 9120.0
+		var tx := 8840.0 + float(r5["went"]) * 0.6        # the tunnel he drilled: in the middle of the span he dashed
+		var tunnel := t.is_inside(Vector2(tx, ty)) and not t.is_solid(Vector2(tx, ty)) and tx > 8980.0
 		report("drill: through the mountain's rock", r5["dashed"] and r5["went"] > 250.0 and tunnel, "%s, drilled tunnel at x %.0f %s" % [str(r5), tx, tunnel])
 	if all or args.has("flip"):
 		await put(Vector2(500, 600))

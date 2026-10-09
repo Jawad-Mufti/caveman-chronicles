@@ -297,7 +297,14 @@ func _standing_safe() -> bool:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if (event as InputEventKey).physical_keycode in [KEY_ESCAPE, KEY_TAB, KEY_M]:
+		var key := (event as InputEventKey).physical_keycode
+		if key in [KEY_EQUAL, KEY_KP_ADD]:
+			_look_zoom(1.25)
+		elif key in [KEY_MINUS, KEY_KP_SUBTRACT]:
+			_look_zoom(1.0 / 1.25)
+		elif key in [KEY_0, KEY_KP_0]:
+			_look_zoom(0.0)
+		elif key in [KEY_ESCAPE, KEY_TAB, KEY_M]:
 			open_menu(not has_checkpoint)     # dead for good: the menu has RESTART
 
 
@@ -339,7 +346,19 @@ func apply_view(rect: Rect2 = Rect2()) -> void:
 	if cam == null:
 		return
 	var screen := get_viewport().get_visible_rect().size
-	var z := GameState.view_zoom()
+	var z := GameState.view_zoom() * look_zoom
 	if _view_rect.size != Vector2.ZERO:
 		z = maxf(z, maxf(screen.x / _view_rect.size.x, screen.y / _view_rect.size.y))
 	cam.zoom = Vector2(z, z)
+
+
+## LOOK CLOSER: + / - zoom the camera in and out over the chosen VIEW, to see him
+## (and the world) up close; 0 puts it back. Not saved.
+var look_zoom := 1.0
+
+
+func _look_zoom(k: float) -> void:
+	look_zoom = 1.0 if k == 0.0 else clampf(look_zoom * k, 0.6, 5.0)
+	apply_view()
+	if hud != null:
+		hud.say("Zoom x%.1f   (+ / -, 0 resets)" % look_zoom, 1.2)

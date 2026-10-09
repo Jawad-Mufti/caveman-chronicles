@@ -1,7 +1,7 @@
 extends Node
 ## Test harness (not shipped): Ugu in his moves, at play zoom and close up, on
 ## the open ground by the camp. PNGs to C:/tmp/shots/ugu_*. Run with rendering.
-##   args: zoom=<z> (default 1.0), tag=<name>
+##   args: zoom=<z> (default 1.0), tag=<name>, level1 (Level 1 instead of 2)
 var level: Node
 var p: CaveMan
 var zoom := 1.0
@@ -19,7 +19,7 @@ func _ready() -> void:
 	GameState.reset()
 	process_priority = 100
 	GameState.seen["level2"] = true
-	level = load("res://level2/level2.tscn").instantiate()
+	level = load("res://level1/level1.tscn" if OS.get_cmdline_user_args().has("level1") else "res://level2/level2.tscn").instantiate()
 	add_child(level)
 	_run.call_deferred()
 
@@ -52,11 +52,16 @@ func _run() -> void:
 			start_x = float(a.substr(2))
 	p = level.player
 	await frames(5)
-	p.give_torch()
+	if not OS.get_cmdline_user_args().has("level1"):
+		p.give_torch()
 	p.pick_up_stick()
 	p.invuln = 9999.0
 	level.hud.visible = false
-	level._move_player(Vector2(start_x, 590), 1)
+	if level.has_method("_move_player"):
+		level._move_player(Vector2(start_x, 590), 1)
+	else:
+		p.global_position = Vector2(start_x, 560)
+		p.velocity = Vector2.ZERO
 	await frames(40)
 	if OS.get_cmdline_user_args().has("sun"):
 		GameState.learn("sunfire")

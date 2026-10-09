@@ -18,8 +18,9 @@ const SPEED := [0.0, 1500.0, 2100.0]   ## the plunge
 const RADIUS := [0.0, 110.0, 190.0]    ## what the blast reaches
 const DAMAGE := [0, 3, 6]
 ## The METEOR DASH (T + left/right in the air): sideways, after the same spin.
-const DASH_SPEED := [0.0, 1100.0, 1400.0]
-const DASH_TIME := [0.0, 0.2, 0.27]       ## ~220 px, and ~380 px for the gold one
+const DASH_SPEED := [0.0, 1500.0, 1900.0]    ## (2026-10-10: faster, a touch shorter: Jawad)
+const DASH_TIME := [0.0, 0.135, 0.195]      ## ~200 px, and ~345 px for the gold one (each ~9% shorter than before)
+const DASH_CHARGE := [0.0, 0.13, 0.2]       ## a quicker wind-up than the stomp's spin
 
 const ICE := Color("7df9ff")
 const BLUE := Color("4a7dff")
@@ -39,12 +40,22 @@ class Trail extends Node2D:
 	## Rides with him from the press to the impact: while he spins, sparks
 	## rush IN to him and a ring tightens; while he drops, a comet tail of
 	## light streams up behind him.
+	## THE DASH has its own: a shock ring BANGS out behind him as he launches,
+	## a tapered blade of light (white-hot core, coloured edge) streams flat
+	## behind him, after-images of the ball, sparks flung back, speed lines
+	## above and below, and a puff where it ends.
 	var player: CaveMan
 	var level := 1
 	var dir := 0                   ## 0: the drop; -1/+1: the dash
 	var _t := 0.0
-	var _tail: Array = []          ## recent positions while dropping
-	var _sparks: Array = []        ## [offset, life]
+	var _tail: Array = []          ## recent positions while dropping / dashing
+	var _sparks: Array = []        ## [offset, life]: the charge's sparks rushing in
+	var _flung: Array = []         ## [global pos, vel, life, life0]: the dash's sparks flung back
+	var _bang := -1.0              ## >= 0: the launch ring, growing
+	var _bang_at := Vector2.ZERO
+	var _was := ""
+	var _ghost_in := 0.0
+	var _ghosts: Array = []        ## [global pos, life]
 
 	func _ready() -> void:
 		z_index = 4
@@ -55,29 +66,69 @@ class Trail extends Node2D:
 
 	func _process(delta: float) -> void:
 		_t += delta
-		if player == null or not is_instance_valid(player) or player.stomp_state == "":
-			queue_free()
-			return
-		global_position = player.global_position + Vector2(0, -38)
-		if player.stomp_state == "dive" or player.stomp_state == "dash":
-			_tail.push_front(global_position)
-			if _tail.size() > 12:
-				_tail.pop_back()
+		var alive := player != null and is_instance_valid(player) and player.stomp_state != ""
+		if alive:
+			global_position = player.global_position + Vector2(0, -38)
+			var st := player.stomp_state
+			if st == "dash" and _was != "dash":
+				# LAUNCH: a ring bangs out behind him, a burst of sparks
+				_bang = 0.0
+				_bang_at = global_position
+				for i in (14 if level == 1 else 22):
+					var a := randf_range(-0.9, 0.9) + (PI if dir > 0 else 0.0)
+					_flung.append([global_position, Vector2.from_angle(a) * randf_range(250, 600), 0.4, 0.4])
+			_was = st
+			if st == "dive" or st == "dash":
+				_tail.push_front(global_position)
+				if _tail.size() > (16 if dir != 0 else 12):
+					_tail.pop_back()
+			if st == "dash":
+				# sparks flung back off him, and after-images of the ball
+				for k in (2 if level == 1 else 3):
+					_flung.append([global_position + Vector2(0, randf_range(-14, 14)),
+						Vector2(-dir * randf_range(200, 520), randf_range(-140, 140)), 0.35, 0.35])
+				_ghost_in -= delta
+				if _ghost_in <= 0.0:
+					_ghost_in = 0.025
+					_ghosts.append([global_position, 0.22])
 		for s in _sparks:
 			s[0] = (s[0] as Vector2) * pow(0.0008, delta)     # rushing in
+		for f in _flung:
+			f[0] = (f[0] as Vector2) + (f[1] as Vector2) * delta
+			f[1] = (f[1] as Vector2) * pow(0.02, delta)
+			f[2] = float(f[2]) - delta
+		_flung = _flung.filter(func(f): return float(f[2]) > 0.0)
+		for g in _ghosts:
+			g[1] = float(g[1]) - delta
+		_ghosts = _ghosts.filter(func(g): return float(g[1]) > 0.0)
+		if _bang >= 0.0:
+			_bang += delta
+			if _bang > 0.35:
+				_bang = -1.0
+		if not alive:
+			# the tail drains away, then the trail goes
+			if not _tail.is_empty():
+				_tail.pop_back()
+			if _tail.is_empty() and _flung.is_empty() and _ghosts.is_empty() and _bang < 0.0:
+				if dir != 0 and _was == "dash":
+					FX.burst(get_parent(), global_position, "ring")       # the puff where it ends
+				queue_free()
+				return
 		queue_redraw()
 
 	func _draw() -> void:
 		var b := Batch.new()
 		var col := Stomp.tint(level, _t)
-		if player.stomp_state == "charge":
-			var k := clampf(_t / Stomp.CHARGE[level], 0.0, 1.0)
+		var st := player.stomp_state if player != null and is_instance_valid(player) else ""
+		if st == "charge":
+			var ch: float = Stomp.CHARGE[level] if dir == 0 else Stomp.DASH_CHARGE[level]
+			var k := clampf(_t / ch, 0.0, 1.0)
 			b.arc(Vector2.ZERO, 80.0 * (1.0 - k) + 24.0, 0.0, TAU, 40, Color(col, 0.4 + 0.6 * k), 3.0 + 4.0 * k)
 			for s in _sparks:
 				var p: Vector2 = s[0]
 				b.line(p, p * 0.7, Color(Stomp.tint(level, _t + p.x * 0.01), 0.9), 3.0)
-		else:
-			# the comet: streaks of light up behind him, widest at his back
+		elif dir == 0:
+			# the drop's comet: streaks of light up behind him, widest at his back
 			for i in _tail.size():
 				var q := 1.0 - float(i) / 12.0
 				var p2: Vector2 = (_tail[i] as Vector2) - global_position
@@ -85,22 +136,65 @@ class Trail extends Node2D:
 				b.circle(p2, (16.0 if level == 1 else 24.0) * q, Color(c2, 0.35 * q), 12)
 			for j in 5:
 				var x := (-20.0 + j * 10.0) * (1.0 if level == 1 else 1.6)
-				var a0 := Vector2(x, -30)
-				var a1 := Vector2(x * 0.6, -110.0 - 30.0 * level)
-				if dir != 0:
-					# the dash: the streaks stream out BEHIND him, flat
-					a0 = Vector2(-dir * 30.0, x)
-					a1 = Vector2(-dir * (130.0 + 40.0 * level), x * 0.6)
-				b.line(a0, a1, Color(col, 0.55), 2.0)
+				b.line(Vector2(x, -30), Vector2(x * 0.6, -110.0 - 30.0 * level), Color(col, 0.55), 2.0)
+		else:
+			_draw_dash(b, col)
 		b.draw(self)
+
+	func _draw_dash(b: Batch, col: Color) -> void:
+		var o := global_position
+		var w0 := 26.0 if level == 1 else 36.0
+		# the blade of light: a tapered band along the tail, coloured edge, white core
+		var n := _tail.size()
+		for layer in 2:
+			var w := w0 * (1.0 if layer == 0 else 0.45)
+			for i in n - 1:
+				var q0 := 1.0 - float(i) / n
+				var q1 := 1.0 - float(i + 1) / n
+				var p0: Vector2 = (_tail[i] as Vector2) - o
+				var p1: Vector2 = (_tail[i + 1] as Vector2) - o
+				var c0 := Stomp.tint(level, _t - i * 0.04) if layer == 0 else Color(1, 1, 1)
+				var a := (0.55 if layer == 0 else 0.85) * q0
+				b.quad(p0 + Vector2(0, -w * q0 * 0.5), p1 + Vector2(0, -w * q1 * 0.5), p1 + Vector2(0, w * q1 * 0.5), p0 + Vector2(0, w * q0 * 0.5),
+					Color(c0, a), PackedColorArray([Color(c0, a), Color(c0, a * q1), Color(c0, a * q1), Color(c0, a)]))
+		# after-images of the ball
+		for g in _ghosts:
+			var k := float(g[1]) / 0.22
+			b.circle((g[0] as Vector2) - o, 26.0 * (0.6 + 0.4 * k), Color(col, 0.28 * k), 16)
+		# speed lines above and below, rushing back
+		for j in 6:
+			var y := (-42.0 + j * 16.8) * (1.0 if level == 1 else 1.3)
+			var off := fmod(_t * 900.0 + j * 137.0, 160.0)
+			var x0 := -dir * (30.0 + off)
+			b.line(Vector2(x0, y), Vector2(x0 - dir * (60.0 + 30.0 * level), y), Color(1, 1, 1, 0.5 * (1.0 - off / 160.0)), 2.0)
+		# a hot nose cone in front of him
+		b.circle(Vector2(dir * 24.0, 0), 14.0 + 4.0 * level, Color(1, 1, 1, 0.35), 14)
+		_draw_flung_and_bang(b, col)
+
+	func _draw_flung_and_bang(b: Batch, col: Color) -> void:
+		var o := global_position
+		for f in _flung:
+			var k := float(f[2]) / float(f[3])
+			var p: Vector2 = (f[0] as Vector2) - o
+			var v: Vector2 = f[1]
+			b.line(p, p - v * 0.03, Color(Stomp.tint(level, _t + p.x * 0.01), 0.95 * k), 3.0)
+			b.circle(p, 2.2, Color(1, 1, 0.9, k), 6)
+		if _bang >= 0.0:
+			var k2 := _bang / 0.35
+			var c := _bang_at - o
+			b.arc(c, 20.0 + 110.0 * k2, 0.0, TAU, 32, Color(col, 0.8 * (1.0 - k2)), 6.0 * (1.0 - k2) + 1.0)
+			b.arc(c, 10.0 + 70.0 * k2, 0.0, TAU, 24, Color(1, 1, 1, 0.7 * (1.0 - k2)), 3.0)
 
 	func draw_glow(g) -> void:   # g: the glow layer's Batch
 		var o := global_position
 		var col := Stomp.tint(level, _t)
-		g.draw_circle(o, 34.0 + 12.0 * level, Color(col, 0.25))
+		if player != null and is_instance_valid(player) and player.stomp_state != "":
+			g.draw_circle(o, 34.0 + 12.0 * level, Color(col, 0.25))
 		for i in _tail.size():
-			var q := 1.0 - float(i) / 12.0
+			var q := 1.0 - float(i) / _tail.size()
 			g.draw_circle(_tail[i], 12.0 * q * level, Color(Stomp.tint(level, _t - i * 0.05), 0.3 * q))
+		for f in _flung:
+			g.draw_circle(f[0], 4.0, Color(col, 0.5 * float(f[2]) / float(f[3])))
 
 
 ## ================================================================ BLAST

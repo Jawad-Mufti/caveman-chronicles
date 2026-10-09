@@ -23,10 +23,10 @@ const OLW := 5.0         ## rim width in design units (~2 px on screen)
 const LIGHT := Vector2(0.55, -0.83)
 
 const C_OL := Color("2a211a")
-const C_SKIN := Color("c98d63")     ## warm sun-tanned skin (the design sheet, docs/caveman_design.png)
-const C_SK2 := Color("a46a46")
-const C_HAIR := Color("45302a")      ## dark brown (the sheet's #2A211D, a little lighter: it must read on the night)
-const C_HAIR_HI := Color("6e4c3a")   ## lighter strands in it
+const C_SKIN := Color("c89263")
+const C_SK2 := Color("a67148")
+const C_HAIR := Color("5a2c18")      ## a rich dark chestnut: natural, but warm enough to read on the night
+const C_HAIR_HI := Color("94512a")   ## lighter streaks in it
 ## The head is drawn bigger than life (like most platformer heroes): the face is
 ## what reads from far away. Scaled about the neck, mane, face and topknot together.
 const HEAD_K := 1.2
@@ -40,14 +40,6 @@ const C_WOOD := Color("846141")
 const C_WOOD2 := Color("5a4029")
 const C_EYE := Color("ece3cd")
 const C_MOUTH := Color("33211a")
-## The sheet's palette for his clothes: fur, leather, cord, stone.
-const C_FUR_DARK := Color("7a4b36")
-const C_FUR := Color("b27a52")
-const C_FUR_LIGHT := Color("d9b08e")
-const C_STONE := Color("8d9196")
-const C_CORD := Color("3b2a22")
-const C_LEATHER := Color("8a5a3a")
-const C_FANG := Color("efe6d2")
 var _skin := C_SKIN      ## flushes toward ember while he is winding up the fire
 
 ## The mane: a wild shock of spikes swept back off his head, [angle deg, length]
@@ -496,10 +488,7 @@ func _paint() -> void:
 		_ln(Vector2(4, -100), Vector2(4, -74), gl, 2.0, true)
 		for yy in [-94.0, -86.0, -78.0]:
 			_ln(Vector2(-6, yy), Vector2(14, yy), gl, 2.0, true)
-	if costume >= 2:
-		_fur_tunic()
 	_costume_chest()
-	_fang_necklace()
 
 	# far arm: pumps against the legs when running
 	var back_sh := Vector2(-42, -118)
@@ -513,13 +502,19 @@ func _paint() -> void:
 		_arm(back_sh, fa[0], fa[1], 10.0, true)
 
 	if costume >= 2:
-		_tunic_skirt(speed_k)
+		_hide_loincloth(speed_k)
+		_seat_flames()
 	else:
 		for i in 6:
 			var lx := -21.0 + i * 10.0
-			var ang := (i - 2.5) * 0.11 - speed_k * 0.18 + _flutter(i * 1.1 + 6.0, 1.0).x * 0.045        # leaves in the air
+			var ang := (i - 2.5) * 0.11 + sin(anim_t * 2.2 + i) * 0.045 - speed_k * 0.18
 			_leaf(Vector2(lx, -70), 29.0 + (3.0 if i % 2 == 1 else 0.0), 8.0, ang, C_LEAF2 if i % 2 == 1 else C_LEAF)
-	_rope_belt()
+	var belt := _quad(Vector2(-25, -71), Vector2(4, -66), Vector2(33, -71), 10, true)
+	_pl(belt, C_OL, 12.0, true)
+	_pl(belt, C_VINE, 7.0, true)
+	for i in 7:
+		var bx := -20.0 + i * 8.0
+		_ln(Vector2(bx - 2, -73), Vector2(bx + 2, -68), C_WOOD2, 2.0, true)
 	for i in berries:
 		_grapes(Vector2(-30.0 + i * 11.0, -80), 0.5)
 	_costume_belt()
@@ -528,11 +523,18 @@ func _paint() -> void:
 
 	# ---- head: a warm, cheeky face (he scowls only in a fight or a rage)
 	_stm(head_xf)
-	# ears, half in the mane
-	_dot(Vector2(-22, -151), 7.0, _skin, 3.0)
-	_dot(Vector2(30, -151), 7.0, _skin, 3.0)
-	_cc(Vector2(-24, -151), 2.6, C_SK2)
-	_cc(Vector2(32, -151), 2.6, C_SK2)
+	# big ears that stick out
+	_dot(Vector2(-23, -150), 9.0, _skin, 4.0)
+	_dot(Vector2(31, -150), 9.0, _skin, 4.0)
+	# a little curved fang hanging from that ear, swinging with him
+	var ear_sw := clampf(_hair_off.x * 0.04, -0.6, 0.6) + sin(anim_t * 3.0) * 0.08
+	var e0 := Vector2(33, -142)
+	var dn := Vector2(sin(ear_sw), cos(ear_sw))
+	var sd := Vector2(dn.y, -dn.x)
+	_cc(e0, 2.2, C_OL)
+	_shape(PackedVector2Array([e0 + dn * 2.0 - sd * 3.2, e0 + dn * 2.0 + sd * 3.2, e0 + dn * 9.0 + sd * 1.6, e0 + dn * 13.0 - sd * 1.5]), Pal.KEY_BONE, 2.0)
+	_cc(Vector2(-26, -150), 3.5, C_SK2)
+	_cc(Vector2(34, -150), 3.5, C_SK2)
 	# his mood, for the funny faces
 	_idle_t = _idle_t + get_process_delta_time() if on_floor and speed_k < 0.05 and attacking <= 0.0 and not talking and not dead and fury < 0.0 else 0.0
 	var mood := ""
@@ -544,8 +546,8 @@ func _paint() -> void:
 		mood = "ooh"
 	elif _idle_t > 5.0 and fmod(_idle_t - 5.0, 9.0) < 1.6:
 		mood = "yawn"
-	_jaw_head()
-	_short_beard()
+	_oval(Vector2(4, -154), 24.0, 27.0, _skin)
+	_fur(PackedVector2Array(BEARD), FUR, C_HAIR.lightened(0.18), 0.6)
 	_costume_face()
 	if skin == "war_paint":
 		for k in 3:
@@ -585,8 +587,10 @@ func _paint() -> void:
 		_mouth()                               # teeth gritted: effort
 	else:
 		_smile()
-	# the moustache over the lip (over every mouth), then the nose
-	_moustache()
+	# rosy cheeks
+	for ch in [Vector2(-15, -140), Vector2(24, -140)]:
+		_cc(ch, 5.0, Color(0.93, 0.45, 0.42, 0.26))
+	# a button nose
 	_nose()
 	var blink := fmod(anim_t, 3.7) < 0.12
 	if dead:
@@ -600,15 +604,16 @@ func _paint() -> void:
 			_oval(ec, 7.5, 7.0, C_EYE, 3.0)
 			_cc(ec + Vector2(1.5 + sin(anim_t * 23.0), 1.0), 2.2, Color("1a0f08"))
 	else:
+		# one eye a bit bigger than the other: goofy, and his own
 		var shut := blink or mood == "yawn"
-		_eye(Vector2(-7, -150), wince, shut or mood == "strain", 0.8, -1.0)
-		_eye(Vector2(15, -150), wince, shut, 0.84, 1.0)
+		_eye(Vector2(-8, -149), wince, shut or mood == "strain", 0.96, -1.0)
+		_eye(Vector2(16, -150), wince, shut, 1.08, 1.0)
 		if mood == "strain":
 			# sweat flying off his brow
 			var q := fmod(anim_t * 1.8, 1.0)
 			_cc(Vector2(-22.0 - q * 10.0, -166.0 + q * 18.0), 3.2 * (1.0 - q * 0.5), Color("bfe6ff", 0.9 * (1.0 - q)))
-	# brows: heavy and angled down at rest (the sheet's determined scowl); lower still when it's on
-	var inner := 8.0 if wince else 4.0
+	# brows: soft and a little raised at rest (friendly); a V only when it's on
+	var inner := 8.0 if wince else -1.5
 	if attacking > 0.0 or slam_charge >= 0.0:
 		inner = 6.0
 	if fury >= 0.0:
@@ -637,8 +642,10 @@ func _paint() -> void:
 	elif mood == "ooh" or mood == "yawn":
 		inner = -5.0
 	_brows(inner)
-	_hair_fringe()
+	_fur(PackedVector2Array(FRINGE), FUR, C_HAIR, 0.6)
 	_stm(face_xf)
+	if not skin in ["wolf_hood", "bear_cloak"]:
+		_topknot()
 	if skin == "war_paint":
 		_rc(Rect2(-12, -161, 36, 3.5), Pal.EMBER)
 	_costume_head()
@@ -1107,29 +1114,19 @@ func _costume_back() -> void:
 	match skin:
 		"wolf_hood":
 			# the wolf's pelt hanging down his back from the hood
-			# (it streams out behind him in the air: the lower, the freer)
-			_shape(PackedVector2Array([Vector2(-20, -176), Vector2(-40, -150) + _flutter(20.0, 0.5), Vector2(-54, -110) + _flutter(21.0, 0.9),
-				Vector2(-56, -74) + _flutter(22.0, 1.5), Vector2(-40, -80) + _flutter(23.0, 1.3), Vector2(-30, -120) + _flutter(24.0, 0.6),
-				Vector2(-8, -160)]), Pal.WOLF, 3.5)
+			_shape(PackedVector2Array([Vector2(-20, -176), Vector2(-40, -150), Vector2(-54, -110), Vector2(-56, -74), Vector2(-40, -80),
+				Vector2(-30, -120), Vector2(-8, -160)]), Pal.WOLF, 3.5)
 			for k in 4:
-				var fk := _flutter(21.0 + k * 0.5, 0.6 + k * 0.2)
-				_ln(Vector2(-46 + k * 3, -120 + k * 10) + fk, Vector2(-52 + k * 2, -112 + k * 10) + fk, Pal.WOLF_DARK, 2.5, true)
+				_ln(Vector2(-46 + k * 3, -120 + k * 10), Vector2(-52 + k * 2, -112 + k * 10), Pal.WOLF_DARK, 2.5, true)
 		"bear_cloak":
-			# a heavy bear-fur cloak over the shoulders, down to the knees: it billows
-			# out behind him when he runs, lifts in a fall, the hem rippling
-			var hem := [Vector2(-36, -30), Vector2(-47, -27), Vector2(-58, -29), Vector2(-70, -26)]
-			var moved: Array = []
-			for k in hem.size():
-				moved.append((hem[k] as Vector2) + _flutter(30.0 + k * 0.9, 1.6))
-			var cloak := PackedVector2Array([Vector2(-46, -134), Vector2(-16, -138), Vector2(-14, -100), Vector2(-26, -64) + _flutter(28.0, 0.7)])
-			for m in moved:
-				cloak.append(m)
-			cloak.append_array([Vector2(-64, -70) + _flutter(33.0, 1.0), Vector2(-58, -112) + _flutter(34.0, 0.4)])
-			_shape(cloak, Color("6b4a2e"), 3.5)
+			# a heavy bear-fur cloak over the shoulders, down to the knees
+			# the cloak hangs down his back to the knees, swaying a little
+			var fl := sin(anim_t * 2.0) * 2.0
+			_shape(PackedVector2Array([Vector2(-46, -134), Vector2(-16, -138), Vector2(-14, -100), Vector2(-26, -64), Vector2(-36, -30 + fl),
+				Vector2(-70, -26 + fl), Vector2(-64, -70 + fl), Vector2(-58, -112)]), Color("6b4a2e"), 3.5)
 			for k in 6:
-				var q := k / 5.0
-				var at: Vector2 = (moved[0] as Vector2).lerp(moved[moved.size() - 1], q)
-				_ln(at + Vector2(0, -10), at + Vector2(-3.0, 2.0) + _flutter(36.0 + k, 0.5), Color("45301c"), 2.5, true)
+				var x := -66.0 + k * 5.0
+				_ln(Vector2(x, -36 + fl), Vector2(x - 3.0, -24 + fl), Color("45301c"), 2.5, true)
 
 
 func _costume_chest() -> void:
@@ -1272,7 +1269,6 @@ func _leg(hip: Vector2, foot: Vector2, bend: float) -> void:
 	var straight := hip.lerp(foot, 0.5) + Vector2(1.5, 0)
 	var knee := straight.lerp(_knee(hip, foot, 36.0, 36.0), bend)
 	_limb([hip, knee, foot], [[25.0, 17.0], [18.0, 12.0]])     # a big thigh, a strong calf, a slim ankle
-	_calf_wrap(knee, foot)
 	# a big bare foot, three toes at the front
 	_oval(foot + Vector2(6, 2), 19.0, 8.5, _skin)
 	for tx in [15.0, 20.0]:
@@ -1316,9 +1312,9 @@ func _eye(c: Vector2, wince: bool, blink: bool, s := 1.0, side := 1.0) -> void:
 	var ry := 0.8 if blink else 5.6 * s
 	_oval(c, 6.6 * s, ry, C_EYE, 2.0)
 	if not blink:
-		# warm brown eyes with an amber glint (the sheet)
-		_cc(c + Vector2(2.0, 0.6) * s, 3.9 * s, Color("4a2a14"))
-		_cc(c + Vector2(2.0, 0.6) * s, 3.1 * s, Color("8a5426"))
+		# warm amber eyes: his own
+		_cc(c + Vector2(2.0, 0.6) * s, 3.9 * s, Color("8a4f12"))
+		_cc(c + Vector2(2.0, 0.6) * s, 3.1 * s, Color("d18a2a"))
 		_cc(c + Vector2(2.2, 0.8) * s, 1.8 * s, Color("1a0f08"))
 		_cc(c + Vector2(0.9, -1.0) * s, 1.3 * s, Color.WHITE)
 		_cc(c + Vector2(3.4, 2.0) * s, 0.6 * s, Color.WHITE)     # a second sparkle: lively eyes
@@ -1328,273 +1324,20 @@ func _eye(c: Vector2, wince: bool, blink: bool, s := 1.0, side := 1.0) -> void:
 		_ln(outer, outer + Vector2(3.0 * side, -2.5) * s, C_OL, 2.0, true)
 
 
-## The hide he wears, by costume: [fur, its darker tone].
-func _hide_colours() -> Array:
-	match skin:
-		"wolf_pelt", "wolf_hood":
-			return [Pal.WOLF, Pal.WOLF_DARK]
-		"ember_paint":
-			return [Color("9a4a22"), Color("4a2414")]
-		"bear_cloak":
-			return [Color("6b4a2e"), Color("45301c")]
-		"firekeeper":
-			return [Color("c49a64"), Color("8a6a3c")]
-	return [C_FUR_DARK, C_FUR_DARK.darkened(0.4)]
-
-
-## The fur tunic (Level 2 on, the design sheet): over his FAR shoulder only, a
-## strap running down across the chest to the near hip, lighter fur along its
-## edge. (The skirt below the belt is _tunic_skirt.)
-func _fur_tunic() -> void:
-	var cols := _hide_colours()
-	var fur: Color = cols[0]
-	var dark: Color = cols[1]
-	var body := PackedVector2Array([Vector2(-52, -124), Vector2(-42, -136), Vector2(-26, -137), Vector2(-6, -122), Vector2(16, -108),
-		Vector2(36, -94), Vector2(46, -86), Vector2(42, -70), Vector2(-24, -68), Vector2(-42, -88), Vector2(-50, -108)])
-	_shape(body, fur, 2.5)
-	# the fur in it: short strokes in the darker tone
-	for k in 12:
-		var p := Vector2(-38.0 + (k % 4) * 16.0 + (k / 4) * 6.0, -118.0 + (k / 4) * 16.0)
-		if p.y < -122.0 + (p.x + 26.0) * 0.6:
-			continue                            # (above the strap: bare chest)
-		_ln(p, p + Vector2(-3, 7), Color(dark, 0.7), 2.0, true)
-	# the trim along the strap's edge: a lighter band, tufted
-	var a := Vector2(-28, -136)
-	var b := Vector2(47, -87)
-	_taper(a, b, 9.0, 8.0, C_FUR_LIGHT.darkened(0.12))
-	_taper(a + Vector2(0, -1), b + Vector2(0, -1), 6.0, 5.0, C_FUR_LIGHT)
-	var nrm := (b - a).normalized().orthogonal()
-	for k in 7:
-		var q := a.lerp(b, (k + 0.5) / 7.0)
-		_pg(PackedVector2Array([q - (b - a).normalized() * 3.0, q + (b - a).normalized() * 3.0, q + nrm * 7.0 + (b - a).normalized() * 1.0 + _flutter(k * 1.4 + 3.0, 0.45)]), C_FUR_LIGHT)
-
-
-## The tunic's skirt below the belt: the hide, swinging, a jagged lighter fur hem.
-func _tunic_skirt(k: float) -> void:
-	var cols := _hide_colours()
-	var fur: Color = cols[0]
-	var dark: Color = cols[1]
-	var sw := -k * 4.0
-	var hem := [Vector2(42, -38), Vector2(32, -30), Vector2(22, -36), Vector2(12, -27), Vector2(2, -34), Vector2(-8, -26),
-		Vector2(-17, -33), Vector2(-25, -28), Vector2(-30, -40)]
-	# each point of the hem moves in the air on its own (_flutter): the hem ripples,
-	# lifts behind him in a run, flies up in a fall
-	var moved: Array = []
-	for i in hem.size():
-		moved.append((hem[i] as Vector2) + Vector2(sw, 0) + _flutter(i * 0.9, 1.0) * Vector2(1.0, 0.8))
-	var pts := PackedVector2Array([Vector2(-28, -76), Vector2(38, -76)])
-	for m in moved:
-		pts.append(m)
-	_shape(pts, fur, 2.5)
-	for i in 6:
-		var top := Vector2(-20.0 + i * 10.0, -64)
-		var bend := _flutter(i * 1.3 + 2.0, 0.5)
-		_ln(top + bend * 0.3, top + Vector2(-2, 14) + bend, Color(dark, 0.65), 2.0, true)
-	# the jagged lighter fur at the hem, each tuft flicking a beat behind
-	for i in moved.size() - 1:
-		var p0: Vector2 = moved[i]
-		var p1: Vector2 = moved[i + 1]
-		var mid := p0.lerp(p1, 0.5) + _flutter(i * 1.7 + 5.0, 0.6)
-		_pg(PackedVector2Array([p0 + Vector2(0, -7), p1 + Vector2(0, -7), mid + Vector2(0, 4)]), C_FUR_LIGHT)
-	_seat_flames()
-
-
-## THE AIR on everything loose (hair, fur, cloth, cords): how far a point `reach`
-## (0..1: a root barely, a tip fully) is pushed this frame. It drags behind him
-## as he runs and streams up as he falls (the hair spring, _hair_off), and it
-## flutters: faster and wider the faster he goes, a soft breeze when he stands.
-## `i` gives each point its own phase, so the motion ripples along a hem.
-func _flutter(i: float, reach: float) -> Vector2:
-	if dead:
-		return Vector2.ZERO
-	var spd := clampf(velocity.length() / SPEED, 0.0, 1.8)
-	var f := sin(anim_t * (6.0 + 7.0 * spd) + i * 1.7) + 0.45 * sin(anim_t * (11.0 + 9.0 * spd) + i * 2.9)
-	var g := cos(anim_t * (5.0 + 6.0 * spd) + i * 2.3)
-	return (_hair_off * 0.5 + Vector2(f * 2.4, g * 1.3) * (0.3 + 1.2 * spd)) * reach
-
-
-## A necklace of pale fangs on a dark cord (the design sheet), in every costume.
-func _fang_necklace() -> void:
-	var cord := PackedVector2Array()
-	for i in 11:
-		var q := i / 10.0
-		cord.append(Vector2(lerpf(-16.0, 26.0, q), -125.0 + sin(q * PI) * 12.0))
-	_pl(cord, C_CORD, 2.6, true)
-	for i in [2, 3, 4, 5, 6, 7, 8]:
-		var p: Vector2 = cord[i]
-		var len := 9.0 if i in [4, 5, 6] else 7.0
-		var lean := (float(i) - 5.0) * 0.08
-		var tip := p + Vector2(lean * len, len) + _flutter(i * 0.8 + 11.0, 0.35)          # the fangs swing on the cord
-		_shape(PackedVector2Array([p + Vector2(-2.2, 0), p + Vector2(2.2, 0), tip]), C_FANG, 1.2)
-
-
-## A twisted rope belt, knotted at the front, a small leather pouch on the hip.
-func _rope_belt() -> void:
-	var belt := _quad(Vector2(-27, -72), Vector2(5, -67), Vector2(36, -72), 10, true)
-	_pl(belt, C_FUR.darkened(0.45), 10.0, true)
-	_pl(belt, C_FUR.lightened(0.05), 6.5, true)
-	for i in range(1, belt.size() - 1):
-		var p: Vector2 = belt[i]
-		_ln(p + Vector2(-2.5, -3), p + Vector2(2.5, 3), C_FUR.darkened(0.4), 1.6, true)
-	# the knot, its ends hanging
-	_dot(Vector2(10, -68), 4.5, C_FUR, 1.5)
-	_ln(Vector2(9, -66), Vector2(7, -55) + _flutter(8.0, 0.9), C_FUR.darkened(0.15), 3.0, true)       # the ends swing
-	_ln(Vector2(12, -66), Vector2(15, -57) + _flutter(9.3, 0.9), C_FUR.darkened(0.15), 3.0, true)
-	# the pouch on the hip
-	_shape(PackedVector2Array([Vector2(-24, -70), Vector2(-8, -70), Vector2(-6, -56), Vector2(-15, -50), Vector2(-25, -56)]), C_LEATHER, 2.0)
-	_shape(PackedVector2Array([Vector2(-25, -70), Vector2(-7, -70), Vector2(-9, -62), Vector2(-23, -62)]), C_LEATHER.darkened(0.15), 1.5)
-	_cc(Vector2(-16, -63), 1.6, C_FANG)
-
-
-## Leather wraps round the forearm (the design sheet): a band near the wrist, cords across it.
-func _forearm_wrap(el: Vector2, hd: Vector2, w: float) -> void:
-	var a := el.lerp(hd, 0.4)
-	var b := el.lerp(hd, 0.82)
-	_taper(a, b, w + 3.0, w + 2.0, C_LEATHER.darkened(0.25))
-	_taper(a, b, w, w - 1.0, C_LEATHER)
-	var d := (b - a)
-	var n := d.normalized().orthogonal() * (w * 0.5)
-	for k in 4:
-		var c := a.lerp(b, (k + 0.5) / 4.0)
-		_ln(c - n - d * 0.06, c + n + d * 0.06, C_LEATHER.darkened(0.35), 1.6, true)
-
-
-## Fur wrapped round the calf and ankle, tied with cord (the design sheet).
-func _calf_wrap(knee: Vector2, foot: Vector2) -> void:
-	var a := knee.lerp(foot, 0.42)
-	var b := knee.lerp(foot, 0.92)
-	_taper(a, b, 24.0, 19.0, C_FUR_DARK.darkened(0.2))
-	_taper(a, b, 21.0, 16.0, C_FUR_DARK)
-	var d := (b - a).normalized()
-	var n := d.orthogonal()
-	# a ragged fur top edge
-	for k in 4:
-		var p := a + n * (-9.0 + k * 6.0)
-		_pg(PackedVector2Array([p - n * 3.0, p + n * 3.0, p - d * 5.0 + _flutter(k * 1.9 + knee.x * 0.05, 0.4)]), C_FUR)
-	# cord ties
-	for t in [0.35, 0.75]:
-		var c := a.lerp(b, t)
-		_ln(c - n * 11.0, c + n * 11.0 + d * 2.0, C_CORD, 2.2, true)
-
-
-## His head (the design sheet): a broad skull, cheekbones, a strong squared jaw.
-func _jaw_head() -> void:
-	var head := _smooth([Vector2(-20, -170), Vector2(-14, -182), Vector2(4, -186), Vector2(22, -182), Vector2(29, -170),
-		Vector2(30, -152), Vector2(28, -138), Vector2(22, -127), Vector2(10, -121), Vector2(-2, -121), Vector2(-15, -127),
-		Vector2(-21, -138), Vector2(-22, -152)], 3)
-	_shape(head, _skin, 3.0)
-	# the cheekbones catch the light; the hollows under them in shade
-	_oval(Vector2(-12, -146), 6.0, 3.0, Color(1, 0.92, 0.8, 0.14), 0.0, -0.2)
-	_oval(Vector2(22, -146), 6.0, 3.0, Color(1, 0.92, 0.8, 0.14), 0.0, 0.2)
-
-
-## A short, thick beard round the jaw and chin, framing the mouth, with strands in it.
-func _short_beard() -> void:
-	# along the jaw only (the cheeks stay bare), fullest at the chin
-	var beard := C_HAIR.lerp(C_FUR_DARK, 0.35)
-	var outer := [Vector2(-22, -146), Vector2(-21, -136), Vector2(-15, -126), Vector2(-6, -120), Vector2(4, -118),
-		Vector2(14, -120), Vector2(23, -126), Vector2(29, -136), Vector2(30, -146)]
-	var inner := [Vector2(25, -145), Vector2(22, -136), Vector2(14, -130), Vector2(4, -128), Vector2(-6, -130), Vector2(-14, -136), Vector2(-17, -145)]
-	var pts := PackedVector2Array()
-	for p in outer:
-		pts.append(p)
-	for p in inner:
-		pts.append(p)
-	_shape(pts, beard, 2.0)
-	# a few strands, and a ragged lower edge at the chin
-	for k in 5:
-		var x := -10.0 + k * 7.0
-		_ln(Vector2(x, -127 + absf(x - 4.0) * 0.2), Vector2(x - 1.0, -121 + absf(x - 4.0) * 0.25), Color(C_HAIR_HI, 0.8), 1.5, true)
-	for k in 4:
-		var bx := -6.0 + k * 7.0
-		_pg(PackedVector2Array([Vector2(bx - 3, -120), Vector2(bx + 3, -120), Vector2(bx, -115)]), beard)
-
-
-## The moustache over the upper lip, its ends running down into the beard.
-func _moustache() -> void:
-	_shape(PackedVector2Array([Vector2(-11, -132), Vector2(-9, -140), Vector2(-1, -145), Vector2(4, -143.5), Vector2(9, -145),
-		Vector2(17, -140), Vector2(19, -132), Vector2(15, -136), Vector2(9, -139.5), Vector2(4, -139), Vector2(-1, -139.5), Vector2(-7, -136)]), C_HAIR, 2.0)
-	_ln(Vector2(-4, -142), Vector2(2, -143), C_HAIR_HI, 1.4, true)
-	_ln(Vector2(7, -143), Vector2(13, -142), C_HAIR_HI, 1.4, true)
-
-
-## The front of his hair: ONE shape, the cap over the crown flowing straight
-## into curved locks that fall over the forehead and the temples (no pieces
-## stuck on), each lock tapering to a tip that flicks to the side; strands of
-## light follow the curve of each lock. Tufts curl up off the crown. (The big
-## mane behind is _mane.)
-## Locks, right temple to left: [root right x, root left x, tip, bend].
-const FRINGE_LOCKS := [[32.0, 23.0, Vector2(31, -155), 4.0], [24.0, 15.0, Vector2(21, -163.5), -3.0],
-	[16.0, 6.0, Vector2(9, -162), -4.0], [7.0, -3.0, Vector2(0, -164), -3.0], [-2.0, -12.0, Vector2(-11, -162), -4.0],
-	[-11.0, -24.0, Vector2(-22, -154), -3.0]]          ## (2026-10-10: shorter, the forehead shows)
-const FRINGE_ROOT_Y := -171.0
-
-func _hair_fringe() -> void:
-	# the cap: from the left temple up over the crown to the right temple
-	var pts := _smooth([Vector2(-25, -160), Vector2(-25, -173), Vector2(-17, -186), Vector2(-2, -192), Vector2(15, -191),
-		Vector2(28, -183), Vector2(34, -170), Vector2(33, -160)], 3)
-	# keep only the arc (the smoothing closes the loop: drop the bottom stretch)
-	var arc := PackedVector2Array()
-	for p in pts:
-		if p.y < -161.0:
-			arc.append(p)
-	# ...then the locks, right to left, each a curve down to its tip and back up
-	var hairline := PackedVector2Array(arc)
-	var spines: Array = []
-	var li := 0
-	for lk in FRINGE_LOCKS:
-		var r_root := Vector2(float(lk[0]), FRINGE_ROOT_Y)
-		var l_root := Vector2(float(lk[1]), FRINGE_ROOT_Y)
-		var tip: Vector2 = (lk[2] as Vector2) + _flutter(li * 1.1, 0.55) * Vector2(1.0, 0.6)
-		li += 1
-		var bend: float = lk[3]
-		var mid := r_root.lerp(l_root, 0.5)
-		hairline.append_array(_quad(r_root, r_root.lerp(tip, 0.55) + Vector2(bend * 0.4 + 1.5, 0), tip, 6, true))
-		hairline.append_array(_quad(tip, l_root.lerp(tip, 0.5) + Vector2(bend * 0.6 - 1.0, -1.5), l_root, 6))
-		# a little notch up between this lock and the next
-		hairline.append(l_root + Vector2(-0.5, -3.0))
-		spines.append([mid, mid.lerp(tip, 0.5) + Vector2(bend * 0.5, 0), tip])
-	_shape(hairline, C_HAIR, 2.0)
-	# shade at the roots, a soft light band across the crown, light down each lock
-	_pl(_quad(Vector2(-18, -178), Vector2(4, -186), Vector2(26, -177), 8, true), Color(C_HAIR_HI, 0.55), 4.0, true)
-	for sp in spines:
-		var line := _quad(sp[0] + Vector2(0, -3), sp[1], (sp[2] as Vector2).lerp(sp[1], 0.25), 6, true)
-		_pl(line, Color(C_HAIR_HI, 0.85), 1.8, true)
-	# tufts curling up off the crown, toward where he faces (not under a hood)
-	if skin in ["wolf_hood", "bear_cloak"]:
-		return
-	for tf in [[Vector2(-10, -186), Vector2(-18, -195), Vector2(-28, -196)], [Vector2(3, -190), Vector2(-3, -201), Vector2(-14, -204)],
-			[Vector2(16, -188), Vector2(14, -200), Vector2(5, -205)], [Vector2(27, -180), Vector2(33, -191), Vector2(30, -199)]]:
-		var b: Vector2 = tf[0]
-		var c: Vector2 = tf[1] + _flutter(b.x * 0.2, 0.6)
-		var t: Vector2 = tf[2] + _flutter(b.x * 0.2 + 0.7, 1.1)
-		var side := (c - b).normalized().orthogonal() * 5.5
-		var tuft := PackedVector2Array([b - side])
-		tuft.append_array(_quad(b - side, c - side * 0.5, t, 5))
-		tuft.append_array(_quad(t, c + side * 0.6, b + side, 5))
-		_shape(tuft, C_HAIR, 1.6)
-		_pl(_quad(b, c, t.lerp(c, 0.3), 5, true), Color(C_HAIR_HI, 0.8), 1.6, true)
-
-
-## A strong nose: a straight bridge, a broad rounded tip, the nostrils in shadow.
+## A little round button of a nose, a shine on the tip.
 func _nose() -> void:
-	var col := _skin.darkened(0.06)
-	_shape(PackedVector2Array([Vector2(3, -156), Vector2(8, -156), Vector2(11, -147), Vector2(14, -142), Vector2(11, -138),
-		Vector2(5, -137.5), Vector2(-1, -138), Vector2(-4, -142), Vector2(-1, -147)]), col, 2.4)
-	_ln(Vector2(6, -154), Vector2(7.5, -145), Color(1, 0.9, 0.78, 0.55), 2.0, true)      # the light down the bridge
-	_cc(Vector2(1.5, -140), 1.7, _skin.darkened(0.45))
-	_cc(Vector2(9.5, -140), 1.7, _skin.darkened(0.45))
+	_oval(Vector2(5, -143), 6.5, 5.6, _skin.lerp(Color("d9705a"), 0.2), 2.2)
+	_cc(Vector2(3, -145), 2.0, Color(1, 0.92, 0.82, 0.65))
 
 
 ## His unibrow, sculpted: thick at the ends, thinner where it meets over the
 ## nose. `inner` > 0 brings the middle down (a frown), < 0 lifts it.
 func _brows(inner: float) -> void:
-	# two heavy brows (the sheet), thick at the nose and driven down there by `inner`
-	_brow(Vector2(1, -159.0 + inner * 0.7), Vector2(-20, -163), 10.0, 7.0, 1.5)
-	_brow(Vector2(8, -159.0 + inner * 0.7), Vector2(29, -163), 10.0, 7.0, 1.5)
-	# a deep crease between them when they come down
-	if inner > 2.0:
-		_ln(Vector2(4.5, -158), Vector2(4.5, -152), Color(_skin.darkened(0.35), clampf(inner / 10.0, 0.0, 0.8)), 2.0, true)
+	_brow(Vector2(4, -160.0 + inner * 0.6), Vector2(-21, -161), 6.0, 9.0, 4.0)
+	_brow(Vector2(4, -160.0 + inner * 0.6), Vector2(30, -161), 6.0, 10.0, 4.0)
+	# his mark: an old scar nicked right through the brow over his big eye
+	_ln(Vector2(18, -169.0 + inner * 0.4), Vector2(22, -155.0 + inner * 0.3), _skin, 3.4, true)
+	_ln(Vector2(18.5, -167.0 + inner * 0.4), Vector2(21.5, -156.5 + inner * 0.3), Color("e6a98a"), 1.4, true)
 
 
 ## One brow: a furry band from `a` (by the nose) to `b`, `w_a` thick at a, `w_b`
@@ -1836,7 +1579,6 @@ func _arm(sh: Vector2, el: Vector2, hd: Vector2, bicep: float, fist: bool) -> vo
 	# a cartoon strongman's arm: a round shoulder, and forearms thicker than the upper arm
 	_limb([sh, el, hd], [[17.0 * buff, 14.0 * buff], [15.0 * buff, 20.0 * buff]])
 	_oval(sh.lerp(el, 0.55), sh.distance_to(el) * 0.4, bicep * 0.85 * (1.0 + 0.45 * _sun_k), _skin, 0.0, (el - sh).angle())
-	_forearm_wrap(el, hd, 17.0 * buff)
 	if fist:
 		_fist(hd, 10.5)
 
@@ -1894,30 +1636,24 @@ func _fan(pts: PackedVector2Array, col: Color) -> void:
 ## The mane: spikes round the back of his head, painted with fur. The long
 ## ones swing most with the motion (_hair_off).
 func _mane() -> void:
-	# the design sheet's big wild mane: two layers of jagged spikes all round the
-	# back and top of the head (vector shapes, no texture), the long ones swinging
+	var pts := PackedVector2Array()
 	var sway := sin(anim_t * 2.4) * 1.5
-	var hooded := skin in ["wolf_hood", "bear_cloak"]
-	# the mass of it: a solid base round the back of the head
-	_oval(MANE_C + Vector2(-4, -2), 31.0, 29.0, C_HAIR.darkened(0.1), 1.2)
-	# spikes, each its own triangle (a star polygon this jagged will not fill), in two
-	# layers: darker, longer ones behind, the lighter ones over them
-	for layer in 2:
-		var n := 12 if layer == 0 else 10
-		var col := C_HAIR.darkened(0.08) if layer == 0 else C_HAIR.lightened(0.05)
-		for i in n:
-			var a := deg_to_rad(lerpf(-28.0, -250.0, float(i) / (n - 1)) + (9.0 if layer == 1 else 0.0))
-			if hooded and a > deg_to_rad(-150.0):
-				continue                                # under the hood: only the back shows
-			var r := (38.0 if layer == 0 else 33.0) + 10.0 * float((i * 7 + layer * 3) % 5) / 4.0
-			var swing := (r - 26.0) / 26.0
-			var w := 0.46 if layer == 0 else 0.4
-			var tip := MANE_C + Vector2.from_angle(a) * r + Vector2(sway * swing, 0) + _flutter(i * 1.3 + layer * 0.6, swing * (0.6 if hooded else 1.3))
-			var b0 := MANE_C + Vector2.from_angle(a - w) * 20.0
-			var b1 := MANE_C + Vector2.from_angle(a + w) * 20.0
-			_shape(PackedVector2Array([b0, b1, tip]), col, 1.2)
-			if layer == 1:
-				_ln(MANE_C + Vector2.from_angle(a) * 22.0, tip.lerp(MANE_C, 0.25), Color(C_HAIR_HI, 0.9), 2.2, true)
+	for i in MANE_SPIKES.size():
+		var s: Array = MANE_SPIKES[i]
+		var a := deg_to_rad(float(s[0]))
+		var r: float = s[1]
+		var swing := (r - 26.0) / 24.0
+		pts.append(MANE_C + Vector2.from_angle(a + 0.2) * 23.0)
+		pts.append(MANE_C + Vector2.from_angle(a) * r + (_hair_off + Vector2(sway, 0)) * swing)
+	pts.append(MANE_C + Vector2.from_angle(deg_to_rad(-230.0)) * 18.0)
+	pts.append(MANE_C + Vector2(4, 6))
+	_fur(pts, FUR, C_HAIR, 0.6)
+	# lighter streaks along the biggest spikes
+	for i in [2, 3, 4]:
+		var s: Array = MANE_SPIKES[i]
+		var a := deg_to_rad(float(s[0]))
+		var tip := MANE_C + Vector2.from_angle(a) * (float(s[1]) - 12.0) + _hair_off * 0.7
+		_ln(MANE_C + Vector2.from_angle(a) * 24.0, tip, Color(C_HAIR_HI, 0.8), 3.0, true)
 
 
 func _lit(pts: PackedVector2Array, amount: float = 0.87) -> PackedVector2Array:
