@@ -70,9 +70,11 @@ wife's requests, the pet, displaying artifacts and relics, the Spirit Tree / orb
 Coming home after a level: the CAMPFIRE SORT (the inventory plan) packs the level's leftovers into storage.
 
 ## Build order
-1. Reshape the prototype (`shelter/proto.tscn`) into the cave home: the bone cave, the fire, the closet,
-   Kekko's stall, the forge, the artifact shelf, the rift; an ERA SWITCH to see the costumes, shops and
-   artifacts pile up era by era. Not wired into the game.
+The rule (Jawad, 2026-10-09): the shelter grows WITH the game. After each level is finished, its era is added to
+the home (the cave upgrade, the costume, the shops, the artifact), then the next level starts. No era is
+built into the home before its level exists.
+1. The home for the levels that exist (eras 1-2), from the prototype (`shelter/proto.tscn`): the bone cave, the fire, the closet,
+   Kekko's stall, the forge, the artifact shelf, the rift; then wired in (the Camp Menu's SHELTER after Level 2).
 2. The real home for v1 (eras 1-3): Kekko and the blacksmith as cut-outs, upgrading with real resources
    (`GameState.home`, storage), cooking, the closet, the artifacts; the Camp Menu's SHELTER, unlocked after
    Level 2.
