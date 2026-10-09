@@ -181,6 +181,7 @@ func _run() -> void:
 			await blow(true)
 		var held := grid.solid(target)
 		GameState.give_item("shovel")
+		await put(Vector2(gx2 + 3.5 * Dig.TILE, gy2 + row * Dig.TILE - 2.0))     # (back over the clay: the clangs can nudge him a block over)
 		for i in 4:
 			if not grid.solid(target):
 				break

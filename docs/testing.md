@@ -43,6 +43,7 @@ Run forms (Godot path, headless, screenshots) and the regression set are in the 
 | `combos` | `shots`: cyclone, ram, launch, juggle, slam dunk, ambush escalation |
 | `airkick` | `shots` (paused frame sequence, kick_*): UP+HIT in the air = snap kick then FLASH KICK, UP+side = club, hits above, lands, bare-handed |
 | `loadflow` | the real SAVE / LOAD through the Camp Menu (the scene changes); `-- second`: a new run loads the last run's save. Also checks tests use their own save file |
+| `sweep` | (rendering) a screenshot sweep of the whole level for looking it over: surface every `step=` px (1600), the underground, the caves; or `x:y` spots. Releases vines, waits for him to settle |
 | `shotdigflash` | (rendering) the digging light in the Dig, a paused frame every 3 through two blows: digflash_* |
 
 ## Other tools

@@ -149,6 +149,10 @@ func _run() -> void:
 		# on the bull's back: carried, and safe
 		var bull: Steppe.Mammoth = ms[0]
 		await put(bull.global_position + Vector2(0, -bull.BACK * bull.size - 30.0))
+		for i in 30:                     # (dropped on from above: measure from when he has landed)
+			if p.is_on_floor():
+				break
+			await get_tree().physics_frame
 		var x_rel0 := p.global_position.x - bull.global_position.x
 		var bx := bull.global_position.x
 		var moved := 0.0
