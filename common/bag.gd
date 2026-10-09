@@ -253,8 +253,9 @@ static func craft(p: CaveMan, id: String) -> bool:
 		GameState.bag[id] = int(GameState.bag.get(id, 0)) + int(r[1])
 	version += 1
 	GameState.save()
-	p._say_word("%s!" % name_of(id), RARITY_COL[int(info(id)[2])])
-	FX.burst(p.get_parent(), p.global_position + Vector2(0, -60), "embers")
+	if p.is_inside_tree():               # (made at home, his rig is not in the scene: no word, no burst)
+		p._say_word("%s!" % name_of(id), RARITY_COL[int(info(id)[2])])
+		FX.burst(p.get_parent(), p.global_position + Vector2(0, -60), "embers")
 	return true
 
 

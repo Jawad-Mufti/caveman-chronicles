@@ -45,7 +45,8 @@ common/: `critter.gd` (creature base, attack director, launch), `enemies.gd` (Le
 `player_body.gd` (CaveManBody: what he DOES: moving, combat, torch, hotbar, SUNFIRE, STOMP), `player.gd`
 (CaveMan extends it: only how he LOOKS; the game uses CaveMan), `sleeper.gd` (far things sleep), `bag.gd` (inventory: items, stone drops, recipes, the bag UI), `hud.gd`, `abilities.gd` (MOVES = Tutorial), `terrain.gd`, `game_state.gd`;
 the rest one file per system (`ls common`). level2/: `level2_data.gd` (tables), `level2.gd` (builders;
-shelter/: `home.gd` (UGU'S CAVE, 3D paper diorama, eras by `GameState.home_era()`; docs/shelter_plan.md).
+shelter/: `home.gd` (UGU'S CAVE, the 3D island, eras by `GameState.home_era()`; docs/shelter_plan.md), `ugu3d.gd`
+(Ugu as a 3D figure; his face is Jawad's to approve), `menu.gd` (the home's trade / upgrade / craft panels).
 extends the data: tables are bare names); the rest one file per area or system (`ls level2`).
 
 ## Conventions

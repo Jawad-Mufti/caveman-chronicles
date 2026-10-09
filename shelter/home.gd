@@ -1,27 +1,30 @@
 extends Node3D
-## HOME: UGU'S CAVE (docs/shelter_plan.md), between the eras: an ISLAND, as a
-## 3D "paper diorama". The world is low-poly 3D made in code (shader water with
-## waves and shore foam, wind in thousands of grass blades and the trees, a
-## waterfall into a pool, a day and night that turn); the people stay the 2D
-## drawings they are in the levels (Ugu, the Toolmaker), standing up in it as
-## paper cut-outs. The camera is fixed and tilted, and leans in when he does
-## something.
+## HOME: UGU'S CAVE (docs/shelter_plan.md), between the eras: an ISLAND, in 3D.
+## The world is low-poly 3D made in code (shader water with waves and shore
+## foam, wind in thousands of grass blades and the trees, a waterfall into a
+## pool, a day and night that turn). Ugu is a 3D figure true to his drawing
+## (shelter/ugu3d.gd); the Toolmaker is still his 2D drawing stood up as a
+## paper cut-out. The camera is fixed and tilted and leans in when he does
+## something; trees between it and him fade out, so he is never lost.
 ##
 ## It grows WITH the game: each finished level adds its era (GameState.home_era):
 ## 1 Raw Stone, 2 Fire (the bone frame at the mouth, furs, pots, the skull, gems,
-## the Firestone forge).
+## the Firestone forge, torches).
 ##
 ## Arrows / WASD walk, SPACE jumps, E (or J) uses what he is next to, Esc goes
 ## back to the level, where he left it. What E does:
-##   CLOSET: the next costume he owns (saved)     WEAPON RACK: the next weapon (saved)
-##   BED: sleep (night <-> day)                   FIRE: throw a log on
-##   KEKKO: buy a roast fig for 4 shells          THE TOOLMAKER: he hammers, and talks
-##   THE PUP: a pat                               THE PIER: fish (E again on the bite)
+##   CLOSET: the next costume he owns (saved)   WEAPON RACK: the next weapon (saved)
+##   BED: sleep (night <-> day) and SAVE         FIRE: a log on, or cook a fish (+1 fig)
+##   KEKKO: buy figs and stones, sell gems        THE TOOLMAKER: upgrades, the axe
+##   THE WORKBENCH: make things from the bag     THE STORE: everything brought home
+##   THE PUP: play fetch                         THE PIER: fish (E again on the bite)
 ##   THE PAINTED WALL: the mysteries, solved and open
 ## -- shot: pictures, then quit.
 
+const Menu := preload("res://shelter/menu.gd")
+const UguModel := preload("res://shelter/ugu3d.gd")
+
 const R := 58.0                  ## the island's radius, metres
-const UGU_H := 1.75
 const SPEED := 5.0
 const GRAVITY := 22.0
 const JUMP := 8.0
@@ -30,8 +33,8 @@ const CAM_NEAR := Vector3(0, 3.6, 6.0)
 const FLOOR_Y := 1.5             ## the cave and the plaza
 const CAVE := Vector3(0, FLOOR_Y, -27)
 const POOL := Vector3(17, 0, -17)
+const BENCH := Vector3(-1.8, FLOOR_Y, -8.6)
 var PIER := Vector2(6, 47)       ## where the pier starts: found at the real shore in _ready
-const FIG_PRICE := 4
 
 const ROCK := Color("8f8076")
 const ROCK_DARK := Color("5e534c")
@@ -50,19 +53,20 @@ const OCHRE := Color("c8553d")
 const MEAT := Color("a8483a")
 
 const LINES := {
-	"fire": ["THE FIRE", "E: throw a log on"],
-	"bed": ["HIS BED", "E: sleep (till morning, or till night)"],
+	"fire": ["THE FIRE", "E: a log on (or cook a fish you caught)"],
+	"bed": ["HIS BED", "E: sleep till morning (or night). The game is saved."],
 	"paint": ["THE PAINTED WALL", "E: the mysteries, in ochre"],
 	"weapons": ["THE WEAPON RACK", "E: carry the next one"],
 	"closet": ["THE CLOSET", "E: try the next costume"],
-	"store": ["THE STORE CORNER", "Baskets, pots, a water skin. Everything brought home."],
-	"drying": ["THE DRYING RACK", "Meat drying in the smoke. Catch a fish at the pier: it hangs here."],
+	"store": ["THE STORE CORNER", "E: everything brought home"],
+	"drying": ["THE DRYING RACK", "Meat drying in the smoke. Fish you catch hang here."],
 	"piles": ["THE PILES", "Wood, stones and bones. Bones build the cave bigger, one day."],
 	"tusk": ["TUSKAR'S TUSK", "The coat hook. Tuskar would hate that."],
 	"skull": ["OLD SCAR'S SKULL", "The fire guard. One fang missing: that's a spear, one day."],
-	"pup": ["THE PUP", "E: a pat"],
-	"kekko": ["KEKKO'S STALL", "E: a roast fig for %d shells" % FIG_PRICE],
-	"forge": ["THE TOOLMAKER", "E: say hello"],
+	"pup": ["THE PUP", "E: play fetch"],
+	"kekko": ["KEKKO'S STALL", "E: trade (figs, stones, gems)"],
+	"forge": ["THE TOOLMAKER", "E: upgrades and weapons"],
+	"bench": ["THE WORKBENCH", "E: make things from the bag"],
 	"pier": ["THE PIER", "E: fish"],
 	"pool": ["THE WATERFALL POOL", "Cold! Lovely."],
 }
@@ -70,9 +74,11 @@ const LINES := {
 var _noise := FastNoiseLite.new()
 var _noise2 := FastNoiseLite.new()
 var _era := 1
-var _ugu: CaveMan
-var _ugu_vp: SubViewport
-var _cut: Sprite3D
+var _model: Node3D               ## Ugu, in 3D (shelter/ugu3d.gd)
+var _rig: CaveMan                ## his 2D rig, never shown: what Bag asks about him (counts, crafting)
+var _fish := 0                   ## fish caught this visit, to cook
+var _glow_light: OmniLight3D     ## his own soft light
+var _occluders: Array = []       ## [node, (x, z), radius, materials, alpha]: they fade when in front of him
 var _pos := Vector3(0, 0, -8)
 var _vy := 0.0
 var _on_ground := true
@@ -594,6 +600,7 @@ func _pine(at: Vector3, s: float) -> void:
 	for k in 4:
 		var c := _shape(_cone((1.3 - k * 0.27) * s, 1.4 * s, 9), Color("2f5a3a").lightened(k * 0.05), Vector3(0, (1.3 + k * 0.75) * s, 0), Vector3(0, k * 20.0, 0), Vector3.ONE, t)
 		c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	_occluder(t, Vector2(at.x, at.z), 1.3 * s)
 
 
 func _broadleaf(at: Vector3, s: float, rng: RandomNumberGenerator) -> void:
@@ -604,6 +611,7 @@ func _broadleaf(at: Vector3, s: float, rng: RandomNumberGenerator) -> void:
 	for k in 5:
 		var off := Vector3(rng.randf_range(-0.8, 0.8), rng.randf_range(0.0, 0.8), rng.randf_range(-0.8, 0.8)) * s
 		_shape(_ball(rng.randf_range(0.9, 1.3) * s, 8), LEAF.lightened(rng.randf_range(-0.1, 0.12)), Vector3(0, 2.6 * s, 0) + off, Vector3.ZERO, Vector3.ONE, t)
+	_occluder(t, Vector2(at.x, at.z), 1.6 * s)
 
 
 func _palm(at: Vector3, s: float, rng: RandomNumberGenerator) -> void:
@@ -623,6 +631,7 @@ func _palm(at: Vector3, s: float, rng: RandomNumberGenerator) -> void:
 		leaf.position = top + Vector3(cos(k * TAU / 7.0), -0.15, -sin(k * TAU / 7.0)) * 0.9 * s
 	for k in 3:
 		_shape(_ball(0.13 * s, 6), Color("6a4a2a"), top + Vector3(cos(k * 2.1) * 0.2, -0.15, sin(k * 2.1) * 0.2), Vector3.ZERO, Vector3.ONE, t)
+	_occluder(t, Vector2(at.x, at.z), 2.2 * s)          # (its crown leans out: a wider circle)
 
 
 ## ------------------------------------------------------------------ the cave
@@ -634,7 +643,9 @@ func _build_cave() -> void:
 	rng.seed = 5
 	for i in 7:
 		var x := lerpf(-6.5, 6.5, i / 6.0)
-		_shape(_ball(1.0, 7), ROCK.darkened(0.1), Vector3(x, FLOOR_Y + 5.4 + rng.randf_range(-0.3, 0.3), c.z - 2.5 - rng.randf_range(0.0, 2.0)), Vector3(0, rng.randf() * 90.0, 0), Vector3(2.4, 1.1, 3.0)).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		var roof := _shape(_ball(1.0, 7), ROCK.darkened(0.1), Vector3(x, FLOOR_Y + 5.4 + rng.randf_range(-0.3, 0.3), c.z - 2.5 - rng.randf_range(0.0, 2.0)), Vector3(0, rng.randf() * 90.0, 0), Vector3(2.4, 1.1, 3.0))
+		roof.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		_occluder(roof, Vector2(roof.position.x, roof.position.z), 2.6)
 	for side in [-1.0, 1.0]:
 		for k in 3:
 			var p := Vector3(side * (6.6 + rng.randf_range(-0.3, 0.3)), FLOOR_Y + 1.5 + k * 1.6, c.z + 4.5 - k * 1.2)
@@ -880,6 +891,18 @@ func _build_plaza() -> void:
 		_shape(_ball(0.21, 6), ROCK, piles + Vector3(1.3 + (k % 2) * 0.3, 0.16 + (k / 2) * 0.18, -0.2 + (k % 3) * 0.2))
 	_blocks.append([Vector2(piles.x + 0.3, piles.z), 1.4])
 	_spot("piles", piles + Vector3(0, 0, 1.4))
+	# THE WORKBENCH: a flat slab on two rocks, flint and a hammerstone on it, a spear half made
+	var b := BENCH
+	for px3 in [-0.7, 0.7]:
+		_shape(_ball(0.35, 7), ROCK_DARK, b + Vector3(px3, 0.28, 0), Vector3.ZERO, Vector3(1.0, 0.9, 0.9))
+	_box(Vector3(2.0, 0.16, 0.9), ROCK.lightened(0.08), b + Vector3(0, 0.62, 0), self)
+	for k2 in 3:
+		_shape(_ball(0.09, 5), Color("6f6a66"), b + Vector3(-0.6 + k2 * 0.22, 0.75, 0.1), Vector3(0, k2 * 50.0, 0), Vector3(1.3, 0.6, 1.0))
+	_shape(_ball(0.12, 6), Color("8a8580"), b + Vector3(0.1, 0.77, -0.15))
+	_shape(_cyl(0.025, 1.3, 5), WOOD, b + Vector3(0.45, 0.74, 0.15), Vector3(0, 30, 90))
+	_shape(_cone(0.05, 0.16, 5), Color("4a4a50"), b + Vector3(1.05, 0.74, 0.5), Vector3(0, 30, -90))
+	_blocks.append([Vector2(b.x, b.z), 1.1])
+	_spot("bench", b + Vector3(0, 0, 1.4))
 
 
 ## Kekko (a 3D placeholder until his cut-out): tiny, old, a cloak, a staff,
@@ -1207,13 +1230,63 @@ func _cutout(drawing: Node2D, h: float) -> Sprite3D:
 
 ## ------------------------------------------------------------------ Ugu
 func _build_ugu() -> void:
-	_ugu = CaveMan.new()
-	_ugu.preview = true                      # his real rig, drawn: no physics, no input of its own
-	GameState.apply_to(_ugu)
-	_cut = _cutout(_ugu, UGU_H)
-	_ugu.has_stick = true
-	_ugu.costume = maxi(_era, 1)
+	_model = UguModel.new()
+	_model.era = _era
+	add_child(_model)
+	_rig = CaveMan.new()
+	_rig.preview = true                      # never shown: Bag counts and crafts through it
+	GameState.apply_to(_rig)
 	_pos.y = height(_pos.x, _pos.z)
+	_model.position = _pos
+	_model.rotation.y = PI                   # facing the camera to start
+	# a soft warm light that walks with him (stronger at night): he is never lost in a shadow
+	_glow_light = OmniLight3D.new()
+	_glow_light.light_color = Color("ffd9a8")
+	_glow_light.omni_range = 4.0
+	_glow_light.position = Vector3(0, 1.7, 1.2)
+	add_child(_glow_light)
+
+
+func _exit_tree() -> void:
+	if _rig != null:
+		_rig.free()
+
+
+## Trees (and the cave's roof) fade out while they stand between the camera and
+## him, and come back when he has passed: he is never hidden.
+func _occluder(node: Node3D, at: Vector2, radius: float) -> void:
+	var mats: Array = []
+	var meshes: Array = [node] if node is MeshInstance3D else []
+	for c in node.get_children():
+		if c is MeshInstance3D:
+			meshes.append(c)
+	for m in meshes:
+		var mat := (m as MeshInstance3D).material_override as StandardMaterial3D
+		if mat != null:
+			mats.append(mat)
+	_occluders.append([node, at, radius, mats, 1.0])
+
+
+func _fade_occluders(delta: float) -> void:
+	var cam := Vector2(_cam.position.x, _cam.position.z)
+	var me := Vector2(_pos.x, _pos.z)
+	for o in _occluders:
+		var at: Vector2 = o[1]
+		var want := 1.0
+		if at.distance_to(me) < 16.0:
+			var to_me := me - cam
+			var k := clampf((at - cam).dot(to_me) / to_me.length_squared(), 0.0, 1.0)
+			var close := at.distance_to(cam + to_me * k)
+			if k > 0.05 and k < 0.98 and close < float(o[2]) + 0.7:
+				want = 0.22
+		var a: float = move_toward(float(o[4]), want, delta * 3.0)
+		if a == float(o[4]):
+			continue
+		o[4] = a
+		for mat in o[3]:
+			var m := mat as StandardMaterial3D
+			m.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED if a >= 0.999 else BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.albedo_color.a = a
 
 
 func _build_ui() -> void:
@@ -1260,6 +1333,8 @@ func say(text: String) -> void:
 
 ## ------------------------------------------------------------------ E: what he does
 func use() -> void:
+	if _menu != null:
+		return
 	if _fish_state == "bite":
 		_reel()
 		return
@@ -1273,60 +1348,262 @@ func use() -> void:
 			var i := (owned.find(GameState.skin) + 1) % owned.size()
 			GameState.skin = owned[i]
 			GameState.save()
-			GameState.apply_to(_ugu)
-			_ugu.costume = maxi(_era, 1)
-			say("Today: %s!" % str(GameState.skin).replace("_", " ").to_upper() if owned.size() > 1 else "Only one costume so far. Trade for more!")
+			_model.refresh()
+			say(("Today: %s!" % _skin_name(GameState.skin)) if owned.size() > 1 else "Only one costume so far. Trade for more in the levels!")
 			_focus = 1.5
 		"weapons":
 			var ws: Array = GameState.weapons
 			var j := (ws.find(GameState.weapon) + 1) % ws.size()
 			GameState.weapon = ws[j]
 			GameState.save()
-			GameState.apply_to(_ugu)
-			say(("He'll carry the %s." % ("FIRESTONE HAMMER" if GameState.weapon == "hammer" else ("FLINT AXE" if GameState.weapon == "axe" else "CLUB"))) if ws.size() > 1 else "Just the club so far. Buy the axe from the Toolmaker!")
+			_model.refresh()
+			say(("He'll carry the %s." % Bag.name_of(GameState.weapon)) if ws.size() > 1 else "Just the club so far. The Toolmaker sells an axe!")
 			_focus = 1.5
 		"bed":
 			_sleep()
 		"fire":
-			_flare = 2.5
-			say("WHOOMPH!")
+			if _fish > 0:
+				_fish -= 1
+				_flare = 1.2
+				if GameState.figs < GameState.fig_max():
+					GameState.figs += 1
+					GameState.save()
+					say("Fish on the fire... sizzle... a hot meal for the road!  (+1 fig)")
+				else:
+					say("Fish on the fire... he eats it right here. Yum. (Your fig pouch is full.)")
+			else:
+				_flare = 2.5
+				say("WHOOMPH!  (Catch a fish at the pier: cook it here for the road.)")
 			_focus = 1.2
 		"pup":
-			_pup_hop = 0.8
-			_hearts.restart()
-			say(["Good pup!", "Who's a good pup?", "*wag wag wag*"][randi() % 3])
+			_fetch()
 		"kekko":
-			if GameState.figs >= GameState.fig_max():
-				say("KEKKO: \"Your pouch is full of figs, friend!\"")
-			elif GameState.shells < FIG_PRICE:
-				say("KEKKO: \"%d shells for a fig. Come back richer!\"" % FIG_PRICE)
-			else:
-				GameState.shells -= FIG_PRICE
-				GameState.figs += 1
-				GameState.save()
-				say("KEKKO: \"A roast fig! Hot from the fire. Pleasure!\"  (+1 fig)")
-			_focus = 1.5
+			_open_menu("KEKKO'S STALL", "\"Pebbles, gems, shiny things! I buy, I sell. Fair prices... mostly.\"", Color("ffcf40"), _kekko_rows)
 		"forge":
 			_toolmaker.forging = 2.0
-			_toolmaker.speaking = true
-			var g := str(GameState.gems.get("level2", ""))
-			if g == "found" and not GameState.weapons.has("hammer"):
-				say("TOOLMAKER: \"You have the Firestone! Bring it to my forge in the Long Dark.\"")
-			elif GameState.weapons.has("hammer"):
-				say("TOOLMAKER: \"The hammer still burns? Good. Find me the next gem.\"")
-			else:
-				say("TOOLMAKER: \"Every land hides a gem. Find it, and I'll make a legend of it.\"")
-			_focus = 2.0
+			_open_menu("THE TOOLMAKER", _toolmaker_line(), Color("ff8a4a"), _toolmaker_rows)
+		"bench":
+			_open_menu("THE WORKBENCH", "Make things from what's in the bag. (Rocks, wood and berries are gathered in the levels.)", Color("9be15d"), _bench_rows)
+		"store":
+			_open_menu("THE STORE CORNER", "Everything brought home, in baskets and pots.", Color("6cc4ff"), _store_rows)
 		"paint":
-			var lines: Array = []
-			for id in GameState.mysteries:
-				lines.append(("SOLVED: " if GameState.mysteries[id] == "solved" else "OPEN: ") + str(id).replace("_", " ").to_upper())
-			say(", ".join(lines) if not lines.is_empty() else "No mysteries painted yet. Go and find some!")
-			_focus = 1.5
+			_open_menu("THE PAINTED WALL", "Every mystery he has met, in ochre.", Color("e0663a"), _paint_rows)
 		"pier":
 			_cast()
 		_:
 			pass
+
+
+func _skin_name(id: String) -> String:
+	return {"plain": "PLAIN HIDE", "wolf_hood": "WOLF HOOD", "ember_paint": "EMBER PAINT", "bear_cloak": "BEAR CLOAK",
+		"firekeeper": "FIREKEEPER", "war_paint": "WAR PAINT", "bone_necklace": "BONE NECKLACE"}.get(id, id.to_upper())
+
+
+## ------------------------------------------------------------------ the menus
+## What something costs: the same rule as Level 2's shop (a fraction of the
+## level's treasure, ECONOMY), so home and the level agree.
+const TREASURE := 832
+const PRICE := {"fig": 0.04, "heart": 0.20, "torch": 0.12, "pouch": 0.12, "axe": 0.34}
+const STONE_BUY := {"clay": 5, "flint": 8, "pyrite": 30, "quartz": 40}
+const STONE_SELL := {"pyrite": 15, "quartz": 20, "obsidian": 30}
+
+var _menu: CanvasLayer
+
+
+func price(id: String) -> int:
+	var f: float = PRICE.get(id, 0.0)
+	if id == "heart" and int(GameState.upgrades["heart"]) >= 1:
+		f *= 1.5
+	return int(round(TREASURE * f / 5.0)) * 5
+
+
+func _open_menu(title: String, line: String, accent: Color, rows: Callable) -> void:
+	_menu = Menu.new()
+	_menu.title = title
+	_menu.line = line
+	_menu.accent = accent
+	_menu.rows_fn = rows
+	_menu.closed.connect(func() -> void:
+		_menu = null
+		_focus = 0.6
+		if _toolmaker != null:
+			_toolmaker.speaking = false)
+	add_child(_menu)
+	_focus = 999.0
+	if _toolmaker != null and title == "THE TOOLMAKER":
+		_toolmaker.speaking = true
+
+
+func _spend(n: int) -> bool:
+	if GameState.shells < n:
+		return false
+	GameState.shells -= n
+	return true
+
+
+func _kekko_rows() -> Array:
+	var rows: Array = []
+	var fp := price("fig")
+	var full := GameState.figs >= GameState.fig_max()
+	rows.append(["Roast fig  (%d / %d)" % [GameState.figs, GameState.fig_max()], "pouch full" if full else "%d shells" % fp, not full and GameState.shells >= fp, func():
+		_spend(fp)
+		GameState.figs += 1
+		GameState.save()
+		return "A roast fig! Eat it with H in the levels."])
+	for id in STONE_BUY:
+		var p: int = STONE_BUY[id]
+		rows.append(["Buy %s  (have %d)" % [Bag.name_of(id), Bag.count(null, id)], "%d shells" % p, GameState.shells >= p, func():
+			_spend(p)
+			Bag.add(id)
+			return "+1 %s" % Bag.name_of(id)])
+	for id2 in STONE_SELL:
+		var have := Bag.count(null, id2)
+		var p2: int = STONE_SELL[id2]
+		rows.append(["Sell %s  (have %d)" % [Bag.name_of(id2), have], "+%d shells" % p2, have > 0, func():
+			GameState.bag[id2] = have - 1
+			GameState.shells += p2
+			Bag.version += 1
+			GameState.save()
+			return "+%d shells" % p2])
+	return rows
+
+
+func _toolmaker_line() -> String:
+	var g := str(GameState.gems.get("level2", ""))
+	if g == "found" and not GameState.weapons.has("hammer"):
+		return "\"You have the Firestone! Bring it to my forge in the Long Dark, and I'll make a hammer of it.\""
+	if GameState.weapons.has("hammer"):
+		return "\"The hammer still burns? Good. Every land hides a gem: find me the next one.\""
+	return "\"Every land hides a gem. Find it, and I'll make a legend of it. Meanwhile: upgrades.\""
+
+
+func _toolmaker_rows() -> Array:
+	var rows: Array = []
+	var names := {"heart": "An extra heart", "torch": "A long-burning torch", "pouch": "A bigger pouch"}
+	for id in names:
+		var lvl: int = GameState.upgrades[id]
+		var mx: int = GameState.UPGRADE_MAX[id]
+		var p := price(id)
+		var maxed := lvl >= mx
+		rows.append(["%s  (%d / %d)" % [names[id], lvl, mx], "done" if maxed else "%d shells" % p, not maxed and GameState.shells >= p, func():
+			_spend(p)
+			GameState.upgrades[id] = lvl + 1
+			GameState.save()
+			_toolmaker.forging = 1.5
+			return "Clang, clang... done! It's his for good."])
+	var has_axe := GameState.weapons.has("axe")
+	var pa := price("axe")
+	rows.append(["The Flint Axe", "owned" if has_axe else "%d shells" % pa, not has_axe and GameState.shells >= pa, func():
+		_spend(pa)
+		GameState.weapons.append("axe")
+		GameState.save()
+		_toolmaker.forging = 1.5
+		return "A Flint Axe! Carry it from the weapon rack."])
+	return rows
+
+
+## The workbench: the bag's recipes that need only what's kept at home
+## (stones, bones): rocks, wood and berries are carried in the levels only.
+func _bench_rows() -> Array:
+	var rows: Array = []
+	for r in Bag.RECIPES:
+		var id: String = r[0]
+		var needs: Dictionary = r[2]
+		if needs.has("rocks") or needs.has("wood") or needs.has("berries"):
+			continue
+		var made_for_good := Bag.FOREVER.has(id) and GameState.has_item(Bag.FOREVER[id])
+		var parts: Array = []
+		for k in needs:
+			parts.append("%d %s" % [needs[k], Bag.name_of(k).to_lower()])
+		var miss := "" if made_for_good else Bag.missing(_rig, id)
+		rows.append(["%s  (%s)" % [Bag.name_of(id), ", ".join(parts)], "made" if made_for_good else ("make" if miss == "" else miss), not made_for_good and miss == "", func():
+			Bag.craft(_rig, id)
+			return "Made: %s!" % Bag.name_of(id)])
+	return rows
+
+
+func _store_rows() -> Array:
+	var rows: Array = []
+	for id in GameState.bag:
+		if int(GameState.bag[id]) > 0:
+			rows.append([Bag.name_of(id), "x%d" % int(GameState.bag[id]), false, null])
+	for k in GameState.relics:
+		rows.append(["%s (a rare find)" % Relics.name_of(k), "x%d" % int(GameState.relics[k]), false, null])
+	rows.append(["Bones", "x%d" % GameState.bones, false, null])
+	rows.append(["Spirit orbs", "x%d" % GameState.orbs, false, null])
+	for t in GameState.trophies:
+		rows.append(["Trophy: %s" % str(t).replace("_", " "), "", false, null])
+	return rows
+
+
+func _paint_rows() -> Array:
+	var rows: Array = []
+	for id in GameState.mysteries:
+		var solved: bool = GameState.mysteries[id] == "solved"
+		var words: Array = CampMenu.MYSTERIES.get(id, [id, id])
+		rows.append([str(words[1] if solved else words[0]).left(46), "SOLVED" if solved else "open", false, null])
+	if rows.is_empty():
+		rows.append(["No mysteries yet. Go and find some!", "", false, null])
+	return rows
+
+
+## ------------------------------------------------------------------ the pup fetches
+var _stick: MeshInstance3D
+var _fetch_state := ""          ## "", "fly", "run", "back"
+var _fetch_to := Vector3.ZERO
+var _fetch_t := 0.0
+var _fetches := 0
+
+
+func _fetch() -> void:
+	if _fetch_state != "":
+		return
+	if _stick == null:
+		_stick = _shape(_cyl(0.035, 0.6, 5), WOOD, Vector3.ZERO)
+	var ahead := Vector3(sin(_model.rotation.y), 0, cos(_model.rotation.y))
+	_fetch_to = _pos + ahead * randf_range(5.0, 8.0)
+	_fetch_to.y = height(_fetch_to.x, _fetch_to.z) + 0.05
+	_stick.position = _pos + Vector3(0, 1.4, 0)
+	_stick.visible = true
+	_fetch_t = 0.0
+	_fetch_state = "fly"
+	_pup_hop = 0.5
+	say("Fetch!")
+
+
+func _fetch_step(delta: float) -> void:
+	match _fetch_state:
+		"fly":
+			_fetch_t += delta / 0.7
+			var from := _pos + Vector3(0, 1.4, 0)
+			var p := from.lerp(_fetch_to, minf(_fetch_t, 1.0))
+			p.y += sin(minf(_fetch_t, 1.0) * PI) * 2.0
+			_stick.position = p
+			_stick.rotation.z += delta * 14.0
+			if _fetch_t >= 1.0:
+				_stick.position = _fetch_to
+				_stick.rotation = Vector3(0, 0, PI * 0.5)
+				_fetch_state = "run"
+		"run", "back":
+			var target := _fetch_to if _fetch_state == "run" else _pos + Vector3(0.7, 0, 0.7)
+			var flat := Vector3(target.x - _pup.position.x, 0, target.z - _pup.position.z)
+			if flat.length() < 0.5:
+				if _fetch_state == "run":
+					_fetch_state = "back"
+				else:
+					_fetch_state = ""
+					_stick.visible = false
+					_fetches += 1
+					_hearts.position = _pup.position + Vector3(0, 0.7, 0)
+					_hearts.restart()
+					say(["Good pup!", "He brought it back!", "Again? Again!", "Best pup on the island!"][_fetches % 4])
+				return
+			var step := flat.normalized() * 7.0 * delta
+			_pup.position += step
+			_pup.position.y = height(_pup.position.x, _pup.position.z) + absf(sin(_t * 18.0)) * 0.12
+			_pup.rotation.y = atan2(step.x, step.z) - PI * 0.5
+			if _fetch_state == "back":
+				_stick.position = _pup.position + Vector3(0, 0.35, 0)
 
 
 func _sleep() -> void:
@@ -1335,6 +1612,7 @@ func _sleep() -> void:
 	tw.tween_callback(func() -> void:
 		_night_to = 0.12 if _night > 0.5 else 0.82
 		_night = _night_to
+		GameState.save()
 		_apply_daylight()
 		say("Good morning!" if _night < 0.5 else "The sun's down. Fire's lit."))
 	tw.tween_interval(0.5)
@@ -1356,6 +1634,7 @@ func _reel() -> void:
 	_float.visible = false
 	_line.visible = false
 	_fish_caught += 1
+	_fish += 1
 	var dry: Vector3 = _drying_fish[0]
 	var k := _fish_caught
 	_shape(_ball(0.14, 6), Color("9aa8b8"), dry + Vector3(-0.85 + (k % 6) * 0.3, 1.25, 0.08), Vector3.ZERO, Vector3(0.6, 1.8, 0.4))
@@ -1369,7 +1648,7 @@ func _reel() -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	var dir := Vector3.ZERO
-	if _fish_state == "":
+	if _fish_state == "" and _menu == null:
 		if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
 			dir.x -= 1.0
 		if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT):
@@ -1416,7 +1695,11 @@ func _animate(delta: float) -> void:
 		bird.rotation.z = sin(_t * 8.0 + a) * 0.35
 	if _pup != null:
 		_pup_hop = maxf(_pup_hop - delta, 0.0)
-		_pup.position.y = FLOOR_Y + absf(sin(_pup_hop * 12.0)) * 0.3 * minf(_pup_hop * 2.0, 1.0)
+		if _fetch_state == "":
+			_pup.position.y = height(_pup.position.x, _pup.position.z) + absf(sin(_pup_hop * 12.0)) * 0.3 * minf(_pup_hop * 2.0, 1.0)
+		else:
+			_fetch_step(delta)
+	_fade_occluders(delta)
 	if _night != _night_to:
 		_night = move_toward(_night, _night_to, delta * 0.2)
 		_apply_daylight()
@@ -1477,8 +1760,9 @@ func walk(dir: Vector3, delta: float) -> void:
 		if ok:
 			_pos.x = next.x
 			_pos.z = next.z
-		if absf(dir.x) > 0.1:
-			_ugu.facing = 1 if dir.x > 0.0 else -1
+		# he turns to face where he is going (smoothly, the short way round)
+		var aim := atan2(dir.x, dir.z)
+		_model.rotation.y = lerp_angle(_model.rotation.y, aim, minf(1.0, delta * 12.0))
 	var ground := 0.66 if _on_pier(Vector2(_pos.x, _pos.z)) else height(_pos.x, _pos.z)
 	_vy -= GRAVITY * delta
 	_pos.y += _vy * delta
@@ -1493,10 +1777,11 @@ func walk(dir: Vector3, delta: float) -> void:
 	if ground < 0.25 and Vector2(_pos.x, _pos.z).distance_to(Vector2(POOL.x, POOL.z)) < 5.0 and moving and fmod(_t, 0.35) < delta:
 		_splash.position = _pos
 		_splash.restart()
-	_ugu.velocity.x = float(_ugu.facing) * (CaveMan.SPEED if moving else 0.0)
-	if moving and _on_ground:
-		_ugu._run_phase += CaveMan.SPEED * delta / (_ugu._stride_amp(1.0) * CaveMan.ART)
-	_cut.position = _pos
+	_model.speed = move_toward(_model.speed, 1.0 if moving else 0.0, delta * 6.0)
+	_model.air = not _on_ground
+	_model.position = _pos
+	_glow_light.position = _pos + Vector3(0, 1.7, 1.2)
+	_glow_light.light_energy = lerpf(0.25, 0.9, _night)
 	_cam_k = move_toward(_cam_k, 1.0 if _focus > 0.0 else 0.0, delta * 1.6)
 	var k := _cam_k * _cam_k * (3.0 - 2.0 * _cam_k)
 	var want := _pos + CAM_FAR.lerp(CAM_NEAR, k)
@@ -1552,6 +1837,38 @@ func _shots() -> void:
 	_cam.position = Vector3(26, 9, 4)
 	_cam.look_at(Vector3(POOL.x, 3, POOL.z - 4))
 	await _shot("waterfall_day")
+	# Ugu in 3D, close up (in daylight): front, three-quarter, side, running
+	var at := Vector3(0, FLOOR_Y, -12)
+	_model.position = at
+	_model.speed = 0.0
+	_model.air = false
+	for v in [["ugu_front", 0.0, Vector3(0, 1.6, 3.1)], ["ugu_three_quarter", -0.6, Vector3(2.0, 1.6, 2.5)], ["ugu_side", -PI * 0.5, Vector3(3.2, 1.4, 0.3)]]:
+		_model.rotation.y = v[1]
+		_cam.position = at + (v[2] as Vector3)
+		_cam.look_at(at + Vector3(0, 1.15, 0))
+		for f in 4:
+			await get_tree().process_frame
+		await _shot(v[0])
+	_model.speed = 1.0
+	_model.rotation.y = -PI * 0.5
+	for f in 9:
+		await get_tree().process_frame
+	await _shot("ugu_running")
+	# behind a tree, from the game's camera: the tree fades
+	set_process(true)
+	_model.speed = 0.0
+	var tree: Array = _occluders[0]
+	for o in _occluders:
+		if (o[0] as Node3D).get_parent() == self and o[2] < 2.0 and Vector2(o[1]).length() < 30.0:
+			tree = o
+			break
+	var tp: Vector2 = tree[1]
+	_pos = Vector3(tp.x, height(tp.x, tp.y - 1.6), tp.y - 1.6)
+	_t = 0.0
+	_cam.position = _pos + CAM_FAR
+	for f in 60:
+		await get_tree().process_frame
+	await _shot("behind_tree")
 	get_tree().quit()
 
 
