@@ -17,9 +17,11 @@ Unbowed: every era tries to civilize him and fails) and the weapons `docs/weapon
 - v1 = Levels 1-3 + this home (eras.md).
 
 ## The cave itself
-Mammoth bones and hides, a fire at its heart, the time rift glowing in the back. It GROWS with bones, not
-with civilisation: more chambers, a bigger bone frame, a lookout ledge, a hot spring, a store room. Whatever
-history Ugu drags home, he uses HIS way (below), so the cave gets funnier with every era, never tidier.
+Mammoth bones and hides, a fire at its heart, the time rift glowing in the back. It GROWS with bones (more
+chambers, a bigger bone frame, a hot spring, a store room) AND it is UPGRADED every era (Jawad, 2026-10-09):
+each era's tech is bolted on, Ugu-style, but it always stays a CAVE: a drawbridge over a cave mouth, steam
+pipes through the rock, a neon sign on a skull. It never turns into a house or a town.
+Whatever history Ugu drags home, he uses HIS way (below), so the cave gets funnier with every era, never tidier.
 
 ## 1. COSTUMES (the closet)
 Every era's costume gag (eras.md) is looted and hangs in the closet: a bone rack that grows a hook per era.
@@ -40,20 +42,20 @@ One artifact per era, plus the boss trophies and the gems, displayed in the cave
 most of them USED caveman-style. The joke grows with history.
 
 ## Era by era (what comes home)
-| # | era | costume (closet) | Kekko's stall becomes... | the forge becomes... | artifact (and how Ugu uses it) |
-|---|---|---|---|---|---|
-| 1 | Raw Stone | leaf loincloth | a log table of pebbles | the Toolmaker's anvil stone | Tuskar's tusk: the coat hook |
-| 2 | Fire | hide loincloth | gems on a hide | the Firestone forge pit | Old Scar's skull: the fire guard |
-| 3 | Ice Age | thick fur coat + hair tie | furs, ivory, amber | a forge of bone and ice | Gorrak's tusks: an arch over the cave mouth |
-| 4 | First Farmers | woven-reed headband | seeds, pots, grain | a mud-brick kiln | a carved stone pillar (Göbekli Tepe): his back-scratcher |
-| 5 | River Kingdom | pharaoh headdress | papyrus, scarabs, perfumes | a bronze workshop | a sarcophagus: his BATHTUB |
-| 6 | The Arena | sandals + laurel wreath | coins, amphorae | a Roman fabrica | a chariot: the wheelbarrow |
-| 7 | Castle Siege | knight's helmet, too small | a fair tent | a castle forge with bellows | a knight's helmet: the cooking pot |
-| 8 | High Seas | pirate hat + parrot "UGU!" | spices and maps | a ship's forge | a cannon: the SHOWER (it fires water) |
-| 9 | Steam & Smoke | hard hat + soot goggles | gadgets and gears | a steam forge | a train wheel: the dinner table |
-| 10 | Concrete Jungle | sunglasses + hoodie | a vending machine | a garage workshop | a traffic light: the night lamp |
-| 11 | Neon Grid | VR visor | a hologram stall | a fabricator | a robot vacuum: the pet's ride |
-| 12 | The Collapse | the leaf loincloth again | barter in the ruins | every forge in one | the Colossus' core: the hearth stone, full circle |
+| # | era | the CAVE gets... | costume (closet) | Kekko's stall becomes... | the forge becomes... | artifact (and how Ugu uses it) |
+|---|---|---|---|---|---|---|
+| 1 | Raw Stone | a fire pit and a bed of leaves | leaf loincloth | a log table of pebbles | the Toolmaker's anvil stone | Tuskar's tusk: the coat hook |
+| 2 | Fire | a hide curtain over the mouth, a bone frame | hide loincloth | gems on a hide | the Firestone forge pit | Old Scar's skull: the fire guard |
+| 3 | Ice Age | a mammoth-bone hut built into the mouth (Mezhyrich), a hot spring | thick fur coat + hair tie | furs, ivory, amber | a forge of bone and ice | Gorrak's tusks: an arch over the cave mouth |
+| 4 | First Farmers | a mud-brick front, a ladder entrance through the roof (Çatalhöyük), a little garden | woven-reed headband | seeds, pots, grain | a mud-brick kiln | a carved stone pillar (Göbekli Tepe): his back-scratcher |
+| 5 | River Kingdom | a carved stone doorway, two columns, hieroglyph doodles of Ugu | pharaoh headdress | papyrus, scarabs, perfumes | a bronze workshop | a sarcophagus: his BATHTUB |
+| 6 | The Arena | an arch, a mosaic floor of Ugu clubbing a lion, an aqueduct filling the hot spring | sandals + laurel wreath | coins, amphorae | a Roman fabrica | a chariot: the wheelbarrow |
+| 7 | Castle Siege | a drawbridge over the cave mouth, a tower of stones on top, banners | knight's helmet, too small | a fair tent | a castle forge with bellows | a knight's helmet: the cooking pot |
+| 8 | High Seas | a ship's figurehead over the door, sails as curtains, a crow's nest lookout | pirate hat + parrot "UGU!" | spices and maps | a ship's forge | a cannon: the SHOWER (it fires water) |
+| 9 | Steam & Smoke | steam pipes through the rock, a lift (elevator) to the lookout, furnace heating | hard hat + soot goggles | gadgets and gears | a steam forge | a train wheel: the dinner table |
+| 10 | Concrete Jungle | electric light bulbs, a satellite dish, a neon sign: UGU | sunglasses + hoodie | a vending machine | a garage workshop | a traffic light: the night lamp |
+| 11 | Neon Grid | a hologram door, a robot butler (that Ugu ignores) | VR visor | a hologram stall | a fabricator | a robot vacuum: the pet's ride |
+| 12 | The Collapse | overgrown again: vines through everything, back to the wild | the leaf loincloth again | barter in the ruins | every forge in one | the Colossus' core: the hearth stone, full circle |
 
 ## The people
 - **His wife**: rolls her eyes at every new "treasure", runs the home; her requests use resources.
