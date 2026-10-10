@@ -22,6 +22,8 @@ const SIGHTS := [
 	["totem", Vector2(10.5, -11.0), 0.6, 0.7, PI],
 	["hammock", Vector2(16.0, 41.0), 0.25, 0.9, PI],
 	["island", Vector2(0, 6), 0.1, 1.6, PI],
+	["forest", Vector2(-24, 14), 0.15, 1.1, PI],
+	["beach", Vector2(-20, 40), 0.15, 1.1, PI * 0.7],
 ]
 
 

@@ -13,6 +13,7 @@ extends "res://shelter/system.gd"
 ##   him up, BOING, to STAR ROCK, and on top THE WISHING STONE: a wish every
 ##   WISH_EVERY seconds (a shooting star comes down with a gift).
 
+const Organic := preload("res://shelter/organic.gd")
 const GROVE := Vector2(39.5, -20.5)              ## the Moonpuff grove's middle
 const GROVE_R := 9.0
 const STAR_ROCK := Vector2(42.6, -25.2)
@@ -437,8 +438,8 @@ func _star_rock() -> void:
 	var p := STAR_ROCK
 	var g := ground(p.x, p.y)
 	var rock: Color = home.ROCK
-	shape(ball(1.0, 9), rock.darkened(0.08), Vector3(p.x, g + 1.4, p.y), Vector3(0, 20, 0), Vector3(3.4, 2.4, 3.1))
-	shape(ball(1.0, 9), rock, Vector3(p.x + 0.3, g + 3.6, p.y - 0.2), Vector3(0, 70, 0), Vector3(2.9, 2.0, 2.7))
+	shape(Organic.rock(7, 2), rock.darkened(0.08), Vector3(p.x, g + 1.4, p.y), Vector3(0, 20, 0), Vector3(3.4, 3.2, 3.1))
+	shape(Organic.rock(3, 2), rock, Vector3(p.x + 0.3, g + 3.6, p.y - 0.2), Vector3(0, 70, 0), Vector3(2.9, 2.7, 2.7))
 	shape(cyl(2.55, 1.1, 12, 2.7), rock.lightened(0.05), Vector3(p.x, g + ROCK_TOP - 0.55, p.y), Vector3(0, 12, 0))
 	for k in 6:                                                     # moss and glow-moss on its sides
 		var a := k * TAU / 6.0

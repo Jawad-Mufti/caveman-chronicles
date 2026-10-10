@@ -21,6 +21,7 @@ extends "res://shelter/system.gd"
 ##   ladder; on top the camera pulls back over the whole island.
 
 ## [id, name, bones, what it is, where it goes]. Cheap ones first: a quick win.
+const Organic := preload("res://shelter/organic.gd")
 const BUILDS := [
 	["hammock", "THE HAMMOCK", 20, "A hide slung between two palms by the sea. Lie back, swing, watch the sun go down.", "on the beach, by the pier"],
 	["campfire", "THE GATHERING FIRE", 30, "A big fire in the middle of the plaza, logs round it to sit on, hide drums to bang. BOOM-BOOM!", "in the middle of the plaza"],
@@ -318,7 +319,13 @@ func _basis_along(d: Vector3) -> Basis:
 
 
 ## A cylinder from a to b (under n).
-func _rod(n: Node3D, a: Vector3, b: Vector3, r: float, col: Color, segs := 6) -> MeshInstance3D:
+## (bone-coloured ones are real bones: knobbed and bent, shelter/organic.gd)
+func _rod(n: Node3D, a: Vector3, b: Vector3, r: float, col: Color, segs := 6, organic := true) -> MeshInstance3D:
+	if organic and r >= 0.04 and col.r > 0.8 and col.g > 0.75 and col.b > 0.6:
+		var bm := shape(Organic.bone(absi(int(a.x * 11.0 + a.y * 5.0 + a.z * 7.0)) % 5), col, (a + b) * 0.5, Vector3.ZERO, Vector3.ONE, n)
+		var bb := _basis_along(b - a)
+		bm.basis = Basis(bb.x * (r / 0.06), bb.y * a.distance_to(b), bb.z * (r / 0.06))
+		return bm
 	var m := shape(cyl(r, a.distance_to(b), segs), col, (a + b) * 0.5, Vector3.ZERO, Vector3.ONE, n)
 	m.basis = _basis_along(b - a)
 	return m
@@ -416,7 +423,7 @@ func _make_gate(n: Node3D) -> void:
 		for k in 16:
 			var q := (k + 1) / 16.0
 			var p := Vector3(side * (2.5 - 2.25 * q * q), 0.5 + 4.0 * sin(q * PI * 0.5), 0.3 * sin(q * PI))
-			_rod(n, prev, p, lerpf(0.27, 0.07, q), ivory.darkened(0.1 * q), 9)
+			_rod(n, prev, p, lerpf(0.27, 0.07, q), ivory.darkened(0.1 * q), 9, false)       # (a tusk: smooth ivory)
 			shape(ball(lerpf(0.27, 0.07, q), 8), ivory.darkened(0.1 * q), p, Vector3.ZERO, Vector3.ONE, n)
 			prev = p
 		for r in 3:                                                # leather bands round the root

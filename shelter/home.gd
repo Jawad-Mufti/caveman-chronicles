@@ -31,6 +31,7 @@ const Builds := preload("res://shelter/builds.gd")
 const RelicHome := preload("res://shelter/relic_home.gd")
 const Visits := preload("res://shelter/visits.gd")
 const Fishing := preload("res://shelter/fishing.gd")
+const Organic := preload("res://shelter/organic.gd")
 
 const R := 58.0                  ## the island's radius, metres
 const SPEED := 5.0
@@ -374,9 +375,9 @@ func _clear(p: Vector2, pad: float) -> bool:
 
 
 func _rock(at: Vector3, s: float, rng: RandomNumberGenerator) -> void:
-	var m := _shape(_ball(1.0, 7), ROCK.lerp(ROCK_DARK, rng.randf() * 0.6), at + Vector3(0, s * 0.25, 0), Vector3(rng.randf() * 20.0, rng.randf() * 180.0, 0), Vector3(1.3, 0.75, 1.1) * s)
+	var m := _shape(Organic.rock(rng.randi() % 10, 2 if s > 0.7 else 1), ROCK.lerp(ROCK_DARK, rng.randf() * 0.5), at + Vector3(0, s * 0.18, 0), Vector3(rng.randf() * 12.0, rng.randf() * 180.0, 0), Vector3(1.2, 1.05, 1.05) * s)
 	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	_blocks.append([Vector2(at.x, at.z), s * 1.1])
+	_blocks.append([Vector2(at.x, at.z), s * 1.35])
 
 
 ## ------------------------------------------------------------------ the sea and the water
@@ -701,46 +702,66 @@ func _build_trees() -> void:
 		placed += 1
 
 
+## A pine: a trunk that wanders up, roots at its foot, and layers of ragged,
+## drooping boughs (shelter/organic.gd), each turned its own way.
 func _pine(at: Vector3, s: float) -> void:
 	var t := Node3D.new()
 	t.position = at
 	add_child(t)
-	_shape(_cyl(0.16 * s, 1.2 * s, 7, 0.1 * s), WOOD, Vector3(0, 0.6 * s, 0), Vector3.ZERO, Vector3.ONE, t)
+	var v := absi(int(at.x * 7.0 + at.z * 13.0))
+	_shape(Organic.trunk(v % 6), WOOD, Vector3(0, -0.05, 0), Vector3(0, v % 360, 0), Vector3(1.6, 2.0, 1.6) * s, t)
 	for k in 4:
-		var c := _shape(_cone((1.3 - k * 0.27) * s, 1.4 * s, 9), Color("2f5a3a").lightened(k * 0.05), Vector3(0, (1.3 + k * 0.75) * s, 0), Vector3(0, k * 20.0, 0), Vector3.ONE, t)
+		var r := (1.35 - k * 0.27) * s
+		var c := _shape(Organic.boughs((v + k) % 8), Color("2f5a3a").lightened(k * 0.05), Vector3(0, (1.15 + k * 0.7) * s, 0), Vector3(0, (v * 37 + k * 53) % 360, 0), Vector3(r, 1.55 * s, r), t)
 		c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	_occluder(t, Vector2(at.x, at.z), 1.3 * s)
 
 
+## A broadleaf tree: a gnarled trunk, roots, and one cloud of a crown grown
+## from lumps (shelter/organic.gd), darker underneath.
 func _broadleaf(at: Vector3, s: float, rng: RandomNumberGenerator) -> void:
 	var t := Node3D.new()
 	t.position = at
 	add_child(t)
-	_shape(_cyl(0.2 * s, 2.2 * s, 7, 0.13 * s), WOOD.darkened(0.1), Vector3(0, 1.1 * s, 0), Vector3.ZERO, Vector3.ONE, t)
-	for k in 5:
-		var off := Vector3(rng.randf_range(-0.8, 0.8), rng.randf_range(0.0, 0.8), rng.randf_range(-0.8, 0.8)) * s
-		_shape(_ball(rng.randf_range(0.9, 1.3) * s, 8), LEAF.lightened(rng.randf_range(-0.1, 0.12)), Vector3(0, 2.6 * s, 0) + off, Vector3.ZERO, Vector3.ONE, t)
+	var v := rng.randi()
+	_shape(Organic.trunk(v % 6), WOOD.darkened(0.1), Vector3(0, -0.05, 0), Vector3(0, v % 360, 0), Vector3(1.5, 2.5, 1.5) * s, t)
+	_shape(Organic.crown(v % 8), LEAF.lightened(rng.randf_range(-0.06, 0.1)), Vector3(0, 2.75 * s, 0), Vector3(0, rng.randf() * 360.0, 0), Vector3.ONE * 1.2 * s, t)
 	_occluder(t, Vector2(at.x, at.z), 1.6 * s)
 
 
+## A palm: a ringed trunk leaning out, curved notched fronds drooping from its
+## top, coconuts (shelter/organic.gd).
 func _palm(at: Vector3, s: float, rng: RandomNumberGenerator) -> void:
 	var t := Node3D.new()
 	t.position = at
 	t.rotation.y = rng.randf() * TAU
 	add_child(t)
-	var lean := rng.randf_range(8.0, 18.0)
+	var lean := deg_to_rad(rng.randf_range(8.0, 18.0))
 	var top := Vector3.ZERO
-	for k in 6:
-		var seg := _shape(_cyl(0.13 * s, 0.7 * s, 6, 0.11 * s), Color("8a6a48").darkened(k * 0.03), top + Vector3(0, 0.35 * s, 0), Vector3(0, 0, -lean), Vector3.ONE, t)
-		top += Vector3(sin(deg_to_rad(lean)) * 0.7 * s, cos(deg_to_rad(lean)) * 0.7 * s, 0)
-		seg.position = top - Vector3(sin(deg_to_rad(lean)) * 0.35 * s, cos(deg_to_rad(lean)) * 0.35 * s, 0)
 	for k in 7:
-		var leaf := _box(Vector3(2.2 * s, 0.04, 0.45 * s), Color("4f9a3a").lightened(k * 0.02), top + Vector3(0, 0.1, 0), t)
-		leaf.rotation = Vector3(0, k * TAU / 7.0, deg_to_rad(-28.0))
-		leaf.position = top + Vector3(cos(k * TAU / 7.0), -0.15, -sin(k * TAU / 7.0)) * 0.9 * s
+		var p := top
+		top += Vector3(sin(lean + k * 0.03) * 0.62 * s, cos(lean + k * 0.03) * 0.62 * s, 0)
+		var seg := _shape(_cyl(0.13 * s * (1.0 - k * 0.03), 0.62 * s, 8, 0.1 * s * (1.0 - k * 0.03)), Color("8a6a48").darkened((k % 2) * 0.08), (p + top) * 0.5, Vector3.ZERO, Vector3.ONE, t)
+		seg.rotation.z = -(lean + k * 0.03)
+		_shape(_cyl(0.145 * s * (1.0 - k * 0.03), 0.07 * s, 8), Color("6e5236"), p + Vector3(0, 0.02, 0), Vector3(0, 0, -rad_to_deg(lean)), Vector3.ONE, t)   # a ring
+	for k in 8:
+		var a := k * TAU / 8.0 + rng.randf_range(-0.15, 0.15)
+		var fr := _shape(Organic.frond(k % 4), Color("4f9a3a").lightened((k % 3) * 0.04), top, Vector3.ZERO, Vector3(1.05, 1.0, 1.0) * s * rng.randf_range(0.85, 1.1), t)
+		fr.rotation = Vector3(0, a, 0)
 	for k in 3:
-		_shape(_ball(0.13 * s, 6), Color("6a4a2a"), top + Vector3(cos(k * 2.1) * 0.2, -0.15, sin(k * 2.1) * 0.2), Vector3.ZERO, Vector3.ONE, t)
+		_shape(Organic.rock(k, 1), Color("6a4a2a"), top + Vector3(cos(k * 2.1) * 0.2, -0.18, sin(k * 2.1) * 0.2) * Vector3(1, 1, 1), Vector3.ZERO, Vector3.ONE * 0.15 * s, t)
 	_occluder(t, Vector2(at.x, at.z), 2.2 * s)          # (its crown leans out: a wider circle)
+
+
+## A long bone from `a` to `b`, `r` thick at its waist: knobbed, a little bent
+## (shelter/organic.gd).
+func _bone(a: Vector3, b: Vector3, r: float, col := BONE, parent: Node3D = null) -> MeshInstance3D:
+	var m := _shape(Organic.bone(absi(int(a.x * 10.0 + a.z * 7.0)) % 5), col, (a + b) * 0.5, Vector3.ZERO, Vector3.ONE, parent)
+	var y := b - a
+	var x := (Vector3.UP if absf(y.normalized().y) < 0.9 else Vector3.RIGHT).cross(y).normalized()
+	var z := x.cross(y.normalized())
+	m.basis = Basis(x * (r / 0.06), y, z * (r / 0.06))
+	return m
 
 
 ## ------------------------------------------------------------------ the cave
@@ -752,13 +773,13 @@ func _build_cave() -> void:
 	rng.seed = 5
 	for i in 7:
 		var x := lerpf(-6.5, 6.5, i / 6.0)
-		var roof := _shape(_ball(1.0, 7), ROCK.darkened(0.1), Vector3(x, FLOOR_Y + 5.4 + rng.randf_range(-0.3, 0.3), c.z - 2.5 - rng.randf_range(0.0, 2.0)), Vector3(0, rng.randf() * 90.0, 0), Vector3(2.4, 1.1, 3.0))
+		var roof := _shape(Organic.rock(i % 10, 2), ROCK.darkened(0.1), Vector3(x, FLOOR_Y + 5.4 + rng.randf_range(-0.3, 0.3), c.z - 2.5 - rng.randf_range(0.0, 2.0)), Vector3(0, rng.randf() * 90.0, 0), Vector3(2.5, 1.5, 3.0))
 		roof.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		_occluder(roof, Vector2(roof.position.x, roof.position.z), 2.6)
 	for side in [-1.0, 1.0]:
 		for k in 3:
 			var p := Vector3(side * (6.6 + rng.randf_range(-0.3, 0.3)), FLOOR_Y + 1.5 + k * 1.6, c.z + 4.5 - k * 1.2)
-			_shape(_ball(1.0, 7), ROCK.lerp(ROCK_DARK, 0.3), p, Vector3(0, rng.randf() * 90.0, 0), Vector3(1.3, 1.4, 1.6))
+			_shape(Organic.rock((k + 3) % 10, 2), ROCK.lerp(ROCK_DARK, 0.3), p, Vector3(0, rng.randf() * 90.0, 0), Vector3(1.3, 1.4, 1.6))
 		_blocks.append([Vector2(side * 6.8, c.z + 3.5), 1.5])
 	# the painted wall at the back
 	var wall := c + Vector3(0, 0, -4.6)
@@ -803,8 +824,8 @@ func _build_cave() -> void:
 	# THE WEAPON RACK
 	var rack := c + Vector3(-5.5, 0, 1.8)
 	for pz in [-0.75, 0.75]:
-		_shape(_cyl(0.06, 1.9), BONE, rack + Vector3(0, 0.95, pz))
-	_shape(_cyl(0.05, 1.7), BONE, rack + Vector3(0, 1.85, 0), Vector3(90, 0, 0))
+		_bone(rack + Vector3(0, 0.0, pz), rack + Vector3(0, 1.9, pz), 0.06)
+	_bone(rack + Vector3(0, 1.85, -0.85), rack + Vector3(0, 1.85, 0.85), 0.05)
 	var held := 0
 	for w in ["club", "axe", "hammer"]:
 		if GameState.weapons.has(w):
@@ -815,8 +836,8 @@ func _build_cave() -> void:
 	# THE CLOSET: a costume on a hook per era
 	var closet := c + Vector3(5.4, 0, 1.6)
 	for pz2 in [-0.85, 0.85]:
-		_shape(_cyl(0.06, 2.0), BONE, closet + Vector3(0, 1.0, pz2))
-	_shape(_cyl(0.05, 1.9), BONE, closet + Vector3(0, 1.95, 0), Vector3(90, 0, 0))
+		_bone(closet + Vector3(0, 0.0, pz2), closet + Vector3(0, 2.0, pz2), 0.06)
+	_bone(closet + Vector3(0, 1.95, -0.95), closet + Vector3(0, 1.95, 0.95), 0.05)
 	_costume(closet + Vector3(-0.06, 1.4, -0.45), LEAF, false)
 	if era >= 2:
 		_costume(closet + Vector3(-0.06, 1.4, 0.4), Color("d9a64e"), true)
@@ -852,10 +873,10 @@ func _build_cave() -> void:
 		# the mouth's upgrade: a frame of mammoth bones, hide curtains, and two torches
 		for side2 in [-1.0, 1.0]:
 			var post := Vector3(side2 * 5.4, FLOOR_Y, c.z + 4.6)
-			_shape(_cyl(0.17, 3.8, 8, 0.09), BONE, post + Vector3(0, 1.7, 0), Vector3(0, 0, -side2 * 12.0))
+			_bone(post + Vector3(side2 * 0.4, -0.2, 0), post + Vector3(-side2 * 0.4, 3.6, 0), 0.16)
 			_shape(BoxMesh.new(), HIDE, post + Vector3(-side2 * 0.65, 1.7, 0.1), Vector3(0, 0, side2 * 6.0), Vector3(0.95, 3.1, 0.06))
 			_torch(post + Vector3(side2 * 1.2, 0, 1.0))
-		_shape(_cyl(0.14, 11.4, 8), BONE, Vector3(0, FLOOR_Y + 3.6, c.z + 4.6), Vector3(0, 0, 90))
+		_bone(Vector3(-5.7, FLOOR_Y + 3.6, c.z + 4.6), Vector3(5.7, FLOOR_Y + 3.6, c.z + 4.6), 0.13)
 	# THE PUP, curled by the fire
 	_pup = Node3D.new()
 	_pup.position = c + Vector3(-1.7, 0, 2.0)
@@ -1016,7 +1037,9 @@ func _build_plaza() -> void:
 	var piles := Vector3(4.6, FLOOR_Y, -17.4)
 	var bones := clampi(GameState.bones / 5 + 2, 2, 14)
 	for k in bones:
-		_shape(_cyl(0.06, 0.95, 5), BONE, piles + Vector3(-1.0 + (k % 4) * 0.15, 0.1 + (k / 4) * 0.12, (k % 3) * 0.12), Vector3(0, k * 37.0, 85))
+		var bp := piles + Vector3(-1.0 + (k % 4) * 0.15, 0.1 + (k / 4) * 0.12, (k % 3) * 0.12)
+		var ba := k * 0.65
+		_bone(bp - Vector3(cos(ba), 0, sin(ba)) * 0.48, bp + Vector3(cos(ba), 0.04, sin(ba)) * 0.48, 0.055)
 	for k in 6:
 		_shape(_cyl(0.11, 1.1, 7), WOOD, piles + Vector3(0.35, 0.12 + (k / 3) * 0.2, -0.3 + (k % 3) * 0.24), Vector3(90, 0, 0))
 	for k in 5:
@@ -1374,7 +1397,8 @@ func _bake_walk(node: Node, skip: Dictionary, arrs: Variant, inv: Transform3D) -
 				var src := mi.mesh.surface_get_arrays(s)
 				var verts: PackedVector3Array = src[Mesh.ARRAY_VERTEX]
 				var norms: PackedVector3Array = src[Mesh.ARRAY_NORMAL]
-				var idx: PackedInt32Array = src[Mesh.ARRAY_INDEX]
+				var idx: PackedInt32Array = src[Mesh.ARRAY_INDEX] if src[Mesh.ARRAY_INDEX] != null else PackedInt32Array()      # (a flat-faceted shape has none)
+				var shades = src[Mesh.ARRAY_COLOR]              # (organic shapes: a shading to multiply by)
 				# (take each array out and empty its slot, so appending does not copy it)
 				var v: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
 				var n: PackedVector3Array = a[Mesh.ARRAY_NORMAL]
@@ -1389,8 +1413,13 @@ func _bake_walk(node: Node, skip: Dictionary, arrs: Variant, inv: Transform3D) -
 					v.append(xf * verts[i])
 				for i in norms.size():
 					n.append((nb * norms[i]).normalized())
-				for i in verts.size():
-					cl.append(col)
+				if shades is PackedColorArray and (shades as PackedColorArray).size() == verts.size():
+					var sh: PackedColorArray = shades
+					for i in verts.size():
+						cl.append(col * sh[i])
+				else:
+					for i in verts.size():
+						cl.append(col)
 				if idx.is_empty():
 					for i in verts.size():
 						ix.append(base + i)
