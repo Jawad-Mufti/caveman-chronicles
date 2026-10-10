@@ -379,6 +379,7 @@ func _campfire_lit() -> void:
 	_lit = true
 	var n: Node3D = _made["campfire"]
 	home._fire(n.global_position + Vector3(0, 0.05, 0), 0.95)
+	home.tame_lights()
 
 
 func _drum() -> void:

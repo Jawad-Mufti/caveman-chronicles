@@ -40,6 +40,10 @@ const STOP := 26.0
 const GRAVITY := 22.0
 const JUMP := 8.0
 const JUMP2 := 7.0               ## again in the air: a somersault
+## Render layers the fire lights skip (in Compatibility a light draws everything it
+## touches again: the sea and the grass are huge): the sun still lights them.
+const LAYER_WATER := 1 << 1
+const LAYER_GRASS := 1 << 2
 const CAM_FAR := Vector3(0, 7.0, 10.5)
 const CAM_NEAR := Vector3(0, 3.6, 6.0)
 const FLOOR_Y := 1.5             ## the cave and the plaza
@@ -177,6 +181,7 @@ func _ready() -> void:
 	_build_ugu()
 	_build_ui()
 	_bake_static()
+	tame_lights()
 	_apply_daylight(true)
 	if OS.get_cmdline_user_args().has("shot"):
 		_shots.call_deferred()
@@ -287,42 +292,60 @@ func _build_island() -> void:
 	var step := 1.0
 	var span := R + 8.0
 	var n := int(span * 2.0 / step) + 1
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var hs := PackedFloat32Array()
 	hs.resize(n * n)
 	for j in n:
 		for i in n:
 			hs[j * n + i] = height(-span + i * step, -span + j * step)
+	var cols := PackedColorArray()
+	var nrms := PackedVector3Array()
+	cols.resize(n * n)
+	nrms.resize(n * n)
 	for j in n:
 		for i in n:
-			var x := -span + i * step
-			var z := -span + j * step
-			var h: float = hs[j * n + i]
 			var hx: float = hs[j * n + mini(i + 1, n - 1)] - hs[j * n + maxi(i - 1, 0)]
 			var hz: float = hs[mini(j + 1, n - 1) * n + i] - hs[maxi(j - 1, 0) * n + i]
 			var nrm := Vector3(-hx, 2.0 * step, -hz).normalized()
-			st.set_color(_ground_col(x, z, h, 1.0 - nrm.y))
-			st.set_normal(nrm)
-			st.add_vertex(Vector3(x, h, z))
-	for j in n - 1:
-		for i in n - 1:
-			var a := j * n + i
-			if hs[a] < -2.2 and hs[a + 1] < -2.2 and hs[a + n] < -2.2 and hs[a + n + 1] < -2.2:
-				continue
-			st.add_index(a)
-			st.add_index(a + 1)
-			st.add_index(a + n)
-			st.add_index(a + 1)
-			st.add_index(a + n + 1)
-			st.add_index(a + n)
-	var m := MeshInstance3D.new()
-	m.mesh = st.commit()
+			nrms[j * n + i] = nrm
+			cols[j * n + i] = _ground_col(-span + i * step, -span + j * step, hs[j * n + i], 1.0 - nrm.y)
+	# in TILES (a light draws again only the tiles it reaches; the camera and
+	# the shadows skip the ones out of sight), one material for all
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
 	mat.roughness = 0.95
-	m.material_override = mat
-	add_child(m)
+	var tile := 22
+	for tj in range(0, n - 1, tile):
+		for ti in range(0, n - 1, tile):
+			var st := SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			var w := mini(tile, n - 1 - ti) + 1
+			var hgt := mini(tile, n - 1 - tj) + 1
+			var any := false
+			for j in hgt:
+				for i in w:
+					var k := (tj + j) * n + ti + i
+					st.set_color(cols[k])
+					st.set_normal(nrms[k])
+					st.add_vertex(Vector3(-span + (ti + i) * step, hs[k], -span + (tj + j) * step))
+			for j in hgt - 1:
+				for i in w - 1:
+					var g := (tj + j) * n + ti + i
+					if hs[g] < -2.2 and hs[g + 1] < -2.2 and hs[g + n] < -2.2 and hs[g + n + 1] < -2.2:
+						continue
+					any = true
+					var a := j * w + i
+					st.add_index(a)
+					st.add_index(a + 1)
+					st.add_index(a + w)
+					st.add_index(a + 1)
+					st.add_index(a + w + 1)
+					st.add_index(a + w)
+			if not any:
+				continue
+			var m := MeshInstance3D.new()
+			m.mesh = st.commit()
+			m.material_override = mat
+			add_child(m)
 	# boulders about, and rock outcrops on the ridge
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 21
@@ -437,6 +460,7 @@ func _build_sea() -> void:
 	m.shader = sh
 	sea.material_override = m
 	sea.position.y = 0.0
+	sea.layers = LAYER_WATER
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(sea)
 	_water_mats.append(m)
@@ -450,6 +474,8 @@ func _build_sea() -> void:
 	m2.set_shader_parameter("island_r", 999.0)
 	pool.material_override = m2
 	pool.position = Vector3(POOL.x, 0.15, POOL.z)
+	pool.layers = LAYER_WATER
+	pool.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(pool)
 	_water_mats.append(m2)
 	var a := Vector2(POOL.x, POOL.z)
@@ -461,6 +487,8 @@ func _build_sea() -> void:
 	stream.material_override = m2
 	stream.position = Vector3((a.x + b.x) * 0.5, 0.15, (a.y + b.y) * 0.5)
 	stream.rotation.y = -(b - a).angle()
+	stream.layers = LAYER_WATER
+	stream.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(stream)
 
 
@@ -599,10 +627,6 @@ func _build_grass() -> void:
 		st.set_normal(Vector3(0, 1, 0))
 		st.add_vertex(v[0])
 	var blade := st.commit()
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = false
-	mm.mesh = blade
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 5
 	var xforms: Array = []
@@ -618,14 +642,29 @@ func _build_grass() -> void:
 		var s := rng.randf_range(0.7, 1.5)
 		var t := Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.8, 1.4), s)), Vector3(p.x, h - 0.02, p.y))
 		xforms.append(t)
-	mm.instance_count = xforms.size()
-	for i in xforms.size():
-		mm.set_instance_transform(i, xforms[i])
-	var mi := MultiMeshInstance3D.new()
-	mi.multimesh = mm
-	mi.material_override = _wind_mat
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
+	# in TILES of 20 m (the camera skips the ones out of sight), and on the grass
+	# layer (the fire lights skip it: 14000 blades drawn again per light)
+	var tiles := {}
+	for t2 in xforms:
+		var o: Vector3 = (t2 as Transform3D).origin
+		var key := Vector2i(floori(o.x / 20.0), floori(o.z / 20.0))
+		if not tiles.has(key):
+			tiles[key] = []
+		(tiles[key] as Array).append(t2)
+	for key in tiles:
+		var list: Array = tiles[key]
+		var tm := MultiMesh.new()
+		tm.transform_format = MultiMesh.TRANSFORM_3D
+		tm.mesh = blade
+		tm.instance_count = list.size()
+		for i in list.size():
+			tm.set_instance_transform(i, list[i])
+		var mi := MultiMeshInstance3D.new()
+		mi.multimesh = tm
+		mi.material_override = _wind_mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.layers = LAYER_GRASS
+		add_child(mi)
 	# flowers in the grass
 	var colours := [Color("ffd84a"), Color("b07cff"), Color("ff7a6b"), Color("ffffff"), Color("6ad8ff")]
 	for i in 160:
@@ -1059,8 +1098,11 @@ func _build_sky() -> void:
 	add_child(we)
 	_sun = DirectionalLight3D.new()
 	_sun.shadow_enabled = true
-	_sun.directional_shadow_max_distance = 60.0
-	_sun.shadow_blur = 1.5
+	_sun.directional_shadow_max_distance = 48.0
+	_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS     # (the default 4 splits drew every caster four times over)
+	_sun.shadow_blur = 0.0                     # (hard toon shadows: soft ones cost every pixel)
+	RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_HARD)
+	RenderingServer.directional_shadow_atlas_set_size(2048, true)
 	add_child(_sun)
 	_cam = Camera3D.new()
 	_cam.fov = 42.0
@@ -1230,6 +1272,7 @@ func _particles(amount: int, life: float, col: Color, s0: float, s1: float, glow
 ## the trees that fade (occluders), flames, spits, clouds, birds. The merged
 ## originals keep their nodes (children, references) and just lose their mesh.
 var _baked := 0                  ## how many shapes were merged (homecost prints it)
+const BAKE_CELL := 16.0          ## the merged shapes, in cells this big (metres)
 
 func _bake_static() -> void:
 	var skip := {}
@@ -1246,10 +1289,10 @@ func _bake_static() -> void:
 		skip[(s as Node).get_instance_id()] = true
 	for o in _occluders:
 		skip[(o[0] as Node).get_instance_id()] = true
-	var arrs := [_new_bake_arrays(), _new_bake_arrays()]       # [casts shadows, does not]
-	_bake_walk(self, skip, arrs, global_transform.affine_inverse())
-	for k in 2:
-		_add_baked(self, arrs[k], k == 0)
+	var cells := {}                                          # Vector3i(cell x, cell z, 1: casts no shadow) -> arrays
+	_bake_walk(self, skip, cells, global_transform.affine_inverse())
+	for key in cells:
+		_add_baked(self, cells[key], (key as Vector3i).z == 0)
 	# each tree that fades in front of him: merged into one mesh of its own; its
 	# fade (_fade_occluders) then sets the alpha of that one material
 	for o in _occluders:
@@ -1266,6 +1309,17 @@ func _bake_static() -> void:
 			if r != mi and r.mesh != null and r.material_override is StandardMaterial3D:
 				mats.append(r.material_override)
 		o[3] = mats
+
+
+## Every point light (the fires, the torches, the forge, his own glow, the
+## moonstone, the crystals): no shadows (a point light's shadow draws the scene six
+## times over: it was 10 ms by itself), and they skip the water and the grass.
+## Lights made later (a fire built) call this again.
+func tame_lights() -> void:
+	for l in find_children("*", "OmniLight3D", true, false):
+		var o := l as OmniLight3D
+		o.shadow_enabled = false
+		o.light_cull_mask = 0xFFFFF & ~(LAYER_WATER | LAYER_GRASS)
 
 
 ## One merged mesh (vertex colours) under `parent`, or null if there was nothing.
@@ -1295,7 +1349,7 @@ func _new_bake_arrays() -> Array:
 	return a
 
 
-func _bake_walk(node: Node, skip: Dictionary, arrs: Array, inv: Transform3D) -> void:
+func _bake_walk(node: Node, skip: Dictionary, arrs: Variant, inv: Transform3D) -> void:
 	for c in node.get_children():
 		if skip.has(c.get_instance_id()):
 			continue
@@ -1304,7 +1358,17 @@ func _bake_walk(node: Node, skip: Dictionary, arrs: Array, inv: Transform3D) -> 
 			var xf := inv * mi.global_transform
 			var col: Color = (mi.material_override as StandardMaterial3D).albedo_color
 			var off := mi.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			var a: Array = arrs[1 if off else 0]
+			var a: Array
+			if arrs is Dictionary:
+				# the home's bake: in CELLS (a light draws again only the cells it
+				# reaches; the camera and the shadows skip the ones out of sight)
+				var o := mi.global_position
+				var key := Vector3i(floori(o.x / BAKE_CELL), floori(o.z / BAKE_CELL), 1 if off else 0)
+				if not arrs.has(key):
+					arrs[key] = _new_bake_arrays()
+				a = arrs[key]
+			else:
+				a = arrs[1 if off else 0]
 			var nb := xf.basis.inverse().transposed()
 			for s in mi.mesh.get_surface_count():
 				var src := mi.mesh.surface_get_arrays(s)
@@ -1927,9 +1991,60 @@ func hang_fish(col: Color, size := 1.0) -> void:
 	_shape(_ball(0.14, 6), col, dry + Vector3(-0.85 + (k % 6) * 0.3, 1.25, 0.08), Vector3.ZERO, Vector3(0.6, 1.8, 0.4) * s)
 
 
+## ------------------------------------------------------------------ the 3D's resolution, fitted
+## On a weak GPU (a laptop's own Radeon: the home is pixel-bound there) the 3D
+## is drawn smaller and stretched, the UI stays sharp: every 2 s, if one frame in
+## twelve was late, 8% less (down to 65%); after 8 s with none late, 5% more, but
+## never back up to a size that was late before (for 40 s). A strong PC stays at 100%.
+const RES_MIN := 0.65
+var fit_resolution := true      ## (tests: false, to measure at a fixed size)
+var _res_t := 0.0
+var _res_frames := 0
+var _res_late := 0
+var _res_good := 0.0
+var _res_ceiling := 1.0
+var _res_ceiling_t := 0.0
+var _res_clock := 0                ## (real time: with vsync Godot smooths `delta`, so it never looks late)
+
+
+func _fit_resolution(delta: float) -> void:
+	var now := Time.get_ticks_usec()
+	var real := (now - _res_clock) / 1000000.0 if _res_clock > 0 else delta
+	_res_clock = now
+	if _t < 3.0 or real <= 0.0 or not fit_resolution:
+		return                                   # (the first seconds always run slow)
+	_res_t += real
+	_res_frames += 1
+	if real > 0.021:
+		_res_late += 1
+	_res_ceiling_t = maxf(_res_ceiling_t - real, 0.0)
+	if _res_ceiling_t <= 0.0:
+		_res_ceiling = 1.0
+	if _res_t < 2.0:
+		return
+	var vp := get_viewport()
+	var scale := vp.scaling_3d_scale
+	if _res_late * 12 > _res_frames:
+		if scale > RES_MIN:
+			_res_ceiling = scale
+			_res_ceiling_t = 40.0
+			vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+			vp.scaling_3d_scale = maxf(RES_MIN, scale - 0.08)
+		_res_good = 0.0
+	elif _res_late == 0:
+		_res_good += _res_t
+		if _res_good >= 8.0 and scale < 1.0 and scale + 0.05 < _res_ceiling - 0.001:
+			vp.scaling_3d_scale = minf(1.0, scale + 0.05)
+			_res_good = 0.0
+	_res_t = 0.0
+	_res_frames = 0
+	_res_late = 0
+
+
 ## ------------------------------------------------------------------ every frame
 func _process(delta: float) -> void:
 	_t += delta
+	_fit_resolution(delta)
 	var dir := Vector3.ZERO
 	if _menu == null and not _at_mirror():
 		if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
@@ -2122,6 +2237,7 @@ func walk(dir: Vector3, delta: float) -> void:
 func _camera(delta: float) -> void:
 	_glow_light.position = _pos + Vector3(0, 1.7, 1.2)
 	_glow_light.light_energy = lerpf(0.25, 0.9, _night)
+	_glow_light.visible = _night > 0.4                # (by day it can't be seen, and a light draws everything near him again)
 	_cam_k = move_toward(_cam_k, 1.0 if _focus > 0.0 else 0.0, delta * 1.6)
 	var k := _cam_k * _cam_k * (3.0 - 2.0 * _cam_k)
 	_lead = _lead.lerp(Vector3(_hv.x, 0, _hv.y) * 0.3, minf(1.0, delta * 2.0))

@@ -119,6 +119,7 @@ func _flowers() -> void:
 		var mi := MultiMeshInstance3D.new()
 		mi.multimesh = mm
 		mi.material_override = home._wind_mat
+		mi.layers = home.LAYER_GRASS                     # (the fire lights skip flowers: they are many)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mi)
 

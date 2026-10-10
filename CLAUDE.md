@@ -111,6 +111,14 @@ bite, the tension fight, 7 species + junk, the catch card, THE FISH LOG; it hold
   each fading tree into its own): ~1400 draw calls -> ~290. Anything NEW that moves, fades, or changes colour
   at runtime must be added to its skip list (or hold a non-plain material), or it will be frozen in place.
   Things made after `_ready` (the stick, caught fish) are never merged. Cost: `tools/homecost`.
+- THE HOME IS GPU-BOUND on this PC (an integrated Radeon), and in Compatibility every point light draws again
+  everything it touches. So (2026-10-10, it lagged at ~40 fps): the merge is in 16 m CELLS (`BAKE_CELL`), the ground
+  in 22 m tiles, the grass in 20 m tiles: lights, the camera and the shadows only touch what is near; point lights
+  have NO shadows and skip `LAYER_WATER` / `LAYER_GRASS` (a new light: call `home.tame_lights()`); the sun: 2
+  splits, 2048 map, hard edges; Ugu's own light only at night; the 3D resolution FITS itself (`_fit_resolution`,
+  65..100%, real time: Godot smooths `delta` under vsync). Nothing island-sized in one piece. Where the time goes:
+  `tools/homeprof -- [all] [at=x,z] [night] [quick]` (rendering, --disable-vsync); judge with vsync on, no
+  --fixed-fps (it fixes `delta`).
 - THE 3D UGU: a new part goes into its bone's `Lump` (no new MeshInstance: he is 29 meshes); face parts are placed
   from the 2D rig's design units (`_face(x, y)`), loose parts get a `reach` (the air bends them in the shader).
   Check with `ugu3dsheet -- [face] [faces [only=a,b]] [body] [moves]`, the test `ugu3dface`, and in the home (`home.tscn -- shot`).
