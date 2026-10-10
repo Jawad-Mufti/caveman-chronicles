@@ -88,6 +88,8 @@ bite, the tension fight, 7 species + junk, the catch card, THE FISH LOG; it hold
   Paint built-once shapes with `Terrain.paint_poly` / `paint_rect`, tints `Terrain.NIGHT_ROCK/EARTH/GRASS`.
   THE HOME: organic shapes, not balls and cones: `shelter/organic.gd` (rock, bone, trunk, crown, boughs, frond; vertex
   colour = shading, the merge multiplies it in); `home._bone(a, b, r)`, `builds._rod` makes bone-coloured rods real bones.
+  Its LOOK: `shelter/world_look.gd`, one shader for the merged shapes and the ground: toon bands (as on Ugu), a darker
+  rim, painted surfaces told apart by colour (stone strata, wood grain, dappled leaves, ground strokes), a dither fade.
   No flat slate-blue rock: warm painted stone, outlined. Fur shapes: `Critter._fur_shape`, `CaveMan._fur`.
 - Critters: layer 4, `take_hit(dmg, dir)` (call super: damage numbers + knock-back come from the base).
   Breakables are layer-4 Areas with `take_hit`. `make_elite()` only AFTER `add_child`. Launch: hp <= 20 only.

@@ -32,6 +32,7 @@ const RelicHome := preload("res://shelter/relic_home.gd")
 const Visits := preload("res://shelter/visits.gd")
 const Fishing := preload("res://shelter/fishing.gd")
 const Organic := preload("res://shelter/organic.gd")
+const Look := preload("res://shelter/world_look.gd")
 
 const R := 58.0                  ## the island's radius, metres
 const SPEED := 5.0
@@ -311,9 +312,7 @@ func _build_island() -> void:
 			cols[j * n + i] = _ground_col(-span + i * step, -span + j * step, hs[j * n + i], 1.0 - nrm.y)
 	# in TILES (a light draws again only the tiles it reaches; the camera and
 	# the shadows skip the ones out of sight), one material for all
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 0.95
+	var mat: Material = Look.ground()
 	var tile := 22
 	for tj in range(0, n - 1, tile):
 		for ti in range(0, n - 1, tile):
@@ -977,7 +976,8 @@ func _build_plaza() -> void:
 	var a := Vector2(0, -4)
 	for i in 34:
 		var p := a.lerp(PIER, i / 34.0) + Vector2(rng.randf_range(-0.6, 0.6), 0)
-		_shape(_cyl(rng.randf_range(0.35, 0.55), 0.12, 7), Color("9a8f86"), Vector3(p.x, height(p.x, p.y) + 0.03, p.y), Vector3(0, rng.randf() * 90.0, 0))
+		var sr := rng.randf_range(0.35, 0.55)
+		_shape(Organic.rock(i % 10, 1), Color("9a8f86"), Vector3(p.x, height(p.x, p.y) + 0.02, p.y), Vector3(0, rng.randf() * 90.0, 0), Vector3(sr * 1.15, 0.2, sr))      # (a flat stone, worn smooth by feet)
 	# KEKKO'S STALL: pebbles (era 1), gems on a leopard hide (era 2); Kekko under his pack
 	var stall := Vector3(7.5, FLOOR_Y, -10.5)
 	for px in [-1.1, 1.1]:
@@ -1324,7 +1324,7 @@ func _bake_static() -> void:
 		var tskip := {}
 		_bake_walk(tree, tskip, [ta, ta], tree.global_transform.affine_inverse())
 		var mats: Array = []
-		var mi := _add_baked(tree, ta, true)
+		var mi := _add_baked(tree, ta, true, true)
 		if mi != null:
 			mats.append(mi.material_override)
 		for rest in tree.find_children("*", "MeshInstance3D", true, false):
@@ -1346,17 +1346,14 @@ func tame_lights() -> void:
 
 
 ## One merged mesh (vertex colours) under `parent`, or null if there was nothing.
-func _add_baked(parent: Node3D, a: Array, shadows: bool) -> MeshInstance3D:
+func _add_baked(parent: Node3D, a: Array, shadows: bool, own_mat := false) -> MeshInstance3D:
 	if (a[Mesh.ARRAY_VERTEX] as PackedVector3Array).is_empty():
 		return null
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a)
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true          # (albedo x vertex colour: white, its alpha fades it)
-	mat.roughness = 0.85
-	mi.material_override = mat
+	mi.material_override = Look.own() if own_mat else Look.world()        # (the home's look: toon light, rims, painted surfaces)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi)
 	return mi
@@ -1650,12 +1647,15 @@ func _fade_occluders(delta: float) -> void:
 			var k := clampf((at - cam).dot(to_me) / to_me.length_squared(), 0.0, 1.0)
 			var close := at.distance_to(cam + to_me * k)
 			if k > 0.05 and k < 0.98 and close < float(o[2]) + 0.7:
-				want = 0.1                         # (a ghost of it: no green wash over the view)
+				want = 0.25                        # (a dither: a ghost of it)
 		var a: float = move_toward(float(o[4]), want, delta * 3.0)
 		if a == float(o[4]):
 			continue
 		o[4] = a
 		for mat in o[3]:
+			if mat is ShaderMaterial:
+				(mat as ShaderMaterial).set_shader_parameter("fade", a)      # (the toon look: a dither)
+				continue
 			var m := mat as StandardMaterial3D
 			m.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED if a >= 0.999 else BaseMaterial3D.TRANSPARENCY_ALPHA
 			m.albedo_color.a = a
