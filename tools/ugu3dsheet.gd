@@ -2,7 +2,8 @@ extends Node3D
 ## Test harness (not shipped): a MODEL SHEET of the 3D Ugu (shelter/ugu3d.gd):
 ## idle, running (moving, so the air works on him), in the air; then the
 ## costumes and era 1. Run with rendering; PNG to C:/tmp/shots/ugu3d_<tag>.png.
-##   args: tag=<name>, face (a close-up of the head), turn (seen from the side)
+##   args: tag=<name>, face (a close-up of the head), body (his bare trunk and
+##   arms, close), turn (seen from the side), back (from behind)
 const UguModel := preload("res://shelter/ugu3d.gd")
 
 var tag := "now"
@@ -41,6 +42,12 @@ func _ready() -> void:
 		cam.position = Vector3(0.3, 1.7, 1.25)
 		cam.look_at(Vector3(0, 1.62, 0))
 		cam.fov = 38.0
+	elif args.has("body"):
+		# a close-up of his trunk and arms, bare (era 1): the muscles
+		looks = [[1, "plain", "idle"]]
+		cam.position = Vector3(0.25, 1.15, 2.2)
+		cam.look_at(Vector3(0, 1.1, 0))
+		cam.fov = 40.0
 	else:
 		cam.position = Vector3(0, 1.1, 7.2)
 		cam.look_at(Vector3(0, 0.85, 0))
@@ -51,6 +58,8 @@ func _ready() -> void:
 		u.era = looks[i][0]
 		u.position = Vector3((i - (looks.size() - 1) * 0.5) * 1.15, 0, 0)
 		u.rotation.y = (PI * 0.5 if turn else 0.35)
+		if args.has("back"):
+			u.rotation.y = PI + 0.35
 		add_child(u)
 		match looks[i][2]:
 			"run":

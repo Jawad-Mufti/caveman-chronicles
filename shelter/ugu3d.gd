@@ -46,9 +46,15 @@ const STONE := Color("8d9196")
 const LEAF := Color("6a8447")
 
 ## How a part is drawn (UV): x the rim's width (1 full, 0 none), y its look
-## (0 toon shaded, 1 lit by itself, 2 fur strokes).
+## (0 toon shaded, 1 lit by itself, 2 fur strokes, 3.. skin with its muscles
+## painted on: the trunk, the upper arm, the forearm, the thigh, the shin).
 const PLAIN := Vector2(1, 0)
 const FURRY := Vector2(1, 2)
+const M_TRUNK := Vector2(1, 3)
+const M_ARM := Vector2(1, 4)
+const M_FOREARM := Vector2(1, 5)
+const M_THIGH := Vector2(1, 6)
+const M_SHIN := Vector2(1, 7)
 const FINE := Vector2(0.45, 0)
 const BARE := Vector2(0, 0)
 const SHINE := Vector2(0, 1)
@@ -74,9 +80,86 @@ void vertex() {
 	mpos = VERTEX;
 	look = UV.y;
 }
+// a brush stroke from a to b, its width w0 -> w1: how much of it covers p
+float brush(vec2 p, vec2 a, vec2 b, float w0, float w1) {
+	vec2 pa = p - a;
+	vec2 ba = b - a;
+	float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+	float d = length(pa - ba * h);
+	float w = mix(w0, w1, h);
+	float aa = fwidth(d) * 0.75 + 1e-5;
+	return 1.0 - smoothstep(w - aa, w + aa, d);
+}
+// his MUSCLES, painted like the 2D art: tapering strokes in a darker tone of
+// the skin, mirrored left and right. On the limbs: (round the limb, down it).
+float muscles(vec3 p, float kind) {
+	float m = 0.0;
+	if (kind < 3.5) {
+		vec2 q = vec2(abs(p.x), p.y);
+		if (p.z > 0.0) {
+			// the pecs: the lower edge, a shade under it, the breastbone
+			m = max(m, brush(q, vec2(0.02, 0.372), vec2(0.08, 0.343), 0.003, 0.0065));
+			m = max(m, brush(q, vec2(0.08, 0.343), vec2(0.16, 0.335), 0.0065, 0.006));
+			m = max(m, brush(q, vec2(0.16, 0.335), vec2(0.225, 0.352), 0.006, 0.004));
+			m = max(m, brush(q, vec2(0.225, 0.352), vec2(0.272, 0.392), 0.004, 0.0));
+			float yb = 0.335 + 1.9 * (q.x - 0.15) * (q.x - 0.15);
+			m = max(m, 0.4 * step(q.y, yb) * smoothstep(0.035, 0.0, yb - q.y) * smoothstep(0.03, 0.08, q.x) * smoothstep(0.26, 0.2, q.x));
+			m = max(m, brush(q, vec2(0.0, 0.47), vec2(0.0, 0.372), 0.0, 0.0035));
+			// the collarbones
+			m = max(m, brush(q, vec2(0.1, 0.562), vec2(0.2, 0.578), 0.0045, 0.0));
+			// the abs: the middle line, three rows, the outer edges
+			m = max(m, brush(q, vec2(0.0, 0.33), vec2(0.0, 0.08), 0.004, 0.002));
+			for (int i = 0; i < 3; i++) {
+				float y = 0.278 - float(i) * 0.07;
+				m = max(m, brush(q, vec2(0.0, y), vec2(0.082, y + 0.012), 0.004, 0.0));
+			}
+			m = max(m, brush(q, vec2(0.092, 0.315), vec2(0.103, 0.22), 0.0, 0.005));
+			m = max(m, brush(q, vec2(0.103, 0.22), vec2(0.094, 0.13), 0.005, 0.004));
+			m = max(m, brush(q, vec2(0.094, 0.13), vec2(0.068, 0.07), 0.004, 0.0));
+			// the ribs' fingers under his arms
+			for (int i = 0; i < 3; i++) {
+				float y = 0.345 - float(i) * 0.033;
+				m = max(m, brush(q, vec2(0.252, y + 0.012), vec2(0.205, y - 0.01), 0.0035, 0.0));
+			}
+		} else {
+			// his back: the spine, the shoulder blades
+			m = max(m, brush(q, vec2(0.0, 0.52), vec2(0.0, 0.1), 0.0, 0.004));
+			m = max(m, brush(q, vec2(0.07, 0.5), vec2(0.06, 0.42), 0.0, 0.004));
+			m = max(m, brush(q, vec2(0.06, 0.42), vec2(0.1, 0.35), 0.004, 0.005));
+			m = max(m, brush(q, vec2(0.1, 0.35), vec2(0.2, 0.37), 0.005, 0.0));
+		}
+		return m;
+	}
+	vec2 q = vec2(abs(atan(p.x, p.z)) * 0.095, p.y);
+	if (kind < 4.5) {
+		// the upper arm: the deltoid's V, the bicep, the bicep/tricep split
+		m = max(m, brush(q, vec2(0.02, -0.02), vec2(0.075, -0.1), 0.0, 0.005));
+		m = max(m, brush(q, vec2(0.075, -0.1), vec2(0.149, -0.172), 0.005, 0.006));
+		m = max(m, brush(q, vec2(0.149, -0.172), vec2(0.22, -0.1), 0.006, 0.004));
+		m = max(m, brush(q, vec2(0.22, -0.1), vec2(0.28, -0.03), 0.004, 0.0));
+		m = max(m, brush(q, vec2(0.068, -0.125), vec2(0.042, -0.208), 0.0, 0.005));
+		m = max(m, brush(q, vec2(0.042, -0.208), vec2(0.0, -0.232), 0.005, 0.005));
+		m = max(m, brush(q, vec2(0.149, -0.19), vec2(0.152, -0.28), 0.005, 0.0));
+	} else if (kind < 5.5) {
+		// the forearm, under the elbow
+		m = max(m, brush(q, vec2(0.075, 0.0), vec2(0.03, -0.085), 0.005, 0.0));
+	} else if (kind < 6.5) {
+		// the thigh: the teardrops over the knee
+		m = max(m, brush(q, vec2(0.088, -0.19), vec2(0.078, -0.29), 0.0, 0.005));
+		m = max(m, brush(q, vec2(0.078, -0.29), vec2(0.045, -0.338), 0.005, 0.0));
+	} else {
+		// the kneecap
+		float d = abs(length(vec2(q.x, (q.y + 0.022) * 0.9)) - 0.034);
+		float aa = fwidth(d) * 0.75 + 1e-5;
+		m = (1.0 - smoothstep(0.004 - aa, 0.004 + aa, d)) * smoothstep(-0.012, -0.034, q.y);
+	}
+	return m;
+}
 void fragment() {
 	vec3 c = COLOR.rgb;
-	if (look > 1.5) {
+	if (look > 2.5) {
+		c = mix(c, c * vec3(0.66, 0.56, 0.52), clamp(muscles(mpos, look), 0.0, 1.0) * 0.85);
+	} else if (look > 1.5) {
 		// fur: short strokes in a darker tone, running down
 		vec3 q = mpos * vec3(30.0, 11.0, 30.0);
 		vec3 cell = floor(q);
@@ -273,11 +356,11 @@ func _build_legs() -> void:
 	for side: float in [-1.0, 1.0]:
 		var leg := _node(Vector3(side * 0.13, 0, 0), _hips)
 		var l := Lump.new()
-		_limb(l, Vector3(0, 0.02, 0), Vector3(0, -0.35, 0), 0.112, 0.086, SKIN)                 # thigh
+		_limb(l, Vector3(0, 0.02, 0), Vector3(0, -0.35, 0), 0.112, 0.086, SKIN, M_THIGH)         # thigh
 		_mesh(l, leg, _m_still)
 		var knee := _node(Vector3(0, -0.35, 0), leg)
 		var k := Lump.new()
-		_limb(k, Vector3.ZERO, Vector3(0, -0.31, 0), 0.084, 0.062, SKIN)                       # shin
+		_limb(k, Vector3.ZERO, Vector3(0, -0.31, 0), 0.084, 0.062, SKIN, M_SHIN)                # shin
 		_ball(k, Vector3(0, -0.1, -0.03), Vector3(0.072, 0.1, 0.066), SKIN)                    # calf
 		# the fur calf wrap, tied with cord, a ragged top that moves in the air
 		_tube(k, _line(Vector3(0, -0.12, -0.004), Vector3(0, -0.29, 0.0), 4), PackedFloat32Array([0.088, 0.086, 0.078, 0.071]), FUR, FURRY, 0.0, 0.0, 12)
@@ -327,7 +410,7 @@ func _torso_r(y: float) -> Vector2:
 func _torso_at(y: float, ang: float, inflate := 1.0) -> Vector3:
 	var r := _torso_r(y) * inflate
 	var front := maxf(cos(ang), 0.0)
-	var pec := 0.028 * exp(-pow((y - 0.42) / 0.075, 2)) * front * front * (1.0 - 0.7 * exp(-pow(sin(ang) / 0.14, 2)))
+	var pec := 0.04 * exp(-pow((y - 0.42) / 0.075, 2)) * front * front * (1.0 - 0.7 * exp(-pow(sin(ang) / 0.14, 2)))
 	return Vector3(sin(ang) * r.x, y, cos(ang) * r.y + pec * inflate)
 
 
@@ -347,7 +430,7 @@ func _build_torso() -> void:
 	top.fill(Vector3(0, 0.66, 0))
 	rows.append(top)
 	cen.append(Vector3(0, 0.6, 0))
-	l.grid(rows, cen, true, SKIN, PLAIN, PackedFloat32Array(), 0.0)
+	l.grid(rows, cen, true, SKIN, M_TRUNK, PackedFloat32Array(), 0.0)
 	_mesh(l, _body, _m_body)
 
 
@@ -355,13 +438,15 @@ func _build_arms() -> void:
 	for side: float in [-1.0, 1.0]:
 		var arm := _node(Vector3(side * 0.37, 0.49, 0), _body)
 		var l := Lump.new()
-		_ball(l, Vector3(0, -0.02, 0), Vector3(0.12, 0.12, 0.115), SKIN)                     # shoulder
-		_limb(l, Vector3(0, -0.04, 0), Vector3(0, -0.3, 0), 0.095, 0.078, SKIN)              # upper arm
-		_ball(l, Vector3(0, -0.14, 0.035), Vector3(0.072, 0.09, 0.062), SKIN)                # bicep
+		_ball(l, Vector3(0, -0.02, 0), Vector3(0.12, 0.12, 0.115), SKIN, M_ARM)              # shoulder
+		_limb(l, Vector3(0, -0.04, 0), Vector3(0, -0.3, 0), 0.095, 0.078, SKIN, M_ARM)       # upper arm
+		_ball(l, Vector3(0, -0.14, 0.035), Vector3(0.076, 0.09, 0.064), SKIN, M_ARM)         # bicep
+		_ball(l, Vector3(0, -0.16, -0.03), Vector3(0.074, 0.095, 0.06), SKIN, M_ARM)          # tricep
 		_mesh(l, arm, _m_still)
 		var elbow := _node(Vector3(0, -0.3, 0), arm)
 		var e := Lump.new()
-		_limb(e, Vector3.ZERO, Vector3(0, -0.25, 0.01), 0.082, 0.066, SKIN)                   # forearm
+		_limb(e, Vector3.ZERO, Vector3(0, -0.25, 0.01), 0.082, 0.066, SKIN, M_FOREARM)        # forearm
+		_ball(e, Vector3(0, -0.055, 0.008), Vector3(0.09, 0.075, 0.085), SKIN, M_FOREARM)   # its swell under the elbow
 		# the leather wrap and the cords across it
 		_tube(e, _line(Vector3(0, -0.09, 0.002), Vector3(0, -0.23, 0.008), 3), PackedFloat32Array([0.088, 0.083, 0.076]), LEATHER, PLAIN, 0.0, 0.0, 12)
 		for t in 3:
@@ -405,6 +490,9 @@ func _head_point(lat: float, lon: float, inflate := 1.0) -> Vector3:
 		p.x *= 1.0 + 0.17 * (-d.y)                           # the wide jaw
 		p.y *= 1.0 - 0.07 * d.y * d.y                         # squared off underneath
 		p.z += 0.05 * (-d.y) * front * front                  # the chin forward
+		# the CHIN: a squared block under the mouth, out and down
+		var chin := exp(-pow((d.y + 0.86) / 0.17, 2)) * smoothstep(0.15, 0.55, d.z) * exp(-pow(d.x / 0.42, 4))
+		p += Vector3(0, -0.045, 0.072) * chin
 	p.z += 0.022 * exp(-pow((d.y - 0.3) / 0.11, 2)) * front * front        # the brow ridge
 	p += Vector3(signf(d.x) * 0.012, 0, 0.01) * exp(-pow(d.y / 0.13, 2) - pow((absf(d.x) - 0.6) / 0.2, 2))   # cheekbones
 	return HEAD_C + p * inflate
@@ -453,7 +541,7 @@ func _shell(l: Lump, inflate: float, lon0: float, lon1: float, closed: bool, spa
 ## the sides as sideburns to the ears; nothing round the back.
 func _beard_top(lon: float) -> float:
 	var s := absf(sin(lon))
-	var top := lerpf(-0.85, -0.42, smoothstep(0.12, 0.7, s))
+	var top := lerpf(-0.72, -0.42, smoothstep(0.12, 0.7, s))
 	top = lerpf(top, -0.04, smoothstep(0.9, 0.99, s))                 # the sideburns, up to the ears
 	return lerpf(top, -1.5, smoothstep(0.0, 0.35, -cos(lon)))
 
@@ -474,14 +562,17 @@ func _build_head() -> void:
 	_shell(l, 1.0, -PI, PI, true, func(_lo): return Vector2(-PI * 0.5, PI * 0.5), SKIN, PLAIN, 22, 48)
 	# ears, half in the hair
 	for side: float in [-1.0, 1.0]:
-		var ear := _head_point(-0.04, side * 1.47, 1.0)
-		_ball(l, ear, Vector3(0.034, 0.062, 0.05), SKIN)
-		_ball(l, ear + Vector3(side * 0.018, 0, 0.004), Vector3(0.012, 0.032, 0.024), SKIN_DARK, BARE)
+		# a flat shell tipped back, a rolled rim, the hollow and the lobe
+		var ear := _head_point(-0.06, side * 1.5, 0.985)
+		var eb := Basis(Vector3.UP, side * 0.35) * Basis(Vector3.RIGHT, -0.2)
+		_ball(l, ear, Vector3(0.026, 0.052, 0.038), SKIN, PLAIN, eb)
+		_ball(l, ear + eb * Vector3(side * 0.012, 0.006, 0.0), Vector3(0.01, 0.03, 0.02), SKIN_DARK, BARE, eb)
+		_ball(l, ear + eb * Vector3(side * 0.006, -0.042, 0.004), Vector3(0.016, 0.017, 0.016), SKIN, FINE, eb)
 	# the BEARD: short and thick round the jaw and chin, up the sides as sideburns,
 	# a ragged edge at the chin, lighter strands in it
 	var beard := HAIR.lerp(FUR, 0.35)
 	_shell(l, 1.085, -2.0, 2.0, false, func(lo): return Vector2(-PI * 0.5 + 0.02, _beard_top(lo)), beard, PLAIN, 14, 44)
-	_ball(l, _face(0, -123.0, 1.0), Vector3(0.105, 0.06, 0.075), beard)                     # fullest at the chin
+	_ball(l, _head_point(-1.0, 0.0, 1.0), Vector3(0.085, 0.032, 0.05), beard)                # fuller on the chin
 	for k in 4:
 		var bx := -9.0 + k * 6.0
 		var root := _face(bx, -122.0, 1.06)
