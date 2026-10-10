@@ -22,7 +22,8 @@ Level 1 done; Level 2 "Discovery of Fire" (night) nearly done; its map: `docs/le
   Changes: small, shown as close-ups first (`tools/rigsheet -- face`). The old look: tag `ugu-classic-look`.
 - THE AIR: everything loose on him (hair, fur, hems, cords, capes) drags behind his motion, lifts in a fall
   and flutters faster as he speeds up (`CaveMan._flutter`; the 3D figure does the same).
-- 2D and 3D Ugu must look the same (Jawad, 2026-10-10). Next: UGGA, a blonde woman, in the same style.
+- 2D and 3D Ugu must look the same (Jawad, 2026-10-10). At home: the 3D figure, a bit taller than 2D, moving more
+  freely (Shift runs, Space twice = somersault, a squash on landing). Next: UGGA, a blonde woman, in the same style.
 - No bats in or on the mountain; bats live in the caves.
 - Spirit Orbs: their own blue-white currency (beasts respawn each visit); never shells.
 - MYSTERY HINTS: near anything unsolved, a SMALL card left of the bag (`level2._hints`, `Hud.set_hint`).
@@ -103,6 +104,9 @@ he is exactly his 2D self; `CaveMan.puppet_air` gives the jump pose), `menu.gd` 
   each fading tree into its own): ~1400 draw calls -> ~290. Anything NEW that moves, fades, or changes colour
   at runtime must be added to its skip list (or hold a non-plain material), or it will be frozen in place.
   Things made after `_ready` (the stick, caught fish) are never merged. Cost: `tools/homecost`.
+- THE 3D UGU: a new part goes into its bone's `Lump` (no new MeshInstance: he is 29 meshes); face parts are placed
+  from the 2D rig's design units (`_face(x, y)`), loose parts get a `reach` (the air bends them in the shader).
+  Check with `ugu3dsheet -- [face] [moves]`, and in the home (`home.tscn -- shot`).
 - Shared helpers (don't copy the maths): `CaveMan.hurt_toss`, `Pickup.aim_at`, `Pickup.homing`,
   `Breakable.carry_to`, `Batch.ellipse`, `LevelBase.near_view`, `FX.burst`, `FX.shards`.
 - View: "on screen?" uses `LevelBase.view_half(n)`, never 640/1280. Slabs draw `fill_below`;
@@ -160,4 +164,4 @@ What each test does, args, close-up/perf tools, quirks: `docs/testing.md`.
 ## Open ideas
 See `docs/level2.md`. More lanes; "?" reopens the guide; orb shop; Gulper / Old Scar
 reworks; a shelter level (bones, wife, pet); Level 3: the fang is a spear. UGGA (blonde, same style,
-2D + 3D); the home's Ugu: the 3D figure or the paper cut-out (Jawad picks).
+2D + 3D); remove the paper Ugu and the P key once Jawad confirms.
