@@ -3,7 +3,8 @@ extends Node3D
 ## idle, running (moving, so the air works on him), in the air; then the
 ## costumes and era 1. Run with rendering; PNG to C:/tmp/shots/ugu3d_<tag>.png.
 ##   args: tag=<name>, face (a close-up of the head), body (his bare trunk and
-##   arms, close), turn (seen from the side), back (from behind)
+##   arms, close), turn (seen from the side), back (from behind), faces (every
+##   feeling in EXPRESSIONS, a close-up each, on one sheet)
 const UguModel := preload("res://shelter/ugu3d.gd")
 
 var tag := "now"
@@ -37,7 +38,7 @@ func _ready() -> void:
 	if args.has("moves"):
 		looks = [[2, "plain", "sprint"], [2, "plain", "rise"], [2, "plain", "air"], [2, "plain", "flip"], [2, "plain", "land"],
 			[2, "plain", "yawn"], [2, "plain", "look"]]
-	if args.has("face"):
+	if args.has("face") or args.has("faces"):
 		looks = [[2, "plain", "idle"]]
 		cam.position = Vector3(0.3, 1.7, 1.25)
 		cam.look_at(Vector3(0, 1.62, 0))
@@ -90,7 +91,39 @@ func _ready() -> void:
 			"look":
 				u.look_at_point = u.position + Vector3(-3.0, 1.0, 1.5)
 	GameState.skin = "plain"
+	if args.has("faces"):
+		_faces.call_deferred(get_children().filter(func(c): return c is UguModel)[0])
+		return
 	_finish.call_deferred()
+
+
+## Every feeling in EXPRESSIONS, a close-up each, on one sheet (4 across, in
+## the table's order): PNG to C:/tmp/shots/ugu3d_<tag>.png.
+func _faces(u: Node3D) -> void:
+	u.set("_blink_in", 9999.0)
+	u.set("_quirk_in", 9999.0)
+	u.set("_gaze_in", 9999.0)
+	var names: Array = UguModel.EXPRESSIONS.keys()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("only="):
+			names = Array(a.substr(5).split(","))
+	var cols := 4
+	var cw := 320
+	var ch := 300
+	var sheet := Image.create(cw * cols, ch * ceili(names.size() / float(cols)), false, Image.FORMAT_RGB8)
+	for i in names.size():
+		u.emote(names[i], 9999.0)
+		for f in 40:
+			await RenderingServer.frame_post_draw
+		var img := get_viewport().get_texture().get_image()
+		img.convert(Image.FORMAT_RGB8)
+		var part := img.get_region(Rect2i(560 if OS.get_cmdline_user_args().has("turn") else 320, 0, 640, 600))
+		part.resize(cw, ch)
+		sheet.blit_rect(part, Rect2i(0, 0, cw, ch), Vector2i((i % cols) * cw, (i / cols) * ch))
+	DirAccess.make_dir_recursive_absolute("C:/tmp/shots")
+	sheet.save_png("C:/tmp/shots/ugu3d_%s.png" % tag)
+	print("shot ugu3d_", tag, ": ", ", ".join(names))
+	get_tree().quit()
 
 
 var _frame := 0

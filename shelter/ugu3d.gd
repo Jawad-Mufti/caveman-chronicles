@@ -69,6 +69,28 @@ vec3 flexed(vec3 v, vec2 f) {
 	vec3 wave = vec3(sin(flut.x + f.y * 1.7) + 0.45 * sin(flut.y + f.y * 2.9), 0.5 * cos(flut.z + f.y * 2.3), cos(flut.x * 0.8 + f.y * 1.3));
 	return v + (drag + wave * flut_amp) * f.x;
 }
+// THE JAW (the head's mesh): what lies below the mouth and in front swings
+// down round a hinge by the ears when he opens his mouth
+uniform float jaw = 0.0;
+uniform float jaw_y = 0.0;
+vec3 jawed(vec3 v) {
+	if (jaw == 0.0) {
+		return v;
+	}
+	float w = smoothstep(jaw_y + 0.012, jaw_y - 0.03, v.y) * smoothstep(0.1, 0.19, v.z);
+	float a = jaw * 0.2 * w;
+	vec2 r = vec2(v.y - (jaw_y + 0.03), v.z + 0.03);
+	r = vec2(r.x * cos(a) - r.y * sin(a), r.x * sin(a) + r.y * cos(a));
+	return vec3(v.x, r.x + jaw_y + 0.03, r.y - 0.03);
+}
+// THE LIDS (their own materials): only what lies past the lid's edge is drawn,
+// the edge an arch (lid_dir 1: the upper lid, kept above; -1: the lower)
+uniform float lid_dir = 0.0;
+uniform float lid_cut = 0.0;
+uniform float lid_bend = 6.0;
+float lid_edge(vec3 p) {
+	return (p.y - (lid_cut - lid_bend * p.x * p.x)) * lid_dir;
+}
 "
 const BODY_SHADER := "shader_type spatial;
 render_mode cull_back, specular_disabled;
@@ -76,8 +98,8 @@ render_mode cull_back, specular_disabled;
 varying vec3 mpos;
 varying float look;
 void vertex() {
-	VERTEX = flexed(VERTEX, UV2);
 	mpos = VERTEX;
+	VERTEX = jawed(flexed(VERTEX, UV2));
 	look = UV.y;
 }
 // a brush stroke from a to b, its width w0 -> w1: how much of it covers p
@@ -157,6 +179,13 @@ float muscles(vec3 p, float kind) {
 }
 void fragment() {
 	vec3 c = COLOR.rgb;
+	if (lid_dir != 0.0) {
+		float e = lid_edge(mpos);
+		if (e < 0.0) {
+			discard;
+		}
+		c = mix(c, c * 0.42, 1.0 - smoothstep(0.003, 0.0055, e));      // the lash line along its edge
+	}
 	if (look > 2.5) {
 		c = mix(c, c * vec3(0.66, 0.56, 0.52), clamp(muscles(mpos, look), 0.0, 1.0) * 0.85);
 	} else if (look > 1.5) {
@@ -181,15 +210,133 @@ void light() {
 	DIFFUSE_LIGHT += LIGHT_COLOR * ATTENUATION * band / PI;
 }
 "
-## The rim: the back faces, pushed out along their normals, in a darker tone of the fill.
+## THE MOUTH: one shape with dials (`m_*`), made in the vertex shader. Its mesh
+## is unit balls (UV2.x: which part: 0 the mouth, 1 the upper teeth, 2 the lower,
+## 3 the tongue); each is laid between the lips' two edges, so whatever the
+## dials say, the teeth and the tongue stay inside the lips.
+const MOUTH_MAP := "
+uniform float m_open = 0.3;
+uniform float m_smile = 0.6;
+uniform float m_wide = 0.0;
+uniform float m_teeth = 1.0;
+uniform float m_span = 0.55;
+uniform float m_teeth_lo = 0.0;
+uniform float m_tongue = 0.5;
+uniform float m_smirk = 0.0;
+float m_hw() {
+	return 0.082 * clamp(1.0 + 0.35 * m_wide + 0.1 * max(m_smile, 0.0), 0.38, 1.5);
+}
+float m_corner(float s) {
+	return 0.03 * m_smile + 0.018 * m_smirk * s;
+}
+float m_top(float s) {
+	float k = pow(max(1.0 - s * s, 0.0), 0.5);
+	return mix(m_corner(s), 0.006 + 0.014 * m_open, k);
+}
+float m_bot(float s) {
+	float k = pow(max(1.0 - s * s, 0.0), 0.62);
+	return mix(m_corner(s), -0.006 - 0.076 * m_open - 0.014 * max(m_smile, 0.0) + 0.008 * max(-m_smile, 0.0) * (1.0 - m_open), k);
+}
+vec3 m_place(vec3 u, float part) {
+	float hw = m_hw();
+	float t = clamp(u.y / max(sqrt(max(1.0 - u.x * u.x, 0.0)), 0.001), -1.0, 1.0) * 0.5 + 0.5;
+	float s = u.x;
+	float z0 = 0.016;
+	float zr = 0.011;
+	float y;
+	if (part < 0.5) {
+		y = mix(m_bot(s), m_top(s), t);
+	} else {
+		s = u.x * (part < 2.5 ? 0.78 : 0.48);
+		float top = m_top(s);
+		float bot = m_bot(s);
+		float gap = max(top - bot - 0.004, 0.0);
+		if (part < 1.5) {
+			y = top - 0.002 - (1.0 - t) * min(0.017, gap * 0.5) * m_teeth;
+		} else if (part < 2.5) {
+			y = bot + 0.002 + t * min(0.014, gap * 0.4) * m_teeth_lo;
+		} else {
+			y = bot + 0.003 + t * min(0.022, gap * 0.45) * m_tongue;
+		}
+		z0 = 0.024;
+		zr = 0.004;
+	}
+	float x = s * hw;
+	return vec3(x, y, z0 + u.z * zr - 2.5 * x * x);
+}
+vec3 m_normal(vec3 u, float pt) {
+	vec3 a = abs(u.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+	vec3 t1 = normalize(cross(u, a));
+	vec3 t2 = cross(u, t1);
+	vec3 p = m_place(u, pt);
+	vec3 n = cross(m_place(normalize(u + t1 * 0.03), pt) - p, m_place(normalize(u + t2 * 0.03), pt) - p);
+	n = length(n) < 1e-9 ? u : normalize(n);
+	return dot(n, vec3(u.x, u.y, u.z + 0.3)) < 0.0 ? -n : n;
+}
+"
+const MOUTH_SHADER := "shader_type spatial;
+render_mode cull_back, specular_disabled;
+" + MOUTH_MAP + "
+varying vec3 mpos;
+varying float part;
+void vertex() {
+	part = UV2.x;
+	vec3 u = VERTEX;
+	VERTEX = m_place(u, part);
+	NORMAL = m_normal(u, part);
+	mpos = VERTEX;
+}
+void fragment() {
+	vec3 c = COLOR.rgb;
+	if (part > 0.5 && part < 2.5) {
+		// the teeth: a row with lines between, the gap in the middle of the
+		// upper ones; in his smile only the front ones show (m_span)
+		float ax = abs(mpos.x);
+		if (part < 1.5 && (ax < 0.0032 || ax > m_span * m_hw() * 0.78)) {
+			discard;
+		}
+		float k = ax / 0.021;
+		if (round(k) >= 1.0 && abs(k - round(k)) * 0.021 < 0.0013) {
+			c *= 0.35;
+		}
+	}
+	ALBEDO = c;
+	ROUGHNESS = 1.0;
+}
+void light() {
+	float d = dot(NORMAL, LIGHT);
+	float band = 0.82 * (0.3 + 0.7 * (smoothstep(-0.04, 0.04, d) * 0.72 + smoothstep(0.5, 0.56, d) * 0.28));
+	DIFFUSE_LIGHT += LIGHT_COLOR * ATTENUATION * band / PI;
+}
+"
+const MOUTH_OUTLINE := "shader_type spatial;
+render_mode cull_front, specular_disabled;
+" + MOUTH_MAP + "
+uniform float width = 0.009;
+void vertex() {
+	VERTEX = m_place(VERTEX, UV2.x) + m_normal(VERTEX, UV2.x) * width * UV.x;
+}
+void fragment() {
+	ALBEDO = COLOR.rgb * 0.45;
+	ROUGHNESS = 1.0;
+}
+void light() {
+	DIFFUSE_LIGHT += LIGHT_COLOR * ATTENUATION * 0.55 / PI;
+}
+"
 const OUTLINE_SHADER := "shader_type spatial;
 render_mode cull_front, specular_disabled;
 " + FLEX + "
 uniform float width = 0.009;
+varying vec3 mpos;
 void vertex() {
-	VERTEX = flexed(VERTEX, UV2) + NORMAL * width * UV.x;
+	mpos = VERTEX;
+	VERTEX = jawed(flexed(VERTEX, UV2) + NORMAL * width * UV.x);
 }
 void fragment() {
+	if (lid_dir != 0.0 && lid_edge(mpos) < 0.0) {
+		discard;
+	}
 	ALBEDO = COLOR.rgb * 0.45;
 	ROUGHNESS = 1.0;
 }
@@ -200,6 +347,40 @@ void light() {
 
 static var _shader: Shader
 static var _outline: Shader
+static var _mouth_shader: Shader
+static var _mouth_outline: Shader
+
+## HIS FACE is a set of dials, each eased toward what his feeling wants by a
+## spring (a little overshoot: alive, never snapping). The mouth (MOUTH_MAP):
+## open, smile (-1 a frown .. 1), wide (-1 an "o" .. 1 stretched), teeth (the
+## upper ones; span: how far along they show), teeth_lo, tongue, smirk (one
+## corner up); the jaw drops with `open`. The brows: brow (up), knit (1 the
+## angry V .. -1 worried), brow_l / brow_r (one up: a cocked brow). The eyes: lid
+## (the upper lids down), squint (the lower lids up: happy eyes), pupil (its
+## size). tilt: his head on one side.
+const FACE_REST := {"open": 0.0, "smile": 0.0, "wide": 0.0, "teeth": 0.0, "span": 0.55, "teeth_lo": 0.0, "tongue": 0.0,
+	"smirk": 0.0, "brow": 0.0, "knit": 0.0, "brow_l": 0.0, "brow_r": 0.0, "lid": 0.1, "squint": 0.0, "pupil": 1.0, "tilt": 0.0}
+## His feelings (what each sets; the rest from FACE_REST). "smile" is his face
+## at rest: the 2D open smile with the gap in his teeth and a bit of tongue.
+const EXPRESSIONS := {
+	"smile": {"open": 0.42, "smile": 0.6, "teeth": 1.0, "tongue": 0.6, "squint": 0.15},
+	"happy": {"open": 0.55, "smile": 1.0, "wide": 0.2, "teeth": 1.0, "span": 0.8, "tongue": 0.5, "brow": 0.3, "knit": -0.2, "squint": 0.55},
+	"grin": {"open": 0.45, "smile": 1.0, "wide": 0.5, "teeth": 1.0, "span": 1.0, "teeth_lo": 1.0, "brow": 0.25, "squint": 0.6},
+	"laugh": {"open": 0.75, "smile": 1.0, "wide": 0.35, "teeth": 1.0, "span": 1.0, "tongue": 0.7, "brow": 0.45, "knit": -0.3, "lid": 0.55, "squint": 0.75, "tilt": 0.1},
+	"whee": {"open": 0.7, "smile": 1.0, "wide": 0.45, "teeth": 1.0, "span": 1.0, "teeth_lo": 0.6, "tongue": 0.4, "brow": 0.75, "knit": -0.3, "lid": 0.0, "squint": 0.3},
+	"tongue": {"open": 0.45, "smile": 0.8, "teeth": 1.0, "brow": 0.15, "squint": 0.3},
+	"effort": {"open": 0.22, "smile": 0.3, "wide": 0.65, "teeth": 1.0, "span": 1.0, "teeth_lo": 1.0, "brow": -0.2, "knit": 0.65, "squint": 0.4},
+	"ooh": {"open": 0.6, "wide": -1.45, "brow": 0.95, "knit": -0.35, "lid": 0.0, "pupil": 0.85},
+	"scared": {"open": 0.95, "smile": -0.55, "wide": 0.35, "teeth": 1.0, "span": 1.0, "teeth_lo": 1.0, "brow": 1.0, "knit": -1.0, "lid": 0.0, "pupil": 0.72},
+	"wince": {"open": 0.12, "smile": -0.35, "wide": 0.75, "teeth": 1.0, "span": 1.0, "teeth_lo": 1.0, "brow": -0.3, "knit": 0.85, "lid": 0.75, "squint": 0.65, "tilt": -0.06},
+	"yawn": {"open": 1.0, "wide": -0.35, "tongue": 1.0, "brow": 0.7, "knit": -0.45, "lid": 0.85},
+	"curious": {"open": 0.1, "smile": 0.25, "wide": -0.45, "smirk": 0.45, "brow": 0.2, "brow_l": 0.7, "brow_r": -0.2, "knit": -0.25, "lid": 0.0, "pupil": 1.1, "tilt": 0.12},
+	"bored": {"smile": -0.1, "smirk": -0.5, "brow": -0.15, "lid": 0.5},
+	"sleepy": {"open": 0.04, "smile": 0.15, "brow": 0.2, "knit": -0.3, "lid": 0.62},
+	"sad": {"open": 0.08, "smile": -0.9, "wide": -0.2, "brow": 0.35, "knit": -1.0, "lid": 0.35, "pupil": 1.12, "tilt": -0.08},
+	"angry": {"open": 0.85, "smile": -0.4, "wide": 0.8, "teeth": 1.0, "span": 1.0, "teeth_lo": 1.0, "brow": -0.5, "knit": 1.0, "squint": 0.35, "pupil": 0.8},
+	"proud": {"smile": 0.9, "smirk": 0.5, "brow": 0.1, "brow_r": 0.3, "lid": 0.38, "squint": 0.4, "tilt": -0.07},
+}
 
 var speed := 0.0                        ## 0 standing .. 1 running (set by the game)
 var sprint := 0.0                       ## 0 .. 1 flat out (set by the game)
@@ -225,6 +406,27 @@ var _cheer := 0.0
 var _idle := 0.0
 var _look := Vector2.ZERO               ## the head's yaw, pitch
 var _mood := ""
+var face_mood := ""                     ## the feeling on his face now (read only; emote() sets one)
+var sleepy := 0.0                       ## 0 .. 1 drowsy (the game sets it: night)
+var _dial := {}                         ## THE FACE: each dial now, and its speed (springs)
+var _dial_v := {}
+var _mood_t := 0.0
+var _emote := ""
+var _emote_t := 0.0
+var _wince := 0.0
+var _fall_t := 0.0
+var _curious := 0.0
+var _looked := false
+var _blink := 1.0                       ## 0 .. 1 through a blink (1: none)
+var _blink_in := 2.0
+var _blinks := 0
+var _gaze := Vector2.ZERO               ## where the eyes point (-1 .. 1 across, down .. up)
+var _gaze_to := Vector2.ZERO
+var _gaze_in := 1.0
+var _quirk := ""                        ## a passing look on an idle face
+var _quirk_t := 0.0
+var _quirk_in := 4.0
+var _rng := RandomNumberGenerator.new()
 
 var _sqn: Node3D                        ## the squash (at his feet)
 var _root: Node3D                       ## the lean, the bank, the somersault (at his middle)
@@ -243,9 +445,12 @@ var _elbow_l: Node3D
 var _elbow_r: Node3D
 var _hand_r: Node3D
 var _skirt: Array = []                  ## the skirt's panels: front, +X, back, -X (pivots at the belt)
-var _brows: Node3D
-var _lids: Array = []
-var _mouths := {}                       ## mood -> its mouth
+var _brows: Array = []                  ## [node, rest position, face frame, side] each
+var _lids: Array = []                   ## the lids' materials: -X upper, lower, +X upper, lower
+var _irises: Array = []                 ## [node, rest position, eye frame] each
+var _mouth: Node3D
+var _m_mouth: ShaderMaterial
+var _jaw_y := 0.0
 var _tongue: Node3D
 var _hair: MeshInstance3D
 var _extras: Array = []                 ## era / costume / weapon meshes, rebuilt by refresh()
@@ -603,18 +808,25 @@ func _build_head() -> void:
 		_ball(l, tip + nf * Vector3(side2 * 0.04, -0.008, -0.02), Vector3(0.027, 0.025, 0.026), nose_col, PLAIN, nf)
 		_ball(l, tip + nf * Vector3(side2 * 0.02, -0.03, -0.002), Vector3(0.011, 0.006, 0.012), SKIN.darkened(0.5), BARE, nf)
 	# the EYES: big and clear, white, a warm brown iris, a pupil, two glints, a
-	# lash line along the top swept out at the outer corner
+	# lash line along the top swept out at the outer corner. The iris (with its
+	# pupil and glints) is a node of its own, so he can look about; the lids
+	# (upper and lower) close as far as his face wants (_set_face)
 	for side3: float in [-1.0, 1.0]:
 		var ex: float = side3 * 11.0
 		var fb := _face_frame(ex, -150.0)
 		var ec := _face(ex, -150.0, 0.985)
 		_ball(l, ec, Vector3(0.048, 0.041, 0.022), EYE, FINE, fb)
 		var ic := ec + fb * Vector3(-side3 * 0.003, -0.002, 0.016)
-		_ball(l, ic, Vector3(0.028, 0.028, 0.009), Color("4a2a14"), BARE, fb)
-		_ball(l, ic + fb.z * 0.003, Vector3(0.022, 0.022, 0.008), Color("8a5426"), BARE, fb)
-		_ball(l, ic + fb.z * 0.006, Vector3(0.012, 0.012, 0.006), DARK, BARE, fb)
-		_ball(l, ic + fb * Vector3(-0.009, 0.01, 0.011), Vector3(0.0075, 0.0075, 0.004), Color.WHITE, SHINE, fb)
-		_ball(l, ic + fb * Vector3(0.011, -0.01, 0.01), Vector3(0.0035, 0.0035, 0.003), Color.WHITE, SHINE, fb)
+		var iris := _node(ic, _head)
+		iris.basis = fb
+		var il := Lump.new()
+		_ball(il, Vector3.ZERO, Vector3(0.028, 0.028, 0.009), Color("4a2a14"), BARE)
+		_ball(il, Vector3(0, 0, 0.003), Vector3(0.022, 0.022, 0.008), Color("8a5426"), BARE)
+		_ball(il, Vector3(0, 0, 0.006), Vector3(0.012, 0.012, 0.006), DARK, BARE)
+		_ball(il, Vector3(-0.009, 0.01, 0.011), Vector3(0.0075, 0.0075, 0.004), Color.WHITE, SHINE)
+		_ball(il, Vector3(0.011, -0.01, 0.01), Vector3(0.0035, 0.0035, 0.003), Color.WHITE, SHINE)
+		_mesh(il, iris, _m_still).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_irises.append([iris, ic, fb])
 		var lash := PackedVector3Array()
 		var lr := PackedFloat32Array()
 		for k2 in 7:
@@ -624,76 +836,82 @@ func _build_head() -> void:
 		lash.append(ec + fb * Vector3(side3 * 0.064, 0.03, 0.012))
 		lr.append(0.0)
 		_tube(l, lash, lr, LASH, BARE, 0.0, 0.0, 5)
-		# the lid, for blinks (and the yawn)
-		var lid := _node(ec, _head)
-		lid.basis = fb
-		var ld := Lump.new()
-		_ball(ld, Vector3(0, 0, 0.004), Vector3(0.052, 0.045, 0.024), SKIN_DARK, FINE)
-		_tube(ld, PackedVector3Array([Vector3(-0.045, -0.006, 0.026), Vector3(0, -0.012, 0.03), Vector3(0.045, -0.006, 0.026)]), PackedFloat32Array([0.003, 0.004, 0.003]), LASH, BARE, 0.0, 0.0, 4)
-		_mesh(ld, lid, _m_head)
-		lid.visible = false
-		_lids.append(lid)
+		# the lids: a shell over the eye each, cut along an arch (the shader)
+		for upper in [true, false]:
+			var lid := _node(ec, _head)
+			lid.basis = fb
+			var ld := Lump.new()
+			_ball(ld, Vector3(0, 0, 0.007), Vector3(0.053, 0.046, 0.026), SKIN if upper else SKIN.lightened(0.04), BARE)
+			var lm := _new_mat()
+			for p in [lm, lm.next_pass]:
+				(p as ShaderMaterial).set_shader_parameter("lid_dir", 1.0 if upper else -1.0)
+				(p as ShaderMaterial).set_shader_parameter("lid_bend", 6.0 if upper else 11.0)
+				(p as ShaderMaterial).set_shader_parameter("lid_cut", 0.05 if upper else -0.05)
+			_mesh(ld, lid, lm).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_lids.append(lm)
 	_mesh(l, _head, _m_head)
+	_jaw_y = _face(0, -135.0).y
+	for p in [_m_head, _m_head.next_pass]:
+		(p as ShaderMaterial).set_shader_parameter("jaw_y", _jaw_y)
 	_build_brows()
-	_build_mouths()
+	_build_mouth()
 
 
 ## The heavy brows (the sheet): thick by the nose, angled down to it (the scowl).
+## One node each, at its middle, so each can lift and tilt on its own.
 func _build_brows() -> void:
-	_brows = _node(Vector3.ZERO, _head)
-	var l := Lump.new()
 	for side: float in [-1.0, 1.0]:
+		var pivot := _face(side * 14.0, -160.0, 1.035)
+		var fr := _face_frame(side * 14.0, -160.0)
+		var n := _node(pivot, _head)
+		var l := Lump.new()
 		var a := Vector2(side * 3.0, -156.0)
 		var b := Vector2(side * 25.0, -163.0)
 		var mid := (a + b) * 0.5 + Vector2(0, -3.0)
-		var path := PackedVector3Array([_face(side * 1.2, -155.6, 1.035)])
+		var path := PackedVector3Array([_face(side * 1.2, -155.6, 1.035) - pivot])
 		var radii := PackedFloat32Array([0.0])
 		for i in 7:
 			var q := i / 6.0
 			var p := a.lerp(mid, q).lerp(mid.lerp(b, q), q)
-			path.append(_face(p.x, p.y, 1.035))
+			path.append(_face(p.x, p.y, 1.035) - pivot)
 			radii.append(lerpf(0.036, 0.025, q) * (1.0 - 0.25 * pow(q, 4.0)))
-		path.append(_face(side * 27.5, -163.5, 1.02))
+		path.append(_face(side * 27.5, -163.5, 1.02) - pivot)
 		radii.append(0.0)
-		_tube(l, path, radii, HAIR, PLAIN, 0.0, 0.0, 8, 0.55, _face_frame(side * 14.0, -160.0).z)
-	_mesh(l, _brows, _m_head)
+		_tube(l, path, radii, HAIR, PLAIN, 0.0, 0.0, 8, 0.55, fr.z)
+		_mesh(l, n, _m_still).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_brows.append([n, pivot, fr, side])
 
 
-## His mouths, one per mood (the 2D ones): the open smile with the gap in his
-## teeth and a bit of tongue; the toothy grin; "ooh"; the yawn; the tongue out
-## of the corner, flapping.
-func _build_mouths() -> void:
-	var fr := _face_frame(0, -135.0)
-	var at := _face(0, -135.0, 1.0) + fr.z * 0.012
-	var smile := Lump.new()
-	_ball(smile, Vector3(0, 0.0, 0.016), Vector3(0.088, 0.036, 0.018), MOUTH, FINE)
-	for side: float in [-1.0, 1.0]:
-		_ball(smile, Vector3(side * 0.022, 0.021, 0.027), Vector3(0.02, 0.012, 0.008), EYE, BARE)
-	_ball(smile, Vector3(0, -0.017, 0.025), Vector3(0.04, 0.014, 0.01), TONGUE, BARE)
-	var grin := Lump.new()
-	_ball(grin, Vector3(0, 0, 0.016), Vector3(0.098, 0.044, 0.018), MOUTH, FINE)
-	_ball(grin, Vector3(0, 0.006, 0.024), Vector3(0.088, 0.034, 0.012), EYE, BARE)
-	_tube(grin, _line(Vector3(-0.088, 0.008, 0.036), Vector3(0.088, 0.008, 0.036), 3), PackedFloat32Array([0.0025, 0.004, 0.0025]), MOUTH, BARE, 0.0, 0.0, 4)
-	for k in 3:
-		var tx := -0.042 + k * 0.042
-		_tube(grin, _line(Vector3(tx, 0.008, 0.037), Vector3(tx, 0.034, 0.033), 2), PackedFloat32Array([0.0025, 0.002]), MOUTH, BARE, 0.0, 0.0, 4)
-	var ooh := Lump.new()
-	_ball(ooh, Vector3(0, -0.004, 0.016), Vector3(0.034, 0.042, 0.018), MOUTH, FINE)
-	var yawn := Lump.new()
-	_ball(yawn, Vector3(0, -0.012, 0.016), Vector3(0.058, 0.07, 0.018), MOUTH, FINE)
-	_ball(yawn, Vector3(0, -0.06, 0.022), Vector3(0.036, 0.016, 0.012), TONGUE, BARE)
-	for mood in ["smile", "grin", "ooh", "yawn"]:
-		var n := _node(at, _head)
-		n.basis = fr
-		_mesh({"smile": smile, "grin": grin, "ooh": ooh, "yawn": yawn}[mood], n, _m_head)
-		n.visible = mood == "smile"
-		_mouths[mood] = n
-	# the tongue out of the corner (with the smile)
-	_tongue = _node(Vector3(0.045, -0.012, 0.022), _mouths["smile"])
+## His MOUTH: one shape the face's dials bend (MOUTH_SHADER): the mouth, the
+## upper teeth (the gap in the middle), the lower, the tongue. The tongue out of
+## the corner (on a run) is its own, flapping.
+func _build_mouth() -> void:
+	var fr := _face_frame(0, -133.5)
+	var l := Lump.new()
+	var parts := [[MOUTH, FINE, 10, 24], [EYE, BARE, 6, 18], [EYE, BARE, 6, 18], [TONGUE, BARE, 6, 14]]
+	for i in parts.size():
+		var from := l.vs.size()
+		_ball(l, Vector3.ZERO, Vector3.ONE, parts[i][0], parts[i][1], Basis.IDENTITY, parts[i][2], parts[i][3])
+		for v in range(from, l.vs.size()):
+			l.uv2s[v] = Vector2(i, 0)
+	if _mouth_shader == null:
+		_mouth_shader = Shader.new()
+		_mouth_shader.code = MOUTH_SHADER
+		_mouth_outline = Shader.new()
+		_mouth_outline.code = MOUTH_OUTLINE
+	_m_mouth = ShaderMaterial.new()
+	_m_mouth.shader = _mouth_shader
+	var o := ShaderMaterial.new()
+	o.shader = _mouth_outline
+	_m_mouth.next_pass = o
+	_mouth = _node(_face(0, -133.5, 1.0) + fr.z * 0.012, _head)
+	_mouth.basis = fr
+	_mesh(l, _mouth, _m_mouth).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_tongue = _node(Vector3(0.045, -0.012, 0.03), _mouth)
 	var tg := Lump.new()
 	_tube(tg, PackedVector3Array([Vector3.ZERO, Vector3(0.022, -0.012, 0.014), Vector3(0.04, -0.035, 0.02), Vector3(0.046, -0.052, 0.018)]),
 		PackedFloat32Array([0.016, 0.019, 0.016, 0.0]), Color("e0707a"), FINE, 0.0, 0.0, 8, 0.55, Vector3(0, 0, 1))
-	_mesh(tg, _tongue, _m_head)
+	_mesh(tg, _tongue, _m_still).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_tongue.visible = false
 
 
@@ -1054,11 +1272,21 @@ func jumped(double := false) -> void:
 func landed(impact := 0.5) -> void:
 	_flip = -1.0
 	_sq_v += 1.2 + 3.6 * clampf(impact, 0.0, 1.0)
+	if impact > 0.55:
+		_wince = 0.25 + 0.35 * impact            # that one hurt
 
 
-## A grin for a while (he bought, made or caught something).
+## A laugh, then a grin, for a while (he bought, made or caught something).
 func cheer(t := 1.2) -> void:
 	_cheer = maxf(_cheer, t)
+
+
+## A feeling on his face for `t` seconds (a name in EXPRESSIONS: "sad" when he
+## can't pay, "proud" in a new costume...). It wins over what he is doing.
+func emote(feeling: String, t := 1.5) -> void:
+	if EXPRESSIONS.has(feeling):
+		_emote = feeling
+		_emote_t = t
 
 
 ## ------------------------------------------------------------------ every frame
@@ -1160,30 +1388,7 @@ func _process(delta: float) -> void:
 			want.x *= 0.4                    # (behind him: no owl turns)
 	_look = _look.lerp(want, minf(1.0, dt * 5.0))
 	_head.rotation = Vector3(_look.y - pose[10] * 0.6 - yawn * 0.35, _look.x - twist, -_bank * 0.5)
-	# ---- his face
-	var mood := "smile"
-	if _flip >= 0.0 or _cheer > 0.0:
-		mood = "grin"
-	elif air and vel.y < -1.5:
-		mood = "ooh"
-	elif yawn > 0.0:
-		mood = "yawn"
-	elif run > 0.85 and not air:
-		mood = "tongue"
-	if mood != _mood:
-		_mood = mood
-		for m in _mouths:
-			(_mouths[m] as Node3D).visible = m == mood or (m == "smile" and mood == "tongue")
-		_tongue.visible = mood == "tongue"
-	if mood == "tongue":
-		_tongue.rotation = Vector3(0, 0, sin(_t * 26.0) * 0.35)
-	if mood == "yawn":
-		(_mouths["yawn"] as Node3D).scale = Vector3(1, 0.3 + 0.9 * yawn, 1)
-	var blink := fmod(_t, 3.7) < 0.12 or yawn > 0.3
-	for lid in _lids:
-		(lid as Node3D).visible = blink
-	var brow_up := 0.014 if mood in ["ooh", "yawn"] else (0.007 if mood == "grin" else 0.0)
-	_brows.position.y = lerpf(_brows.position.y, brow_up, minf(1.0, dt * 12.0))
+	_face_step(dt, run, fast, yawn, breathe)
 	# ---- THE AIR: a spring toward the opposite of his motion (falling: upward)
 	var to_drag := Vector3(-local.x, -local.y * 0.7, -local.z) * 0.018
 	_drag_v += ((to_drag - _drag) * 90.0 - _drag_v * 10.0) * dt
@@ -1196,6 +1401,180 @@ func _process(delta: float) -> void:
 	for f in _flexers:
 		var node: Node3D = f[1]
 		_air_on(f[0], node.global_transform.basis.orthonormalized().inverse() * dw)
+
+
+## ------------------------------------------------------------------ his face
+## What he feels, from what he is doing (an emote() wins): a somersault "whee",
+## a laugh when he got something, a wince after a hard landing, "ooh" as he
+## falls and fright if it goes on, a yawn, the tongue out on a run and gritted
+## teeth flat out, a cocked brow at something new, bored, then sleepy, standing
+## about; else his open smile.
+func _pick_mood(run: float, fast: float, yawn: float) -> String:
+	if _emote_t > 0.0:
+		return _emote
+	if _flip >= 0.0:
+		return "whee"
+	if _cheer > 0.0:
+		return "laugh" if _cheer > 0.55 else "grin"
+	if _wince > 0.0:
+		return "wince"
+	if air and vel.y < -1.5:
+		return "scared" if _fall_t > 0.9 else "ooh"
+	if air:
+		return "happy"
+	if yawn > 0.0:
+		return "yawn"
+	if fast > 0.6:
+		return "effort"
+	if run > 0.85:
+		return "tongue"
+	if run > 0.1:
+		return "happy" if run > 0.4 else "smile"
+	if _curious > 0.0:
+		return "curious"
+	if sleepy > 0.5 and _idle > 2.0:
+		return "sleepy"
+	if _idle > 3.5 and fmod(_idle - 3.5, 9.0) < 2.2:
+		return "bored"
+	return "smile"
+
+
+func _face_step(dt: float, run: float, fast: float, yawn: float, breathe: float) -> void:
+	_emote_t = maxf(_emote_t - dt, 0.0)
+	_wince = maxf(_wince - dt, 0.0)
+	_curious = maxf(_curious - dt, 0.0)
+	_fall_t = _fall_t + dt if air and vel.y < -1.5 else 0.0
+	var looking := look_at_point != Vector3.INF
+	if looking and not _looked:
+		_curious = 1.4                       # something new to look at: a cocked brow (and awake)
+		_idle = 0.0
+	_looked = looking
+	var mood := _pick_mood(run, fast, yawn)
+	if mood != _mood:
+		if _mood != "" and _blink >= 1.0 and mood not in ["yawn", "wince", "laugh"]:
+			_blink = 0.0                     # a change of feeling: a blink
+		_mood = mood
+		_mood_t = 0.0
+		_tongue.visible = mood == "tongue"
+	_mood_t += dt
+	face_mood = mood
+	var want: Dictionary = FACE_REST.duplicate()
+	want.merge(EXPRESSIONS[mood], true)
+	# ---- life on top of the feeling
+	if mood == "yawn":
+		want["open"] = 0.15 + 0.85 * yawn
+		want["lid"] = 0.3 + 0.6 * yawn
+	elif mood == "laugh":
+		want["open"] = float(want["open"]) - 0.3 * absf(sin(_mood_t * 14.0))           # ha! ha! ha!
+	elif mood == "tongue":
+		_tongue.rotation = Vector3(0, 0, sin(_t * 26.0) * 0.35)
+	elif mood == "smile" or mood == "sleepy":
+		want["open"] = float(want["open"]) + breathe * 0.04
+	want["lid"] = float(want["lid"]) + 0.35 * sleepy * (1.0 - float(want["lid"]))
+	# a passing look on an idle face: a brow flick, a smirk, a hum, a puff
+	_quirk_t = maxf(_quirk_t - dt, 0.0)
+	if mood == "smile" and run < 0.05:
+		_quirk_in -= dt
+		if _quirk_in <= 0.0:
+			_quirk = ["flick", "smirk", "hum", "puff", "flick"][_rng.randi() % 5]
+			_quirk_t = _rng.randf_range(0.7, 1.4)
+			_quirk_in = _rng.randf_range(3.5, 7.0)
+	else:
+		_quirk_t = 0.0
+	if _quirk_t > 0.0:
+		var q := sin(clampf(_quirk_t / 0.7, 0.0, 1.0) * PI * 0.5)
+		match _quirk:
+			"flick":
+				want["brow_r"] = 0.7 * q
+			"smirk":
+				want["smirk"] = 0.7 * q
+				want["open"] = float(want["open"]) * (1.0 - 0.7 * q)
+			"hum":
+				want["open"] = float(want["open"]) * (1.0 - q)
+				want["smile"] = 0.75
+				want["squint"] = 0.4 * q
+			"puff":
+				want["open"] = 0.1
+				want["wide"] = -1.0 * q
+	# ---- the springs
+	for k in want:
+		var x: float = _dial.get(k, FACE_REST[k])
+		var v: float = _dial_v.get(k, 0.0)
+		v += ((float(want[k]) - x) * 320.0 - v * 27.0) * dt
+		_dial[k] = x + v * dt
+		_dial_v[k] = v
+	# ---- blinks: every few seconds, now and then two
+	_blink_in -= dt
+	if _blink_in <= 0.0:
+		_blink = 0.0
+		_blinks = 1 if _rng.randf() < 0.2 else 0
+		_blink_in = _rng.randf_range(2.0, 5.5)
+	var shut := 0.0
+	if _blink < 1.0:
+		_blink = minf(_blink + dt / 0.16, 1.0)
+		shut = sin(_blink * PI)
+		if _blink >= 1.0 and _blinks > 0:
+			_blinks -= 1
+			_blink = 0.0
+	# ---- the eyes: at what he looks at, else a glance here and there (quick:
+	# eyes jump, they never drift); falling, down; on a run, ahead
+	_gaze_in -= dt
+	if looking:
+		var to := _head.global_transform.affine_inverse() * look_at_point
+		_gaze_to = Vector2(clampf(to.x / maxf(to.z, 0.3) * 1.6, -1.0, 1.0), clampf(to.y / maxf(to.z, 0.3) * 1.6, -1.0, 1.0))
+	elif air and vel.y < -1.5:
+		_gaze_to = Vector2(0.0, -0.8)
+	elif _mood in ["sad", "sleepy", "bored"]:
+		_gaze_to = Vector2(0.15, -0.6)
+	elif run > 0.3:
+		_gaze_to = Vector2(0.0, -0.1)
+	elif _gaze_in <= 0.0:
+		_gaze_to = Vector2.ZERO if _rng.randf() < 0.4 else Vector2(_rng.randf_range(-0.85, 0.85), _rng.randf_range(-0.45, 0.4))
+		_gaze_in = _rng.randf_range(0.7, 2.6)
+	_gaze = _gaze.lerp(_gaze_to, minf(1.0, dt * 22.0))
+	_set_face(shut)
+
+
+## Puts the dials on him: the mouth's shader, the jaw, the brows, the lids, the eyes.
+func _set_face(shut: float) -> void:
+	var d := _dial
+	for p in [_m_mouth, _m_mouth.next_pass]:
+		var m := p as ShaderMaterial
+		m.set_shader_parameter("m_open", maxf(float(d["open"]), 0.0))
+		m.set_shader_parameter("m_smile", d["smile"])
+		m.set_shader_parameter("m_wide", d["wide"])
+		m.set_shader_parameter("m_teeth", clampf(d["teeth"], 0.0, 1.0))
+		m.set_shader_parameter("m_span", d["span"])
+		m.set_shader_parameter("m_teeth_lo", clampf(d["teeth_lo"], 0.0, 1.0))
+		m.set_shader_parameter("m_tongue", clampf(d["tongue"], 0.0, 1.0))
+		m.set_shader_parameter("m_smirk", d["smirk"])
+	for p in [_m_head, _m_head.next_pass]:
+		(p as ShaderMaterial).set_shader_parameter("jaw", maxf(float(d["open"]) - 0.25, 0.0))
+	for b in _brows:
+		var n: Node3D = b[0]
+		var fr: Basis = b[2]
+		var side: float = b[3]
+		var up: float = float(d["brow"]) + float(d["brow_l"] if side < 0.0 else d["brow_r"])
+		var knit: float = d["knit"]
+		n.position = (b[1] as Vector3) + fr.y * 0.022 * up - fr.x * side * 0.006 * maxf(knit, 0.0) - fr.y * 0.006 * maxf(knit, 0.0)
+		n.basis = Basis(fr.z, side * knit * (0.24 if knit > 0.0 else 0.42))
+	var lid := clampf(maxf(float(d["lid"]), shut), 0.0, 1.0)
+	var squint := clampf(d["squint"], 0.0, 1.0)
+	for i in 4:
+		var m := _lids[i] as ShaderMaterial
+		var cut := lerpf(0.05, -0.05, lid) if i % 2 == 0 else lerpf(-0.05, 0.016, squint * (1.0 - lid * 0.5))
+		m.set_shader_parameter("lid_cut", cut)
+		(m.next_pass as ShaderMaterial).set_shader_parameter("lid_cut", cut)
+	var pupil: float = d["pupil"]
+	for e in _irises:
+		var n2: Node3D = e[0]
+		var fb: Basis = e[2]
+		n2.position = (e[1] as Vector3) + fb.x * _gaze.x * 0.013 + fb.y * _gaze.y * 0.008
+		n2.basis = fb * Basis.from_scale(Vector3(pupil, pupil, 1.0))
+	# the tongue sticks out of the corner, wherever the corner is
+	var hw := 0.082 * clampf(1.0 + 0.35 * float(d["wide"]) + 0.1 * maxf(float(d["smile"]), 0.0), 0.38, 1.5)
+	_tongue.position = Vector3(hw * 0.62, 0.024 * float(d["smile"]) * 0.4 - 0.012, 0.03)
+	_head.rotation.z += float(d["tilt"])
 
 
 func _blend(a: PackedFloat32Array, b: PackedFloat32Array, k: float) -> PackedFloat32Array:

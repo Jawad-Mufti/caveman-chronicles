@@ -7,6 +7,7 @@ extends CanvasLayer
 
 signal closed
 signal acted(label: String)
+signal refused                          ## a row he can't have (too dear, done)
 
 var title := ""
 var line := ""
@@ -128,6 +129,7 @@ func act() -> void:
 	var r: Array = _rows[_sel]
 	if not bool(r[2]) or not (r[3] is Callable):
 		say(str(r[1]) if str(r[1]) != "" else "Not now.", Color("ff9a6a"))
+		refused.emit()
 		return
 	var said = (r[3] as Callable).call()
 	say(str(said) if said != null else "Done!", Color("9be15d"))

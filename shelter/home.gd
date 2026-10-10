@@ -1531,6 +1531,7 @@ func use() -> void:
 			GameState.skin = owned[i]
 			GameState.save()
 			_model.refresh()
+			_model.emote("proud", 1.6)
 			say(("Today: %s!" % _skin_name(GameState.skin)) if owned.size() > 1 else "Only one costume so far. Trade for more in the levels!")
 			_focus = 1.5
 		"weapons":
@@ -1539,6 +1540,7 @@ func use() -> void:
 			GameState.weapon = ws[j]
 			GameState.save()
 			_model.refresh()
+			_model.emote("proud", 1.6)
 			say(("He'll carry the %s." % Bag.name_of(GameState.weapon)) if ws.size() > 1 else "Just the club so far. The Toolmaker sells an axe!")
 			_focus = 1.5
 		"bed":
@@ -1605,6 +1607,7 @@ func _open_menu(title: String, line: String, accent: Color, rows: Callable) -> v
 	_menu.line = line
 	_menu.accent = accent
 	_menu.rows_fn = rows
+	_menu.refused.connect(func() -> void: _model.emote("sad", 1.4))      # (he can't have it)
 	_menu.closed.connect(func() -> void:
 		_menu = null
 		_focus = 0.6
@@ -1994,6 +1997,7 @@ func walk(dir: Vector3, delta: float) -> void:
 	_model.speed = clampf(sp / SPEED, 0.0, 1.0)
 	_model.sprint = clampf((sp - SPEED) / (SPRINT - SPEED), 0.0, 1.0)
 	_model.air = not _on_ground
+	_model.set("sleepy", smoothstep(0.55, 0.9, _night))      # drowsy at night (the 3D Ugu)
 	# he looks at what he is next to
 	_model.look_at_point = Vector3.INF
 	for spot in _spots:

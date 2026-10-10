@@ -94,3 +94,7 @@ func landed(_impact := 0.5) -> void:
 
 func cheer(_t := 1.2) -> void:
 	pass
+
+
+func emote(_feeling: String, _t := 1.5) -> void:
+	pass

@@ -60,9 +60,9 @@ extends the data: tables are bare names); the rest one file per area or system (
 shelter/: `home.gd` (UGU'S CAVE, the 3D island, eras by `GameState.home_era()`; docs/shelter_plan.md),
 `ugu3d.gd` (Ugu as a 3D figure, his 2D self made solid and a bit taller: face features placed from the 2D
 rig's design units (`_face`), toon light + rims in darker tones (a hull pass), meshes merged per bone
-(`Lump`), the air in the vertex shader (UV2 = looseness), moods (smile, tongue on a run, ooh, grin, yawn,
-blinks); `speed`, `sprint`, `air`, `look_at_point`, `era`, `refresh()`, `jumped(double)`, `landed(k)`,
-`cheer()`), `ugu_paper.gd` (the alternative: the REAL 2D rig drawn into a SubViewport on a billboard, so
+(`Lump`), the air in the vertex shader (UV2 = looseness), THE FACE (a rig, not swapped meshes: dials eased by springs; `EXPRESSIONS` = feelings, `_pick_mood` picks one,
+a shader mouth `MOUTH_MAP`, a jaw, brows, cut lids, roving eyes, blinks, idle quirks); `speed`, `sprint`, `air`, `look_at_point`, `era`, `refresh()`, `jumped(double)`, `landed(k)`,
+`cheer()`, `emote(feeling, t)`, `sleepy`), `ugu_paper.gd` (the alternative: the REAL 2D rig drawn into a SubViewport on a billboard, so
 he is exactly his 2D self; `CaveMan.puppet_air` gives the jump pose), `menu.gd` (trade / upgrade / craft).
 
 ## Conventions
@@ -106,7 +106,7 @@ he is exactly his 2D self; `CaveMan.puppet_air` gives the jump pose), `menu.gd` 
   Things made after `_ready` (the stick, caught fish) are never merged. Cost: `tools/homecost`.
 - THE 3D UGU: a new part goes into its bone's `Lump` (no new MeshInstance: he is 29 meshes); face parts are placed
   from the 2D rig's design units (`_face(x, y)`), loose parts get a `reach` (the air bends them in the shader).
-  Check with `ugu3dsheet -- [face] [moves]`, and in the home (`home.tscn -- shot`).
+  Check with `ugu3dsheet -- [face] [faces [only=a,b]] [body] [moves]`, the test `ugu3dface`, and in the home (`home.tscn -- shot`).
 - Shared helpers (don't copy the maths): `CaveMan.hurt_toss`, `Pickup.aim_at`, `Pickup.homing`,
   `Breakable.carry_to`, `Batch.ellipse`, `LevelBase.near_view`, `FX.burst`, `FX.shards`.
 - View: "on screen?" uses `LevelBase.view_half(n)`, never 640/1280. Slabs draw `fill_below`;
@@ -142,7 +142,7 @@ Screenshots: `<godot> --rendering-driver opengl3 --fixed-fps 60 --path . res://t
 [nodark] [notorch] [freeze]` (PNGs to `C:/tmp/shots`; name it `topic/shot` for a folder).
 Regression set: smoke, jumps, vines, story, boss, finale, econ, bones, loot, landing, caves, sky, airjump,
 wolves, talk, tarpits, hoards, sunfire, boulder, stomp, explore, dig, mountain, dash, getup, canyon, falls,
-steppe, leak, grab, gorgechest, orbs, mtbeasts, combat, aim, swarm, combos, hotbar, weapons, slowmo, soak, bag, windbreak, errands, one_eye, airkick, loadflow (+ `-- second`), homeflow, homeuse.
+steppe, leak, grab, gorgechest, orbs, mtbeasts, combat, aim, swarm, combos, hotbar, weapons, slowmo, soak, bag, windbreak, errands, one_eye, airkick, loadflow (+ `-- second`), homeflow, homeuse, ugu3dface.
 Tests save to `user://caveman_save_test.json` (`GameState.save_path()`): never the player's save.
 EXPECTED failures (not bugs): `vines` "three swings, let go late" MISS; `landing` prints 12 "no ground
 under" lines; `canyon rocks`/`stones` fail ~1 in 4 (bats); `combos` slam dunk and `grab` (knocked out of reach) fail ~1 in 3.
