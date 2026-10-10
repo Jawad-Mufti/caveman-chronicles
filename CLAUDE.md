@@ -57,9 +57,11 @@ common/: `critter.gd` (creature base, attack director, launch), `enemies.gd` (Le
 the rest one file per system (`ls common`). level2/: `level2_data.gd` (tables), `level2.gd` (builders;
 extends the data: tables are bare names); the rest one file per area or system (`ls level2`).
 shelter/: `home.gd` (UGU'S CAVE, the 3D island, eras by `GameState.home_era()`; docs/shelter_plan.md),
-`ugu3d.gd` (Ugu as a 3D figure to the sheet: one smooth head mesh with beard and hair-cap shells cut along
-curves, a tunic shell cut on the diagonal, loose pieces in the air; same interface: `speed`, `air`, `era`,
-`refresh()`), `ugu_paper.gd` (the alternative: the REAL 2D rig drawn into a SubViewport on a billboard, so
+`ugu3d.gd` (Ugu as a 3D figure, his 2D self made solid and a bit taller: face features placed from the 2D
+rig's design units (`_face`), toon light + rims in darker tones (a hull pass), meshes merged per bone
+(`Lump`), the air in the vertex shader (UV2 = looseness), moods (smile, tongue on a run, ooh, grin, yawn,
+blinks); `speed`, `sprint`, `air`, `look_at_point`, `era`, `refresh()`, `jumped(double)`, `landed(k)`,
+`cheer()`), `ugu_paper.gd` (the alternative: the REAL 2D rig drawn into a SubViewport on a billboard, so
 he is exactly his 2D self; `CaveMan.puppet_air` gives the jump pose), `menu.gd` (trade / upgrade / craft).
 
 ## Conventions

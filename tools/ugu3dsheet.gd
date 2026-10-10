@@ -33,10 +33,13 @@ func _ready() -> void:
 	var turn := args.has("turn")
 	var looks := [[2, "plain", "idle"], [2, "plain", "run"], [2, "plain", "air"], [2, "bear_cloak", "run"], [2, "wolf_hood", "idle"],
 		[2, "firekeeper", "idle"], [1, "plain", "idle"]]
+	if args.has("moves"):
+		looks = [[2, "plain", "sprint"], [2, "plain", "rise"], [2, "plain", "air"], [2, "plain", "flip"], [2, "plain", "land"],
+			[2, "plain", "yawn"], [2, "plain", "look"]]
 	if args.has("face"):
 		looks = [[2, "plain", "idle"]]
-		cam.position = Vector3(0.25, 1.75, 1.15)
-		cam.look_at(Vector3(0, 1.68, 0))
+		cam.position = Vector3(0.3, 1.7, 1.25)
+		cam.look_at(Vector3(0, 1.62, 0))
 		cam.fov = 38.0
 	else:
 		cam.position = Vector3(0, 1.1, 7.2)
@@ -56,16 +59,49 @@ func _ready() -> void:
 			"air":
 				u.air = true
 				_runners.append(u)
+			# (moves) the shot is taken 50 frames in
+			"sprint":
+				u.speed = 1.0
+				u.sprint = 1.0
+				u.set_meta("v", Vector3(0, 0, 8.2))
+				_runners.append(u)
+			"rise":
+				u.air = true
+				u.set_meta("v", Vector3(0, 5.0, 2.0))
+				_runners.append(u)
+			"flip":
+				u.air = true
+				u.set_meta("v", Vector3(0, 2.0, 2.0))
+				u.set_meta("at", [33, "jumped"])          # half way round at the shot
+				_runners.append(u)
+			"land":
+				u.set_meta("at", [46, "landed"])
+			"yawn":
+				u.set("_idle", 6.2)
+			"look":
+				u.look_at_point = u.position + Vector3(-3.0, 1.0, 1.5)
 	GameState.skin = "plain"
 	_finish.call_deferred()
 
 
+var _frame := 0
+
 func _process(delta: float) -> void:
+	_frame += 1
+	for u in get_children():
+		if u.has_meta("at") and u.get_meta("at")[0] == _frame:
+			if u.get_meta("at")[1] == "jumped":
+				u.jumped(true)
+			else:
+				u.landed(1.0)
 	# runners run on the spot: before each of them moves (this runs first), tell
 	# him where he "was" a frame ago, so he feels a run's velocity (a fall's too)
 	for u in _runners:
 		var n: Node3D = u
 		var v: Vector3 = n.global_transform.basis.z * 5.0 + (Vector3(0, -4.0, 0) if n.air else Vector3.ZERO)
+		if n.has_meta("v"):
+			var mv: Vector3 = n.get_meta("v")
+			v = n.global_transform.basis.z * mv.z + Vector3(0, mv.y, 0)
 		n._last = n.global_position - v * delta
 
 

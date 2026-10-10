@@ -16,7 +16,11 @@ Unbowed: every era tries to civilize him and fails) and the weapons `docs/weapon
   like the 2D Ugu. Two ways, both built to the design sheet (`docs/caveman_design.png`):
   - `shelter/ugu3d.gd`, the 3D figure: one smooth head mesh (skull, brow ridge, squared jaw, chin), the
     beard and the hair cap as shells of that head cut along smooth curves, the mane's spikes, a tunic shell
-    cut on the diagonal with a light-fur trim, every loose piece moving in the air. Close, never identical.
+    cut on the diagonal with a light-fur trim, every loose piece moving in the air. REBUILT 2026-10-10
+    ("exactly like in 2D but in 3D, a bit taller, freer movement"): the face placed from the 2D rig's own
+    numbers, toon-shaded with rims in darker tones, his 2D moods; in the home he speeds up and slows down,
+    slides along things, runs flat out on Shift, jumps twice (a somersault), squashes on landing, looks at
+    what he is next to, grins when he buys something.
   - `shelter/ugu_paper.gd`, the paper cut-out: the real 2D rig (CaveMan) drawn into a SubViewport and shown
     on a billboard. Identical by construction: every expression, the air, costumes, future changes; flat
     seen from the side. Same interface as the figure (`speed`, `air`, `era`, `refresh()`).

@@ -27,8 +27,12 @@ const UguPaper := preload("res://shelter/ugu_paper.gd")
 
 const R := 58.0                  ## the island's radius, metres
 const SPEED := 5.0
+const SPRINT := 8.2              ## Shift: flat out
+const ACCEL := 30.0              ## how fast he gets going (m/s each second), and stops
+const STOP := 26.0
 const GRAVITY := 22.0
 const JUMP := 8.0
+const JUMP2 := 7.0               ## again in the air: a somersault
 const CAM_FAR := Vector3(0, 7.0, 10.5)
 const CAM_NEAR := Vector3(0, 3.6, 6.0)
 const FLOOR_Y := 1.5             ## the cave and the plaza
@@ -83,6 +87,11 @@ var _glow_light: OmniLight3D     ## his own soft light
 var _occluders: Array = []       ## [node, (x, z), radius, materials, alpha]: they fade when in front of him
 var _pos := Vector3(0, 0, -8)
 var _vy := 0.0
+var _hv := Vector2.ZERO          ## his speed over the ground (x, z)
+var _jumps := 0                  ## jumps since he left the ground (2: the somersault)
+var _coyote := 0.0               ## a moment after a ledge he can still jump
+var _jump_buf := 0.0             ## Space a moment before landing still counts
+var _lead := Vector3.ZERO        ## the camera looks a little ahead of a run
 var _on_ground := true
 var _cam: Camera3D
 var _cam_k := 0.0               ## 0 far, 1 leaning in
@@ -162,9 +171,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		KEY_E, KEY_J, KEY_ENTER:
 			use()
 		KEY_SPACE:
-			if _on_ground:
-				_vy = JUMP
-				_on_ground = false
+			_jump_buf = 0.14                  # (walk() jumps)
 		KEY_P:
 			swap_ugu()
 
@@ -1445,7 +1452,7 @@ func _build_ui() -> void:
 	var ui := CanvasLayer.new()
 	add_child(ui)
 	_ui_label(ui, Vector2(24, 14), Vector2(800, 40), 30, Color("ffcf40"), Pal.title_font()).text = "UGU'S CAVE"
-	_ui_label(ui, Vector2(24, 54), Vector2(900, 30), 16, Color("d8c8b0"), Pal.text_font()).text = "Arrows: walk     Space: jump     E: use     P: 3D / paper Ugu     Esc: back to the level"
+	_ui_label(ui, Vector2(24, 54), Vector2(1240, 30), 16, Color("d8c8b0"), Pal.text_font()).text = "Arrows: walk     Shift: run     Space: jump (twice: flip)     E: use     P: 3D / paper Ugu     Esc: back to the level"
 	_hint = _ui_label(ui, Vector2(140, 646), Vector2(1000, 50), 21, Color("f3e3c3"), Pal.text_font())
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_say = _ui_label(ui, Vector2(190, 560), Vector2(900, 70), 24, Color("ffe066"), Pal.title_font())
@@ -1590,6 +1597,7 @@ func _spend(n: int) -> bool:
 	if GameState.shells < n:
 		return false
 	GameState.shells -= n
+	_model.cheer()                           # a grin: he got something
 	return true
 
 
@@ -1898,51 +1906,96 @@ func _animate(delta: float) -> void:
 		_stats.text = stats
 
 
-## One step: walking round things, jumping, on the ground's height.
+## One step: he gets going and slows down (steering in the air too), slides
+## along what he bumps into, runs flat out on Shift; jumps on Space (a moment
+## after a ledge, or pressed a moment early, still counts; let go early: a hop),
+## and again in the air: a somersault. On the ground's height.
 func walk(dir: Vector3, delta: float) -> void:
 	var moving := dir.length() > 0.01
 	if moving:
 		dir = dir.normalized()
-		var next := _pos + dir * SPEED * delta
-		var p := Vector2(next.x, next.z)
-		var gh := height(p.x, p.y)
-		var ok := gh > 0.0 and gh < _pos.y + 1.2 and p.length() < R
-		if _on_pier(p):
-			ok = true
-			gh = 0.66
-		for b in _blocks:
-			if p.distance_to(b[0]) < float(b[1]) + 0.3:
-				ok = false
-		if ok:
-			_pos.x = next.x
-			_pos.z = next.z
+	var flat_out := moving and Input.is_physical_key_pressed(KEY_SHIFT)
+	var want := Vector2(dir.x, dir.z) * (SPRINT if flat_out else SPEED)
+	_hv = _hv.move_toward(want, (ACCEL if moving else STOP) * (1.0 if _on_ground else 0.6) * delta)
+	if _hv.length() > 0.01:
+		var here := Vector2(_pos.x, _pos.z)
+		var step := _hv * delta
+		for s: Vector2 in [step, Vector2(step.x, 0), Vector2(0, step.y)]:
+			if _free(here + s):
+				_pos.x += s.x
+				_pos.z += s.y
+				break
 		# he turns to face where he is going (smoothly, the short way round)
-		var aim := atan2(dir.x, dir.z)
-		_model.rotation.y = lerp_angle(_model.rotation.y, aim, minf(1.0, delta * 12.0))
+		if _hv.length() > 0.4:
+			_model.rotation.y = lerp_angle(_model.rotation.y, atan2(_hv.x, _hv.y), minf(1.0, delta * (14.0 if _on_ground else 7.0)))
+	_coyote = 0.1 if _on_ground else maxf(_coyote - delta, 0.0)
+	_jump_buf = maxf(_jump_buf - delta, 0.0)
+	if _jump_buf > 0.0:
+		if _on_ground or _coyote > 0.0:
+			_vy = JUMP
+			_jumps = 1
+			_model.jumped(false)
+		elif _jumps < 2:
+			_vy = JUMP2
+			_jumps = 2
+			_model.jumped(true)
+			_dust()
+		if _jumps > 0:
+			_jump_buf = 0.0
+			_coyote = 0.0
+			_on_ground = false
 	var ground := 0.66 if _on_pier(Vector2(_pos.x, _pos.z)) else height(_pos.x, _pos.z)
-	_vy -= GRAVITY * delta
+	var g := GRAVITY
+	if _vy > 0.0 and _jumps > 0 and not Input.is_physical_key_pressed(KEY_SPACE):
+		g *= 2.2                                 # let go early: a short hop
+	_vy -= g * delta
 	_pos.y += _vy * delta
 	if _pos.y <= ground:
-		if not _on_ground and _vy < -6.0:
-			_dust()
+		if not _on_ground and _vy < -3.0:
+			if _vy < -6.0:
+				_dust()
+			_model.landed(clampf(-_vy / 16.0, 0.0, 1.0))
 		_pos.y = ground
 		_vy = 0.0
 		_on_ground = true
+		_jumps = 0
+	elif _on_ground and _vy <= 0.0 and _pos.y - ground < 0.35:
+		_pos.y = ground                          # running downhill: he keeps his feet
+		_vy = 0.0
 	else:
 		_on_ground = _pos.y - ground < 0.05
 	if ground < 0.25 and Vector2(_pos.x, _pos.z).distance_to(Vector2(POOL.x, POOL.z)) < 5.0 and moving and fmod(_t, 0.35) < delta:
 		_splash.position = _pos
 		_splash.restart()
-	_model.speed = move_toward(_model.speed, 1.0 if moving else 0.0, delta * 6.0)
+	var sp := _hv.length()
+	_model.speed = clampf(sp / SPEED, 0.0, 1.0)
+	_model.sprint = clampf((sp - SPEED) / (SPRINT - SPEED), 0.0, 1.0)
 	_model.air = not _on_ground
+	# he looks at what he is next to
+	_model.look_at_point = Vector3.INF
+	for spot in _spots:
+		if spot[0] == _near and _near != "":
+			_model.look_at_point = (spot[2] as Node3D).global_position if spot[2] != null else Vector3(spot[1].x, _pos.y + 1.2, spot[1].y)
 	_model.position = _pos
 	_glow_light.position = _pos + Vector3(0, 1.7, 1.2)
 	_glow_light.light_energy = lerpf(0.25, 0.9, _night)
 	_cam_k = move_toward(_cam_k, 1.0 if _focus > 0.0 else 0.0, delta * 1.6)
 	var k := _cam_k * _cam_k * (3.0 - 2.0 * _cam_k)
-	var want := _pos + CAM_FAR.lerp(CAM_NEAR, k)
-	_cam.position = _cam.position.lerp(want, minf(1.0, delta * 3.5)) if _t > 0.1 else want
-	_cam.look_at(_pos + Vector3(0, 1.0, -1.6))
+	_lead = _lead.lerp(Vector3(_hv.x, 0, _hv.y) * 0.3, minf(1.0, delta * 2.0))
+	var cam_want := _pos + _lead + CAM_FAR.lerp(CAM_NEAR, k)
+	_cam.position = _cam.position.lerp(cam_want, minf(1.0, delta * 3.5)) if _t > 0.1 else cam_want
+	_cam.look_at(_pos + _lead + Vector3(0, 1.0, -1.6))
+
+
+## Can he stand at `p` (x, z): on the island (or the pier), not up a cliff, not in a thing?
+func _free(p: Vector2) -> bool:
+	for b in _blocks:
+		if p.distance_to(b[0]) < float(b[1]) + 0.3:
+			return false
+	if _on_pier(p):
+		return true
+	var gh := height(p.x, p.y)
+	return gh > 0.0 and gh < _pos.y + 1.2 and p.length() < R
 
 
 func _on_pier(p: Vector2) -> bool:

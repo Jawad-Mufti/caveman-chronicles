@@ -16,6 +16,8 @@ const HEIGHT_M := 1.85               ## how tall he stands at home (metres, with
 const PX_PER_M := 160.0              ## his 3D speeds in the rig's pixels
 
 var speed := 0.0                     ## 0 standing .. 1 running (set by the game)
+var sprint := 0.0                    ## (the 3D figure's: unused on paper)
+var look_at_point := Vector3.INF
 var air := false
 var era := 2
 var vel := Vector3.ZERO              ## his velocity (world), worked out from how he moved
@@ -79,3 +81,16 @@ func _process(delta: float) -> void:
 	_rig.puppet_air = air
 	if not air and run > 0.02:
 		_rig._run_phase += absf(_rig.velocity.x) * delta / (_rig._stride_amp(run) * CaveMan.ART)
+
+
+## (the 3D figure's somersault, landing squash and grin: not on paper)
+func jumped(_double := false) -> void:
+	pass
+
+
+func landed(_impact := 0.5) -> void:
+	pass
+
+
+func cheer(_t := 1.2) -> void:
+	pass

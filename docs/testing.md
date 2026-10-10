@@ -68,9 +68,11 @@ Run forms (Godot path, headless, screenshots) and the regression set are in the 
   fall, the cloak and the hood running (the air on his hair and clothes). PNG: `C:/tmp/shots/rigsheet_<tag>.png`.
   Use it for every change to his art: the levels are too busy (spores, loot) to judge him.
 - `shotdash -- [gold]` (rendering): the meteor dash's effects, a paused frame every 2 (`dash_*`).
-- `ugu3dsheet -- tag=<name> [face] [turn]` (rendering): the 3D Ugu (`shelter/ugu3d.gd`): idle, running and
+- `ugu3dsheet -- tag=<name> [face] [turn] [moves]` (rendering): the 3D Ugu (`shelter/ugu3d.gd`): idle, running and
   in the air (the runners feel a run's velocity, so the air works on them), the costumes, era 1; `face`: a
-  head close-up; `turn`: seen from the side. PNG: `C:/tmp/shots/ugu3d_<tag>.png`.
+  head close-up; `turn`: seen from the side; `moves`: sprint, rising, falling, mid-somersault, the landing
+  squash, the yawn, looking aside. PNG: `C:/tmp/shots/ugu3d_<tag>.png` (`face` overwrites the same tag).
+  2026-10-10 rebuild: 29 meshes (was 217); the home ~475 draw calls in all (was ~1079), median frame a bit lower.
 - Ugu's drawing cost: `drawcost` (headless: microseconds per CaveMan / wolf / bat picture, and per circle /
   line / poly). 2026-10-10: the sheet look ~1.6-1.7 ms, the classic look ~1.1-1.25 ms. To compare against
   an old look: a worktree of tag `ugu-classic-look` and the same tool, same session.
