@@ -6,14 +6,23 @@ extends CanvasLayer
 ## MAKE here: things for his cave (Bag.HOME_RECIPES; for now the OBSIDIAN
 ## MIRROR). Each is a card: its picture, what it is, what it needs (have /
 ## need, green when there is enough), and a MAKE button; made, a stamp.
-##   Mouse: point and click.   Up / Down: a card.   E / Enter: MAKE.   Esc: close.
+## The slab's other tab, BUILD: the BONE BUILDS (shelter/builds.gd), a row each
+## (its picture, where it goes, the bones it costs, BUILD!); the chosen one's
+## story under them. A build site's E opens this tab on that build.
+##   Mouse: point and click.   Left / Right (Tab): MAKE / BUILD.   Up / Down: a
+##   card.   E / Enter: MAKE or BUILD.   Esc: close.
 
 signal closed
 signal made(id: String)
-signal refused                                  ## MAKE without enough
+signal built(id: String)                        ## bones paid: the home raises it (Builds.raise)
+signal refused                                  ## MAKE / BUILD without enough
+
+const Builds := preload("res://shelter/builds.gd")
 
 var rig: CaveMan                                ## his 2D rig (what Bag asks about him)
-var sel := 0                                    ## the chosen card
+var tab := "make"                               ## "make" | "build"
+var select := ""                                ## a build to open on (its site's E)
+var sel := 0                                    ## the chosen card / row
 var _board: WorkshopBoard
 var _note := ""                                 ## a line under the cards: made / what's missing
 var _note_ok := true
@@ -22,10 +31,57 @@ var _note_t := 0.0
 
 func _ready() -> void:
 	layer = 5
+	if select != "":
+		tab = "build"
+		for i in Builds.BUILDS.size():
+			if Builds.BUILDS[i][0] == select:
+				sel = i
 	_board = WorkshopBoard.new()
 	_board.ws = self
 	_board.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_board)
+
+
+## BUILD: pay the bones (true if built).
+func build_it(id: String) -> bool:
+	var b := Builds.info(id)
+	if b.is_empty() or Builds.is_built(id):
+		return false
+	var cost: int = b[2]
+	if GameState.bones < cost:
+		_say("Need %d more bones. Beasts and bone piles drop them, every visit." % (cost - GameState.bones), false)
+		_board.shake = 0.35
+		refused.emit()
+		return false
+	GameState.bones -= cost
+	GameState.save()
+	_board.burst = 1.6
+	_say("THUD! THUD! %s is BUILT, %s. Go and see!" % [str(b[1]).capitalize(), b[4]], true)
+	built.emit(id)
+	return true
+
+
+func set_tab(t: String) -> void:
+	if tab != t:
+		tab = t
+		sel = 0
+		_note_t = 0.0
+
+
+## The rows of the open tab: recipes (MAKE) or builds (BUILD).
+func rows() -> Array:
+	return recipes() if tab == "make" else Builds.BUILDS
+
+
+## E / a click: make it, or build it.
+func act(i: int) -> void:
+	var rs := rows()
+	if i < 0 or i >= rs.size():
+		return
+	if tab == "make":
+		make(rs[i][0])
+	else:
+		build_it(rs[i][0])
 
 
 ## The recipes made here.
@@ -66,15 +122,20 @@ func _process(delta: float) -> void:
 func _input(e: InputEvent) -> void:
 	if not (e is InputEventKey and e.pressed) or e.is_echo():
 		return
-	var rs := recipes()
+	var rs := rows()
 	match (e as InputEventKey).physical_keycode:
 		KEY_UP, KEY_W:
 			sel = posmod(sel - 1, maxi(rs.size(), 1))
 		KEY_DOWN, KEY_S:
 			sel = posmod(sel + 1, maxi(rs.size(), 1))
+		KEY_LEFT, KEY_A:
+			set_tab("make")
+		KEY_RIGHT, KEY_D:
+			set_tab("build")
+		KEY_TAB:
+			set_tab("build" if tab == "make" else "make")
 		KEY_E, KEY_J, KEY_ENTER, KEY_SPACE:
-			if not rs.is_empty():
-				make(rs[sel][0])
+			act(sel)
 		KEY_ESCAPE, KEY_Q:
 			close()
 	get_viewport().set_input_as_handled()
@@ -136,6 +197,23 @@ class WorkshopBoard extends Control:
 	func _close_rect() -> Rect2:
 		return Rect2(BOARD.end.x - 58, BOARD.position.y + 12, 44, 44)
 
+	func _tab_rect(i: int) -> Rect2:
+		return Rect2(SLAB.position.x + 16 + i * 150, SLAB.position.y + 12, 140, 44)
+
+	func _row_rect(i: int) -> Rect2:
+		return Rect2(SLAB.position.x + 14, SLAB.position.y + 66 + i * 52, SLAB.size.x - 28, 48)
+
+	func _build_btn(i: int) -> Rect2:
+		var r := _row_rect(i)
+		return Rect2(r.end.x - 108, r.position.y + 7, 98, 34)
+
+	## The button of row / card i in the open tab.
+	func _act_rect(i: int) -> Rect2:
+		return _make_rect(i) if ws.tab == "make" else _build_btn(i)
+
+	func _sel_rect(i: int) -> Rect2:
+		return _card_rect(i) if ws.tab == "make" else _row_rect(i)
+
 	# ---- the mouse
 	func _gui_input(e: InputEvent) -> void:
 		if e is InputEventMouseMotion:
@@ -147,18 +225,22 @@ class WorkshopBoard extends Control:
 			_hover = ""
 			if _close_rect().has_point(p):
 				_hover = "close"
-			var rs: Array = ws.recipes()
+			for k in 2:
+				if _tab_rect(k).has_point(p):
+					_hover = "tab%d" % k
+			var rs: Array = ws.rows()
 			for i in rs.size():
-				if _make_rect(i).has_point(p):
+				if _act_rect(i).has_point(p):
 					_hover = "make%d" % i
-				if _card_rect(i).has_point(p):
+				if _sel_rect(i).has_point(p):
 					ws.sel = i
 		elif e is InputEventMouseButton and (e as InputEventMouseButton).pressed and (e as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 			if _hover == "close":
 				ws.close()
+			elif _hover.begins_with("tab"):
+				ws.set_tab("make" if _hover == "tab0" else "build")
 			elif _hover.begins_with("make"):
-				var i := int(_hover.substr(4))
-				ws.make(ws.recipes()[i][0])
+				ws.act(int(_hover.substr(4)))
 		accept_event()
 
 	# ---- drawing
@@ -168,7 +250,7 @@ class WorkshopBoard extends Control:
 		_draw_bag()
 		_draw_make()
 		var f := Pal.text_font()
-		var foot := "Point at things      Click MAKE  (or E)      Up / Down: a card      Esc: close"
+		var foot := "Point at things      Click MAKE / BUILD  (or E)      Left / Right: the tabs      Up / Down: a card      Esc: close"
 		draw_string_outline(f, Vector2(BOARD.position.x, BOARD.end.y - 18), foot, HORIZONTAL_ALIGNMENT_CENTER, BOARD.size.x, 15, 6, SEAM)
 		draw_string(f, Vector2(BOARD.position.x, BOARD.end.y - 18), foot, HORIZONTAL_ALIGNMENT_CENTER, BOARD.size.x, 15, Color("f3e3c3"))
 
@@ -275,16 +357,86 @@ class WorkshopBoard extends Control:
 		draw_rect(s, Color("5e534c"), false, 4.0)
 		var tf := Pal.title_font()
 		var f := Pal.text_font()
-		draw_string_outline(tf, s.position + Vector2(24, 44), "MAKE", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, 6, INK)
-		draw_string(tf, s.position + Vector2(24, 44), "MAKE", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color("fff2c0"))
-		draw_string(f, s.position + Vector2(120, 42), "things for your cave", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("f3e3c3"))
-		var rs: Array = ws.recipes()
-		for i in rs.size():
-			_draw_card(i, rs[i])
+		# the tabs: MAKE (things) and BUILD (the bone builds)
+		var ready := 0
+		for b in Builds.BUILDS:
+			if not Builds.is_built(b[0]) and GameState.bones >= int(b[2]):
+				ready += 1
+		for k in 2:
+			var tr := _tab_rect(k)
+			var on: bool = ws.tab == ("make" if k == 0 else "build")
+			var hov := _hover == "tab%d" % k
+			draw_rect(tr, (GOLD if on else Color(INK, 0.55 if hov else 0.35)))
+			draw_rect(tr, INK, false, 3.0)
+			draw_string(tf, tr.position + Vector2(0, 33), ["MAKE", "BUILD"][k], HORIZONTAL_ALIGNMENT_CENTER, tr.size.x, 26, INK if on else Color("fff2c0"))
+			if k == 1 and ready > 0:                               # a badge: builds he can pay for now
+				var bc := tr.end - Vector2(6, 38)
+				draw_circle(bc, 12.0 + sin(t * 5.0) * 1.5, SHORT)
+				draw_string(tf, bc + Vector2(-12, 7), str(ready), HORIZONTAL_ALIGNMENT_CENTER, 24, 17, Color.WHITE)
+		var rs: Array = ws.rows()
+		if ws.tab == "make":
+			for i in rs.size():
+				_draw_card(i, rs[i])
+		else:
+			for i in rs.size():
+				_draw_build_row(i, rs[i])
+		var nr := Rect2(s.position.x + 20, s.end.y - 92, s.size.x - 40, 76)
 		if ws._note_t > 0.0:
-			var nr := Rect2(s.position.x + 20, s.end.y - 92, s.size.x - 40, 76)
 			draw_rect(nr, Color(0.1, 0.06, 0.04, 0.6))
 			draw_multiline_string(f, nr.position + Vector2(12, 26), ws._note, HORIZONTAL_ALIGNMENT_LEFT, nr.size.x - 24, 16, 3, Color("b8f08a") if ws._note_ok else Color("ffb08a"))
+		elif ws.tab == "build" and ws.sel < rs.size():
+			var b2: Array = rs[ws.sel]
+			draw_rect(nr, Color(0.1, 0.06, 0.04, 0.45))
+			draw_string(tf, nr.position + Vector2(12, 24), str(b2[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, GOLD)
+			draw_multiline_string(f, nr.position + Vector2(12, 44), str(b2[3]), HORIZONTAL_ALIGNMENT_LEFT, nr.size.x - 24, 14, 2, Color("f3e3c3"))
+
+	## A bone build's row: its picture, its name and where it goes, its price, BUILD!
+	func _draw_build_row(i: int, b: Array) -> void:
+		var id: String = b[0]
+		var cost: int = b[2]
+		var r := _row_rect(i)
+		if shake > 0.0 and i == ws.sel:
+			r.position.x += sin(t * 60.0) * 6.0 * shake / 0.35
+		var done := Builds.is_built(id)
+		var can := not done and GameState.bones >= cost
+		draw_rect(Rect2(r.position + Vector2(2, 3), r.size), Color(0, 0, 0, 0.25))
+		draw_rect(r, HIDE if not done else HIDE.lerp(OK, 0.18))
+		draw_rect(r, GOLD if i == ws.sel else Color("8a6a3c"), false, 3.0 if i == ws.sel else 2.0)
+		var ic := r.position + Vector2(26, 24)
+		if can:
+			draw_circle(ic, 23.0 + sin(t * 4.0) * 2.0, Color(GOLD, 0.4))
+		draw_circle(ic, 20.0, INK)
+		Builds.draw_icon(self, id, ic, 0.72, t)
+		var tf := Pal.title_font()
+		var f := Pal.text_font()
+		draw_string(tf, r.position + Vector2(54, 21), str(b[1]).trim_prefix("THE "), HORIZONTAL_ALIGNMENT_LEFT, -1, 17, INK)
+		draw_string(f, r.position + Vector2(54, 39), str(b[4]), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, INK.lightened(0.3))
+		# the price: bones have / need
+		var chip := Rect2(r.end.x - 196, r.position.y + 7, 80, 34)
+		var enough := GameState.bones >= cost or done
+		draw_rect(chip, Color(OK, 0.2) if enough else Color(SHORT, 0.18))
+		draw_rect(chip, OK if enough else SHORT, false, 2.0)
+		Bag.draw_icon(self, "bones", chip.position + Vector2(17, 17), 0.62, t)
+		draw_string(tf, chip.position + Vector2(32, 24), str(cost) if done else "%d/%d" % [mini(GameState.bones, 999), cost], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, OK.darkened(0.25) if enough else SHORT)
+		var br := _build_btn(i)
+		if done:
+			draw_set_transform(br.get_center(), -0.1, Vector2.ONE)
+			draw_rect(Rect2(-br.size * 0.5, br.size), Color(OK, 0.15))
+			draw_rect(Rect2(-br.size * 0.5, br.size), OK, false, 3.0)
+			draw_string(tf, Vector2(-br.size.x * 0.5, 8), "BUILT!", HORIZONTAL_ALIGNMENT_CENTER, br.size.x, 18, OK)
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		else:
+			var hov := _hover == "make%d" % i
+			draw_rect(Rect2(br.position + Vector2(2, 3), br.size), Color(0, 0, 0, 0.3))
+			draw_rect(br, (GOLD.lightened(0.2) if hov else GOLD) if can else Color("a89a88"))
+			draw_rect(br, INK, false, 2.5)
+			draw_string(tf, br.position + Vector2(0, 24), "BUILD!" if can else "MORE BONES", HORIZONTAL_ALIGNMENT_CENTER, br.size.x, 18 if can else 12, INK)
+		if burst > 0.0 and i == ws.sel:
+			var k := burst / 1.6
+			draw_rect(r, Color(1, 1, 0.85, 0.5 * k * k))
+			for s in 10:
+				var a := s * TAU / 10.0 + t
+				draw_circle(ic + Vector2(cos(a), sin(a)) * (26.0 + (1.0 - k) * 60.0), 3.0 * k + 1.0, Color(1, 0.95, 0.6, k))
 
 	func _draw_card(i: int, r: Array) -> void:
 		var id: String = r[0]

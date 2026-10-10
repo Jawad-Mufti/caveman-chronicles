@@ -26,6 +26,10 @@ const UguModel := preload("res://shelter/ugu3d.gd")
 const UguPaper := preload("res://shelter/ugu_paper.gd")
 const Mirror := preload("res://shelter/mirror.gd")
 const Workshop := preload("res://shelter/workshop.gd")
+const Nature := preload("res://shelter/nature.gd")
+const Builds := preload("res://shelter/builds.gd")
+const RelicHome := preload("res://shelter/relic_home.gd")
+const Visits := preload("res://shelter/visits.gd")
 
 const R := 58.0                  ## the island's radius, metres
 const SPEED := 5.0
@@ -134,6 +138,10 @@ var _drying_fish: Array = []
 var _clouds: Array = []
 var _birds: Array = []
 var _splash: CPUParticles3D
+var _systems: Array = []         ## nature, builds, relics, visits (shelter/*.gd): built in _ready, asked on E
+var _titles := {}                ## spots the systems made: id -> [title, line]
+var _pads: Array = []            ## what he can stand on besides the ground (add_pad)
+var _holder: Node = null         ## a system holding him (hammock, ladder): its hold_step(delta) places him
 var _mirror: Node3D              ## the obsidian mirror (shelter/mirror.gd), once he has made it
 var _studio_k := 0.0            ## 0 .. 1: the camera over his shoulder at the mirror
 var _t := 0.0
@@ -150,6 +158,10 @@ func _ready() -> void:
 	while z < R + 20.0 and height(6.0, z) > 0.45:
 		z += 0.25
 	PIER = Vector2(6.0, z - 1.5)
+	for kind in [Nature, Builds, RelicHome, Visits]:        # (made first: they keep their ground clear of trees)
+		var s: Node3D = kind.new()
+		s.home = self
+		_systems.append(s)
 	_build_sky()
 	_build_island()
 	_build_sea()
@@ -161,6 +173,9 @@ func _ready() -> void:
 	_build_plaza()
 	_build_pier()
 	_build_sky_life()
+	for s2 in _systems:
+		add_child(s2)
+		s2.build()
 	_build_ugu()
 	_build_ui()
 	_bake_static()
@@ -331,6 +346,9 @@ func _clear(p: Vector2, pad: float) -> bool:
 		return true
 	if _seg_dist(p, Vector2(0, -2), PIER) < 2.0 + pad or p.distance_to(PIER) < 5.0 + pad:
 		return true
+	for s in _systems:
+		if s.reserved(p, pad):
+			return true
 	return false
 
 
@@ -1221,6 +1239,9 @@ var _baked := 0                  ## how many shapes were merged (homecost prints
 
 func _bake_static() -> void:
 	var skip := {}
+	for s3 in _systems:
+		for m in s3.movers():
+			skip[(m as Node).get_instance_id()] = true
 	for n in [_model, _pup, _float, _line]:
 		if n != null:
 			skip[(n as Node).get_instance_id()] = true
@@ -1400,9 +1421,62 @@ func _ball(r: float, segs := 6) -> SphereMesh:
 	return s
 
 
-func _spot(id: String, at: Vector3) -> void:
+## A spot's [title, what E does]: the table (LINES), or what a system gave _spot.
+func _title_of(id: String) -> Array:
+	return _titles.get(id, LINES.get(id, [id.to_upper(), ""]))
+
+
+## Takes a spot away (a build site once it is built).
+func _unspot(id: String) -> void:
+	for i in range(_spots.size() - 1, -1, -1):
+		if _spots[i][0] == id:
+			(_spots[i][2] as Node).queue_free()
+			_spots.remove_at(i)
+	if _near == id:
+		_near = ""
+		_hint.text = ""
+
+
+## ------------------------------------------------------------------ PADS: what he can stand on
+## Besides the ground and the pier: a disc [centre (x, z), radius, top] or a
+## deck [a, b, half width, top at a, top at b, arch]. `bounce` > 0: landing on
+## it throws him up that fast (the moonpuffs). Over water or a gap, a pad is
+## ground he can walk on; from below he walks round it (it's a wall to him).
+func add_pad(pad: Dictionary) -> void:
+	_pads.append(pad)
+
+
+## The top of the pad at `p` (the highest), or -INF.
+func pad_top(p: Vector2) -> float:
+	var best := -INF
+	for pad in _pads:
+		var top := -INF
+		if pad.has("r"):
+			if p.distance_to(pad["c"]) <= float(pad["r"]):
+				top = float(pad["top"])
+		else:
+			var a: Vector2 = pad["a"]
+			var b: Vector2 = pad["b"]
+			var ab := b - a
+			var k := clampf((p - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
+			if p.distance_to(a + ab * k) <= float(pad["w"]):
+				top = lerpf(float(pad["top_a"]), float(pad["top_b"]), k) + float(pad.get("arch", 0.0)) * sin(k * PI)
+		best = maxf(best, top)
+	return best
+
+
+func _pad_at(p: Vector2, top: float) -> Dictionary:
+	for pad in _pads:
+		if pad.has("r") and p.distance_to(pad["c"]) <= float(pad["r"]) and absf(float(pad["top"]) - top) < 0.01:
+			return pad
+	return {}
+
+
+func _spot(id: String, at: Vector3, title := "", line := "") -> void:
 	var l := Label3D.new()
-	l.text = LINES[id][0]
+	if title != "":
+		_titles[id] = [title, line]
+	l.text = _title_of(id)[0]
 	l.font = Pal.title_font()
 	l.font_size = 64
 	l.pixel_size = 0.006
@@ -1412,7 +1486,7 @@ func _spot(id: String, at: Vector3) -> void:
 	l.no_depth_test = true
 	l.layers = Mirror.LAYER_LABELS            # (not seen in the mirror)
 	l.visible = false
-	l.position = Vector3(at.x, maxf(height(at.x, at.z), 0.6) + 2.7, at.z)
+	l.position = Vector3(at.x, maxf(maxf(height(at.x, at.z), 0.6), at.y) + 2.7, at.z)      # (at.y: a raised spot)
 	add_child(l)
 	_spots.append([id, Vector2(at.x, at.z), l])
 
@@ -1489,7 +1563,7 @@ func _fade_occluders(delta: float) -> void:
 			var k := clampf((at - cam).dot(to_me) / to_me.length_squared(), 0.0, 1.0)
 			var close := at.distance_to(cam + to_me * k)
 			if k > 0.05 and k < 0.98 and close < float(o[2]) + 0.7:
-				want = 0.22
+				want = 0.1                         # (a ghost of it: no green wash over the view)
 		var a: float = move_toward(float(o[4]), want, delta * 3.0)
 		if a == float(o[4]):
 			continue
@@ -1545,6 +1619,9 @@ func say(text: String) -> void:
 ## ------------------------------------------------------------------ E: what he does
 func use() -> void:
 	if _menu != null:
+		return
+	if _holder != null and is_instance_valid(_holder):
+		_holder.release()                       # E again: out of the hammock, down the ladder
 		return
 	if _fish_state == "bite":
 		_reel()
@@ -1606,7 +1683,9 @@ func use() -> void:
 		"pier":
 			_cast()
 		_:
-			pass
+			for s in _systems:
+				if s.use(_near):
+					return
 
 
 func _skin_name(id: String) -> String:
@@ -1722,9 +1801,18 @@ func _toolmaker_rows() -> Array:
 ## THE WORKSHOP (shelter/workshop.gd): his bag on the table, and what he can
 ## make here for his cave (the mirror). It stands in for a menu (`_menu`): he
 ## doesn't walk while it is open.
-func _open_workshop() -> void:
+func _open_workshop(tab := "make", select := "") -> void:
+	if _menu != null:
+		return
 	var ws := Workshop.new()
 	ws.rig = _rig
+	ws.tab = tab
+	ws.select = select
+	ws.built.connect(func(id: String) -> void:
+		for s in _systems:
+			if s.has_method("raise"):
+				s.raise(id)
+		_model.cheer(1.6))
 	ws.made.connect(func(id: String) -> void:
 		if id == "mirror":
 			_build_mirror(true)
@@ -1957,7 +2045,7 @@ func _animate(delta: float) -> void:
 	if _near != was or _hint.text == "" and _near != "":
 		for sp2 in _spots:
 			(sp2[2] as Label3D).visible = sp2[0] == _near
-		_hint.text = ("%s  —  %s" % [LINES[_near][0], LINES[_near][1]]) if _near != "" else ""
+		_hint.text = ("%s  —  %s" % _title_of(_near)) if _near != "" else ""
 	var stats := "Shells %d    Figs %d/%d    Bones %d" % [GameState.shells, GameState.figs, GameState.fig_max(), GameState.bones]
 	if stats != _stats.text:
 		_stats.text = stats
@@ -1968,6 +2056,18 @@ func _animate(delta: float) -> void:
 ## after a ledge, or pressed a moment early, still counts; let go early: a hop),
 ## and again in the air: a somersault. On the ground's height.
 func walk(dir: Vector3, delta: float) -> void:
+	if _holder != null and is_instance_valid(_holder):
+		# held (in the hammock, up the ladder): the holder places and poses him
+		_hv = Vector2.ZERO
+		_vy = 0.0
+		_model.speed = 0.0
+		_model.sprint = 0.0
+		_model.air = false
+		_jump_buf = 0.0
+		_holder.hold_step(delta)
+		_model.position = _pos
+		_camera(delta)
+		return
 	var moving := dir.length() > 0.01
 	if moving:
 		dir = dir.normalized()
@@ -2001,13 +2101,26 @@ func walk(dir: Vector3, delta: float) -> void:
 			_jump_buf = 0.0
 			_coyote = 0.0
 			_on_ground = false
-	var ground := 0.66 if _on_pier(Vector2(_pos.x, _pos.z)) else height(_pos.x, _pos.z)
+	var flat2 := Vector2(_pos.x, _pos.z)
+	var ground := 0.66 if _on_pier(flat2) else height(_pos.x, _pos.z)
+	var top := pad_top(flat2)
+	if top > ground and _pos.y >= top - 0.35:
+		ground = top                             # on a pad: a deck, a tower top, a mushroom cap
 	var g := GRAVITY
 	if _vy > 0.0 and _jumps > 0 and not Input.is_physical_key_pressed(KEY_SPACE):
 		g *= 2.2                                 # let go early: a short hop
 	_vy -= g * delta
 	_pos.y += _vy * delta
-	if _pos.y <= ground:
+	var pad := _pad_at(flat2, ground) if ground == top else {}
+	if _pos.y <= ground + 0.06 and _vy <= 0.0 and not _on_ground and float(pad.get("bounce", 0.0)) > 0.0:
+		_pos.y = ground                          # a moonpuff: BOING, up he goes
+		_vy = float(pad["bounce"])
+		_jumps = 0
+		_on_ground = false
+		_model.jumped(_rig_flip())
+		for s in _systems:
+			s.bounced(pad)
+	elif _pos.y <= ground:
 		if not _on_ground and _vy < -3.0:
 			if _vy < -6.0:
 				_dust()
@@ -2043,6 +2156,12 @@ func walk(dir: Vector3, delta: float) -> void:
 		_model.rotation.y = lerp_angle(_model.rotation.y, atan2(gm.x - _pos.x, gm.z - _pos.z), minf(1.0, delta * 8.0))
 		_model.look_at_point = gm
 	_model.position = _pos
+	_camera(delta)
+
+
+## The camera after him (and his own soft light): leaning in when he does
+## something, the zoom, round over his shoulder at the mirror.
+func _camera(delta: float) -> void:
 	_glow_light.position = _pos + Vector3(0, 1.7, 1.2)
 	_glow_light.light_energy = lerpf(0.25, 0.9, _night)
 	_cam_k = move_toward(_cam_k, 1.0 if _focus > 0.0 else 0.0, delta * 1.6)
@@ -2066,6 +2185,14 @@ func walk(dir: Vector3, delta: float) -> void:
 	_cam.look_at(aim)
 
 
+## Every other bounce off a moonpuff is a somersault.
+var _bounces := 0
+
+func _rig_flip() -> bool:
+	_bounces += 1
+	return _bounces % 2 == 0
+
+
 ## Can he stand at `p` (x, z): on the island (or the pier), not up a cliff, not in a thing?
 func _free(p: Vector2) -> bool:
 	for b in _blocks:
@@ -2073,6 +2200,9 @@ func _free(p: Vector2) -> bool:
 			return false
 	if _on_pier(p):
 		return true
+	var pt := pad_top(p)
+	if pt > -INF:
+		return pt <= _pos.y + 0.35                 # on (or over) a pad; from below it is a wall
 	var gh := height(p.x, p.y)
 	return gh > 0.0 and gh < _pos.y + 1.2 and p.length() < R
 

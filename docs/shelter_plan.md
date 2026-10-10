@@ -94,6 +94,18 @@ built into the home before its level exists.
    stall (buy / sell), the Toolmaker (upgrades), the workbench (crafting from the bag), the store corner,
    the bed (night to day, saves), fishing at the pier and cooking at the fire, the pup that fetches.
    Tests: `homeflow`, `homeuse`; cost: `homecost`.
-2. NOW: Ugu at home to the design sheet (above), then Ugga.
+2. DONE: Ugu at home to the design sheet (above), his face rig; the obsidian mirror and its face studio; the workshop.
+   DONE (2026-10-10, eras 1-2 only): the shelter worth coming back to, a system per file on `shelter/system.gd`:
+   - `builds.gd`, THE BONE BUILDS (the bones sink, `Builds.BUILDS`): hammock 20, gathering fire 30, tusk gate
+     + path lamps 40, bone bridge 50 (opens the grove), trophy totem 60, lookout 90. Marked sites until built;
+     the workshop's BUILD tab pays; it rises out of the ground. `GameState.shelter["built"]`.
+   - `relic_home.gd`: every relic does what its words say (moonstone night-lamp, star shard in the hearth,
+     feather roof, glow crystals, amber charm, ivory statue, bear fang, ochre paintings, thunder egg, golden
+     horn on Star Rock), the RELIC SHELF (found / "?"), NEW! sparkles till he looks.
+   - `nature.gd`: flower meadows, butterflies, shooting stars, the waterfall rainbow, lilies and jumping fish,
+     the MOONPUFF GROVE across the stream (bounce pads up to STAR ROCK: the wishing stone, every 6 h).
+   - `visits.gd`: the WELCOME HOME card (what's new and waiting), the PUP'S FIND (every 30 min away).
+   The home: pads (`add_pad`: decks, tops, bounce), holding him (`_holder`: hammock, ladder). Tests: `shelter`;
+   pictures: `homesights -- [all] [nocard] [only=...]`. Next: Ugga.
 3. The rest of v1 (era 3): upgrading with real resources (`GameState.home`, storage), the artifacts.
 4. Each new level: its costume, its shop upgrades, its artifact.

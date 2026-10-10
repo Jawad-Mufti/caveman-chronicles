@@ -41,6 +41,7 @@ static var items: Array = []           ## tools he owns for good: "shovel"
 static var mysteries := {}             ## id -> "open" | "solved" (see CampMenu.MYSTERIES)
 static var bag := {}                   ## stones and things he made: id -> how many (see Bag)
 static var world_seed := 0             ## rolled once per save: where the buried things lie (each save digs its own)
+static var shelter := {}               ## the home's own: "built" [ids], "seen_relics", "seen_trophies", "pup" / "wish" (unix time)
 static var spot := {}                  ## where he last SAVED: level (scene path), x, y, torch, title, when
 static var resume := false             ## LOAD: the level about to be built puts him at the spot
 static var away := {}                  ## where he left a level to go HOME (not saved): back there after
@@ -85,6 +86,7 @@ static func ensure_loaded() -> void:
 	bag = d.get("bag", {})
 	world_seed = int(d.get("world_seed", 0))
 	spot = d.get("spot", {})
+	shelter = d.get("shelter", {})
 	# an older save that forged the Firestone before weapons were kept
 	if str(gems.get("level2", "")) == "forged" and not weapons.has("hammer"):
 		weapons.append("hammer")
@@ -97,7 +99,7 @@ static func save() -> void:
 		return
 	f.store_string(JSON.stringify({"shells": shells, "upgrades": upgrades, "skins": skins, "skin": skin,
 		"gems": gems, "taken": taken, "trophies": trophies, "weapons": weapons, "weapon": weapon, "figs": figs, "bones": bones, "orbs": orbs,
-		"seen": seen, "abilities": abilities, "equipped": equipped, "equip_picked": equip_picked, "view": view, "relics": relics, "items": items, "mysteries": mysteries, "bag": bag, "world_seed": world_seed, "spot": spot}))
+		"seen": seen, "abilities": abilities, "equipped": equipped, "equip_picked": equip_picked, "view": view, "relics": relics, "items": items, "mysteries": mysteries, "bag": bag, "world_seed": world_seed, "spot": spot, "shelter": shelter}))
 
 
 ## A fresh start: everything back to nothing, on disk too.
@@ -124,6 +126,7 @@ static func reset() -> void:
 	bag = {}
 	world_seed = 0
 	spot = {}
+	shelter = {}
 	_loaded = true
 	save()
 
