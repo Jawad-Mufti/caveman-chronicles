@@ -46,7 +46,7 @@ Level 1 done; Level 2 "Discovery of Fire" (night) nearly done; its map: `docs/le
 - The meteor dash (jump + T + a side) stays short and FAST (2026-10-10): ~205 px at 1500 px/s, the gold one
   (after a double jump) ~350 px at 1900; a quick spin first (`Stomp.DASH_CHARGE`); a launch ring, a blade
   of light, after-images, sparks, speed lines, a puff (`Stomp.Trail`). He runs faster (330).
-- ZOOM while playing: + / - / 0 (`LevelBase.look_zoom`, over the chosen VIEW, not saved).
+- ZOOM while playing: + / - / 0 (`LevelBase.look_zoom`, over the chosen VIEW, not saved); the home too, and the wheel (`home.zoom`).
 - Ambushes escalate the deeper into a level they are.
 - Keep the hollow pack scene ("This is what fire is for").
 

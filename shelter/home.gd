@@ -92,6 +92,8 @@ var _jumps := 0                  ## jumps since he left the ground (2: the somer
 var _coyote := 0.0               ## a moment after a ledge he can still jump
 var _jump_buf := 0.0             ## Space a moment before landing still counts
 var _lead := Vector3.ZERO        ## the camera looks a little ahead of a run
+var _zoom := 1.0                 ## + / - / 0 and the mouse wheel: the camera nearer (< 1) or farther (> 1)
+var _zoom_to := 1.0
 var _on_ground := true
 var _cam: Camera3D
 var _cam_k := 0.0               ## 0 far, 1 leaning in
@@ -163,9 +165,24 @@ func _ready() -> void:
 
 
 func _unhandled_input(e: InputEvent) -> void:
-	if not (e is InputEventKey and e.pressed and not e.echo):
+	var mb := e as InputEventMouseButton
+	if mb != null and mb.pressed:
+		if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+			zoom(1.0 / 1.15)
+		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			zoom(1.15)
 		return
-	match (e as InputEventKey).physical_keycode:
+	if not (e is InputEventKey and e.pressed):
+		return
+	var key := (e as InputEventKey).physical_keycode
+	if key in [KEY_EQUAL, KEY_KP_ADD, KEY_MINUS, KEY_KP_SUBTRACT]:
+		zoom(1.0 / 1.25 if key in [KEY_EQUAL, KEY_KP_ADD] else 1.25)     # (held: it keeps going)
+		return
+	if e.is_echo():
+		return
+	match key:
+		KEY_0, KEY_KP_0:
+			zoom(0.0)
 		KEY_ESCAPE:
 			leave()
 		KEY_E, KEY_J, KEY_ENTER:
@@ -174,6 +191,12 @@ func _unhandled_input(e: InputEvent) -> void:
 			_jump_buf = 0.14                  # (walk() jumps)
 		KEY_P:
 			swap_ugu()
+
+
+## The camera nearer (k < 1) or farther (k > 1); 0: back to the usual view.
+## From right up at his face to a bit wider than usual. Not saved.
+func zoom(k: float) -> void:
+	_zoom_to = 1.0 if k == 0.0 else clampf(_zoom_to * k, 0.25, 1.6)
 
 
 ## P: Ugu as the 3D figure (ugu3d.gd) or as his own 2D self on paper (ugu_paper.gd),
@@ -1452,7 +1475,7 @@ func _build_ui() -> void:
 	var ui := CanvasLayer.new()
 	add_child(ui)
 	_ui_label(ui, Vector2(24, 14), Vector2(800, 40), 30, Color("ffcf40"), Pal.title_font()).text = "UGU'S CAVE"
-	_ui_label(ui, Vector2(24, 54), Vector2(1240, 30), 16, Color("d8c8b0"), Pal.text_font()).text = "Arrows: walk     Shift: run     Space: jump (twice: flip)     E: use     P: 3D / paper Ugu     Esc: back to the level"
+	_ui_label(ui, Vector2(24, 54), Vector2(1240, 30), 15, Color("d8c8b0"), Pal.text_font()).text = "Arrows: walk     Shift: run     Space: jump (twice: flip)     E: use     + / - / wheel: zoom     P: 3D / paper Ugu     Esc: back to the level"
 	_hint = _ui_label(ui, Vector2(140, 646), Vector2(1000, 50), 21, Color("f3e3c3"), Pal.text_font())
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_say = _ui_label(ui, Vector2(190, 560), Vector2(900, 70), 24, Color("ffe066"), Pal.title_font())
@@ -1982,9 +2005,14 @@ func walk(dir: Vector3, delta: float) -> void:
 	_cam_k = move_toward(_cam_k, 1.0 if _focus > 0.0 else 0.0, delta * 1.6)
 	var k := _cam_k * _cam_k * (3.0 - 2.0 * _cam_k)
 	_lead = _lead.lerp(Vector3(_hv.x, 0, _hv.y) * 0.3, minf(1.0, delta * 2.0))
-	var cam_want := _pos + _lead + CAM_FAR.lerp(CAM_NEAR, k)
+	_zoom = lerpf(_zoom, _zoom_to, minf(1.0, delta * 8.0))
+	var close := clampf((1.0 - _zoom) / 0.75, 0.0, 1.0)      # 0 at the usual view, 1 right up close
+	var off := CAM_FAR.lerp(CAM_NEAR, k) * _zoom
+	off.y *= lerpf(1.0, 0.55, close)                         # close up: lower, more face than top of the head
+	var aim := _pos + _lead + Vector3(0, 1.0, -1.6).lerp(Vector3(0, 1.45, 0), close)
+	var cam_want := _pos + _lead + off
 	_cam.position = _cam.position.lerp(cam_want, minf(1.0, delta * 3.5)) if _t > 0.1 else cam_want
-	_cam.look_at(_pos + _lead + Vector3(0, 1.0, -1.6))
+	_cam.look_at(aim)
 
 
 ## Can he stand at `p` (x, z): on the island (or the pier), not up a cliff, not in a thing?
@@ -2080,6 +2108,13 @@ func _shots() -> void:
 	for f in 60:
 		await get_tree().process_frame
 	await _shot("behind_tree")
+	# zoomed right in (+ / - / the wheel), and out
+	for z in [["zoom_close", 0.25], ["zoom_far", 1.6]]:
+		zoom(0.0)
+		zoom(z[1])
+		for f in 120:
+			await get_tree().process_frame
+		await _shot(z[0])
 	get_tree().quit()
 
 
