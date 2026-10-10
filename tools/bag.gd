@@ -69,7 +69,7 @@ func _run() -> void:
 	GameState.add_relic("moonstone")
 	var l := Bag.listing(p)
 	check("sorted", l.find("club") < l.find("shovel") and l.find("shovel") < l.find("rocks") and l.find("rocks") < l.find("bones") and l.find("bones") < l.find("shells") and l.has("relic:moonstone"), str(l))
-	check("tooltip text", Bag.goes_into("flint").size() == 3 and Bag.name_of("relic:moonstone") == "MOONSTONE", str(Bag.goes_into("flint")))
+	check("tooltip text", Bag.goes_into("flint").size() == 4 and Bag.name_of("relic:moonstone") == "MOONSTONE", str(Bag.goes_into("flint")))
 	# 2. stones: a fixed number buried in the mountain, hidden; dug out once each
 	var t: Terrain = level.mountain
 	var stones: Array = []

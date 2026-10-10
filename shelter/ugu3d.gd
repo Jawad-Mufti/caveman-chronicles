@@ -416,6 +416,8 @@ var _mood_t := 0.0
 var _emote := ""
 var _emote_t := 0.0
 var _pose := {}                         ## a face made by hand (pose_face): it wins over everything
+var rod_pose := -1.0                    ## fishing (shelter/fishing.gd): < 0 not; 0 .. 1 how hard he pulls on the line
+var _grip: Node3D                       ## his weapon in his fist
 var _wince := 0.0
 var _fall_t := 0.0
 var _curious := 0.0
@@ -1257,6 +1259,7 @@ func _weapon() -> void:
 	# held out of the fist, up and forward (built leaning 0.31 forward; his
 	# forearm hangs forward a little)
 	var grip := _node(Vector3.ZERO, _hand_r)
+	_grip = grip
 	grip.rotation.x = 1.04
 	_extras.append(grip)
 	_mesh(w, grip, _m_still)
@@ -1296,6 +1299,17 @@ func emote(feeling: String, t := 1.5) -> void:
 ## everything, until pose_face({}). He still blinks.
 func pose_face(dials: Dictionary) -> void:
 	_pose = dials.duplicate()
+
+
+## His right fist (to hold things: the fishing stick), and his weapon put away
+## or out again.
+func hand() -> Node3D:
+	return _hand_r
+
+
+func show_weapon(on: bool) -> void:
+	if _grip != null and is_instance_valid(_grip):
+		_grip.visible = on
 
 
 ## ------------------------------------------------------------------ every frame
@@ -1373,6 +1387,13 @@ func _process(delta: float) -> void:
 	_arm_r.rotation = Vector3(pose[6], 0, pose[7])
 	_elbow_l.rotation.x = pose[8]
 	_elbow_r.rotation.x = pose[9]
+	if rod_pose >= 0.0:
+		# fishing: both fists forward on the stick, pulling back as the line goes tight
+		var pull := clampf(rod_pose, 0.0, 1.0)
+		_arm_r.rotation = Vector3(-1.05 + 0.55 * pull, 0, 0.12)
+		_elbow_r.rotation.x = -0.55 - 0.5 * pull
+		_arm_l.rotation = Vector3(-0.85 + 0.5 * pull, 0, -0.45)
+		_elbow_l.rotation.x = -1.0 - 0.3 * pull
 	var spin := smoothstep(0.0, 1.0, _flip) * TAU if _flip >= 0.0 else 0.0
 	_root.rotation = Vector3(pose[10] + spin, 0, _bank)
 	_root.position = Vector3(0, 0.95 + pose[11] - sq * 0.13, 0)

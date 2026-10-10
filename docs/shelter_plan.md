@@ -105,6 +105,9 @@ built into the home before its level exists.
    - `nature.gd`: flower meadows, butterflies, shooting stars, the waterfall rainbow, lilies and jumping fish,
      the MOONPUFF GROVE across the stream (bounce pads up to STAR ROCK: the wishing stone, every 6 h).
    - `visits.gd`: the WELCOME HOME card (what's new and waiting), the PUP'S FIND (every 30 min away).
+   - `fishing.gd`: the FISHING STICK (workshop: 6 bones, 1 flint, 1 clay) and real fishing at the pier: the cast
+     meter (far = bigger), nibbles that trick, the bite, the TENSION fight (snap / slack / it runs), 7 species by
+     day / night / distance (OLD BONEJAW, the legend, goes on the totem), junk, the catch card, THE FISH LOG.
    The home: pads (`add_pad`: decks, tops, bounce), holding him (`_holder`: hammock, ladder). Tests: `shelter`;
    pictures: `homesights -- [all] [nocard] [only=...]`. Next: Ugga.
 3. The rest of v1 (era 3): upgrading with real resources (`GameState.home`, storage), the artifacts.

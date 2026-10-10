@@ -126,8 +126,10 @@ func news() -> Array:
 			out.append("Next to build: %s, %d more bones." % [next[1], int(next[2]) - GameState.bones])
 	if Builds.is_built("bridge") and float(GameState.shelter.get("wish", 0.0)) + Nature.WISH_EVERY <= now():
 		out.append("The WISHING STONE on Star Rock is awake. Make a wish!")
-	if not GameState.has_item("obsidian_mirror") and Bag.missing(home._rig, "mirror") == "":
-		out.append("You have all it takes to make the OBSIDIAN MIRROR (the workshop)!")
+	for r in Bag.HOME_RECIPES:                               # what the workshop can make now
+		if Bag.missing(home._rig, r[0]) == "":
+			out.append("You have all it takes to make the %s (the workshop)!" % Bag.name_of(r[0]))
+			break
 	return out.slice(0, 4)
 
 

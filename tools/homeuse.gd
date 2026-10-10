@@ -105,15 +105,29 @@ func _run() -> void:
 	await use_at("bed")
 	await frames(120)
 	check("the bed: sleep turns night to day", n0 > 0.5 and home._night < 0.5, "night %.2f -> %.2f" % [n0, home._night])
-	# fishing, then cooking
+	# fishing (with the stick: tools/fishing tests it all), then cooking
+	GameState.give_item("fishing_stick")
 	await use_at("pier")
+	var fs = home._holder
+	fs.cast(0.2)
 	var waited := 0
-	while home._fish_state != "bite" and waited < 400:
+	while fs.state != "bite" and waited < 900:
 		await frames(1)
 		waited += 1
-	home.use()
+	if not fs._junk.is_empty():                           # (no junk here: a fish to cook)
+		fs._junk = []
+		fs._fish = fs.SPECIES[0]
+		fs._size = 20.0
+	home.use()                                            # strike!
+	while fs.state == "fight" and waited < 4000:
+		fs.reel_hold = fs.tension < 0.55                  # a careful fisher
+		await frames(1)
+		waited += 1
+	fs.reel_hold = false
 	await frames(2)
-	check("the pier: cast, a bite, E: a fish", home._fish_caught == 1 and home._fish == 1, "caught %d" % home._fish_caught)
+	check("the pier: cast, a bite, the fight: a fish", fs.state == "catch" and home._fish == 1, "%s, %d to cook" % [fs.state, home._fish])
+	fs.release()
+	await frames(2)
 	var f0 := GameState.figs
 	await use_at("fire")
 	check("the fire: the fish cooked, +1 fig", GameState.figs == f0 + 1 and home._fish == 0, "figs %d -> %d" % [f0, GameState.figs])

@@ -30,6 +30,7 @@ const Nature := preload("res://shelter/nature.gd")
 const Builds := preload("res://shelter/builds.gd")
 const RelicHome := preload("res://shelter/relic_home.gd")
 const Visits := preload("res://shelter/visits.gd")
+const Fishing := preload("res://shelter/fishing.gd")
 
 const R := 58.0                  ## the island's radius, metres
 const SPEED := 5.0
@@ -129,10 +130,6 @@ var _toolmaker: Node2D
 var _pup: Node3D
 var _pup_hop := 0.0
 var _hearts: CPUParticles3D
-var _fish_state := ""           ## "", "wait", "bite"
-var _fish_t := 0.0
-var _float: MeshInstance3D
-var _line: MeshInstance3D
 var _fish_caught := 0
 var _drying_fish: Array = []
 var _clouds: Array = []
@@ -143,7 +140,8 @@ var _titles := {}                ## spots the systems made: id -> [title, line]
 var _pads: Array = []            ## what he can stand on besides the ground (add_pad)
 var _holder: Node = null         ## a system holding him (hammock, ladder): its hold_step(delta) places him
 var _mirror: Node3D              ## the obsidian mirror (shelter/mirror.gd), once he has made it
-var _studio_k := 0.0            ## 0 .. 1: the camera over his shoulder at the mirror
+var _studio_k := 0.0            ## 0 .. 1: the camera on a view of its own (the mirror, the fishing)
+var _last_viewer: Node          ## what gave it (to ease back from)
 var _t := 0.0
 
 
@@ -158,7 +156,7 @@ func _ready() -> void:
 	while z < R + 20.0 and height(6.0, z) > 0.45:
 		z += 0.25
 	PIER = Vector2(6.0, z - 1.5)
-	for kind in [Nature, Builds, RelicHome, Visits]:        # (made first: they keep their ground clear of trees)
+	for kind in [Nature, Builds, RelicHome, Visits, Fishing]:        # (made first: they keep their ground clear of trees)
 		var s: Node3D = kind.new()
 		s.home = self
 		_systems.append(s)
@@ -1032,10 +1030,6 @@ func _build_pier() -> void:
 	# a little raft tied to it
 	for k in 5:
 		_shape(_cyl(0.15, 2.2, 7), WOOD.lightened(0.05), Vector3(PIER.x + 2.4 + k * 0.3, 0.12, PIER.y + 7.0), Vector3(90, 0, 0))
-	_float = _shape(_ball(0.1, 8), Color("e8dcc0"), Vector3(PIER.x, 0.1, PIER.y + 15.0))
-	_float.visible = false
-	_line = _shape(_cyl(0.008, 1.0, 4), Color(0.9, 0.9, 0.9), Vector3.ZERO)
-	_line.visible = false
 
 
 ## ------------------------------------------------------------------ sky, sun, stars, clouds, birds
@@ -1242,7 +1236,7 @@ func _bake_static() -> void:
 	for s3 in _systems:
 		for m in s3.movers():
 			skip[(m as Node).get_instance_id()] = true
-	for n in [_model, _pup, _float, _line]:
+	for n in [_model, _pup]:
 		if n != null:
 			skip[(n as Node).get_instance_id()] = true
 	for group in [_flames, _clouds, _birds]:
@@ -1621,12 +1615,10 @@ func use() -> void:
 	if _menu != null:
 		return
 	if _holder != null and is_instance_valid(_holder):
-		_holder.release()                       # E again: out of the hammock, down the ladder
-		return
-	if _fish_state == "bite":
-		_reel()
-		return
-	if _fish_state == "wait":
+		if _holder.has_method("held_use"):
+			_holder.held_use()                  # (fishing: E casts, strikes, reels)
+		else:
+			_holder.release()                   # E again: out of the hammock, down the ladder
 		return
 	match _near:
 		"closet":
@@ -1680,8 +1672,6 @@ func use() -> void:
 			_open_menu("THE PAINTED WALL", "Every mystery he has met, in ochre.", Color("e0663a"), _paint_rows)
 		"mirror":
 			_mirror.open()
-		"pier":
-			_cast()
 		_:
 			for s in _systems:
 				if s.use(_near):
@@ -1814,6 +1804,9 @@ func _open_workshop(tab := "make", select := "") -> void:
 				s.raise(id)
 		_model.cheer(1.6))
 	ws.made.connect(func(id: String) -> void:
+		for s in _systems:
+			if s.has_method("made"):
+				s.made(id)
 		if id == "mirror":
 			_build_mirror(true)
 		_model.cheer())
@@ -1923,36 +1916,22 @@ func _sleep() -> void:
 	tw.tween_property(_fade, "color:a", 0.0, 0.9)
 
 
-func _cast() -> void:
-	_fish_state = "wait"
-	_fish_t = randf_range(1.5, 3.5)
-	_float.position = Vector3(PIER.x + randf_range(-1.0, 1.0), 0.12, PIER.y + 15.0)
-	_float.visible = true
-	_line.visible = true
-	say("Cast...")
-	_focus = 6.0
-
-
-func _reel() -> void:
-	_fish_state = ""
-	_float.visible = false
-	_line.visible = false
+## A fish he caught (shelter/fishing.gd): one more to cook at the fire, and it
+## hangs on the drying rack in its own colours, bigger for a bigger fish.
+func hang_fish(col: Color, size := 1.0) -> void:
 	_fish_caught += 1
 	_fish += 1
 	var dry: Vector3 = _drying_fish[0]
 	var k := _fish_caught
-	_shape(_ball(0.14, 6), Color("9aa8b8"), dry + Vector3(-0.85 + (k % 6) * 0.3, 1.25, 0.08), Vector3.ZERO, Vector3(0.6, 1.8, 0.4))
-	_splash.position = _float.position
-	_splash.restart()
-	say(["A FISH! Off to the drying rack.", "Another one! Ugu, master fisher.", "A BIG one! Well... medium."][k % 3])
-	_focus = 1.5
+	var s := clampf(size, 0.6, 1.8)
+	_shape(_ball(0.14, 6), col, dry + Vector3(-0.85 + (k % 6) * 0.3, 1.25, 0.08), Vector3.ZERO, Vector3(0.6, 1.8, 0.4) * s)
 
 
 ## ------------------------------------------------------------------ every frame
 func _process(delta: float) -> void:
 	_t += delta
 	var dir := Vector3.ZERO
-	if _fish_state == "" and _menu == null and not _at_mirror():
+	if _menu == null and not _at_mirror():
 		if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
 			dir.x -= 1.0
 		if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT):
@@ -1969,7 +1948,7 @@ func _animate(delta: float) -> void:
 	_focus = maxf(_focus - delta, 0.0)
 	_say_t = maxf(_say_t - delta, 0.0)
 	_say.modulate.a = clampf(_say_t / 0.4, 0.0, 1.0)
-	_hint.visible = not _at_mirror()
+	_hint.visible = not _at_mirror() and _holder == null
 	if _say_t <= 0.0 and _toolmaker != null:
 		_toolmaker.speaking = false
 	_flare = maxf(_flare - delta, 0.0)
@@ -2008,29 +1987,6 @@ func _animate(delta: float) -> void:
 	if _night != _night_to:
 		_night = move_toward(_night, _night_to, delta * 0.2)
 		_apply_daylight()
-	# fishing: a bite after a while; too slow and it gets away
-	if _fish_state == "wait":
-		_fish_t -= delta
-		_float.position.y = 0.12 + sin(_t * 3.0) * 0.03
-		if _fish_t <= 0.0:
-			_fish_state = "bite"
-			_fish_t = 1.4
-			say("A BITE!  E!")
-	elif _fish_state == "bite":
-		_fish_t -= delta
-		_float.position.y = 0.05 + sin(_t * 30.0) * 0.08
-		if _fish_t <= 0.0:
-			_fish_state = ""
-			_float.visible = false
-			_line.visible = false
-			say("It got away! Try again.")
-	if _line.visible:
-		var hand := _pos + Vector3(0, 1.3, 0.2)
-		var to := _float.position
-		_line.position = (hand + to) * 0.5
-		_line.scale = Vector3(1, hand.distance_to(to), 1)
-		_line.look_at_from_position(_line.position, to, Vector3.UP)
-		_line.rotate_object_local(Vector3(1, 0, 0), PI * 0.5)
 	# what he is next to
 	var was := _near
 	_near = ""
@@ -2040,6 +1996,8 @@ func _animate(delta: float) -> void:
 		if d < best:
 			best = d
 			_near = sp[0]
+	if _holder != null:
+		_near = ""                               # (held: fishing, the hammock: no spot labels over it)
 	# the labels and texts change only when what they show changes (a Label re-lays
 	# itself out on every text set)
 	if _near != was or _hint.text == "" and _near != "":
@@ -2173,14 +2131,18 @@ func _camera(delta: float) -> void:
 	off.y *= lerpf(1.0, 0.55, close)                         # close up: lower, more face than top of the head
 	var aim := _pos + _lead + Vector3(0, 1.0, -1.6).lerp(Vector3(0, 1.45, 0), close)
 	var cam_want := _pos + _lead + off
-	# the face studio: the camera eases round over his shoulder, onto the glass
-	_studio_k = move_toward(_studio_k, 1.0 if _at_mirror() else 0.0, delta * 1.4)
-	if _studio_k > 0.0 and _mirror != null:
+	# a view of its own: the face studio (over his shoulder, onto the glass), the
+	# fishing (out over the sea): the camera eases round to it and back
+	var viewer: Node = _mirror if _at_mirror() else (_holder if _holder != null and is_instance_valid(_holder) and _holder.has_method("studio_camera") else null)
+	if viewer != null:
+		_last_viewer = viewer
+	_studio_k = move_toward(_studio_k, 1.0 if viewer != null else 0.0, delta * 1.4)
+	if _studio_k > 0.0 and _last_viewer != null and is_instance_valid(_last_viewer):
 		var sk := _studio_k * _studio_k * (3.0 - 2.0 * _studio_k)
-		var sc: Array = _mirror.studio_camera()
+		var sc: Array = _last_viewer.studio_camera()
 		cam_want = cam_want.lerp(sc[0], sk)
 		aim = aim.lerp(sc[1], sk)
-		_cam.fov = lerpf(42.0, 36.0, sk)
+		_cam.fov = lerpf(42.0, float(sc[2]) if sc.size() > 2 else 36.0, sk)
 	_cam.position = _cam.position.lerp(cam_want, minf(1.0, delta * 3.5)) if _t > 0.1 else cam_want
 	_cam.look_at(aim)
 

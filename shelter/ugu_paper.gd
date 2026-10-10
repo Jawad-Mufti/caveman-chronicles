@@ -18,6 +18,7 @@ const PX_PER_M := 160.0              ## his 3D speeds in the rig's pixels
 var speed := 0.0                     ## 0 standing .. 1 running (set by the game)
 var sprint := 0.0                    ## (the 3D figure's: unused on paper)
 var look_at_point := Vector3.INF
+var rod_pose := -1.0                    ## (the 3D figure's fishing pose: not on paper)
 var air := false
 var era := 2
 var vel := Vector3.ZERO              ## his velocity (world), worked out from how he moved
@@ -101,4 +102,12 @@ func emote(_feeling: String, _t := 1.5) -> void:
 
 
 func pose_face(_dials: Dictionary) -> void:
+	pass
+
+
+func hand() -> Node3D:
+	return null
+
+
+func show_weapon(_on: bool) -> void:
 	pass

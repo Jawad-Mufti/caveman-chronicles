@@ -188,11 +188,16 @@ class WorkshopBoard extends Control:
 		return Rect2(x0 + (i % c) * (s + GAP), MAT.position.y + 62 + (i / c) * (s + GAP), s, s)
 
 	func _card_rect(i: int) -> Rect2:
-		return Rect2(SLAB.position.x + 20, SLAB.position.y + 66 + i * 236, SLAB.size.x - 40, 220)
+		var h := 220.0 if not _compact() else 150.0
+		return Rect2(SLAB.position.x + 20, SLAB.position.y + 66 + i * (h + 8), SLAB.size.x - 40, h)
+
+	## Two cards or more: smaller ones (they must fit the slab).
+	func _compact() -> bool:
+		return ws.recipes().size() > 1
 
 	func _make_rect(i: int) -> Rect2:
 		var c := _card_rect(i)
-		return Rect2(c.end.x - 150, c.end.y - 64, 134, 50)
+		return Rect2(c.end.x - 150, c.end.y - (52 if _compact() else 64), 134, 44 if _compact() else 50)
 
 	func _close_rect() -> Rect2:
 		return Rect2(BOARD.end.x - 58, BOARD.position.y + 12, 44, 44)
@@ -452,31 +457,35 @@ class WorkshopBoard extends Control:
 		draw_rect(c, HIDE)
 		draw_rect(c, GOLD if i == ws.sel else Color("8a6a3c"), false, 4.0 if i == ws.sel else 3.0)
 		# its picture, in a dark round, glowing when it can be made
-		var ic := c.position + Vector2(66, 72)
+		var cmp := _compact()
+		var ir := 40.0 if cmp else 50.0
+		var ic := c.position + (Vector2(56, 58) if cmp else Vector2(66, 72))
 		if can:
-			draw_circle(ic, 56.0 + sin(t * 4.0) * 3.0, Color(GOLD, 0.35))
-		draw_circle(ic, 50.0, INK)
-		draw_arc(ic, 50.0, 0.0, TAU, 32, Bag.RARITY_COL[rk], 3.0)
-		Bag.draw_icon(self, id, ic + Vector2(0, sin(t * 2.0) * 2.0), 2.3, t)
+			draw_circle(ic, ir + 6.0 + sin(t * 4.0) * 3.0, Color(GOLD, 0.35))
+		draw_circle(ic, ir, INK)
+		draw_arc(ic, ir, 0.0, TAU, 32, Bag.RARITY_COL[rk], 3.0)
+		Bag.draw_icon(self, id, ic + Vector2(0, sin(t * 2.0) * 2.0), ir / 22.0, t)
 		var tf := Pal.title_font()
 		var f := Pal.text_font()
-		draw_string(tf, c.position + Vector2(132, 36), str(info[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 24, INK)
-		draw_string(f, c.position + Vector2(132, 56), Bag.RARITY[rk], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Bag.RARITY_COL[rk].darkened(0.35))
-		draw_multiline_string(f, c.position + Vector2(132, 78), str(info[3]), HORIZONTAL_ALIGNMENT_LEFT, c.size.x - 146, 14, 3, INK.lightened(0.15))
+		var tx0 := 112.0 if cmp else 132.0
+		draw_string(tf, c.position + Vector2(tx0, 30 if cmp else 36), str(info[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 22 if cmp else 24, INK)
+		draw_string(f, c.position + Vector2(tx0, 48 if cmp else 56), Bag.RARITY[rk], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Bag.RARITY_COL[rk].darkened(0.35))
+		draw_multiline_string(f, c.position + Vector2(tx0, 66 if cmp else 78), str(info[3]), HORIZONTAL_ALIGNMENT_LEFT, c.size.x - tx0 - 14, 13 if cmp else 14, 2 if cmp else 3, INK.lightened(0.15))
 		# what it needs: a chip each, have / need
-		var x := c.position.x + 14
-		var y := c.end.y - 64
-		draw_string(f, Vector2(x, y - 6), "NEEDS", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, INK.lightened(0.3))
+		var x := c.position.x + 14.0
+		var y := c.end.y - (46 if cmp else 64)
+		if not cmp:
+			draw_string(f, Vector2(x, y - 6), "NEEDS", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, INK.lightened(0.3))
 		for need in needs:
 			var have := Bag.count(ws.rig, need)
 			var want: int = needs[need]
 			var enough := have >= want or done
-			var chip := Rect2(x, y, 82, 50)
+			var chip := Rect2(x, y, 66 if cmp else 82, 40 if cmp else 50)
 			draw_rect(chip, Color(OK, 0.22) if enough else Color(SHORT, 0.2))
 			draw_rect(chip, OK if enough else SHORT, false, 2.0)
-			Bag.draw_icon(self, need, chip.position + Vector2(22, 25), 0.75, t)
-			draw_string(tf, chip.position + Vector2(40, 33), ("x%d" % want) if done else ("%d/%d" % [mini(have, 99), want]), HORIZONTAL_ALIGNMENT_LEFT, -1, 17, OK.darkened(0.25) if enough else SHORT)
-			x += 90
+			Bag.draw_icon(self, need, chip.position + Vector2(22, chip.size.y * 0.5), 0.75, t)
+			draw_string(tf, chip.position + Vector2(36 if cmp else 40, chip.size.y * 0.5 + 7), ("x%d" % want) if done else ("%d/%d" % [mini(have, 99), want]), HORIZONTAL_ALIGNMENT_LEFT, -1, 14 if cmp else 17, OK.darkened(0.25) if enough else SHORT)
+			x += 72 if cmp else 90
 		# MAKE / made
 		var mr := _make_rect(i)
 		if done:
@@ -494,7 +503,7 @@ class WorkshopBoard extends Control:
 			draw_rect(Rect2(mr.position + Vector2(2, 4), mr.size), Color(0, 0, 0, 0.35))
 			draw_rect(mr, col)
 			draw_rect(mr, INK, false, 3.0)
-			draw_string(tf, mr.position + Vector2(0, 34), "MAKE!" if can else "NEED MORE", HORIZONTAL_ALIGNMENT_CENTER, mr.size.x, 24 if can else 17, INK)
+			draw_string(tf, mr.position + Vector2(0, mr.size.y * 0.5 + 9), "MAKE!" if can else "NEED MORE", HORIZONTAL_ALIGNMENT_CENTER, mr.size.x, 24 if can else 17, INK)
 		# just made: a flash and sparkles round it
 		if burst > 0.0 and i == ws.sel:
 			var k := burst / 1.6

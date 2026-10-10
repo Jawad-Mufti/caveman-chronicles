@@ -540,7 +540,9 @@ func _carvings() -> Array:
 	if GameState.mystery("one_eye") == "solved":
 		out.append(["OLD ONE-EYE", Color("7a8a9a"), "eye"])
 	for t in GameState.trophies:
-		if t != "sabre_fang":
+		if t == "bonejaw":
+			out.append(["OLD BONEJAW", Color("5a5a68"), "jaw"])
+		elif t != "sabre_fang":
 			out.append([str(t).replace("_", " ").to_upper(), Color("a07850"), "horns"])
 	return out
 
@@ -573,6 +575,9 @@ func _make_totem(n: Node3D) -> void:
 			if cv[2] == "fangs":
 				for s2: float in [-1.0, 1.0]:
 					shape(cone(0.05, 0.36, 5), home.BONE, p + Vector3(s2 * 0.12, -0.32, 0.42), Vector3(180, 0, 0), Vector3.ONE, n)
+			elif cv[2] == "jaw":
+				for s6 in 5:
+					shape(cone(0.04, 0.2, 4), home.BONE, p + Vector3(-0.2 + s6 * 0.1, -0.22, 0.44), Vector3(180, 0, 0), Vector3.ONE, n)
 			elif cv[2] == "horns":
 				for s3: float in [-1.0, 1.0]:
 					shape(cone(0.07, 0.4, 5), home.BONE, p + Vector3(s3 * 0.42, 0.42, 0), Vector3(0, 0, -s3 * 40.0), Vector3.ONE, n)

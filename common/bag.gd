@@ -90,6 +90,7 @@ const ITEMS := {
 	"wood": ["WOOD", "BUILD", 0, "Dry dead wood, tied in a bundle.", "Two make a fire. One makes a ladder.", "Hit dead trees."],
 	"bones": ["BONES", "BUILD", 0, "Old bones. Strong and light.", "The shelter, flint tips, ladders, the obsidian edge.", "Beasts and old bone piles, every visit."],
 	"wall": ["STONE WALL", "BUILD", 0, "Rocks stuck together with clay. Big beasts can't get past.", "HIT: a wall goes up in front of you. It crumbles after 30 seconds.", "Make it: CRAFT."],
+	"fishing_stick": ["FISHING STICK", "GEAR", 1, "A long bone pole, a twisted gut line, a flint hook, a clay sinker and a bobber. Fish, beware!", "At home: the end of the PIER. Cast FAR for big fish; NIBBLES are tricks; reel, but never snap the line!", "Make it at home: THE WORKSHOP."],
 	"mirror": ["OBSIDIAN MIRROR", "BUILD", 3, "Black glass rubbed smooth with sand, in a frame of bones on a clay foot. Look: it's YOU!", "At home: it stands in his cave. Go up to it and make FACES.", "Make it at home: THE WORKSHOP."],
 	"ladder": ["BONE LADDER", "BUILD", 0, "Bones tied up with wood. Up we go!", "HIT: a ladder stands where you are. Jump up the rungs.", "Make it: CRAFT."],
 	"berries": ["BERRIES", "FOOD", 0, "Sweet and juicy.", "Eaten by themselves when you're hurt. Also: healing salve.", "Bushes and vines."],
@@ -102,12 +103,13 @@ const ITEMS := {
 ## Things HIT uses from the hotbar (they join it when he has some).
 const HOTBAR := ["tips", "salve", "wall", "ladder", "spark", "trap"]
 ## Made once, kept for good: id -> GameState item
-const FOREVER := {"edge": "obsidian_edge", "charm": "lucky_charm", "mirror": "obsidian_mirror"}
+const FOREVER := {"edge": "obsidian_edge", "charm": "lucky_charm", "mirror": "obsidian_mirror", "fishing_stick": "fishing_stick"}
 
 ## Made at home, at THE WORKSHOP (shelter/workshop.gd), not in the bag: things
 ## for his cave. [makes, how many, needs {id: n}]
 const HOME_RECIPES := [
 	["mirror", 1, {"obsidian": 2, "bones": 2, "clay": 1}],
+	["fishing_stick", 1, {"bones": 6, "flint": 1, "clay": 1}],
 ]
 
 ## [makes, how many, needs {id: n}]
@@ -786,6 +788,19 @@ static func draw_icon(ci: CanvasItem, id: String, c: Vector2, s: float, t: float
 			ci.draw_line(Vector2(11, -8), Vector2(2, 2), Color("846141"), 2.0)
 			ci.draw_colored_polygon(PackedVector2Array([Vector2(-5, 4), Vector2(0, -3), Vector2(5, 4), Vector2(0, 17)]), Color("bfe8f2"))
 			ci.draw_line(Vector2(-2, 4), Vector2(0, 13), Color(1, 1, 1, 0.8), 1.5)
+		"fishing_stick":
+			var pole := PackedVector2Array()
+			for k in 9:
+				var q := k / 8.0
+				pole.append(Vector2(lerpf(-14, 10, q), lerpf(15, -15, q) + sin(q * PI) * -3.0))
+			ci.draw_polyline(pole, Color("efe4c8"), 3.5)                    # the bone pole
+			for k in 3:
+				ci.draw_circle(pole[2 + k * 2], 2.4, Color("8a5a3a"))         # bindings
+			var bob := sin(t * 3.0) * 1.5
+			ci.draw_line(Vector2(10, -15), Vector2(12, 4 + bob), Color(1, 1, 1, 0.8), 1.0)
+			ci.draw_circle(Vector2(12, 6 + bob), 3.5, Color("e04848"))      # the bobber
+			ci.draw_rect(Rect2(8.5, 6 + bob, 7, 2.5), Color("f3f0e6"))
+			ci.draw_arc(Vector2(10, 13 + bob), 2.5, 0.0, PI, 6, Color("8d9196"), 1.5)   # the flint hook
 		"mirror":
 			ci.draw_rect(Rect2(-9, 11, 18, 6), Color("b8643a"))                # the clay foot
 			ci.draw_set_transform(c, 0.0, Vector2(s * 0.78, s))
