@@ -1,6 +1,6 @@
 extends CanvasLayer
 ## A small menu panel for the home (shelter/home.gd): Kekko's trades, the
-## Toolmaker's upgrades, the workbench, the store. A title, a line about it,
+## Toolmaker's upgrades, the store. A title, a line about it,
 ## and rows: [label, right-hand note, can (bool), action (Callable) or null].
 ## Up / Down (W / S) choose, E / J / Enter does it, Esc / Q closes. `rows_fn` is
 ## called again after every action, so prices, stock and "can" stay true.

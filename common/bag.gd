@@ -90,7 +90,7 @@ const ITEMS := {
 	"wood": ["WOOD", "BUILD", 0, "Dry dead wood, tied in a bundle.", "Two make a fire. One makes a ladder.", "Hit dead trees."],
 	"bones": ["BONES", "BUILD", 0, "Old bones. Strong and light.", "The shelter, flint tips, ladders, the obsidian edge.", "Beasts and old bone piles, every visit."],
 	"wall": ["STONE WALL", "BUILD", 0, "Rocks stuck together with clay. Big beasts can't get past.", "HIT: a wall goes up in front of you. It crumbles after 30 seconds.", "Make it: CRAFT."],
-	"mirror": ["OBSIDIAN MIRROR", "BUILD", 3, "Black glass rubbed smooth with sand, in a frame of bones on a clay foot. Look: it's YOU!", "At home: it stands in his cave. Go up to it and make FACES.", "Make it: CRAFT (at home, the workbench)."],
+	"mirror": ["OBSIDIAN MIRROR", "BUILD", 3, "Black glass rubbed smooth with sand, in a frame of bones on a clay foot. Look: it's YOU!", "At home: it stands in his cave. Go up to it and make FACES.", "Make it at home: THE WORKSHOP."],
 	"ladder": ["BONE LADDER", "BUILD", 0, "Bones tied up with wood. Up we go!", "HIT: a ladder stands where you are. Jump up the rungs.", "Make it: CRAFT."],
 	"berries": ["BERRIES", "FOOD", 0, "Sweet and juicy.", "Eaten by themselves when you're hurt. Also: healing salve.", "Bushes and vines."],
 	"figs": ["ROAST FIGS", "FOOD", 0, "Warm from the fire. Yum.", "H (or HIT in the hotbar): two hearts back.", "Roast them by a fire."],
@@ -104,6 +104,12 @@ const HOTBAR := ["tips", "salve", "wall", "ladder", "spark", "trap"]
 ## Made once, kept for good: id -> GameState item
 const FOREVER := {"edge": "obsidian_edge", "charm": "lucky_charm", "mirror": "obsidian_mirror"}
 
+## Made at home, at THE WORKSHOP (shelter/workshop.gd), not in the bag: things
+## for his cave. [makes, how many, needs {id: n}]
+const HOME_RECIPES := [
+	["mirror", 1, {"obsidian": 2, "bones": 2, "clay": 1}],
+]
+
 ## [makes, how many, needs {id: n}]
 const RECIPES := [
 	["tips", 3, {"flint": 1, "bones": 1}],
@@ -113,7 +119,6 @@ const RECIPES := [
 	["spark", 1, {"flint": 1, "pyrite": 1}],
 	["edge", 1, {"obsidian": 2, "flint": 1, "bones": 2}],
 	["charm", 1, {"quartz": 2, "bones": 1}],
-	["mirror", 1, {"obsidian": 2, "bones": 2, "clay": 1}],
 ]
 
 
@@ -201,7 +206,7 @@ static func add(id: String, n: int = 1) -> void:
 ## Which recipes an item goes into (for its tooltip).
 static func goes_into(id: String) -> Array:
 	var out: Array = []
-	for r in RECIPES:
+	for r in RECIPES + HOME_RECIPES:
 		if (r[2] as Dictionary).has(id) and recipe_open(r[0]):
 			out.append(name_of(r[0]))
 	return out
@@ -220,7 +225,7 @@ static func known_recipes() -> Array:
 
 
 static func recipe(id: String) -> Array:
-	for r in RECIPES:
+	for r in RECIPES + HOME_RECIPES:
 		if r[0] == id:
 			return r
 	return []

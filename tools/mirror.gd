@@ -62,14 +62,13 @@ func _run() -> void:
 	check("no mirror before it is made", home._mirror == null and not home._spots.any(func(s): return s[0] == "mirror"))
 	await use_at("bench")
 	var m = home._menu
-	var row := -1
-	for i in m._rows.size():
-		if str(m._rows[i][0]).begins_with("OBSIDIAN MIRROR"):
-			row = i
-	check("the workbench lists the mirror, and he can make it", row >= 0 and bool(m._rows[row][2]), str(m._rows[row] if row >= 0 else "none"))
-	m.pick(row)
-	m.act()
-	await frames(2)
+	await frames(5)
+	await shot("workshop")
+	check("the workshop lists the mirror, and he can make it", m != null and m.recipes().any(func(r): return r[0] == "mirror") and Bag.missing(home._rig, "mirror") == "")
+	check("the bag's own CRAFT doesn't (it's made at home)", not Bag.known_recipes().any(func(r): return r[0] == "mirror"))
+	m.make("mirror")
+	await frames(20)
+	await shot("workshop_made")
 	check("made: kept for good, the stones and bones spent", GameState.has_item("obsidian_mirror") and Bag.count(null, "obsidian") == 0 and Bag.count(null, "clay") == 0 and GameState.bones == 3,
 		"obsidian %d clay %d bones %d" % [Bag.count(null, "obsidian"), Bag.count(null, "clay"), GameState.bones])
 	check("it stands in the cave", home._mirror != null and home._spots.any(func(s): return s[0] == "mirror"))

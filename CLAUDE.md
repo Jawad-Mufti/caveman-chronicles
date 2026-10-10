@@ -64,7 +64,8 @@ rig's design units (`_face`), toon light + rims in darker tones (a hull pass), m
 a shader mouth `MOUTH_MAP`, a jaw, brows, cut lids, roving eyes, blinks, idle quirks); `speed`, `sprint`, `air`, `look_at_point`, `era`, `refresh()`, `jumped(double)`, `landed(k)`,
 `cheer()`, `emote(feeling, t)`, `sleepy`), `ugu_paper.gd` (the alternative: the REAL 2D rig drawn into a SubViewport on a billboard, so
 he is exactly his 2D self; `CaveMan.puppet_air` gives the jump pose), `menu.gd` (trade / upgrade / craft), `mirror.gd` (the OBSIDIAN MIRROR, Bag "mirror": a camera in the glass = his
-reflection (a SubViewport; it renders only near him); E = THE FACE STUDIO: feelings + sliders -> `Ugu3D.pose_face`).
+reflection (a SubViewport; it renders only near him); E = THE FACE STUDIO: feelings + sliders -> `Ugu3D.pose_face`), `workshop.gd` (THE WORKSHOP, the home's table: the
+bag on a leather mat, cards to MAKE things for the cave: `Bag.HOME_RECIPES`, not in the bag's CRAFT; for now the mirror).
 
 ## Conventions
 - Talkers: bubble, E/TALK starts (`_talkers`); again = a varied line. Lines short. Choice:

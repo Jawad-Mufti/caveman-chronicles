@@ -16,7 +16,7 @@ extends Node3D
 ##   CLOSET: the next costume he owns (saved)   WEAPON RACK: the next weapon (saved)
 ##   BED: sleep (night <-> day) and SAVE         FIRE: a log on, or cook a fish (+1 fig)
 ##   KEKKO: buy figs and stones, sell gems        THE TOOLMAKER: upgrades, the axe
-##   THE WORKBENCH: make things from the bag     THE STORE: everything brought home
+##   THE WORKSHOP: his bag, things to make      THE STORE: everything brought home
 ##   THE PUP: play fetch                         THE PIER: fish (E again on the bite)
 ##   THE PAINTED WALL: the mysteries, solved and open
 ## -- shot: pictures, then quit.
@@ -25,6 +25,7 @@ const Menu := preload("res://shelter/menu.gd")
 const UguModel := preload("res://shelter/ugu3d.gd")
 const UguPaper := preload("res://shelter/ugu_paper.gd")
 const Mirror := preload("res://shelter/mirror.gd")
+const Workshop := preload("res://shelter/workshop.gd")
 
 const R := 58.0                  ## the island's radius, metres
 const SPEED := 5.0
@@ -72,7 +73,7 @@ const LINES := {
 	"pup": ["THE PUP", "E: play fetch"],
 	"kekko": ["KEKKO'S STALL", "E: trade (figs, stones, gems)"],
 	"forge": ["THE TOOLMAKER", "E: upgrades and weapons"],
-	"bench": ["THE WORKBENCH", "E: make things from the bag"],
+	"bench": ["THE WORKSHOP", "E: see your bag, and make things for your cave"],
 	"mirror": ["THE OBSIDIAN MIRROR", "E: look in, and make FACES"],
 	"pier": ["THE PIER", "E: fish"],
 	"pool": ["THE WATERFALL POOL", "Cold! Lovely."],
@@ -827,7 +828,7 @@ func _build_cave() -> void:
 
 
 ## THE OBSIDIAN MIRROR (shelter/mirror.gd), by the back wall, facing out.
-## `fresh`: just made at the workbench: it shines, it's READY.
+## `fresh`: just made at the workshop: it shines, it's READY.
 func _build_mirror(fresh: bool) -> void:
 	if _mirror != null:
 		return
@@ -1595,7 +1596,7 @@ func use() -> void:
 			_toolmaker.forging = 2.0
 			_open_menu("THE TOOLMAKER", _toolmaker_line(), Color("ff8a4a"), _toolmaker_rows)
 		"bench":
-			_open_menu("THE WORKBENCH", "Make things from what's in the bag. (Rocks, wood and berries are gathered in the levels.)", Color("9be15d"), _bench_rows)
+			_open_workshop()
 		"store":
 			_open_menu("THE STORE CORNER", "Everything brought home, in baskets and pots.", Color("6cc4ff"), _store_rows)
 		"paint":
@@ -1718,27 +1719,23 @@ func _toolmaker_rows() -> Array:
 	return rows
 
 
-## The workbench: the bag's recipes that need only what's kept at home
-## (stones, bones): rocks, wood and berries are carried in the levels only.
-func _bench_rows() -> Array:
-	var rows: Array = []
-	for r in Bag.RECIPES:
-		var id: String = r[0]
-		var needs: Dictionary = r[2]
-		if needs.has("rocks") or needs.has("wood") or needs.has("berries"):
-			continue
-		var made_for_good := Bag.FOREVER.has(id) and GameState.has_item(Bag.FOREVER[id])
-		var parts: Array = []
-		for k in needs:
-			parts.append("%d %s" % [needs[k], Bag.name_of(k).to_lower()])
-		var miss := "" if made_for_good else Bag.missing(_rig, id)
-		rows.append(["%s  (%s)" % [Bag.name_of(id), ", ".join(parts)], "made" if made_for_good else ("make" if miss == "" else miss), not made_for_good and miss == "", func():
-			Bag.craft(_rig, id)
-			if id == "mirror":
-				_build_mirror(true)
-				return "Rub, rub, rub... the OBSIDIAN MIRROR is READY! It stands by the back wall: go and look!"
-			return "Made: %s!" % Bag.name_of(id)])
-	return rows
+## THE WORKSHOP (shelter/workshop.gd): his bag on the table, and what he can
+## make here for his cave (the mirror). It stands in for a menu (`_menu`): he
+## doesn't walk while it is open.
+func _open_workshop() -> void:
+	var ws := Workshop.new()
+	ws.rig = _rig
+	ws.made.connect(func(id: String) -> void:
+		if id == "mirror":
+			_build_mirror(true)
+		_model.cheer())
+	ws.refused.connect(func() -> void: _model.emote("sad", 1.4))
+	ws.closed.connect(func() -> void:
+		_menu = null
+		_focus = 0.6)
+	add_child(ws)
+	_menu = ws
+	_focus = 999.0
 
 
 func _store_rows() -> Array:

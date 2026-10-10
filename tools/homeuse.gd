@@ -2,7 +2,8 @@ extends Node
 ## The cave's interactions (shelter/home.gd), each one used: the closet changes
 ## his costume and the rack his weapon (saved, and the 3D Ugu wears them),
 ## Kekko's menu sells a fig and a stone and buys a gem, the Toolmaker's menu
-## sells an upgrade, the workbench makes a spark kit, the bed turns night to
+## sells an upgrade, the workshop shows the bag (and won't make the mirror
+## without obsidian), the bed turns night to
 ## day and saves, a fish is caught at the pier and cooked at the fire (+1
 ## fig), the pup fetches. Headless is fine.
 var home: Node3D
@@ -84,11 +85,16 @@ func _run() -> void:
 	menu_do("An extra heart")
 	check("the Toolmaker: an upgrade for shells", int(GameState.upgrades["heart"]) == h0 + 1, "heart %d -> %d" % [h0, GameState.upgrades["heart"]])
 	await close_menu()
-	# the workbench
+	# the workshop: his bag on the table, the mirror to make (not enough: refused, nothing spent)
 	await use_at("bench")
-	menu_do("SPARK KIT")
-	check("the workbench: a spark kit from flint and fire-gold", Bag.count(null, "spark") == 1 and Bag.count(null, "flint") == 0, str(GameState.bag))
+	var ws = home._menu
+	var shown: Array = ws._board._items if ws != null else []
+	check("the workshop shows the bag", ws != null and shown.has("flint") and shown.has("pyrite"), str(shown))
+	var lists: bool = ws != null and ws.recipes().any(func(r): return r[0] == "mirror")
+	var quartz0 := Bag.count(null, "quartz")
+	check("it lists the mirror; without obsidian it can't be made", lists and not ws.make("mirror") and not GameState.has_item("obsidian_mirror") and Bag.count(null, "quartz") == quartz0)
 	await close_menu()
+	check("closed: he can walk again", home._menu == null)
 	# the store shows what's kept
 	await use_at("store")
 	var rows: int = home._menu._rows.size() if home._menu != null else 0
