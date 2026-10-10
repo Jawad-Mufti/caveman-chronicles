@@ -40,6 +40,13 @@ func set_xf(t: Transform2D) -> void:
 func _add(pts: PackedVector2Array, col: Color) -> void:
 	points.append_array(pts if _plain else xf * pts)
 	var n := pts.size()
+	if n <= 6:
+		# small (a triangle, a line's quad): set the colours in place, no lookups
+		var c0 := colors.size()
+		colors.resize(c0 + n)
+		for k in n:
+			colors[c0 + k] = col
+		return
 	var run: PackedColorArray = _fill.get(n, PackedColorArray())
 	if run.size() != n:
 		run.resize(n)
@@ -74,6 +81,20 @@ func poly_pair(pts: PackedVector2Array, col: Color, lit: PackedVector2Array, lit
 	for k in tri.size():
 		flat[k] = pts[tri[k]]
 		flat2[k] = lit[tri[k]]
+	_add(flat, col)
+	_add(flat2, lit_col)
+
+
+## poly_pair with the triangles already cut (`idx`, from Geometry2D.triangulate_polygon
+## once): for a shape drawn every frame whose points only move a little.
+func poly_pair_idx(pts: PackedVector2Array, idx: PackedInt32Array, col: Color, lit: PackedVector2Array, lit_col: Color) -> void:
+	var flat := PackedVector2Array()
+	flat.resize(idx.size())
+	var flat2 := PackedVector2Array()
+	flat2.resize(idx.size())
+	for k in idx.size():
+		flat[k] = pts[idx[k]]
+		flat2[k] = lit[idx[k]]
 	_add(flat, col)
 	_add(flat2, lit_col)
 

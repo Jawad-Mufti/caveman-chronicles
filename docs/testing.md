@@ -27,7 +27,7 @@ Run forms (Godot path, headless, screenshots) and the regression set are in the 
 | `explore` | `lanes jelly ray relic burrow worms snail angler` |
 | `dig` | `mega down ahead sunstone clay bramble wind ways den mystery` |
 | `mountain` | `climb inside paint hollow east rooms dark dig`: a waypoint bot over and through the mountain, wall-kicks both chimneys, digs, times a blow |
-| `dash` | `open double left wall drill flip`, `shots` |
+| `dash` | `open double left wall drill flip`, `shots`: ~205 px plain, ~350 gold (2026-10-10); `drill` checks the tunnel mid-span |
 | `getup` | `fall cancel`, `shots` |
 | `canyon` | `stones calm stand bonk rocks door` |
 | `falls` | `lip mammoth crumble crumble2`: set down somewhere firm |
@@ -51,7 +51,7 @@ Run forms (Godot path, headless, screenshots) and the regression set are in the 
 ## Other tools
 - `wolfrock`; `vinereach` (`length=N`: how far a release flings him by angle, with/without the air jump; use it to space vines).
 - Terrain: `terrain_bench` (chunk rebuild cost), `mountain_gen` (prints MOUNTAIN_MAP), `mountain_probe -- <x>...` (floors at those x's), `terrain_demo` (`shots`).
-- Close-ups (with rendering): `shotugu` (`zoom= tag= x= sun`; use `x=1150` for flat ground, the default 2700 drops him into a pit), `shotmoves`, `shotdig`, `shotdig2`, `shotunder`, `shotexplore`, `shotstomp`, `shotturf` (`game`), `shotsun`, `shotdanger`, `shotclue`, `shotdeath`, `shotbeasts2`, `shotsky`, `shotview` (`level1`), `shotzoom`, `shottumble -- nodark 50 58 66` (spear pose), `shottumble -- nodark drop 20 40` (tumble).
+- Close-ups (with rendering): `shotugu` (`zoom= tag= x= sun level1`; use `x=1150` for flat ground (Level 1: `x=700`), the default 2700 drops him into a pit), `shotmoves`, `shotdig`, `shotdig2`, `shotunder`, `shotexplore`, `shotstomp`, `shotturf` (`game`), `shotsun`, `shotdanger`, `shotclue`, `shotdeath`, `shotbeasts2`, `shotsky`, `shotview` (`level1`), `shotzoom`, `shottumble -- nodark 50 58 66` (spear pose), `shottumble -- nodark drop 20 40` (tumble).
 - Performance (with rendering, `--rendering-driver opengl3 --disable-vsync`, no `--headless`): `perf` (every 400 px: average and worst frame, draw calls), `perfsplit -- <x[:y]>...` (frame time per kind of thing, on/off alternated 3 times, medians; ~1 ms noise), `glowcost -- <x>` (the glow layer, per glowing thing), `hitch` (frames over 50 ms through the scripted events; `-- 200-6000 over=30` for your own spans), `wolfcost -- n=14` (a pack: drawing vs thinking).
 - More perf probes (same run form; add `--resolution 1920x1080` for a big window): `spotcost -- [start dig hollows graveyard ...] [dig] [nohaze] [viewport]` (real frame at named spots, surface and underground), `freeze -- [x:y]...` (frames over 40 ms and the node kinds that appeared), `farcost -- [x:y] [far=2200] [kinds]` (what the far world costs), `sleepcost -- [x:y]` (the Sleeper on vs off), `nightcost` (headless: Night's script cost, lights and glows).
 - `soak -- from=<x> to=<x> seed=<n>` (headless): a bot plays a stretch like a kid (runs, jumps, mashes, hotbar, specials) and flags stuck states, never-ending slow-motion, freezes over 0.5 s, falling out of the world, runaway nodes; one SOAK line. Stuck spots it hops are places a bot cannot pass (vines, chimneys, the river, the Boulder Run), not bugs. The caves: `from=34650 to=37950`, `from=38450 to=41200`. `slowmo`: overlapping slow-motion requests.
@@ -60,6 +60,25 @@ Run forms (Godot path, headless, screenshots) and the regression set are in the 
 - `idle -- [min=12] [safe]` (WITH rendering, real time): he stands idle; every minute the real frame time, nodes, objects, memory and what node kinds changed. 2026-10-08: flat over 12 min (no leak; the start area runs ~30 ms/frame rendered on this PC while dark, then ~17).
 - `one_eye -- [shots]` (headless): Old One-Eye: the first meeting (tutorial pages, stones), TINK, it gives up outside, the trap recipe, set the trap, blinded twice, beaten, rewards.
 - `snap` writes to `/tmp/shots`, which Godot can't save to on Windows: use `snapw`.
+
+## Ugu's look (2D and 3D)
+- `rigsheet -- tag=<name>` (rendering): a MODEL SHEET of the real 2D rig on a plain backdrop, big: a row of
+  poses (idle, run, swing, hammer, throw), a row of looks (Level 1 leaves, wolf hood, ember paint, bear
+  cloak, firekeeper). `face`: three big face close-ups (rest, the attack face, the hood). `wind`: idle, run,
+  fall, the cloak and the hood running (the air on his hair and clothes). PNG: `C:/tmp/shots/rigsheet_<tag>.png`.
+  Use it for every change to his art: the levels are too busy (spores, loot) to judge him.
+- `shotdash -- [gold]` (rendering): the meteor dash's effects, a paused frame every 2 (`dash_*`).
+- `ugu3dsheet -- tag=<name> [face] [turn]` (rendering): the 3D Ugu (`shelter/ugu3d.gd`): idle, running and
+  in the air (the runners feel a run's velocity, so the air works on them), the costumes, era 1; `face`: a
+  head close-up; `turn`: seen from the side. PNG: `C:/tmp/shots/ugu3d_<tag>.png`.
+- Ugu's drawing cost: `drawcost` (headless: microseconds per CaveMan / wolf / bat picture, and per circle /
+  line / poly). 2026-10-10: the sheet look ~1.6-1.7 ms, the classic look ~1.1-1.25 ms. To compare against
+  an old look: a worktree of tag `ugu-classic-look` and the same tool, same session.
+
+## The home
+- `homecost` (rendering, `--disable-vsync`): the home's real frame (median, p95, worst, draw calls,
+  objects) with everything, without the 3D Ugu, and without the omni lights' shadows; also how many meshes
+  and loose pieces the 3D Ugu has.
 
 ## Quirks
 - After `GameState.reset()` set `GameState.seen["level2"] = true`.

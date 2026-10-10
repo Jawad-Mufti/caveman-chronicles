@@ -23,6 +23,7 @@ extends Node3D
 
 const Menu := preload("res://shelter/menu.gd")
 const UguModel := preload("res://shelter/ugu3d.gd")
+const UguPaper := preload("res://shelter/ugu_paper.gd")
 
 const R := 58.0                  ## the island's radius, metres
 const SPEED := 5.0
@@ -75,6 +76,7 @@ var _noise := FastNoiseLite.new()
 var _noise2 := FastNoiseLite.new()
 var _era := 1
 var _model: Node3D               ## Ugu, in 3D (shelter/ugu3d.gd)
+var _paper := false              ## P swaps: the 3D figure / the paper cut-out of his 2D rig
 var _rig: CaveMan                ## his 2D rig, never shown: what Bag asks about him (counts, crafting)
 var _fish := 0                   ## fish caught this visit, to cook
 var _glow_light: OmniLight3D     ## his own soft light
@@ -145,6 +147,7 @@ func _ready() -> void:
 	_build_sky_life()
 	_build_ugu()
 	_build_ui()
+	_bake_static()
 	_apply_daylight(true)
 	if OS.get_cmdline_user_args().has("shot"):
 		_shots.call_deferred()
@@ -162,6 +165,22 @@ func _unhandled_input(e: InputEvent) -> void:
 			if _on_ground:
 				_vy = JUMP
 				_on_ground = false
+		KEY_P:
+			swap_ugu()
+
+
+## P: Ugu as the 3D figure (ugu3d.gd) or as his own 2D self on paper (ugu_paper.gd),
+## to compare (Jawad picks one; then this key goes).
+func swap_ugu() -> void:
+	var old := _model
+	_paper = not _paper
+	_model = (UguPaper if _paper else UguModel).new()
+	_model.era = _era
+	add_child(_model)
+	_model.position = old.position
+	_model.rotation = old.rotation
+	old.queue_free()
+	say("Ugu on PAPER (his 2D self)" if _paper else "Ugu in 3D")
 
 
 ## Back to the level, where he left it (GameState.away); run on its own: Level 2.
@@ -1133,6 +1152,139 @@ func _particles(amount: int, life: float, col: Color, s0: float, s1: float, glow
 	return p
 
 
+## PERFORMANCE: every shape is built with its own material (_mat), so each would
+## be its own draw call (~1400). Once the home is built, every plain shape that
+## never moves (rock, bone, wood, the props) is merged into ONE mesh with its
+## colour in the vertices (two: shadow-casting or not). What moves, fades, glows
+## or uses a shader keeps its own node: Ugu, the pup, the fishing float and line,
+## the trees that fade (occluders), flames, spits, clouds, birds. The merged
+## originals keep their nodes (children, references) and just lose their mesh.
+var _baked := 0                  ## how many shapes were merged (homecost prints it)
+
+func _bake_static() -> void:
+	var skip := {}
+	for n in [_model, _pup, _float, _line]:
+		if n != null:
+			skip[(n as Node).get_instance_id()] = true
+	for group in [_flames, _clouds, _birds]:
+		for e in group:
+			skip[(e[0] as Node).get_instance_id()] = true
+	for s in _spits:
+		skip[(s as Node).get_instance_id()] = true
+	for o in _occluders:
+		skip[(o[0] as Node).get_instance_id()] = true
+	var arrs := [_new_bake_arrays(), _new_bake_arrays()]       # [casts shadows, does not]
+	_bake_walk(self, skip, arrs, global_transform.affine_inverse())
+	for k in 2:
+		_add_baked(self, arrs[k], k == 0)
+	# each tree that fades in front of him: merged into one mesh of its own; its
+	# fade (_fade_occluders) then sets the alpha of that one material
+	for o in _occluders:
+		var tree: Node3D = o[0]
+		var ta := _new_bake_arrays()
+		var tskip := {}
+		_bake_walk(tree, tskip, [ta, ta], tree.global_transform.affine_inverse())
+		var mats: Array = []
+		var mi := _add_baked(tree, ta, true)
+		if mi != null:
+			mats.append(mi.material_override)
+		for rest in tree.find_children("*", "MeshInstance3D", true, false):
+			var r := rest as MeshInstance3D
+			if r != mi and r.mesh != null and r.material_override is StandardMaterial3D:
+				mats.append(r.material_override)
+		o[3] = mats
+
+
+## One merged mesh (vertex colours) under `parent`, or null if there was nothing.
+func _add_baked(parent: Node3D, a: Array, shadows: bool) -> MeshInstance3D:
+	if (a[Mesh.ARRAY_VERTEX] as PackedVector3Array).is_empty():
+		return null
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a)
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true          # (albedo x vertex colour: white, its alpha fades it)
+	mat.roughness = 0.85
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mi)
+	return mi
+
+
+func _new_bake_arrays() -> Array:
+	var a := []
+	a.resize(Mesh.ARRAY_MAX)
+	a[Mesh.ARRAY_VERTEX] = PackedVector3Array()
+	a[Mesh.ARRAY_NORMAL] = PackedVector3Array()
+	a[Mesh.ARRAY_COLOR] = PackedColorArray()
+	a[Mesh.ARRAY_INDEX] = PackedInt32Array()
+	return a
+
+
+func _bake_walk(node: Node, skip: Dictionary, arrs: Array, inv: Transform3D) -> void:
+	for c in node.get_children():
+		if skip.has(c.get_instance_id()):
+			continue
+		var mi := c as MeshInstance3D
+		if mi != null and _bakeable(mi):
+			var xf := inv * mi.global_transform
+			var col: Color = (mi.material_override as StandardMaterial3D).albedo_color
+			var off := mi.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var a: Array = arrs[1 if off else 0]
+			var nb := xf.basis.inverse().transposed()
+			for s in mi.mesh.get_surface_count():
+				var src := mi.mesh.surface_get_arrays(s)
+				var verts: PackedVector3Array = src[Mesh.ARRAY_VERTEX]
+				var norms: PackedVector3Array = src[Mesh.ARRAY_NORMAL]
+				var idx: PackedInt32Array = src[Mesh.ARRAY_INDEX]
+				# (take each array out and empty its slot, so appending does not copy it)
+				var v: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+				var n: PackedVector3Array = a[Mesh.ARRAY_NORMAL]
+				var cl: PackedColorArray = a[Mesh.ARRAY_COLOR]
+				var ix: PackedInt32Array = a[Mesh.ARRAY_INDEX]
+				a[Mesh.ARRAY_VERTEX] = null
+				a[Mesh.ARRAY_NORMAL] = null
+				a[Mesh.ARRAY_COLOR] = null
+				a[Mesh.ARRAY_INDEX] = null
+				var base := v.size()
+				for i in verts.size():
+					v.append(xf * verts[i])
+				for i in norms.size():
+					n.append((nb * norms[i]).normalized())
+				for i in verts.size():
+					cl.append(col)
+				if idx.is_empty():
+					for i in verts.size():
+						ix.append(base + i)
+				else:
+					for i in idx.size():
+						ix.append(base + idx[i])
+				a[Mesh.ARRAY_VERTEX] = v
+				a[Mesh.ARRAY_NORMAL] = n
+				a[Mesh.ARRAY_COLOR] = cl
+				a[Mesh.ARRAY_INDEX] = ix
+			mi.mesh = null
+			_baked += 1
+		_bake_walk(c, skip, arrs, inv)
+
+
+## A plain, still, opaque, solid-coloured shape (what _mat makes), seen, with normals.
+func _bakeable(mi: MeshInstance3D) -> bool:
+	if mi.mesh == null or not mi.is_visible_in_tree() or mi.mesh is ArrayMesh and mi.mesh.get_surface_count() == 0:
+		return false
+	var m := mi.material_override as StandardMaterial3D
+	if m == null or m.emission_enabled or m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or m.albedo_texture != null \
+			or m.vertex_color_use_as_albedo or m.cull_mode != BaseMaterial3D.CULL_BACK or m.shading_mode != BaseMaterial3D.SHADING_MODE_PER_PIXEL:
+		return false
+	for s in mi.mesh.get_surface_count():
+		if mi.mesh is ArrayMesh and (mi.mesh as ArrayMesh).surface_get_primitive_type(s) != Mesh.PRIMITIVE_TRIANGLES:
+			return false                            # (the built-in shapes are always triangles)
+		if (mi.mesh.surface_get_arrays(s)[Mesh.ARRAY_NORMAL] as PackedVector3Array).is_empty():
+			return false
+	return true
+
+
 func _mat(col: Color) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = col
@@ -1293,7 +1445,7 @@ func _build_ui() -> void:
 	var ui := CanvasLayer.new()
 	add_child(ui)
 	_ui_label(ui, Vector2(24, 14), Vector2(800, 40), 30, Color("ffcf40"), Pal.title_font()).text = "UGU'S CAVE"
-	_ui_label(ui, Vector2(24, 54), Vector2(900, 30), 16, Color("d8c8b0"), Pal.text_font()).text = "Arrows: walk     Space: jump     E: use     Esc: back to the level"
+	_ui_label(ui, Vector2(24, 54), Vector2(900, 30), 16, Color("d8c8b0"), Pal.text_font()).text = "Arrows: walk     Space: jump     E: use     P: 3D / paper Ugu     Esc: back to the level"
 	_hint = _ui_label(ui, Vector2(140, 646), Vector2(1000, 50), 21, Color("f3e3c3"), Pal.text_font())
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_say = _ui_label(ui, Vector2(190, 560), Vector2(900, 70), 24, Color("ffe066"), Pal.title_font())
@@ -1727,19 +1879,23 @@ func _animate(delta: float) -> void:
 		_line.look_at_from_position(_line.position, to, Vector3.UP)
 		_line.rotate_object_local(Vector3(1, 0, 0), PI * 0.5)
 	# what he is next to
+	var was := _near
 	_near = ""
 	var best := 2.0
 	for sp in _spots:
 		var d: float = Vector2(_pos.x, _pos.z).distance_to(sp[1])
-		(sp[2] as Label3D).visible = false
 		if d < best:
 			best = d
 			_near = sp[0]
-	for sp2 in _spots:
-		if sp2[0] == _near:
-			(sp2[2] as Label3D).visible = true
-	_hint.text = ("%s  —  %s" % [LINES[_near][0], LINES[_near][1]]) if _near != "" else ""
-	_stats.text = "Shells %d    Figs %d/%d    Bones %d" % [GameState.shells, GameState.figs, GameState.fig_max(), GameState.bones]
+	# the labels and texts change only when what they show changes (a Label re-lays
+	# itself out on every text set)
+	if _near != was or _hint.text == "" and _near != "":
+		for sp2 in _spots:
+			(sp2[2] as Label3D).visible = sp2[0] == _near
+		_hint.text = ("%s  —  %s" % [LINES[_near][0], LINES[_near][1]]) if _near != "" else ""
+	var stats := "Shells %d    Figs %d/%d    Bones %d" % [GameState.shells, GameState.figs, GameState.fig_max(), GameState.bones]
+	if stats != _stats.text:
+		_stats.text = stats
 
 
 ## One step: walking round things, jumping, on the ground's height.
@@ -1811,6 +1967,8 @@ func _dust() -> void:
 ## ------------------------------------------------------------------ pictures
 func _shots() -> void:
 	DirAccess.make_dir_recursive_absolute("C:/tmp/shots")
+	if OS.get_cmdline_user_args().has("paper"):
+		swap_ugu()                          # the shots of the paper Ugu: home_paper_*
 	for f in 40:
 		await get_tree().process_frame
 	await _shot("plaza")
@@ -1875,5 +2033,5 @@ func _shots() -> void:
 func _shot(label: String) -> void:
 	for i in 3:
 		await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png("C:/tmp/shots/home_%s.png" % label)
+	get_viewport().get_texture().get_image().save_png("C:/tmp/shots/home_%s%s.png" % ["paper_" if _paper else "", label])
 	print("shot ", label)

@@ -14,8 +14,15 @@ Level 1 done; Level 2 "Discovery of Fire" (night) nearly done; its map: `docs/le
 - Jawad playtests the feel: ask him, don't guess about fun.
 
 ## Decisions (Jawad's)
-- Ugu keeps his ORIGINAL face (now: button nose, sculpted unibrow, amber eyes); small touches only,
-  shown as close-ups (2-3 variants) first.
+- UGU'S LOOK = the design sheet `docs/caveman_design.png` (since 2026-10-10, commit a707e3b): wild spiky
+  mane (dark brown, a bit lighter than the sheet), a connected fringe of locks, two heavy brows in a scowl,
+  squared jaw, short beard + moustache, brown eyes; fur tunic over ONE shoulder (Level 2 on; leaf skirt in
+  Level 1), fang necklace, rope belt + pouch, forearm and calf wraps, bare feet. EVERY expression and pose
+  stays (tongue out, yawn, ooh, grin, roar...). No black outlines: rims are darker tones of each fill.
+  Changes: small, shown as close-ups first (`tools/rigsheet -- face`). The old look: tag `ugu-classic-look`.
+- THE AIR: everything loose on him (hair, fur, hems, cords, capes) drags behind his motion, lifts in a fall
+  and flutters faster as he speeds up (`CaveMan._flutter`; the 3D figure does the same).
+- 2D and 3D Ugu must look the same (Jawad, 2026-10-10). Next: UGGA, a blonde woman, in the same style.
 - No bats in or on the mountain; bats live in the caves.
 - Spirit Orbs: their own blue-white currency (beasts respawn each visit); never shells.
 - MYSTERY HINTS: near anything unsolved, a SMALL card left of the bag (`level2._hints`, `Hud.set_hint`).
@@ -36,7 +43,10 @@ Level 1 done; Level 2 "Discovery of Fire" (night) nearly done; its map: `docs/le
 - AIR KICKS: in the air UP + HIT with no side = snap kick, then FLASH KICK (backflip, launches); UP + a side
   + HIT stays the aimed club. Only the first two kicks of a jump lift him.
 - Painted earth under the grass, not the banded soil cut-away ("pixelated").
-- The meteor dash stays short ("reasonable"). He runs faster (330).
+- The meteor dash (jump + T + a side) stays short and FAST (2026-10-10): ~205 px at 1500 px/s, the gold one
+  (after a double jump) ~350 px at 1900; a quick spin first (`Stomp.DASH_CHARGE`); a launch ring, a blade
+  of light, after-images, sparks, speed lines, a puff (`Stomp.Trail`). He runs faster (330).
+- ZOOM while playing: + / - / 0 (`LevelBase.look_zoom`, over the chosen VIEW, not saved).
 - Ambushes escalate the deeper into a level they are.
 - Keep the hollow pack scene ("This is what fire is for").
 
@@ -45,9 +55,12 @@ common/: `critter.gd` (creature base, attack director, launch), `enemies.gd` (Le
 `player_body.gd` (CaveManBody: what he DOES: moving, combat, torch, hotbar, SUNFIRE, STOMP), `player.gd`
 (CaveMan extends it: only how he LOOKS; the game uses CaveMan), `sleeper.gd` (far things sleep), `bag.gd` (inventory: items, stone drops, recipes, the bag UI), `hud.gd`, `abilities.gd` (MOVES = Tutorial), `terrain.gd`, `game_state.gd`;
 the rest one file per system (`ls common`). level2/: `level2_data.gd` (tables), `level2.gd` (builders;
-shelter/: `home.gd` (UGU'S CAVE, the 3D island, eras by `GameState.home_era()`; docs/shelter_plan.md), `ugu3d.gd`
-(Ugu as a 3D figure; his face is Jawad's to approve), `menu.gd` (the home's trade / upgrade / craft panels).
 extends the data: tables are bare names); the rest one file per area or system (`ls level2`).
+shelter/: `home.gd` (UGU'S CAVE, the 3D island, eras by `GameState.home_era()`; docs/shelter_plan.md),
+`ugu3d.gd` (Ugu as a 3D figure to the sheet: one smooth head mesh with beard and hair-cap shells cut along
+curves, a tunic shell cut on the diagonal, loose pieces in the air; same interface: `speed`, `air`, `era`,
+`refresh()`), `ugu_paper.gd` (the alternative: the REAL 2D rig drawn into a SubViewport on a billboard, so
+he is exactly his 2D self; `CaveMan.puppet_air` gives the jump pose), `menu.gd` (trade / upgrade / craft).
 
 ## Conventions
 - Talkers: bubble, E/TALK starts (`_talkers`); again = a varied line. Lines short. Choice:
@@ -79,6 +92,15 @@ extends the data: tables are bare names); the rest one file per area or system (
   docs/level2.md "The budget"). PRECIOUS stones are finite per level (`MT_STONES`...); common ones renew. Bonuses (chests,
   buried finds, stomp loot) are NOT counted. Relics are not money.
 - One-shot kills call `end_sunfire()` first.
+- Drawing Ugu cheaply (he is redrawn every frame; one picture ~1.6 ms, `tools/drawcost`): a big shape whose
+  points only move a little uses `_shape_k(key, ...)` (triangulated once, then reused); a 3-point
+  `_shape` goes through `_tri3` (no outline polyline); constant geometry (the head outline, the hair cap,
+  the mane's roots) is built once and kept; per-frame terms (`_flutter`) are worked out once per frame;
+  bands on limbs use `_wrap_band` (no round caps). New function names must be unique in CaveMan/Body.
+- THE HOME merges every plain, still shape into one vertex-coloured mesh after it is built (`home._bake_static`;
+  each fading tree into its own): ~1400 draw calls -> ~290. Anything NEW that moves, fades, or changes colour
+  at runtime must be added to its skip list (or hold a non-plain material), or it will be frozen in place.
+  Things made after `_ready` (the stick, caught fish) are never merged. Cost: `tools/homecost`.
 - Shared helpers (don't copy the maths): `CaveMan.hurt_toss`, `Pickup.aim_at`, `Pickup.homing`,
   `Breakable.carry_to`, `Batch.ellipse`, `LevelBase.near_view`, `FX.burst`, `FX.shards`.
 - View: "on screen?" uses `LevelBase.view_half(n)`, never 640/1280. Slabs draw `fill_below`;
@@ -127,9 +149,13 @@ What each test does, args, close-up/perf tools, quirks: `docs/testing.md`.
 - Avoid new two-way class references between common/ and level2/.
 - No python here. Git Bash: Unix temp paths (`cygpath -u "$TEMP"`); awk -v mangles Windows paths; grep
   has no `\t`; apostrophes in heredocs break the shell (use Write/Edit).
+- Git Bash sed: a multi-line `a\`/`i\` insert gets JOINED into one line (use Edit); and a line number from
+  a grep that matched nothing makes `sed -i "${s}s|.*|...|"` rewrite EVERY line (it wiped ugu3d.gd once):
+  check the number is set before any `sed -i` that uses it.
 - FallingRock: warning = `delay` + ~0.5 s; trigger distance for a runner ~300 x that.
 - Stale `.godot` cache: delete it and reopen.
 
 ## Open ideas
 See `docs/level2.md`. More lanes; "?" reopens the guide; orb shop; Gulper / Old Scar
-reworks; a shelter level (bones, wife, pet); Level 3: the fang is a spear.
+reworks; a shelter level (bones, wife, pet); Level 3: the fang is a spear. UGGA (blonde, same style,
+2D + 3D); the home's Ugu: the 3D figure or the paper cut-out (Jawad picks).

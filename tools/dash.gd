@@ -119,8 +119,16 @@ func _run() -> void:
 		await put(Vector2(8840, 160))
 		var r5: Dictionary = await dash(1, true)
 		var ty: float = r5["y"] - 38.0
-		var tx := 8840.0 + float(r5["went"]) * 0.6        # the tunnel he drilled: in the middle of the span he dashed
-		var tunnel := t.is_inside(Vector2(tx, ty)) and not t.is_solid(Vector2(tx, ty)) and tx > 8980.0
+		# the tunnel he drilled: anywhere along the span he dashed (the dash starts at
+		# the top of the double jump, which varies run to run), past the first rock
+		var tx := 0.0
+		var tunnel := false
+		for sx in range(8900, int(8840.0 + float(r5["went"])), 10):
+			var q := Vector2(sx, ty)
+			if t.is_inside(q) and not t.is_solid(q):
+				tunnel = true
+				tx = sx
+				break
 		report("drill: through the mountain's rock", r5["dashed"] and r5["went"] > 250.0 and tunnel, "%s, drilled tunnel at x %.0f %s" % [str(r5), tx, tunnel])
 	if all or args.has("flip"):
 		await put(Vector2(500, 600))

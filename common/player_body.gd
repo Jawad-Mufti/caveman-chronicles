@@ -237,6 +237,7 @@ var _combo_t := 9.0             ## time since the last axe swing ended
 var axe_out := false            ## the axe is out, spinning (thrown)
 var _struck := false            ## this swing has already struck something (for its effects)
 var preview := false       ## a mannequin in the shop: stands, breathes, never moves
+var puppet_air := false    ## a preview driven from outside (the paper Ugu at home) shows the air pose
 signal ate_fig
 var _fig_prev := false
 ## Scorched by standing in a campfire: "YEOWCH!", a leap, his loincloth

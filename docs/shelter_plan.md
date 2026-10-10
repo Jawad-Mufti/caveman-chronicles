@@ -10,9 +10,20 @@ Unbowed: every era tries to civilize him and fails) and the weapons `docs/weapon
 - **Home: Ugu's Cave** (eras.md): his shelter, built from mammoth bones; build and upgrade with bones; his
   wife, a pet, storage; trophies from each era appear here. It never becomes a town: Ugu is UNBOWED.
 - **What comes home from every era: looted COSTUMES, UPGRADED SHOPS, and ARTIFACTS.**
-- **A 3D "paper diorama"**: the cave and its grounds low-poly 3D built from shapes in code; Ugu, his wife,
-  Kekko, the blacksmith and the animals stay 2D paper cut-outs (their rigs drawn into a SubViewport on a
-  billboard). A fixed tilted camera. The levels stay 2D.
+- **A 3D "paper diorama"**: the cave and its grounds low-poly 3D built from shapes in code; Kekko, the
+  blacksmith and the animals are 2D paper cut-outs. A camera that follows him. The levels stay 2D.
+- **Ugu at home** (2026-10-10): Jawad asked for a real 3D Ugu ("make it 3d"), then for him to look EXACTLY
+  like the 2D Ugu. Two ways, both built to the design sheet (`docs/caveman_design.png`):
+  - `shelter/ugu3d.gd`, the 3D figure: one smooth head mesh (skull, brow ridge, squared jaw, chin), the
+    beard and the hair cap as shells of that head cut along smooth curves, the mane's spikes, a tunic shell
+    cut on the diagonal with a light-fur trim, every loose piece moving in the air. Close, never identical.
+  - `shelter/ugu_paper.gd`, the paper cut-out: the real 2D rig (CaveMan) drawn into a SubViewport and shown
+    on a billboard. Identical by construction: every expression, the air, costumes, future changes; flat
+    seen from the side. Same interface as the figure (`speed`, `air`, `era`, `refresh()`).
+  Jawad picks; until then **P** in the home swaps them live (`home.swap_ugu`; shots: `home.tscn -- shot paper`
+  writes `home_paper_*`). Both cost about the same there (~9.3 ms frame; the figure is ~650 draw calls, the
+  paper one is CPU: the 2D rig's picture).
+- **Ugga**, his wife (blonde), comes next, in the same style, 2D and 3D.
 - **Getting there**: from the CAMP MENU (its SHELTER row), unlocked once Level 2 is finished.
 - v1 = Levels 1-3 + this home (eras.md).
 
@@ -45,7 +56,7 @@ most of them USED caveman-style. The joke grows with history.
 | # | era | the CAVE gets... | costume (closet) | Kekko's stall becomes... | the forge becomes... | artifact (and how Ugu uses it) |
 |---|---|---|---|---|---|---|
 | 1 | Raw Stone | a fire pit and a bed of leaves | leaf loincloth | a log table of pebbles | the Toolmaker's anvil stone | Tuskar's tusk: the coat hook |
-| 2 | Fire | a hide curtain over the mouth, a bone frame | hide loincloth | gems on a hide | the Firestone forge pit | Old Scar's skull: the fire guard |
+| 2 | Fire | a hide curtain over the mouth, a bone frame | fur tunic over one shoulder (the design sheet) | gems on a hide | the Firestone forge pit | Old Scar's skull: the fire guard |
 | 3 | Ice Age | a mammoth-bone hut built into the mouth (Mezhyrich), a hot spring | thick fur coat + hair tie | furs, ivory, amber | a forge of bone and ice | Gorrak's tusks: an arch over the cave mouth |
 | 4 | First Farmers | a mud-brick front, a ladder entrance through the roof (Çatalhöyük), a little garden | woven-reed headband | seeds, pots, grain | a mud-brick kiln | a carved stone pillar (Göbekli Tepe): his back-scratcher |
 | 5 | River Kingdom | a carved stone doorway, two columns, hieroglyph doodles of Ugu | pharaoh headdress | papyrus, scarabs, perfumes | a bronze workshop | a sarcophagus: his BATHTUB |
@@ -73,9 +84,12 @@ Coming home after a level: the CAMPFIRE SORT (the inventory plan) packs the leve
 The rule (Jawad, 2026-10-09): the shelter grows WITH the game. After each level is finished, its era is added to
 the home (the cave upgrade, the costume, the shops, the artifact), then the next level starts. No era is
 built into the home before its level exists.
-1. The home for the levels that exist (eras 1-2), from the prototype (`shelter/proto.tscn`): the bone cave, the fire, the closet,
-   Kekko's stall, the forge, the artifact shelf, the rift; then wired in (the Camp Menu's SHELTER after Level 2).
-2. The real home for v1 (eras 1-3): Kekko and the blacksmith as cut-outs, upgrading with real resources
-   (`GameState.home`, storage), cooking, the closet, the artifacts; the Camp Menu's SHELTER, unlocked after
-   Level 2.
-3. Each new level: its costume, its shop upgrades, its artifact.
+1. DONE (d038ac1 .. e255b9c): the home for eras 1-2, `shelter/home.tscn` (`home.gd`), reached from the Camp
+   Menu after Level 2 (Esc returns where he stood): an island with shader water, wind, day and night, trees
+   that fade in front of him; the bone cave and fire, the closet (costumes) and the weapon rack, Kekko's
+   stall (buy / sell), the Toolmaker (upgrades), the workbench (crafting from the bag), the store corner,
+   the bed (night to day, saves), fishing at the pier and cooking at the fire, the pup that fetches.
+   Tests: `homeflow`, `homeuse`; cost: `homecost`.
+2. NOW: Ugu at home to the design sheet (above), then Ugga.
+3. The rest of v1 (era 3): upgrading with real resources (`GameState.home`, storage), the artifacts.
+4. Each new level: its costume, its shop upgrades, its artifact.

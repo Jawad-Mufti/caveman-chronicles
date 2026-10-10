@@ -153,7 +153,11 @@ its source, author and licence in the same pass — not later.
 
 ## Out of scope
 
-Characters (separate spec), the caves' interiors, vistas. Vistas — one big distant
+Characters, the caves' interiors, vistas. (The character spec is now Ugu's design sheet,
+`docs/caveman_design.png`, and its rules in `CLAUDE.md` "Decisions": the palette `#7A4B36 #B27A52
+#D9B08E #8D9196`, dark-brown hair, no black outlines (each rim a darker tone of its own fill), light from
+high-right, readable at ~71 px tall. The same rules fit this spec's materials item: fur and cloth get no
+highlight, hard things one.) Vistas — one big distant
 set-piece per region — are the natural next step once the palette lands, but they
 need the colour script in place first to be worth drawing.
 

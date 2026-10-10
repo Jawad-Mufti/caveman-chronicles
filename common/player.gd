@@ -200,7 +200,7 @@ func _stm(m: Transform2D) -> void:
 
 
 func _paint() -> void:
-	var on_floor := is_on_floor() or preview
+	var on_floor := (is_on_floor() or preview) and not puppet_air
 	var air := not on_floor and not dead
 	var speed_k := clampf(absf(velocity.x) / SPEED, 0.0, 1.0) if on_floor else 0.0
 	var running := speed_k > 0.08 and not dead
@@ -1351,7 +1351,7 @@ func _fur_tunic() -> void:
 	var dark: Color = cols[1]
 	var body := PackedVector2Array([Vector2(-52, -124), Vector2(-42, -136), Vector2(-26, -137), Vector2(-6, -122), Vector2(16, -108),
 		Vector2(36, -94), Vector2(46, -86), Vector2(42, -70), Vector2(-24, -68), Vector2(-42, -88), Vector2(-50, -108)])
-	_shape(body, fur, 2.5)
+	_shape_k("tunic", body, fur, 2.5)
 	# the fur in it: short strokes in the darker tone
 	for k in 12:
 		var p := Vector2(-38.0 + (k % 4) * 16.0 + (k / 4) * 6.0, -118.0 + (k / 4) * 16.0)
@@ -1385,7 +1385,7 @@ func _tunic_skirt(k: float) -> void:
 	var pts := PackedVector2Array([Vector2(-28, -76), Vector2(38, -76)])
 	for m in moved:
 		pts.append(m)
-	_shape(pts, fur, 2.5)
+	_shape_k("skirt", pts, fur, 2.5)
 	for i in 6:
 		var top := Vector2(-20.0 + i * 10.0, -64)
 		var bend := _flutter(i * 1.3 + 2.0, 0.5)
@@ -1407,10 +1407,23 @@ func _tunic_skirt(k: float) -> void:
 func _flutter(i: float, reach: float) -> Vector2:
 	if dead:
 		return Vector2.ZERO
-	var spd := clampf(velocity.length() / SPEED, 0.0, 1.8)
-	var f := sin(anim_t * (6.0 + 7.0 * spd) + i * 1.7) + 0.45 * sin(anim_t * (11.0 + 9.0 * spd) + i * 2.9)
-	var g := cos(anim_t * (5.0 + 6.0 * spd) + i * 2.3)
-	return (_hair_off * 0.5 + Vector2(f * 2.4, g * 1.3) * (0.3 + 1.2 * spd)) * reach
+	# what is the same for every point this frame, worked out once
+	var fr := Engine.get_process_frames()
+	if fr != _fl_frame:
+		_fl_frame = fr
+		var spd := clampf(velocity.length() / SPEED, 0.0, 1.8)
+		_fl_w = Vector3(anim_t * (6.0 + 7.0 * spd), anim_t * (11.0 + 9.0 * spd), anim_t * (5.0 + 6.0 * spd))
+		_fl_amp = 0.3 + 1.2 * spd
+		_fl_base = _hair_off * 0.5
+	var f := sin(_fl_w.x + i * 1.7) + 0.45 * sin(_fl_w.y + i * 2.9)
+	var g := cos(_fl_w.z + i * 2.3)
+	return (_fl_base + Vector2(f * 2.4, g * 1.3) * _fl_amp) * reach
+
+
+var _fl_frame := -1
+var _fl_w := Vector3.ZERO
+var _fl_amp := 0.0
+var _fl_base := Vector2.ZERO
 
 
 ## A necklace of pale fangs on a dark cord (the design sheet), in every costume.
@@ -1441,8 +1454,8 @@ func _rope_belt() -> void:
 	_ln(Vector2(9, -66), Vector2(7, -55) + _flutter(8.0, 0.9), C_FUR.darkened(0.15), 3.0, true)       # the ends swing
 	_ln(Vector2(12, -66), Vector2(15, -57) + _flutter(9.3, 0.9), C_FUR.darkened(0.15), 3.0, true)
 	# the pouch on the hip
-	_shape(PackedVector2Array([Vector2(-24, -70), Vector2(-8, -70), Vector2(-6, -56), Vector2(-15, -50), Vector2(-25, -56)]), C_LEATHER, 2.0)
-	_shape(PackedVector2Array([Vector2(-25, -70), Vector2(-7, -70), Vector2(-9, -62), Vector2(-23, -62)]), C_LEATHER.darkened(0.15), 1.5)
+	_shape_k("pouch", PackedVector2Array([Vector2(-24, -70), Vector2(-8, -70), Vector2(-6, -56), Vector2(-15, -50), Vector2(-25, -56)]), C_LEATHER, 2.0)
+	_shape_k("pouch_flap", PackedVector2Array([Vector2(-25, -70), Vector2(-7, -70), Vector2(-9, -62), Vector2(-23, -62)]), C_LEATHER.darkened(0.15), 1.5)
 	_cc(Vector2(-16, -63), 1.6, C_FANG)
 
 
@@ -1450,8 +1463,8 @@ func _rope_belt() -> void:
 func _forearm_wrap(el: Vector2, hd: Vector2, w: float) -> void:
 	var a := el.lerp(hd, 0.4)
 	var b := el.lerp(hd, 0.82)
-	_taper(a, b, w + 3.0, w + 2.0, C_LEATHER.darkened(0.25))
-	_taper(a, b, w, w - 1.0, C_LEATHER)
+	_wrap_band(a, b, w + 3.0, w + 2.0, C_LEATHER.darkened(0.25))
+	_wrap_band(a, b, w, w - 1.0, C_LEATHER)
 	var d := (b - a)
 	var n := d.normalized().orthogonal() * (w * 0.5)
 	for k in 4:
@@ -1463,8 +1476,8 @@ func _forearm_wrap(el: Vector2, hd: Vector2, w: float) -> void:
 func _calf_wrap(knee: Vector2, foot: Vector2) -> void:
 	var a := knee.lerp(foot, 0.42)
 	var b := knee.lerp(foot, 0.92)
-	_taper(a, b, 24.0, 19.0, C_FUR_DARK.darkened(0.2))
-	_taper(a, b, 21.0, 16.0, C_FUR_DARK)
+	_wrap_band(a, b, 24.0, 19.0, C_FUR_DARK.darkened(0.2))
+	_wrap_band(a, b, 21.0, 16.0, C_FUR_DARK)
 	var d := (b - a).normalized()
 	var n := d.orthogonal()
 	# a ragged fur top edge
@@ -1478,11 +1491,16 @@ func _calf_wrap(knee: Vector2, foot: Vector2) -> void:
 
 
 ## His head (the design sheet): a broad skull, cheekbones, a strong squared jaw.
+var _head_pts := PackedVector2Array()       ## the head's outline and the hair cap's arc: constant, built once
+var _cap_arc := PackedVector2Array()
+
 func _jaw_head() -> void:
-	var head := _smooth([Vector2(-20, -170), Vector2(-14, -182), Vector2(4, -186), Vector2(22, -182), Vector2(29, -170),
-		Vector2(30, -152), Vector2(28, -138), Vector2(22, -127), Vector2(10, -121), Vector2(-2, -121), Vector2(-15, -127),
-		Vector2(-21, -138), Vector2(-22, -152)], 3)
-	_shape(head, _skin, 3.0)
+	if _head_pts.is_empty():
+		_head_pts = _smooth([Vector2(-20, -170), Vector2(-14, -182), Vector2(4, -186), Vector2(22, -182), Vector2(29, -170),
+			Vector2(30, -152), Vector2(28, -138), Vector2(22, -127), Vector2(10, -121), Vector2(-2, -121), Vector2(-15, -127),
+			Vector2(-21, -138), Vector2(-22, -152)], 3)
+	var head := _head_pts
+	_shape_k("head", head, _skin, 3.0)
 	# the cheekbones catch the light; the hollows under them in shade
 	_oval(Vector2(-12, -146), 6.0, 3.0, Color(1, 0.92, 0.8, 0.14), 0.0, -0.2)
 	_oval(Vector2(22, -146), 6.0, 3.0, Color(1, 0.92, 0.8, 0.14), 0.0, 0.2)
@@ -1500,7 +1518,7 @@ func _short_beard() -> void:
 		pts.append(p)
 	for p in inner:
 		pts.append(p)
-	_shape(pts, beard, 2.0)
+	_shape_k("beard", pts, beard, 2.0)
 	# a few strands, and a ragged lower edge at the chin
 	for k in 5:
 		var x := -10.0 + k * 7.0
@@ -1512,7 +1530,7 @@ func _short_beard() -> void:
 
 ## The moustache over the upper lip, its ends running down into the beard.
 func _moustache() -> void:
-	_shape(PackedVector2Array([Vector2(-11, -132), Vector2(-9, -140), Vector2(-1, -145), Vector2(4, -143.5), Vector2(9, -145),
+	_shape_k("moustache", PackedVector2Array([Vector2(-11, -132), Vector2(-9, -140), Vector2(-1, -145), Vector2(4, -143.5), Vector2(9, -145),
 		Vector2(17, -140), Vector2(19, -132), Vector2(15, -136), Vector2(9, -139.5), Vector2(4, -139), Vector2(-1, -139.5), Vector2(-7, -136)]), C_HAIR, 2.0)
 	_ln(Vector2(-4, -142), Vector2(2, -143), C_HAIR_HI, 1.4, true)
 	_ln(Vector2(7, -143), Vector2(13, -142), C_HAIR_HI, 1.4, true)
@@ -1531,15 +1549,15 @@ const FRINGE_ROOT_Y := -171.0
 
 func _hair_fringe() -> void:
 	# the cap: from the left temple up over the crown to the right temple
-	var pts := _smooth([Vector2(-25, -160), Vector2(-25, -173), Vector2(-17, -186), Vector2(-2, -192), Vector2(15, -191),
-		Vector2(28, -183), Vector2(34, -170), Vector2(33, -160)], 3)
-	# keep only the arc (the smoothing closes the loop: drop the bottom stretch)
-	var arc := PackedVector2Array()
-	for p in pts:
-		if p.y < -161.0:
-			arc.append(p)
+	if _cap_arc.is_empty():
+		var pts := _smooth([Vector2(-25, -160), Vector2(-25, -173), Vector2(-17, -186), Vector2(-2, -192), Vector2(15, -191),
+			Vector2(28, -183), Vector2(34, -170), Vector2(33, -160)], 3)
+		# keep only the arc (the smoothing closes the loop: drop the bottom stretch)
+		for p in pts:
+			if p.y < -161.0:
+				_cap_arc.append(p)
 	# ...then the locks, right to left, each a curve down to its tip and back up
-	var hairline := PackedVector2Array(arc)
+	var hairline := PackedVector2Array(_cap_arc)
 	var spines: Array = []
 	var li := 0
 	for lk in FRINGE_LOCKS:
@@ -1549,16 +1567,16 @@ func _hair_fringe() -> void:
 		li += 1
 		var bend: float = lk[3]
 		var mid := r_root.lerp(l_root, 0.5)
-		hairline.append_array(_quad(r_root, r_root.lerp(tip, 0.55) + Vector2(bend * 0.4 + 1.5, 0), tip, 6, true))
-		hairline.append_array(_quad(tip, l_root.lerp(tip, 0.5) + Vector2(bend * 0.6 - 1.0, -1.5), l_root, 6))
+		hairline.append_array(_quad(r_root, r_root.lerp(tip, 0.55) + Vector2(bend * 0.4 + 1.5, 0), tip, 4, true))
+		hairline.append_array(_quad(tip, l_root.lerp(tip, 0.5) + Vector2(bend * 0.6 - 1.0, -1.5), l_root, 4))
 		# a little notch up between this lock and the next
 		hairline.append(l_root + Vector2(-0.5, -3.0))
 		spines.append([mid, mid.lerp(tip, 0.5) + Vector2(bend * 0.5, 0), tip])
-	_shape(hairline, C_HAIR, 2.0)
+	_shape_k("fringe", hairline, C_HAIR, 2.0)
 	# shade at the roots, a soft light band across the crown, light down each lock
-	_pl(_quad(Vector2(-18, -178), Vector2(4, -186), Vector2(26, -177), 8, true), Color(C_HAIR_HI, 0.55), 4.0, true)
+	_pl(_quad(Vector2(-18, -178), Vector2(4, -186), Vector2(26, -177), 5, true), Color(C_HAIR_HI, 0.55), 4.0, true)
 	for sp in spines:
-		var line := _quad(sp[0] + Vector2(0, -3), sp[1], (sp[2] as Vector2).lerp(sp[1], 0.25), 6, true)
+		var line := _quad(sp[0] + Vector2(0, -3), sp[1], (sp[2] as Vector2).lerp(sp[1], 0.25), 3, true)
 		_pl(line, Color(C_HAIR_HI, 0.85), 1.8, true)
 	# tufts curling up off the crown, toward where he faces (not under a hood)
 	if skin in ["wolf_hood", "bear_cloak"]:
@@ -1570,10 +1588,10 @@ func _hair_fringe() -> void:
 		var t: Vector2 = tf[2] + _flutter(b.x * 0.2 + 0.7, 1.1)
 		var side := (c - b).normalized().orthogonal() * 5.5
 		var tuft := PackedVector2Array([b - side])
-		tuft.append_array(_quad(b - side, c - side * 0.5, t, 5))
-		tuft.append_array(_quad(t, c + side * 0.6, b + side, 5))
-		_shape(tuft, C_HAIR, 1.6)
-		_pl(_quad(b, c, t.lerp(c, 0.3), 5, true), Color(C_HAIR_HI, 0.8), 1.6, true)
+		tuft.append_array(_quad(b - side, c - side * 0.5, t, 3))
+		tuft.append_array(_quad(t, c + side * 0.6, b + side, 3))
+		_shape_k("tuft%d" % int(b.x), tuft, C_HAIR, 1.6)
+		_pl(_quad(b, c, t.lerp(c, 0.3), 3, true), Color(C_HAIR_HI, 0.8), 1.6, true)
 
 
 ## A strong nose: a straight bridge, a broad rounded tip, the nostrils in shadow.
@@ -1895,13 +1913,32 @@ func _fan(pts: PackedVector2Array, col: Color) -> void:
 ## ones swing most with the motion (_hair_off).
 func _mane() -> void:
 	# the design sheet's big wild mane: two layers of jagged spikes all round the
-	# back and top of the head (vector shapes, no texture), the long ones swinging
-	var sway := sin(anim_t * 2.4) * 1.5
+	# back and top of the head (vector shapes, no texture), the long ones swinging.
+	# Their roots never move: built once (_mane_spikes); only the tips move.
 	var hooded := skin in ["wolf_hood", "bear_cloak"]
+	if _mane_spikes.is_empty() or _mane_hooded != hooded:
+		_build_mane_spikes(hooded)
+	var sway := sin(anim_t * 2.4) * 1.5
 	# the mass of it: a solid base round the back of the head
 	_oval(MANE_C + Vector2(-4, -2), 31.0, 29.0, C_HAIR.darkened(0.1), 1.2)
-	# spikes, each its own triangle (a star polygon this jagged will not fill), in two
-	# layers: darker, longer ones behind, the lighter ones over them
+	var reach_k := 0.6 if hooded else 1.3
+	var hi := Color(C_HAIR_HI, 0.9)
+	for s in _mane_spikes:
+		var swing: float = s[3]
+		var tip: Vector2 = (s[2] as Vector2) + Vector2(sway * swing, 0) + _flutter(float(s[5]), swing * reach_k)
+		_tri3(PackedVector2Array([s[0], s[1], tip]), s[4], 1.2)
+		if s[6] != Vector2.INF:
+			_ln(s[6], tip.lerp(MANE_C, 0.25), hi, 2.2, true)
+
+
+## The mane's spikes: [root a, root b, tip at rest, swing, colour, flutter phase,
+## start of its light strand (INF: none)]. Darker, longer ones behind first.
+var _mane_spikes: Array = []
+var _mane_hooded := false
+
+func _build_mane_spikes(hooded: bool) -> void:
+	_mane_spikes.clear()
+	_mane_hooded = hooded
 	for layer in 2:
 		var n := 12 if layer == 0 else 10
 		var col := C_HAIR.darkened(0.08) if layer == 0 else C_HAIR.lightened(0.05)
@@ -1910,14 +1947,10 @@ func _mane() -> void:
 			if hooded and a > deg_to_rad(-150.0):
 				continue                                # under the hood: only the back shows
 			var r := (38.0 if layer == 0 else 33.0) + 10.0 * float((i * 7 + layer * 3) % 5) / 4.0
-			var swing := (r - 26.0) / 26.0
 			var w := 0.46 if layer == 0 else 0.4
-			var tip := MANE_C + Vector2.from_angle(a) * r + Vector2(sway * swing, 0) + _flutter(i * 1.3 + layer * 0.6, swing * (0.6 if hooded else 1.3))
-			var b0 := MANE_C + Vector2.from_angle(a - w) * 20.0
-			var b1 := MANE_C + Vector2.from_angle(a + w) * 20.0
-			_shape(PackedVector2Array([b0, b1, tip]), col, 1.2)
-			if layer == 1:
-				_ln(MANE_C + Vector2.from_angle(a) * 22.0, tip.lerp(MANE_C, 0.25), Color(C_HAIR_HI, 0.9), 2.2, true)
+			_mane_spikes.append([MANE_C + Vector2.from_angle(a - w) * 20.0, MANE_C + Vector2.from_angle(a + w) * 20.0,
+				MANE_C + Vector2.from_angle(a) * r, (r - 26.0) / 26.0, col, i * 1.3 + layer * 0.6,
+				MANE_C + Vector2.from_angle(a) * 22.0 if layer == 1 else Vector2.INF])
 
 
 func _lit(pts: PackedVector2Array, amount: float = 0.87) -> PackedVector2Array:
@@ -1936,6 +1969,9 @@ func _lit(pts: PackedVector2Array, amount: float = 0.87) -> PackedVector2Array:
 
 
 func _shape(pts: PackedVector2Array, fill: Color, w: float = OLW) -> void:
+	if pts.size() == 3 and _bb != null:
+		_tri3(pts, fill, w)
+		return
 	if _bb != null:
 		_bb.poly_pair(pts, fill.darkened(0.30), _lit(pts), fill)
 	else:
@@ -1945,6 +1981,57 @@ func _shape(pts: PackedVector2Array, fill: Color, w: float = OLW) -> void:
 		var ring := PackedVector2Array(pts)
 		ring.append(pts[0])
 		_pl(ring, fill.darkened(0.60), w * 0.62, true)
+
+
+## A triangle the way _shape draws a shape, but cheap (spikes, tufts, fangs): the
+## rim is a slightly bigger dark triangle behind it, no outline to build.
+func _tri3(pts: PackedVector2Array, fill: Color, w: float) -> void:
+	var p0 := pts[0]
+	var p1 := pts[1]
+	var p2 := pts[2]
+	var mid := (p0 + p1 + p2) / 3.0
+	if w > 0.0:
+		var g := w * 0.62
+		_bb.tri(p0 + (p0 - mid).normalized() * g, p1 + (p1 - mid).normalized() * g, p2 + (p2 - mid).normalized() * g, fill.darkened(0.60))
+	_bb.tri(p0, p1, p2, fill.darkened(0.30))
+	# the lit copy (as _lit does it, inline)
+	var span := maxf(p0.distance_to(mid), maxf(p1.distance_to(mid), p2.distance_to(mid)))
+	var push := LIGHT * minf(5.0, span * 0.10) + mid * 0.13
+	_bb.tri(p0 * 0.87 + push, p1 * 0.87 + push, p2 * 0.87 + push, fill)
+
+
+## _shape for a big shape drawn every frame whose points only move a little (the
+## hair, the head, the tunic): cut into triangles once per `key`, then reused.
+var _tri_cache := {}
+
+func _shape_k(key: String, pts: PackedVector2Array, fill: Color, w: float = OLW) -> void:
+	if _bb == null:
+		_shape(pts, fill, w)
+		return
+	var idx: PackedInt32Array = _tri_cache.get(key, PackedInt32Array())
+	if idx.is_empty() or int(_tri_cache.get(key + "#", -1)) != pts.size():
+		idx = Geometry2D.triangulate_polygon(pts)
+		if idx.is_empty():
+			return
+		_tri_cache[key] = idx
+		_tri_cache[key + "#"] = pts.size()
+	_bb.poly_pair_idx(pts, idx, fill.darkened(0.30), _lit(pts), fill)
+	if w > 0.0:
+		var ring := PackedVector2Array(pts)
+		ring.append(pts[0])
+		_pl(ring, fill.darkened(0.60), w * 0.62, true)
+
+
+## A plain band along a limb (the wraps): no round ends, they sit on the limb.
+func _wrap_band(a: Vector2, b: Vector2, w0: float, w1: float, col: Color) -> void:
+	var d := b - a
+	if d.length_squared() < 0.01:
+		return
+	var n := Vector2(-d.y, d.x).normalized()
+	if _bb != null:
+		_bb.quad(a + n * w0 * 0.5, b + n * w1 * 0.5, b - n * w1 * 0.5, a - n * w0 * 0.5, col)
+	else:
+		_pg(PackedVector2Array([a + n * w0 * 0.5, b + n * w1 * 0.5, b - n * w1 * 0.5, a - n * w0 * 0.5]), col)
 
 
 func _dot(c: Vector2, r: float, fill: Color, w: float = OLW) -> void:
