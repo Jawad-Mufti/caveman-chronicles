@@ -63,7 +63,8 @@ rig's design units (`_face`), toon light + rims in darker tones (a hull pass), m
 (`Lump`), the air in the vertex shader (UV2 = looseness), THE FACE (a rig, not swapped meshes: dials eased by springs; `EXPRESSIONS` = feelings, `_pick_mood` picks one,
 a shader mouth `MOUTH_MAP`, a jaw, brows, cut lids, roving eyes, blinks, idle quirks); `speed`, `sprint`, `air`, `look_at_point`, `era`, `refresh()`, `jumped(double)`, `landed(k)`,
 `cheer()`, `emote(feeling, t)`, `sleepy`), `ugu_paper.gd` (the alternative: the REAL 2D rig drawn into a SubViewport on a billboard, so
-he is exactly his 2D self; `CaveMan.puppet_air` gives the jump pose), `menu.gd` (trade / upgrade / craft).
+he is exactly his 2D self; `CaveMan.puppet_air` gives the jump pose), `menu.gd` (trade / upgrade / craft), `mirror.gd` (the OBSIDIAN MIRROR, Bag "mirror": a camera in the glass = his
+reflection (a SubViewport; it renders only near him); E = THE FACE STUDIO: feelings + sliders -> `Ugu3D.pose_face`).
 
 ## Conventions
 - Talkers: bubble, E/TALK starts (`_talkers`); again = a varied line. Lines short. Choice:
@@ -142,7 +143,7 @@ Screenshots: `<godot> --rendering-driver opengl3 --fixed-fps 60 --path . res://t
 [nodark] [notorch] [freeze]` (PNGs to `C:/tmp/shots`; name it `topic/shot` for a folder).
 Regression set: smoke, jumps, vines, story, boss, finale, econ, bones, loot, landing, caves, sky, airjump,
 wolves, talk, tarpits, hoards, sunfire, boulder, stomp, explore, dig, mountain, dash, getup, canyon, falls,
-steppe, leak, grab, gorgechest, orbs, mtbeasts, combat, aim, swarm, combos, hotbar, weapons, slowmo, soak, bag, windbreak, errands, one_eye, airkick, loadflow (+ `-- second`), homeflow, homeuse, ugu3dface.
+steppe, leak, grab, gorgechest, orbs, mtbeasts, combat, aim, swarm, combos, hotbar, weapons, slowmo, soak, bag, windbreak, errands, one_eye, airkick, loadflow (+ `-- second`), homeflow, homeuse, ugu3dface, mirror (`-- pics` with rendering).
 Tests save to `user://caveman_save_test.json` (`GameState.save_path()`): never the player's save.
 EXPECTED failures (not bugs): `vines` "three swings, let go late" MISS; `landing` prints 12 "no ground
 under" lines; `canyon rocks`/`stones` fail ~1 in 4 (bats); `combos` slam dunk and `grab` (knocked out of reach) fail ~1 in 3.

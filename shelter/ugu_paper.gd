@@ -98,3 +98,7 @@ func cheer(_t := 1.2) -> void:
 
 func emote(_feeling: String, _t := 1.5) -> void:
 	pass
+
+
+func pose_face(_dials: Dictionary) -> void:
+	pass

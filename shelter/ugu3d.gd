@@ -357,9 +357,11 @@ static var _mouth_outline: Shader
 ## corner up); the jaw drops with `open`. The brows: brow (up), knit (1 the
 ## angry V .. -1 worried), brow_l / brow_r (one up: a cocked brow). The eyes: lid
 ## (the upper lids down), squint (the lower lids up: happy eyes), pupil (its
-## size). tilt: his head on one side.
+## size), wink_l / wink_r (one eye shut), cross (cross-eyed). tilt: his head on
+## one side. tongue_out: the tongue out of the corner, flapping.
 const FACE_REST := {"open": 0.0, "smile": 0.0, "wide": 0.0, "teeth": 0.0, "span": 0.55, "teeth_lo": 0.0, "tongue": 0.0,
-	"smirk": 0.0, "brow": 0.0, "knit": 0.0, "brow_l": 0.0, "brow_r": 0.0, "lid": 0.1, "squint": 0.0, "pupil": 1.0, "tilt": 0.0}
+	"smirk": 0.0, "brow": 0.0, "knit": 0.0, "brow_l": 0.0, "brow_r": 0.0, "lid": 0.1, "squint": 0.0, "pupil": 1.0, "tilt": 0.0,
+	"wink_l": 0.0, "wink_r": 0.0, "cross": 0.0, "tongue_out": 0.0}
 ## His feelings (what each sets; the rest from FACE_REST). "smile" is his face
 ## at rest: the 2D open smile with the gap in his teeth and a bit of tongue.
 const EXPRESSIONS := {
@@ -413,6 +415,7 @@ var _dial_v := {}
 var _mood_t := 0.0
 var _emote := ""
 var _emote_t := 0.0
+var _pose := {}                         ## a face made by hand (pose_face): it wins over everything
 var _wince := 0.0
 var _fall_t := 0.0
 var _curious := 0.0
@@ -1289,6 +1292,12 @@ func emote(feeling: String, t := 1.5) -> void:
 		_emote_t = t
 
 
+## A face made by hand (the mirror): dials (FACE_REST's names) he holds, over
+## everything, until pose_face({}). He still blinks.
+func pose_face(dials: Dictionary) -> void:
+	_pose = dials.duplicate()
+
+
 ## ------------------------------------------------------------------ every frame
 func _process(delta: float) -> void:
 	_t += delta
@@ -1410,6 +1419,8 @@ func _process(delta: float) -> void:
 ## teeth flat out, a cocked brow at something new, bored, then sleepy, standing
 ## about; else his open smile.
 func _pick_mood(run: float, fast: float, yawn: float) -> String:
+	if not _pose.is_empty():
+		return "pose"
 	if _emote_t > 0.0:
 		return _emote
 	if _flip >= 0.0:
@@ -1455,22 +1466,20 @@ func _face_step(dt: float, run: float, fast: float, yawn: float, breathe: float)
 			_blink = 0.0                     # a change of feeling: a blink
 		_mood = mood
 		_mood_t = 0.0
-		_tongue.visible = mood == "tongue"
 	_mood_t += dt
 	face_mood = mood
 	var want: Dictionary = FACE_REST.duplicate()
-	want.merge(EXPRESSIONS[mood], true)
+	want.merge(_pose if mood == "pose" else EXPRESSIONS[mood], true)
 	# ---- life on top of the feeling
 	if mood == "yawn":
 		want["open"] = 0.15 + 0.85 * yawn
 		want["lid"] = 0.3 + 0.6 * yawn
 	elif mood == "laugh":
 		want["open"] = float(want["open"]) - 0.3 * absf(sin(_mood_t * 14.0))           # ha! ha! ha!
-	elif mood == "tongue":
-		_tongue.rotation = Vector3(0, 0, sin(_t * 26.0) * 0.35)
 	elif mood == "smile" or mood == "sleepy":
 		want["open"] = float(want["open"]) + breathe * 0.04
-	want["lid"] = float(want["lid"]) + 0.35 * sleepy * (1.0 - float(want["lid"]))
+	if mood != "pose":
+		want["lid"] = float(want["lid"]) + 0.35 * sleepy * (1.0 - float(want["lid"]))
 	# a passing look on an idle face: a brow flick, a smirk, a hum, a puff
 	_quirk_t = maxf(_quirk_t - dt, 0.0)
 	if mood == "smile" and run < 0.05:
@@ -1562,18 +1571,23 @@ func _set_face(shut: float) -> void:
 	var squint := clampf(d["squint"], 0.0, 1.0)
 	for i in 4:
 		var m := _lids[i] as ShaderMaterial
-		var cut := lerpf(0.05, -0.05, lid) if i % 2 == 0 else lerpf(-0.05, 0.016, squint * (1.0 - lid * 0.5))
+		var shut_i := clampf(lid + float(d["wink_l"] if i < 2 else d["wink_r"]), 0.0, 1.0)
+		var cut := lerpf(0.05, -0.05, shut_i) if i % 2 == 0 else lerpf(-0.05, 0.016, squint * (1.0 - shut_i * 0.5))
 		m.set_shader_parameter("lid_cut", cut)
 		(m.next_pass as ShaderMaterial).set_shader_parameter("lid_cut", cut)
 	var pupil: float = d["pupil"]
 	for e in _irises:
 		var n2: Node3D = e[0]
 		var fb: Basis = e[2]
-		n2.position = (e[1] as Vector3) + fb.x * _gaze.x * 0.013 + fb.y * _gaze.y * 0.008
+		var inward := -signf((e[1] as Vector3).x) * clampf(d["cross"], 0.0, 1.0) * 0.015      # cross-eyed: both to the nose
+		n2.position = (e[1] as Vector3) + fb.x * (_gaze.x * 0.013 * (1.0 - clampf(d["cross"], 0.0, 1.0)) + inward) + fb.y * _gaze.y * 0.008
 		n2.basis = fb * Basis.from_scale(Vector3(pupil, pupil, 1.0))
 	# the tongue sticks out of the corner, wherever the corner is
 	var hw := 0.082 * clampf(1.0 + 0.35 * float(d["wide"]) + 0.1 * maxf(float(d["smile"]), 0.0), 0.38, 1.5)
 	_tongue.position = Vector3(hw * 0.62, 0.024 * float(d["smile"]) * 0.4 - 0.012, 0.03)
+	_tongue.visible = _mood == "tongue" or float(d["tongue_out"]) > 0.5
+	if _tongue.visible:
+		_tongue.rotation = Vector3(0, 0, sin(_t * 26.0) * 0.35)
 	_head.rotation.z += float(d["tilt"])
 
 

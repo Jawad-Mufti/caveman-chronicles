@@ -24,6 +24,7 @@ extends Node3D
 const Menu := preload("res://shelter/menu.gd")
 const UguModel := preload("res://shelter/ugu3d.gd")
 const UguPaper := preload("res://shelter/ugu_paper.gd")
+const Mirror := preload("res://shelter/mirror.gd")
 
 const R := 58.0                  ## the island's radius, metres
 const SPEED := 5.0
@@ -72,6 +73,7 @@ const LINES := {
 	"kekko": ["KEKKO'S STALL", "E: trade (figs, stones, gems)"],
 	"forge": ["THE TOOLMAKER", "E: upgrades and weapons"],
 	"bench": ["THE WORKBENCH", "E: make things from the bag"],
+	"mirror": ["THE OBSIDIAN MIRROR", "E: look in, and make FACES"],
 	"pier": ["THE PIER", "E: fish"],
 	"pool": ["THE WATERFALL POOL", "Cold! Lovely."],
 }
@@ -131,6 +133,8 @@ var _drying_fish: Array = []
 var _clouds: Array = []
 var _birds: Array = []
 var _splash: CPUParticles3D
+var _mirror: Node3D              ## the obsidian mirror (shelter/mirror.gd), once he has made it
+var _studio_k := 0.0            ## 0 .. 1: the camera over his shoulder at the mirror
 var _t := 0.0
 
 
@@ -774,6 +778,8 @@ func _build_cave() -> void:
 	_shape(_ball(0.26, 7), HIDE.darkened(0.2), store + Vector3(-1.5, 0.3, -0.6), Vector3.ZERO, Vector3(0.8, 1.2, 0.6))
 	_blocks.append([Vector2(store.x, store.z), 1.4])
 	_spot("store", store + Vector3(-0.8, 0, 1.6))
+	if GameState.has_item("obsidian_mirror"):
+		_build_mirror(false)
 	# ARTIFACTS: Tuskar's tusk (era 1), Old Scar's skull (era 2)
 	var tusk := c + Vector3(-2.4, 0, -4.0)
 	_shape(_cyl(0.14, 1.8, 8, 0.04), BONE, tusk + Vector3(0, 2.1, 0), Vector3(0, 0, 70))
@@ -818,6 +824,27 @@ func _build_cave() -> void:
 	_hearts.initial_velocity_max = 1.8
 	_hearts.position = _pup.position + Vector3(0, 0.7, 0)
 	add_child(_hearts)
+
+
+## THE OBSIDIAN MIRROR (shelter/mirror.gd), by the back wall, facing out.
+## `fresh`: just made at the workbench: it shines, it's READY.
+func _build_mirror(fresh: bool) -> void:
+	if _mirror != null:
+		return
+	_mirror = Mirror.new()
+	_mirror.home = self
+	_mirror.position = CAVE + Vector3(2.3, 0, -3.9)
+	add_child(_mirror)
+	_mirror.build(fresh)
+	_mirror.closed.connect(func() -> void: _focus = 0.6)
+	_blocks.append([Vector2(_mirror.position.x, _mirror.position.z), 0.55])
+	var st: Vector3 = _mirror.stand_point()
+	_spot("mirror", st)
+
+
+## The face studio is open at the mirror.
+func _at_mirror() -> bool:
+	return _mirror != null and _mirror.is_open
 
 
 func _paint_beast(at: Vector3, s: float) -> void:
@@ -1382,6 +1409,7 @@ func _spot(id: String, at: Vector3) -> void:
 	l.modulate = Color("ffe066")
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	l.no_depth_test = true
+	l.layers = Mirror.LAYER_LABELS            # (not seen in the mirror)
 	l.visible = false
 	l.position = Vector3(at.x, maxf(height(at.x, at.z), 0.6) + 2.7, at.z)
 	add_child(l)
@@ -1572,6 +1600,8 @@ func use() -> void:
 			_open_menu("THE STORE CORNER", "Everything brought home, in baskets and pots.", Color("6cc4ff"), _store_rows)
 		"paint":
 			_open_menu("THE PAINTED WALL", "Every mystery he has met, in ochre.", Color("e0663a"), _paint_rows)
+		"mirror":
+			_mirror.open()
 		"pier":
 			_cast()
 		_:
@@ -1704,6 +1734,9 @@ func _bench_rows() -> Array:
 		var miss := "" if made_for_good else Bag.missing(_rig, id)
 		rows.append(["%s  (%s)" % [Bag.name_of(id), ", ".join(parts)], "made" if made_for_good else ("make" if miss == "" else miss), not made_for_good and miss == "", func():
 			Bag.craft(_rig, id)
+			if id == "mirror":
+				_build_mirror(true)
+				return "Rub, rub, rub... the OBSIDIAN MIRROR is READY! It stands by the back wall: go and look!"
 			return "Made: %s!" % Bag.name_of(id)])
 	return rows
 
@@ -1834,7 +1867,7 @@ func _reel() -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	var dir := Vector3.ZERO
-	if _fish_state == "" and _menu == null:
+	if _fish_state == "" and _menu == null and not _at_mirror():
 		if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
 			dir.x -= 1.0
 		if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT):
@@ -1851,6 +1884,7 @@ func _animate(delta: float) -> void:
 	_focus = maxf(_focus - delta, 0.0)
 	_say_t = maxf(_say_t - delta, 0.0)
 	_say.modulate.a = clampf(_say_t / 0.4, 0.0, 1.0)
+	_hint.visible = not _at_mirror()
 	if _say_t <= 0.0 and _toolmaker != null:
 		_toolmaker.speaking = false
 	_flare = maxf(_flare - delta, 0.0)
@@ -2003,6 +2037,14 @@ func walk(dir: Vector3, delta: float) -> void:
 	for spot in _spots:
 		if spot[0] == _near and _near != "":
 			_model.look_at_point = (spot[2] as Node3D).global_position if spot[2] != null else Vector3(spot[1].x, _pos.y + 1.2, spot[1].y)
+	if _at_mirror():
+		# at the mirror: he steps up to the glass, faces it, looks at himself
+		var st: Vector3 = _mirror.stand_point()
+		_pos.x = lerpf(_pos.x, st.x, minf(1.0, delta * 6.0))
+		_pos.z = lerpf(_pos.z, st.z, minf(1.0, delta * 6.0))
+		var gm: Vector3 = _mirror.glass_mid()
+		_model.rotation.y = lerp_angle(_model.rotation.y, atan2(gm.x - _pos.x, gm.z - _pos.z), minf(1.0, delta * 8.0))
+		_model.look_at_point = gm
 	_model.position = _pos
 	_glow_light.position = _pos + Vector3(0, 1.7, 1.2)
 	_glow_light.light_energy = lerpf(0.25, 0.9, _night)
@@ -2015,6 +2057,14 @@ func walk(dir: Vector3, delta: float) -> void:
 	off.y *= lerpf(1.0, 0.55, close)                         # close up: lower, more face than top of the head
 	var aim := _pos + _lead + Vector3(0, 1.0, -1.6).lerp(Vector3(0, 1.45, 0), close)
 	var cam_want := _pos + _lead + off
+	# the face studio: the camera eases round over his shoulder, onto the glass
+	_studio_k = move_toward(_studio_k, 1.0 if _at_mirror() else 0.0, delta * 1.4)
+	if _studio_k > 0.0 and _mirror != null:
+		var sk := _studio_k * _studio_k * (3.0 - 2.0 * _studio_k)
+		var sc: Array = _mirror.studio_camera()
+		cam_want = cam_want.lerp(sc[0], sk)
+		aim = aim.lerp(sc[1], sk)
+		_cam.fov = lerpf(42.0, 36.0, sk)
 	_cam.position = _cam.position.lerp(cam_want, minf(1.0, delta * 3.5)) if _t > 0.1 else cam_want
 	_cam.look_at(aim)
 

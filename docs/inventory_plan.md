@@ -117,7 +117,7 @@ Each part has a cost, a perk (in EVERY level) and tiers that later materials imp
 | TROPHY WALL | relics, boss trophies | each relic a perk (below) | |
 | PAINTED WALL | red ochre | every solved MYSTERY appears as a cave painting: the game's story book | |
 | WINDOW | 3 quartz | morning light: +5 s of SUNFIRE | glaze (L5) |
-| OBSIDIAN MIRROR | 2 obsidian | secret doors shimmer (like the charm, for rooms) | |
+| OBSIDIAN MIRROR | 2 obsidian, 2 bones, 1 clay (BUILT: `shelter/mirror.gd`) | THE FACE STUDIO: at home he looks in and the player makes his faces; later: secret doors shimmer (like the charm, for rooms) | |
 | SPIRIT TREE | spirit orbs | the orb shop: permanent upgrades | grows a branch per age |
 
 Relic perks (on the trophy wall): moonstone (torch burns 20% longer), glow crystal (caves a little

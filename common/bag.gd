@@ -86,10 +86,11 @@ const ITEMS := {
 	"clay": ["CLAY", "STONES", 0, "Sticky red mud. It holds things together.", "Walls and healing salve.", "Common: it comes up as you dig dirt, every visit. The clay pit is full of it."],
 	"pyrite": ["FIRE-GOLD", "STONES", 1, "Shiny like gold, but it isn't. Hit it with flint: SPARKS!", "The spark kit.", "Dig deep rock and striped stone."],
 	"quartz": ["QUARTZ", "STONES", 2, "Clear as ice. It catches the light.", "The lucky charm.", "Dig hard grey stone."],
-	"obsidian": ["OBSIDIAN", "STONES", 3, "Black glass, from deep under the fire mountain.", "The obsidian edge.", "Very rare. Dig deep into hard stone."],
+	"obsidian": ["OBSIDIAN", "STONES", 3, "Black glass, from deep under the fire mountain.", "The obsidian edge, the mirror.", "Very rare. Dig deep into hard stone."],
 	"wood": ["WOOD", "BUILD", 0, "Dry dead wood, tied in a bundle.", "Two make a fire. One makes a ladder.", "Hit dead trees."],
 	"bones": ["BONES", "BUILD", 0, "Old bones. Strong and light.", "The shelter, flint tips, ladders, the obsidian edge.", "Beasts and old bone piles, every visit."],
 	"wall": ["STONE WALL", "BUILD", 0, "Rocks stuck together with clay. Big beasts can't get past.", "HIT: a wall goes up in front of you. It crumbles after 30 seconds.", "Make it: CRAFT."],
+	"mirror": ["OBSIDIAN MIRROR", "BUILD", 3, "Black glass rubbed smooth with sand, in a frame of bones on a clay foot. Look: it's YOU!", "At home: it stands in his cave. Go up to it and make FACES.", "Make it: CRAFT (at home, the workbench)."],
 	"ladder": ["BONE LADDER", "BUILD", 0, "Bones tied up with wood. Up we go!", "HIT: a ladder stands where you are. Jump up the rungs.", "Make it: CRAFT."],
 	"berries": ["BERRIES", "FOOD", 0, "Sweet and juicy.", "Eaten by themselves when you're hurt. Also: healing salve.", "Bushes and vines."],
 	"figs": ["ROAST FIGS", "FOOD", 0, "Warm from the fire. Yum.", "H (or HIT in the hotbar): two hearts back.", "Roast them by a fire."],
@@ -101,7 +102,7 @@ const ITEMS := {
 ## Things HIT uses from the hotbar (they join it when he has some).
 const HOTBAR := ["tips", "salve", "wall", "ladder", "spark", "trap"]
 ## Made once, kept for good: id -> GameState item
-const FOREVER := {"edge": "obsidian_edge", "charm": "lucky_charm"}
+const FOREVER := {"edge": "obsidian_edge", "charm": "lucky_charm", "mirror": "obsidian_mirror"}
 
 ## [makes, how many, needs {id: n}]
 const RECIPES := [
@@ -112,6 +113,7 @@ const RECIPES := [
 	["spark", 1, {"flint": 1, "pyrite": 1}],
 	["edge", 1, {"obsidian": 2, "flint": 1, "bones": 2}],
 	["charm", 1, {"quartz": 2, "bones": 1}],
+	["mirror", 1, {"obsidian": 2, "bones": 2, "clay": 1}],
 ]
 
 
@@ -272,7 +274,7 @@ static func _spend(p: CaveMan, id: String, n: int) -> void:
 			p.berries_changed.emit(p.berries)
 		"bones":
 			GameState.bones -= n
-			var h := p.get_tree().get_first_node_in_group("hud") as Hud
+			var h := p.get_tree().get_first_node_in_group("hud") as Hud if p.is_inside_tree() else null      # (at home the rig is not in the tree)
 			if h != null:
 				h.set_bones(GameState.bones)
 		_:
@@ -779,6 +781,14 @@ static func draw_icon(ci: CanvasItem, id: String, c: Vector2, s: float, t: float
 			ci.draw_line(Vector2(11, -8), Vector2(2, 2), Color("846141"), 2.0)
 			ci.draw_colored_polygon(PackedVector2Array([Vector2(-5, 4), Vector2(0, -3), Vector2(5, 4), Vector2(0, 17)]), Color("bfe8f2"))
 			ci.draw_line(Vector2(-2, 4), Vector2(0, 13), Color(1, 1, 1, 0.8), 1.5)
+		"mirror":
+			ci.draw_rect(Rect2(-9, 11, 18, 6), Color("b8643a"))                # the clay foot
+			ci.draw_set_transform(c, 0.0, Vector2(s * 0.78, s))
+			ci.draw_circle(Vector2(0, -3), 13.5, Color("efe4c8"))               # the bone frame
+			ci.draw_circle(Vector2(0, -3), 11.0, Color("1a1424"))               # the black glass
+			ci.draw_set_transform(c, 0.0, Vector2(s, s))
+			ci.draw_line(Vector2(-5, -10), Vector2(-1, -14), Color(0.85, 0.8, 1.0, 0.9), 2.0)
+			ci.draw_circle(Vector2(4, 2), 1.2 + absf(sin(t * 2.5)) * 1.3, Color(1, 1, 1, 0.9))
 		_:
 			ci.draw_circle(Vector2.ZERO, 10.0, Color.GRAY)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
