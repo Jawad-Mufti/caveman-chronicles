@@ -31,6 +31,7 @@ const Builds := preload("res://shelter/builds.gd")
 const RelicHome := preload("res://shelter/relic_home.gd")
 const Visits := preload("res://shelter/visits.gd")
 const Fishing := preload("res://shelter/fishing.gd")
+const Sea := preload("res://shelter/sea.gd")
 const Organic := preload("res://shelter/organic.gd")
 const Look := preload("res://shelter/world_look.gd")
 
@@ -45,6 +46,7 @@ const JUMP2 := 7.0               ## again in the air: a somersault
 ## Render layers the fire lights skip (in Compatibility a light draws everything it
 ## touches again: the sea and the grass are huge): the sun still lights them.
 const LAYER_WATER := 1 << 1
+const SEA_R := 86.0              ## how far out he may swim
 const LAYER_GRASS := 1 << 2
 const CAM_FAR := Vector3(0, 7.0, 10.5)
 const CAM_NEAR := Vector3(0, 3.6, 6.0)
@@ -96,7 +98,7 @@ var _era := 1
 var _model: Node3D               ## Ugu, in 3D (shelter/ugu3d.gd)
 var _paper := false              ## P swaps: the 3D figure / the paper cut-out of his 2D rig
 var _rig: CaveMan                ## his 2D rig, never shown: what Bag asks about him (counts, crafting)
-var _fish := 0                   ## fish caught this visit, to cook
+var _fish := 0                   ## fish he carries (shelter/fishing.gd keeps it), to grill at the fire
 var _glow_light: OmniLight3D     ## his own soft light
 var _occluders: Array = []       ## [node, (x, z), radius, materials, alpha]: they fade when in front of him
 var _pos := Vector3(0, 0, -8)
@@ -144,6 +146,8 @@ var _splash: CPUParticles3D
 var _systems: Array = []         ## nature, builds, relics, visits (shelter/*.gd): built in _ready, asked on E
 var _titles := {}                ## spots the systems made: id -> [title, line]
 var _pads: Array = []            ## what he can stand on besides the ground (add_pad)
+var _sea: Node                   ## the sea (shelter/sea.gd): swimming, diving
+var _fishing: Node               ## the fishing (shelter/fishing.gd): the catch, the grill
 var _holder: Node = null         ## a system holding him (hammock, ladder): its hold_step(delta) places him
 var _mirror: Node3D              ## the obsidian mirror (shelter/mirror.gd), once he has made it
 var _studio_k := 0.0            ## 0 .. 1: the camera on a view of its own (the mirror, the fishing)
@@ -162,7 +166,7 @@ func _ready() -> void:
 	while z < R + 20.0 and height(6.0, z) > 0.45:
 		z += 0.25
 	PIER = Vector2(6.0, z - 1.5)
-	for kind in [Nature, Builds, RelicHome, Visits, Fishing]:        # (made first: they keep their ground clear of trees)
+	for kind in [Nature, Builds, RelicHome, Visits, Fishing, Sea]:        # (made first: they keep their ground clear of trees)
 		var s: Node3D = kind.new()
 		s.home = self
 		_systems.append(s)
@@ -177,6 +181,11 @@ func _ready() -> void:
 	_build_plaza()
 	_build_pier()
 	_build_sky_life()
+	for s4 in _systems:
+		if s4.has_method("swim_step"):
+			_sea = s4
+		if s4.has_method("grill"):
+			_fishing = s4
 	for s2 in _systems:
 		add_child(s2)
 		s2.build()
@@ -255,6 +264,7 @@ func height(x: float, z: float) -> float:
 	var d := Vector2(x, z).length() + warp
 	var land := 1.7 + _noise.get_noise_2d(x, z) * 0.9 + _noise2.get_noise_2d(x, z) * 0.2
 	var h := lerpf(land, -2.4, smoothstep(R - 12.0, R + 2.0, d))
+	h -= smoothstep(R - 2.0, R + 20.0, d) * (6.0 + _noise2.get_noise_2d(x * 0.3, z * 0.3) * 2.5)     # the sea floor falls away: deep enough to dive (shelter/sea.gd)
 	# the ridge in the north: a cliff face around z -22, high behind
 	var ridge := smoothstep(-20.0, -26.0, z) * (1.0 - smoothstep(26.0, 40.0, absf(x + 4.0)))
 	h += ridge * (11.0 + _noise.get_noise_2d(x * 2.0, z * 2.0) * 3.0)
@@ -1737,18 +1747,11 @@ func use() -> void:
 		"bed":
 			_sleep()
 		"fire":
-			if _fish > 0:
-				_fish -= 1
-				_flare = 1.2
-				if GameState.figs < GameState.fig_max():
-					GameState.figs += 1
-					GameState.save()
-					say("Fish on the fire... sizzle... a hot meal for the road!  (+1 fig)")
-				else:
-					say("Fish on the fire... he eats it right here. Yum. (Your fig pouch is full.)")
+			if _fishing != null and _fishing.grill():
+				pass                                 # a fish he carries: on a stick, over the fire (shelter/fishing.gd)
 			else:
 				_flare = 2.5
-				say("WHOOMPH!  (Catch a fish at the pier: cook it here for the road.)")
+				say("WHOOMPH!  (Catch a fish at the pier, carry it here, and GRILL it!)")
 			_focus = 1.2
 		"pup":
 			_fetch()
@@ -2009,17 +2012,6 @@ func _sleep() -> void:
 	tw.tween_property(_fade, "color:a", 0.0, 0.9)
 
 
-## A fish he caught (shelter/fishing.gd): one more to cook at the fire, and it
-## hangs on the drying rack in its own colours, bigger for a bigger fish.
-func hang_fish(col: Color, size := 1.0) -> void:
-	_fish_caught += 1
-	_fish += 1
-	var dry: Vector3 = _drying_fish[0]
-	var k := _fish_caught
-	var s := clampf(size, 0.6, 1.8)
-	_shape(_ball(0.14, 6), col, dry + Vector3(-0.85 + (k % 6) * 0.3, 1.25, 0.08), Vector3.ZERO, Vector3(0.6, 1.8, 0.4) * s)
-
-
 ## ------------------------------------------------------------------ the 3D's resolution, fitted
 ## On a weak GPU (a laptop's own Radeon: the home is pixel-bound there) the 3D
 ## is drawn smaller and stretched, the UI stays sharp: every 2 s, if one frame in
@@ -2170,6 +2162,8 @@ func walk(dir: Vector3, delta: float) -> void:
 		_model.position = _pos
 		_camera(delta)
 		return
+	if _sea != null and _sea.swim_step(dir, delta):
+		return                                   # in the sea: swimming, diving (shelter/sea.gd)
 	var moving := dir.length() > 0.01
 	if moving:
 		dir = dir.normalized()
@@ -2288,6 +2282,10 @@ func _camera(delta: float) -> void:
 		cam_want = cam_want.lerp(sc[0], sk)
 		aim = aim.lerp(sc[1], sk)
 		_cam.fov = lerpf(42.0, float(sc[2]) if sc.size() > 2 else 36.0, sk)
+	if _sea != null:
+		var under: Array = _sea.camera(cam_want, aim, delta)     # (diving: the camera goes under with him)
+		cam_want = under[0]
+		aim = under[1]
 	_cam.position = _cam.position.lerp(cam_want, minf(1.0, delta * 3.5)) if _t > 0.1 else cam_want
 	_cam.look_at(aim)
 
@@ -2311,7 +2309,11 @@ func _free(p: Vector2) -> bool:
 	if pt > -INF:
 		return pt <= _pos.y + 0.35                 # on (or over) a pad; from below it is a wall
 	var gh := height(p.x, p.y)
-	return gh > 0.0 and gh < _pos.y + 1.2 and p.length() < R
+	if gh <= 0.0:
+		if p.distance_to(Vector2(POOL.x, POOL.z)) < 5.5 or _seg_dist(p, Vector2(POOL.x, POOL.z), Vector2(62, -2)) < 2.6 and p.length() < R - 4.0:
+			return false                           # the pool and the stream: not to wade through (the Bone Bridge crosses it)
+		return p.length() < SEA_R                  # the sea: he wades in, then swims (shelter/sea.gd)
+	return gh < _pos.y + 1.2 and p.length() < SEA_R
 
 
 func _on_pier(p: Vector2) -> bool:

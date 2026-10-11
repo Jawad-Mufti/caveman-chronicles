@@ -18,6 +18,9 @@ const PX_PER_M := 160.0              ## his 3D speeds in the rig's pixels
 var speed := 0.0                     ## 0 standing .. 1 running (set by the game)
 var sprint := 0.0                    ## (the 3D figure's: unused on paper)
 var look_at_point := Vector3.INF
+var swim := 0.0
+var dive := 0.0
+var dive_dir := 0.0
 var rod_pose := -1.0                    ## (the 3D figure's fishing pose: not on paper)
 var air := false
 var era := 2
@@ -111,3 +114,7 @@ func hand() -> Node3D:
 
 func show_weapon(_on: bool) -> void:
 	pass
+
+
+func hand_l() -> Node3D:
+	return null

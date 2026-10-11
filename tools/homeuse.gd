@@ -4,7 +4,7 @@ extends Node
 ## Kekko's menu sells a fig and a stone and buys a gem, the Toolmaker's menu
 ## sells an upgrade, the workshop shows the bag (and won't make the mirror
 ## without obsidian), the bed turns night to
-## day and saves, a fish is caught at the pier and cooked at the fire (+1
+## day and saves, a fish is caught at the pier, carried and grilled at the fire (+1
 ## fig), the pup fetches. Headless is fine.
 var home: Node3D
 var fails := 0
@@ -125,12 +125,20 @@ func _run() -> void:
 		waited += 1
 	fs.reel_hold = false
 	await frames(2)
-	check("the pier: cast, a bite, the fight: a fish", fs.state == "catch" and home._fish == 1, "%s, %d to cook" % [fs.state, home._fish])
+	check("the pier: cast, a bite, the fight: a fish", fs.state == "catch", fs.state)
 	fs.release()
-	await frames(2)
+	await frames(50)
+	var at: Vector3 = fs.drops[0][4] if not fs.drops.is_empty() else home._pos
+	home._pos = Vector3(at.x, 0.66, at.z)                 # (walk over it: picked up)
+	await frames(10)
+	check("it lands on the deck; walked over: carried", home._fish == 1, "%d carried" % home._fish)
 	var f0 := GameState.figs
 	await use_at("fire")
-	check("the fire: the fish cooked, +1 fig", GameState.figs == f0 + 1 and home._fish == 0, "figs %d -> %d" % [f0, GameState.figs])
+	while fs.state == "grill" and fs.cook < 0.65:
+		await frames(1)
+	home.use()                                            # golden: off the fire
+	await frames(200)
+	check("the fire: grilled and eaten, +1 fig", GameState.figs == f0 + 1 and home._fish == 0, "figs %d -> %d" % [f0, GameState.figs])
 	# fetch
 	await use_at("pup")
 	var t := 0

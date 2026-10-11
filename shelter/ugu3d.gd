@@ -381,6 +381,7 @@ const EXPRESSIONS := {
 	"sleepy": {"open": 0.04, "smile": 0.15, "brow": 0.2, "knit": -0.3, "lid": 0.62},
 	"sad": {"open": 0.08, "smile": -0.9, "wide": -0.2, "brow": 0.35, "knit": -1.0, "lid": 0.35, "pupil": 1.12, "tilt": -0.08},
 	"angry": {"open": 0.85, "smile": -0.4, "wide": 0.8, "teeth": 1.0, "span": 1.0, "teeth_lo": 1.0, "brow": -0.5, "knit": 1.0, "squint": 0.35, "pupil": 0.8},
+	"breath": {"open": 0.1, "smile": 0.2, "wide": -1.25, "brow": 0.55, "knit": -0.2, "lid": 0.0, "pupil": 1.1},
 	"proud": {"smile": 0.9, "smirk": 0.5, "brow": 0.1, "brow_r": 0.3, "lid": 0.38, "squint": 0.4, "tilt": -0.07},
 }
 
@@ -418,6 +419,11 @@ var _emote_t := 0.0
 var _pose := {}                         ## a face made by hand (pose_face): it wins over everything
 var rod_pose := -1.0                    ## fishing (shelter/fishing.gd): < 0 not; 0 .. 1 how hard he pulls on the line
 var _grip: Node3D                       ## his weapon in his fist
+var _hand_l: Node3D
+var swim := 0.0                         ## 0 .. 1 swimming at the surface (shelter/sea.gd)
+var dive := 0.0                         ## 0 .. 1 under water, diving
+var dive_dir := 0.0                     ## -1 going up .. 1 going down (head first)
+var _swim_ph := 0.0
 var _wince := 0.0
 var _fall_t := 0.0
 var _curious := 0.0
@@ -670,6 +676,7 @@ func _build_arms() -> void:
 		if side < 0.0:
 			_arm_l = arm
 			_elbow_l = elbow
+			_hand_l = hand
 		else:
 			_arm_r = arm
 			_elbow_r = elbow
@@ -1306,6 +1313,10 @@ func pose_face(dials: Dictionary) -> void:
 func hand() -> Node3D:
 	return _hand_r
 
+## His left fist (to carry things: the fish he caught).
+func hand_l() -> Node3D:
+	return _hand_l
+
 
 func show_weapon(on: bool) -> void:
 	if _grip != null and is_instance_valid(_grip):
@@ -1371,6 +1382,16 @@ func _process(delta: float) -> void:
 	pose = _blend(pose, rise, _air_k)
 	var tuck := sin(clampf(_flip, 0.0, 1.0) * PI) if _flip >= 0.0 else 0.0
 	pose = _blend(pose, PackedFloat32Array([-1.7, -1.7, 2.2, 2.2, -0.9, -0.25, -0.9, 0.25, -1.7, -1.6, 0.0, 0.0]), tuck)
+	# swimming: a doggy paddle, head up; under water: a frog stroke, head first
+	if swim > 0.0 or dive > 0.0:
+		_swim_ph += dt * (3.2 + 4.0 * run)
+		var sp := sin(_swim_ph)
+		var kick := sin(_swim_ph * 1.7)
+		var paddle := PackedFloat32Array([-0.15 + 0.35 * kick, -0.15 - 0.35 * kick, 0.35 + 0.25 * sp, 0.35 - 0.25 * sp, -2.0 + 0.7 * sp, -0.35, -2.0 - 0.7 * sp, 0.35, -0.9, -0.9, 0.85, 0.0])
+		var kk := 0.5 + 0.5 * sp
+		var stroke := PackedFloat32Array([-0.2 + 0.3 * kick, -0.2 - 0.3 * kick, 0.4, 0.4, lerpf(-3.0, -1.7, kk), lerpf(-0.15, -1.1, kk), lerpf(-3.0, -1.7, kk), lerpf(0.15, 1.1, kk),
+			lerpf(-0.2, -1.2, kk), lerpf(-0.2, -1.2, kk), 1.35 + 0.35 * dive_dir, 0.0])
+		pose = _blend(pose, _blend(paddle, stroke, clampf(dive, 0.0, 1.0)), clampf(maxf(swim, dive), 0.0, 1.0))
 	# the landing bends his knees
 	var sq := maxf(_sq, 0.0)
 	pose[0] -= sq * 0.9
@@ -1444,6 +1465,10 @@ func _pick_mood(run: float, fast: float, yawn: float) -> String:
 		return "pose"
 	if _emote_t > 0.0:
 		return _emote
+	if dive > 0.5:
+		return "breath"                      # (cheeks full: holding his breath)
+	if swim > 0.5:
+		return "happy"
 	if _flip >= 0.0:
 		return "whee"
 	if _cheer > 0.0:

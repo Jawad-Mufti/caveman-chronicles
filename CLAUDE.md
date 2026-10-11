@@ -70,6 +70,9 @@ bag on a leather mat, cards to MAKE things for the cave: `Bag.HOME_RECIPES`, not
 at home, the relic shelf, NEW!), `nature.gd` (flowers, butterflies, rainbow, the Moonpuff grove, Star Rock, the wish), `visits.gd`
 (the welcome card, the pup's find), `fishing.gd` (FISHING with the FISHING STICK, made at the workshop: cast meter, nibbles, the
 bite, the tension fight, 7 species + junk, the catch card, THE FISH LOG; it holds Ugu (`held_use`, `studio_camera`));
+the catch lands on the deck, he carries it (a cord in his left fist) to the cave fire: THE GRILL (raw / perfect / burnt), he
+eats it), `sea.gd` (SWIMMING and DIVING: SPACE dives; the underwater world (seabed, kelp, corals, fish, the sunken
+mammoth, the giant clam, shells) is only drawn while he swims; the camera goes under; breath; the pier ladder);
 `GameState.shelter` keeps their state; docs/shelter_plan.md "Build order").
 
 ## Conventions
@@ -161,7 +164,7 @@ Screenshots: `<godot> --rendering-driver opengl3 --fixed-fps 60 --path . res://t
 [nodark] [notorch] [freeze]` (PNGs to `C:/tmp/shots`; name it `topic/shot` for a folder).
 Regression set: smoke, jumps, vines, story, boss, finale, econ, bones, loot, landing, caves, sky, airjump,
 wolves, talk, tarpits, hoards, sunfire, boulder, stomp, explore, dig, mountain, dash, getup, canyon, falls,
-steppe, leak, grab, gorgechest, orbs, mtbeasts, combat, aim, swarm, combos, hotbar, weapons, slowmo, soak, bag, windbreak, errands, one_eye, airkick, loadflow (+ `-- second`), homeflow, homeuse, ugu3dface, mirror (`-- pics` with rendering), shelter (pictures: `homesights -- all nocard`), fishing (`-- pics`).
+steppe, leak, grab, gorgechest, orbs, mtbeasts, combat, aim, swarm, combos, hotbar, weapons, slowmo, soak, bag, windbreak, errands, one_eye, airkick, loadflow (+ `-- second`), homeflow, homeuse, ugu3dface, mirror (`-- pics` with rendering), shelter (pictures: `homesights -- all nocard`), fishing (`-- pics`), sea (`-- pics nocard`).
 Tests save to `user://caveman_save_test.json` (`GameState.save_path()`): never the player's save.
 EXPECTED failures (not bugs): `vines` "three swings, let go late" MISS; `landing` prints 12 "no ground
 under" lines; `canyon rocks`/`stones` fail ~1 in 4 (bats); `combos` slam dunk and `grab` (knocked out of reach) fail ~1 in 3.

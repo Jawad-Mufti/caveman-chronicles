@@ -75,6 +75,16 @@ var _line_b: MeshInstance3D
 var _bobber: Node3D
 var _fishy: Node3D
 var _hud: CanvasLayer
+var _caught_fish: Array = []                       ## [species row, size]: the catch in his hands, to drop on the deck
+var drops: Array = []                              ## fish flopping on the deck: [node, species row, size, phase]
+var carried: Array = []                            ## fish on his cord: [node, species row, size]
+var _cord: Node3D
+var cook := 0.0                                    ## the grill: 0 raw .. 1 burnt
+var _grilled: Array = []                           ## [node, species row, size] on the stick
+var _stick: Node3D
+var _fire_at := Vector3.ZERO
+var grills := {"perfect": 0, "raw": 0, "burnt": 0}  ## (tests read it)
+const PERFECT := Vector2(0.55, 0.8)                ## the cook meter: golden between these
 var _rng := RandomNumberGenerator.new()
 
 
@@ -210,6 +220,10 @@ func _start() -> void:
 
 ## Puts the stick down: back to walking about.
 func release() -> void:
+	if state == "grill" or state == "eat":
+		_grill_done(true)
+		return
+	_drop_catch()
 	state = ""
 	home._holder = null
 	home._model.rod_pose = -1.0
@@ -240,10 +254,13 @@ func held_use() -> void:
 			else:
 				home.say("Nothing yet. Wait till the bobber goes right UNDER!")
 				_wait += 0.6
+		"grill":
+			_take_off()
 		"bite":
 			hook()
 		"catch", "lost":
 			if _st > 0.35:
+				_drop_catch()
 				_to("aim")
 
 
@@ -254,7 +271,7 @@ func _input(e: InputEvent) -> void:
 	if k == KEY_ESCAPE or k == KEY_Q:
 		release()
 		get_viewport().set_input_as_handled()
-	elif k in [KEY_W, KEY_S, KEY_A, KEY_D, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT] and state in ["aim", "wait", "catch", "lost"]:
+	elif k in [KEY_W, KEY_S, KEY_A, KEY_D, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT] and state in ["aim", "wait", "catch", "lost"]:      # (not while grilling)
 		release()
 
 
@@ -394,6 +411,9 @@ func _lose(why: String) -> void:
 ## ------------------------------------------------------------------ held: every frame
 func hold_step(delta: float) -> void:
 	_st += delta
+	if state == "grill" or state == "eat":
+		_grill_step(delta)
+		return
 	var m: Node3D = home._model
 	home._pos = where()
 	m.rotation = Vector3(0, 0, 0)                            # facing out to sea (+z)
@@ -641,7 +661,7 @@ func _land() -> void:
 			GameState.bones += 25
 			reward = "THE LEGEND! His jaw goes on the TROPHY TOTEM. +25 BONES."
 	GameState.save()
-	home.hang_fish(_fish[3], 0.7 + _size_k() * 0.8)
+	_caught_fish = [_fish, _size]                         # (it lands on the deck when he casts again or puts the stick down)
 	caught = {"fish": _fish, "cm": cm, "new": fresh, "record": record, "reward": reward}
 	var big := int(_fish[2]) >= 2 or _size_k() > 0.75
 	home._model.emote("whee" if big else "happy", 2.2)
@@ -665,6 +685,8 @@ func busy() -> bool:
 
 ## ------------------------------------------------------------------ the camera: out over the sea
 func studio_camera() -> Array:
+	if state == "grill" or state == "eat":
+		return [_fire_at + Vector3(2.4, 2.2, 3.6), _fire_at + Vector3(0, 0.9, 0.8), 46.0]
 	var me := where()
 	var look := me + Vector3(0, 0.6, 8.0)
 	if state in ["wait", "bite", "fight"]:
@@ -673,6 +695,280 @@ func studio_camera() -> Array:
 		look = me + Vector3(0, 2.2, 1.0)
 	return [me + Vector3(-2.6, 3.3, -4.8), look, 50.0]
 
+
+## ------------------------------------------------------------------ the catch on the deck, the cord
+## The fish he holds up lands on the deck behind him, flopping.
+func _drop_catch() -> void:
+	if _caught_fish.is_empty():
+		return
+	var row: Array = _caught_fish[0]
+	var size: float = _caught_fish[1]
+	_caught_fish = []
+	var n: Node3D = _fishy
+	_fishy = null
+	if n == null:
+		_fish = row
+		_size = size
+		_make_fishy()
+		n = _fishy
+		_fishy = null
+	var k := drops.size() % 5
+	var spot := where() + Vector3(-0.5 + (k % 3) * 0.5, 0.0, -1.5 - (k / 3) * 0.8)
+	spot.y = DECK + 0.1
+	var from := n.global_position
+	n.create_tween().tween_method(func(q: float) -> void: n.global_position = from.lerp(spot, q) + Vector3(0, sin(q * PI) * 1.3, 0), 0.0, 1.0, 0.6)
+	n.scale = Vector3.ONE * (0.55 / clampf(size / 100.0, 0.25, 2.4))       # (on the deck: big enough to see)
+	drops.append([n, row, size, _rng.randf() * TAU, spot, home._t])
+	pop_word("FLOP!", spot + Vector3(0, 0.9, 0), Color("bfe3ff"), 56)
+
+
+## Walking over a fish on the deck: onto the cord in his left fist (five at most).
+func _take_up(d: Array) -> void:
+	drops.erase(d)
+	var n: Node3D = d[0]
+	if _cord == null or not is_instance_valid(_cord):
+		_cord = Node3D.new()
+		var lh: Node3D = home._model.hand_l()
+		if lh != null:
+			lh.add_child(_cord)
+			_cord.position = Vector3(0, -0.06, 0.02)
+		else:
+			home._model.add_child(_cord)
+			_cord.position = Vector3(-0.35, 0.95, 0.1)
+	var gp := n.global_position
+	n.get_parent().remove_child(n)
+	_cord.add_child(n)
+	n.global_position = gp
+	var i := carried.size()
+	var s := 0.5 / clampf(float(d[2]) / 100.0, 0.25, 2.4)               # (a carried fish: big enough to see, whatever it was)
+	var tw := n.create_tween().set_parallel(true)
+	tw.tween_property(n, "position", Vector3(-0.03 + i * 0.06, -0.42, 0.03 * i), 0.25)
+	tw.tween_property(n, "rotation", Vector3(PI * 0.5, 0, 0.2 * (i - 2)), 0.25)          # hung by the tail, head down
+	tw.tween_property(n, "scale", Vector3.ONE * s, 0.25)
+	carried.append([n, d[1], d[2]])
+	pop_word("GOT IT!", n.global_position + Vector3(0, 1.0, 0), Color("ffe066"), 60)
+	home._model.emote("happy", 0.8)
+	if not GameState.shelter.get("grilled", false):
+		home.say("A fish! Carry it to the FIRE in the cave, and GRILL it!")
+
+
+func _process(delta: float) -> void:
+	if home == null:
+		return
+	var t: float = home._t
+	var me := Vector2(ugu().x, ugu().z)
+	for d in drops.duplicate():
+		var n: Node3D = d[0]
+		if not is_instance_valid(n):
+			drops.erase(d)
+			continue
+		var ph: float = d[3]
+		var at: Vector3 = d[4]
+		if t - float(d[5]) < 0.65:
+			continue                                         # (still flying onto the deck)
+		n.position.y = at.y + absf(sin(t * 7.0 + ph)) * 0.14                  # flop, flop
+		n.rotation = Vector3(0, ph + sin(t * 2.0 + ph) * 0.4, PI * 0.5 + sin(t * 9.0 + ph) * 0.6)
+		if state == "" and home._holder == null and carried.size() < 5 and me.distance_to(Vector2(at.x, at.z)) < 1.1:
+			_take_up(d)
+	for c in carried:
+		var cn: Node3D = c[0]
+		if is_instance_valid(cn):
+			cn.rotation.z = sin(t * 6.0 + cn.position.x * 30.0) * 0.25           # (a little wriggle on the cord)
+	home._fish = carried.size()
+
+
+## ------------------------------------------------------------------ THE GRILL (the cave fire)
+## E at the fire with a fish on his cord: onto a stick over the flames. The cook
+## meter runs RAW .. PERFECT (golden) .. BURNT; E takes it off. Then he eats it,
+## bite by bite, and tosses the bones.
+func grill() -> bool:
+	if carried.is_empty() or state != "" or home._holder != null:
+		return false
+	_grilled = carried.pop_back()
+	_fire_at = home.CAVE + Vector3(0, 0, 0.5)
+	home._holder = self
+	home._model.show_weapon(false)
+	cook = 0.0
+	_to("grill")
+	# the stick: from his fist to the fish over the flames (it follows both, every frame)
+	_stick = MeshInstance3D.new()
+	(_stick as MeshInstance3D).mesh = cyl(0.022, 1.0, 6)
+	(_stick as MeshInstance3D).material_override = home._mat(home.WOOD.lightened(0.15))
+	add_child(_stick)
+	var n: Node3D = _grilled[0]
+	var gp := n.global_position
+	n.get_parent().remove_child(n)
+	add_child(n)
+	n.global_position = gp
+	n.scale = Vector3.ONE * (0.5 / clampf(float(_grilled[2]) / 100.0, 0.25, 2.4))
+	var over := _fire_at + Vector3(0.15, 0.95, 0.55)          # (in front of the spit, right over the flames)
+	n.create_tween().tween_property(n, "global_position", over, 0.35)
+	n.rotation = Vector3(0, PI * 0.5, 0)
+	for m in n.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		if mi.material_override is StandardMaterial3D:
+			mi.material_override = (mi.material_override as StandardMaterial3D).duplicate()
+			mi.set_meta("raw", (mi.material_override as StandardMaterial3D).albedo_color)
+	if _hud == null:
+		_hud = CanvasLayer.new()
+		_hud.layer = 3
+		var h := FishHud.new()
+		h.f = self
+		_hud.add_child(h)
+		home.add_child(_hud)
+	home.say("")
+	return true
+
+
+func _grill_step(delta: float) -> void:
+	var m: Node3D = home._model
+	home._pos = _fire_at + Vector3(0.35, 0, 1.75)
+	m.rotation = Vector3(0, PI + 0.15, 0)                   # facing the fire
+	m.look_at_point = _fire_at + Vector3(0, 0.6, 0)
+	if _grilled.is_empty():
+		_grill_done(true)
+		return
+	var n: Node3D = _grilled[0]
+	_stick_between(n.global_position)
+	if state == "grill":
+		cook = minf(1.0, cook + delta / 5.5)
+		m.rod_pose = 0.15 + sin(home._t * 3.0) * 0.05
+		n.rotation.x += delta * 2.5                         # he turns it over the flames
+		_tint(n, cook)
+		if fmod(_st, 0.6) < delta:
+			puff(n.global_position + Vector3(0, 0.15, 0), Color(0.6, 0.6, 0.6, 0.5) if cook < PERFECT.y else Color(0.2, 0.2, 0.2, 0.7), 6, 1.2, false, -0.4)
+		if fmod(_st, 1.3) < delta:
+			pop_word("SIZZLE" if cook < PERFECT.y else "SMOKE!", n.global_position + Vector3(0, 0.6, 0), Color("ffb347") if cook < PERFECT.y else Color("8a8a8a"), 48)
+		home._flare = maxf(home._flare, 0.3)
+		if cook >= 1.0:
+			_take_off()
+	else:
+		# eating: to his mouth, three bites, chewing
+		var head: Vector3 = m.global_transform * Vector3(0, 1.5, 0.42)
+		n.global_position = n.global_position.lerp(head, minf(1.0, delta * 10.0))
+		m.rod_pose = 0.6
+		m.pose_face({"open": 0.55 + 0.45 * sin(_st * 16.0), "smile": 0.5, "squint": 0.5, "brow": 0.3})
+		for b in [0.5, 1.0, 1.5]:
+			if _st - delta < b and _st >= b:
+				n.scale *= 0.68
+				pop_word("NOM!", head + Vector3(0.2, 0.5, 0), Color("ffe066"), 64)
+				puff(head, Color("d9a060"), 6, 1.0)
+		if _st >= 2.1:
+			_ate()
+
+
+## The stick: from his fist to `tip`.
+func _stick_between(tip: Vector3) -> void:
+	if _stick == null or not is_instance_valid(_stick):
+		return
+	var hand: Node3D = home._model.hand()
+	var a: Vector3 = hand.global_position if hand != null else home._pos + Vector3(0.3, 1.2, 0.3)
+	var y := tip - a
+	var len := y.length()
+	if len < 0.01:
+		return
+	var yn := y / len
+	var x := (Vector3.UP if absf(yn.y) < 0.9 else Vector3.RIGHT).cross(yn).normalized()
+	_stick.global_transform = Transform3D(Basis(x, yn * len, x.cross(yn)), (a + tip) * 0.5)
+
+
+func _tint(n: Node3D, k: float) -> void:
+	var golden := Color("d99a3a")
+	var black := Color("2a1a12")
+	for mm in n.find_children("*", "MeshInstance3D", true, false):
+		var mi := mm as MeshInstance3D
+		if not mi.has_meta("raw"):
+			continue
+		var raw: Color = mi.get_meta("raw")
+		var c := raw.lerp(golden, smoothstep(0.0, PERFECT.x + 0.08, k)) if k < PERFECT.y else golden.lerp(black, smoothstep(PERFECT.y, 1.0, k))
+		(mi.material_override as StandardMaterial3D).albedo_color = c
+
+
+## E on the grill: off the fire. How well done it is.
+func _take_off() -> void:
+	if state != "grill":
+		return
+	var how := "perfect" if cook >= PERFECT.x and cook <= PERFECT.y else ("raw" if cook < PERFECT.x else "burnt")
+	grills[how] = int(grills[how]) + 1
+	_to("eat")
+	var at: Vector3 = (_grilled[0] as Node3D).global_position + Vector3(0, 1.0, 0)
+	match how:
+		"perfect":
+			pop_word("PERFECT!", at, Color("ffcf40"), 96)
+			puff(at, Color("ffe680"), 24, 3.0, true)
+		"raw":
+			pop_word("STILL RAW...", at, Color("ff9a9a"), 64)
+		"burnt":
+			pop_word("CHARCOAL!", at, Color("8a8a8a"), 72)
+			puff(at, Color(0.15, 0.15, 0.15, 0.8), 20, 2.0)
+
+
+## Eaten: the bones tossed by the fire, a happy belly, half saved for the road.
+func _ate() -> void:
+	var n: Node3D = _grilled[0]
+	var head: Vector3 = n.global_position          # (where it was eaten)
+	_grilled = []
+	n.queue_free()
+	var how := _last_how()
+	# the bones: a little fish skeleton, thrown down beside the fire
+	var sk := pivot(head)
+	shape(cyl(0.012, 0.32, 4), home.BONE, Vector3.ZERO, Vector3(90, 0, 0), Vector3.ONE, sk)
+	for r in 5:
+		for s: float in [-1.0, 1.0]:
+			shape(cyl(0.007, 0.08, 3), home.BONE, Vector3(s * 0.03, 0, -0.1 + r * 0.05), Vector3(0, 0, s * 70.0), Vector3.ONE, sk)
+	shape(cone(0.04, 0.08, 4), home.BONE, Vector3(0, 0, 0.18), Vector3(90, 0, 0), Vector3.ONE, sk)
+	var land := _fire_at + Vector3(_rng.randf_range(-1.6, -1.0), 0.05, _rng.randf_range(0.6, 1.4))
+	sk.create_tween().tween_method(func(q: float) -> void: sk.global_position = head.lerp(land, q) + Vector3(0, sin(q * PI) * 0.8, 0), 0.0, 1.0, 0.5)
+	get_tree().create_timer(40.0).timeout.connect(sk.queue_free)
+	var lines := {"perfect": "PERFECT! Crispy, golden, smoky. Best fish EVER.", "raw": "Hmm. A bit... squishy. Next time, wait for GOLDEN!", "burnt": "Crunchy. Very crunchy. Black, actually. Next time, take it off sooner!"}
+	var line: String = lines[how]
+	if GameState.figs < GameState.fig_max():
+		GameState.figs += 1
+		line += "  (Half wrapped in a leaf for the road: +1 fig)"
+	if how == "perfect":
+		GameState.shells += 3
+		line += "  +3 shells for a perfect grill!"
+	GameState.save()
+	save_key("grilled", true)
+	home.say(line)
+	puff(home._pos + Vector3(0, 1.8, 0), Color("ff5a7a"), 14, 2.0, true, -0.3)
+	_grill_done(false)
+	home._model.emote({"perfect": "laugh", "raw": "wince", "burnt": "sad"}[how], 1.6)
+
+
+func _last_how() -> String:
+	if cook >= PERFECT.x and cook <= PERFECT.y:
+		return "perfect"
+	return "raw" if cook < PERFECT.x else "burnt"
+
+
+## Off the grill: the stick away; `abort`: the fish back on his cord.
+func _grill_done(abort: bool) -> void:
+	if abort and not _grilled.is_empty():
+		var n: Node3D = _grilled[0]                       # (put down half-grilled: back on his cord)
+		_take_up([n, _grilled[1], _grilled[2], 0.0, n.global_position, 0.0])
+	_grilled = []
+	state = ""
+	home._holder = null
+	home._model.rod_pose = -1.0
+	home._model.pose_face({})
+	home._model.show_weapon(true)
+	if _stick != null and is_instance_valid(_stick):
+		_stick.queue_free()
+	_stick = null
+	if _hud != null:
+		_hud.queue_free()
+		_hud = null
+
+
+## (tests) a fish made out of nothing, to carry.
+func _fishy_for_test() -> Node3D:
+	_fish = SPECIES[0]
+	_size = 20.0
+	_make_fishy()
+	var n := _fishy
+	_fishy = null
+	return n
 
 ## ------------------------------------------------------------------ the screen: the meter, the bite, the tension, the card
 class FishHud extends Control:
@@ -713,6 +1009,10 @@ class FishHud extends Control:
 				_tension(Vector2(cx, vs.y - 92), float(f.tension), float(f._dist), float(f.stamina))
 			"catch":
 				_card(Vector2(vs.x * 0.71, vs.y * 0.45))             # (to one side: the fish he holds up stays in view)
+			"grill":
+				_cook(Vector2(cx, vs.y - 96), float(f.cook))
+			"eat":
+				_say(tf, Vector2(cx, vs.y - 70), "NOM  NOM  NOM", 40, Color("ffe066"))
 			"lost":
 				_say(tf, Vector2(cx, vs.y * 0.36), str(f.lost_word), 40, Color("ffb08a"))
 				_say(tx, Vector2(cx, vs.y * 0.36 + 44), "E: cast again", 18)
@@ -720,6 +1020,30 @@ class FishHud extends Control:
 	func _say(font: Font, at: Vector2, s: String, size: int, col := Color("f3e3c3")) -> void:
 		draw_string_outline(font, at - Vector2(450, 0), s, HORIZONTAL_ALIGNMENT_CENTER, 900, size, 8, Color(0.1, 0.06, 0.03, 0.9))
 		draw_string(font, at - Vector2(450, 0), s, HORIZONTAL_ALIGNMENT_CENTER, 900, size, col)
+
+	## The grill: RAW (pink) .. PERFECT (gold, glowing) .. BURNT (black), a flame
+	## creeping along it.
+	func _cook(c: Vector2, k: float) -> void:
+		var w := 480.0
+		var r := Rect2(c.x - w * 0.5, c.y, w, 34)
+		var a: float = f.PERFECT.x
+		var b: float = f.PERFECT.y
+		draw_rect(r.grow(5), Color(0.1, 0.06, 0.03, 0.85))
+		draw_rect(Rect2(r.position, Vector2(w * a, r.size.y)), Color("e8a0a0"))
+		var glow := 0.75 + 0.25 * sin(t * 6.0)
+		draw_rect(Rect2(r.position + Vector2(w * a, 0), Vector2(w * (b - a), r.size.y)), GOLD * glow + Color(0, 0, 0, 1.0 - glow))
+		draw_rect(Rect2(r.position + Vector2(w * b, 0), Vector2(w * (1.0 - b), r.size.y)), Color("2a1a12"))
+		var tf := Pal.title_font()
+		draw_string(tf, r.position + Vector2(8, 24), "RAW", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, INK)
+		draw_string(tf, r.position + Vector2(w * a, 24), "PERFECT!", HORIZONTAL_ALIGNMENT_CENTER, w * (b - a), 18, INK)
+		draw_string(tf, r.position + Vector2(w * b + 8, 24), "BURNT", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("ff8a6a"))
+		var x := r.position.x + w * clampf(k, 0.0, 1.0)
+		var fl := 1.0 + 0.15 * sin(t * 20.0)
+		draw_colored_polygon(PackedVector2Array([Vector2(x - 11, r.position.y - 4), Vector2(x, r.position.y - 30 * fl), Vector2(x + 11, r.position.y - 4)]), Color("ff6a1a"))
+		draw_colored_polygon(PackedVector2Array([Vector2(x - 6, r.position.y - 4), Vector2(x, r.position.y - 17 * fl), Vector2(x + 6, r.position.y - 4)]), Color("ffe066"))
+		draw_rect(Rect2(x - 3, r.position.y - 4, 6, r.size.y + 8), Color.WHITE)
+		var golden := k >= a and k <= b
+		_say(Pal.title_font() if golden else Pal.text_font(), Vector2(c.x, r.end.y + 34), "GOLDEN! E: take it off!" if golden else "E: take it off when it's GOLDEN      Esc: put it down", 26 if golden else 17, GOLD if golden else Color("f3e3c3"))
 
 	## The cast meter: a bow of colour NEAR (blue) to FAR (gold), a needle swinging.
 	func _meter(c: Vector2, p: float) -> void:

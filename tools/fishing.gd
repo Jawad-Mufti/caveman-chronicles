@@ -140,7 +140,7 @@ func _run() -> void:
 	await frames(5)
 	check("a careful fight: a fish!", fs.state == "catch" and fs.caught.has("fish"), fs.state)
 	check("the stick bent with the pull", bend > 0.05, "%.2f" % bend)
-	check("the card: NEW!, the log, one to cook, on the rack", bool(fs.caught.get("new", false)) and (GameState.shelter.get("fish", {}) as Dictionary).has("perch") and home._fish == 1 and home._fish_caught == 1)
+	check("the card: NEW!, the log (and the fish in his hands, to land on the deck)", bool(fs.caught.get("new", false)) and (GameState.shelter.get("fish", {}) as Dictionary).has("perch") and not fs._caught_fish.is_empty())
 	await frames(40)
 	await shot("catch")
 	check("he holds it up", fs._fishy != null and fs._fishy.global_position.y > fs.where().y + 2.0)

@@ -108,6 +108,9 @@ built into the home before its level exists.
    - `fishing.gd`: the FISHING STICK (workshop: 6 bones, 1 flint, 1 clay) and real fishing at the pier: the cast
      meter (far = bigger), nibbles that trick, the bite, the TENSION fight (snap / slack / it runs), 7 species by
      day / night / distance (OLD BONEJAW, the legend, goes on the totem), junk, the catch card, THE FISH LOG.
+   - `sea.gd`: SWIMMING (walk into the sea, or CANNONBALL off the pier ladder) and DIVING (hold SPACE): the sea floor
+     falls away to ~8 m; kelp, corals, schools of fish, THE SUNKEN MAMMOTH, THE GIANT CLAM (a pearl a day), shells.
+     The catch is physical now: it lands on the deck, he carries it to the cave fire and GRILLS it (`fishing.gd`).
    The home: pads (`add_pad`: decks, tops, bounce), holding him (`_holder`: hammock, ladder). Tests: `shelter`;
    pictures: `homesights -- [all] [nocard] [only=...]`. Next: Ugga.
 3. The rest of v1 (era 3): upgrading with real resources (`GameState.home`, storage), the artifacts.
