@@ -48,6 +48,7 @@ signal fang_out(at: Vector2)
 signal rock_in_teeth
 signal siege_wave(n: int)
 signal howled                   ## a siege howl: calls the pack, but brings no rocks down
+signal countered(kind: String)  ## the man found a weak spot: "parry", "fang", "dodge" (the level tells him, once)
 
 const MAX_HP := 120
 const GRAV := 1800.0
@@ -98,6 +99,10 @@ var _rock_top := 0.0
 var _siege := 0                 ## which wave of the siege is out (0: none yet, 4: over)
 var _hit_t := 0.0               ## > 0 just after a blow lands: the recoil
 var _hit_dir := 1
+var arena: Node = null          ## the clearing (level2/scar_arena.gd): clouds, the fallen tree, burning branches
+var _branch_cd := 3.0
+var _fang_cd := 0.0
+var _stripe_pts: Array = []     ## the stripes (design units): in his rage they glow like embers
 
 
 func _setup() -> void:
@@ -166,9 +171,31 @@ func burned(dmg: int, from: Vector2) -> void:
 func take_hit(dmg: int, from_dir: int) -> void:
 	if state in ["wait", "lurk_in", "emerge", "intro", "beaten", "siege_climb", "siege"]:
 		return
-	var open := state in ["cower", "dazed", "distracted", "swat"]
+	var open := state in ["cower", "dazed", "distracted", "swat", "staggered", "stumble"]
+	var ranged := player != null and absf(player.global_position.x - position.x) > 170.0
+	var facing_him := player != null and signf(player.global_position.x - position.x) == float(dir)
+	# PARRY: a blow to his paw while it's raised for a swipe, from in front
+	if state == "swipe" and timer > 0.15 and not ranged and facing_him:
+		_hurt(dmg, from_dir)
+		if hp > 0:
+			_counter("parry", "PARRY!")
+			state = "staggered"
+			timer = 1.4
+			vel = Vector2(-float(dir) * 220.0, -160.0)
+			Critter.slow_time(get_tree(), 0.35, 0.35)
+		return
+	# THE BROKEN FANG: a rock from afar, square in his face, cracks on the stump
+	if ranged and facing_him and _fang_cd <= 0.0 and not open and state not in ["roar", "rage_roar", "pounce", "vault", "leap", "meteor", "climb"]:
+		_fang_cd = 5.0
+		_hurt(dmg * 3, from_dir)
+		if hp > 0:
+			_counter("fang", "CRACK!")
+			state = "flinch"
+			timer = 0.9
+			vel = Vector2(float(from_dir) * 160.0, -140.0)
+		return
 	# a rock (from further off than any club could reach) into his roaring jaws
-	if state == "roar" and player != null and absf(player.global_position.x - position.x) > 170.0:
+	if state == "roar" and ranged:
 		_hurt(dmg * 2, from_dir)
 		if hp > 0:
 			state = "dazed"
@@ -244,6 +271,36 @@ func _hurt(amount: int, from_dir: int) -> void:
 		phase = 3
 		phase_changed.emit(3)
 		_begin_roar()
+		if arena != null:
+			arena.fell_tree()                       # his roar brings the dead tree down
+	elif phase == 3 and ratio() <= 0.12:
+		phase = 4
+		phase_changed.emit(4)
+		_begin_rage()
+
+
+## A weak spot found: the word, a flash of sparks, and the level's tip (once).
+func _counter(kind: String, word_text: String) -> void:
+	var word := CaveMan.WordPop.new()
+	word.text = word_text
+	word.position = global_position + Vector2(-50, -220)
+	get_parent().add_child(word)
+	FX.burst(get_parent(), global_position + Vector2(float(dir) * 90.0, -100.0) * SIZE, "sparks", float(dir))
+	countered.emit(kind)
+
+
+## PHASE 4, RAGE: up on his hind legs, the last-stand roar: the clearing
+## flashes red, the roar throws the man back, burning branches crash down.
+## From now on: red eyes, his stripes glowing like embers, faster, combos.
+func _begin_rage() -> void:
+	state = "rage_roar"
+	timer = 2.0
+	vx = 0.0
+	vel = Vector2.ZERO
+	_roar_hit = false
+	flash = 0.3
+	_branch_cd = 4.0
+	_meteor_cd = 4.0
 
 
 ## ----------------------------------------------------------------- thinking
@@ -256,6 +313,13 @@ func _tick(delta: float) -> void:
 	_meteor_cd -= delta
 	_land = maxf(_land - delta, 0.0)
 	_hit_t = maxf(_hit_t - delta, 0.0)
+	_fang_cd -= delta
+	# his rage: burning branches torn down onto the man, every few seconds
+	if phase == 4 and arena != null and player != null and state not in ["beaten", "wait", "rage_roar"]:
+		_branch_cd -= delta
+		if _branch_cd <= 0.0:
+			_branch_cd = 5.5
+			arena.drop_branch(player.global_position.x + randf_range(-50.0, 50.0))
 	if night == null:
 		night = get_tree().get_first_node_in_group("night") as Night
 	if player == null or state == "wait":
@@ -320,6 +384,29 @@ func _tick(delta: float) -> void:
 			if timer <= 0.0:
 				state = "prowl"
 				cd = 1.0
+		"rage_roar":
+			vx = 0.0
+			dir = 1 if dx > 0.0 else -1
+			if timer <= 1.3 and not _roar_hit:
+				_roar_hit = true
+				roared.emit()
+				_shockwave(true)
+				if arena != null:
+					arena.rage()
+					for k in 3:
+						arena.drop_branch(player.global_position.x + (k - 1) * 230.0)
+				var lv := get_parent()
+				if lv.has_method("shake"):
+					lv.shake(16.0, 0.9)
+			if timer <= 0.0:
+				state = "prowl"
+				cd = 0.8
+		"staggered", "stumble":
+			_settle(delta)
+			if timer <= 0.0:
+				state = "prowl"
+				cd = 0.9
+				swipe_cd = maxf(swipe_cd, 0.6)
 		"roar":
 			vx = 0.0
 			# a breath in (head back), then the roar itself
@@ -337,11 +424,18 @@ func _tick(delta: float) -> void:
 				vx = dir * 120.0
 		"charge":
 			damage = 3
-			vx = move_toward(vx, dir * CHARGE, 1500.0 * delta)
+			vx = move_toward(vx, dir * CHARGE * (1.15 if phase == 4 else 1.0), 1500.0 * delta)
 			position.x += vx * delta
 			_phase_walk += absf(vx) * delta
 			_trail_dust(delta)
-			if position.x <= arena_l + 80.0 or position.x >= arena_r - 80.0:
+			# the fallen tree: he runs blind, right into it
+			var stop: float = arena.log_stop(position.x, vx) if arena != null else INF
+			if stop != INF:
+				position.x = stop
+				arena.log_hit()
+				_crash()
+				_counter("log", "WHAM!")
+			elif position.x <= arena_l + 80.0 or position.x >= arena_r - 80.0:
 				position.x = clampf(position.x, arena_l + 80.0, arena_r - 80.0)
 				_crash()
 		"beaten":
@@ -457,8 +551,8 @@ func _think(dx: float, delta: float) -> void:
 		cd = 1.8
 		return
 	# the meteor: up onto his rock, to come down on him
-	if phase == 3 and _meteor_cd <= 0.0 and cd <= 0.0:
-		_meteor_cd = 12.0
+	if phase >= 3 and _meteor_cd <= 0.0 and cd <= 0.0:
+		_meteor_cd = 12.0 if phase == 3 else 8.0
 		_rock_top = floor_y - 292.0
 		_launch(Vector2(lair_x + 10.0, _rock_top), 0.8)
 		state = "climb"
@@ -476,7 +570,7 @@ func _think(dx: float, delta: float) -> void:
 				return
 	if cd <= 0.0 and level:
 		var roll := randf()
-		if phase >= 2 and roll > 0.75:
+		if phase >= 2 and roll > (0.45 if arena != null and arena.is_dark() else 0.75):      # (the moon behind clouds: he loves the dark)
 			# the eye trick: into the dark on the far side of him
 			var side := signf(position.x - player.global_position.x)
 			if side == 0.0:
@@ -487,7 +581,7 @@ func _think(dx: float, delta: float) -> void:
 			state = "vanish"
 			cd = 2.4
 			return
-		if phase == 3 and roll < 0.45:
+		if phase >= 3 and roll < 0.45:
 			state = "scrape"
 			timer = 0.65
 			cd = 2.6
@@ -507,12 +601,12 @@ func _think(dx: float, delta: float) -> void:
 			return
 		if absf(dx) < 640.0:
 			state = "crouch"
-			timer = [0.75, 0.55, 0.4][phase - 1]
-			_double = phase == 3 and randf() < 0.6
+			timer = [0.75, 0.55, 0.4, 0.32][phase - 1]
+			_double = phase >= 3 and randf() < (0.6 if phase == 3 else 0.8)
 			return
 	# otherwise: prowl at the edge of the light
 	var tx := _edge_target()
-	_prowl_to(tx, PROWL, delta)
+	_prowl_to(tx, PROWL * (1.35 if phase == 4 else 1.0), delta)
 	if absf(vx) < 30.0:
 		dir = 1 if dx > 0.0 else -1
 
@@ -529,6 +623,10 @@ func _swipe(dx: float, delta: float) -> void:
 		_swipes += 1
 		if _swipes < 2:
 			timer = 0.32
+		elif phase == 4:
+			# his rage: swipe, swipe, and straight into a pounce
+			state = "crouch"
+			timer = 0.22
 		else:
 			state = "recover"
 			timer = 0.6
@@ -569,7 +667,7 @@ func _pounce() -> void:
 	_launch(target, 0.62)
 	state = "pounce"
 	resolved = false
-	cd = [2.6, 2.0, 1.5][phase - 1]
+	cd = [2.6, 2.0, 1.5, 1.1][phase - 1]
 
 
 func _leap_to(at: Vector2) -> void:
@@ -597,7 +695,7 @@ func _fly(delta: float) -> void:
 				_foiled += 1
 				# knocked out of the air by the fire: down on the ground, cowering
 				state = "cower"
-				timer = [1.3, 1.1, 0.9][phase - 1]
+				timer = [1.3, 1.1, 0.9, 0.8][phase - 1]
 				vel = Vector2(-dir * 260.0, -220.0)
 				cur_floor = floor_y
 				damage = 0
@@ -653,6 +751,14 @@ func _fly(delta: float) -> void:
 				state = "crouch"
 				timer = 0.35
 				dir = 1 if player.global_position.x > position.x else -1
+			elif state == "pounce" and not resolved and player.global_position.distance_to(position) < 190.0 * SIZE:
+				# CLOSE ONE: the man slipped it at the last moment (over him, or
+				# just aside): time slows; he lands off balance, open
+				_counter("dodge", "CLOSE ONE!")
+				Critter.slow_time(get_tree(), 0.6, 0.3)
+				state = "stumble"
+				timer = 1.1
+				_double = false
 			elif state == "pounce":
 				state = "land"
 				timer = 0.25
@@ -877,6 +983,20 @@ func _pose() -> Dictionary:
 		"flinch":
 			p["cower"] = 0.6
 			p["head_up"] = 0.4
+		"staggered":
+			p["cower"] = 0.8
+			p["head_up"] = 0.35
+			p["jaw"] = 0.5
+		"stumble":
+			p["crouch"] = 0.55
+			p["cower"] = 0.3
+			p["jaw"] = 0.4
+		"rage_roar":
+			# up on his hind legs, head thrown back, jaws wide
+			p["head_up"] = 1.0
+			p["jaw"] = 0.3 if timer > 1.3 else 1.0
+			p["rump"] = -1.0
+			p["stretch"] = 0.3
 		"roar", "intro":
 			var k := 1.0 - clampf(timer / 1.5, 0.0, 1.0)
 			p["head_up"] = 1.0
@@ -1071,6 +1191,7 @@ func _paint_body(b: Batch, p: Dictionary) -> void:
 	_circ(b, shoulder + Vector2(-10, -24), 27.0, fur, 16)           # the great hump over the shoulder blades
 	if not _rim_pass:
 		# the dark saddle down his back
+		_stripe_pts.clear()
 		var saddle := PackedVector2Array()
 		for i in 13:
 			saddle.append(top[i] + Vector2(0, 2))
@@ -1092,6 +1213,7 @@ func _paint_body(b: Batch, p: Dictionary) -> void:
 			var len := 22.0 + (i % 3) * 6.0 + (8.0 if i >= 5 else 0.0)
 			var lean := Vector2(-6.0, len)
 			b.tri(a + Vector2(-4.5, 0), a + Vector2(4.5, 0), a + lean, STRIPE)
+			_stripe_pts.append([a + Vector2(-4.5, 0), a + Vector2(4.5, 0), a + lean])
 		# the haunch: the saddle over it, curved stripes round it
 		var hc2 := hip + Vector2(-6, -4)
 		b.circle(hc2 + Vector2(2, -12), 17.0, SADDLE, 12)
@@ -1102,6 +1224,7 @@ func _paint_body(b: Batch, p: Dictionary) -> void:
 		for k2 in 3:
 			var sa := shoulder + Vector2(-34 + k2 * 10.0, -36 + k2 * 4.0)
 			b.tri(sa + Vector2(-4, 0), sa + Vector2(4, 0), sa + Vector2(-8, 26), STRIPE)
+			_stripe_pts.append([sa + Vector2(-4, 0), sa + Vector2(4, 0), sa + Vector2(-8, 26)])
 		# the pale marks of old fights across the shoulder
 		for k3 in 3:
 			var sc := shoulder + Vector2(-20 + k3 * 7.0, -6 + k3 * 3.0)
@@ -1338,7 +1461,7 @@ func _head(b: Batch, at: Vector2, ang: float, jaw: float, cower: float, fur: Col
 	var eye: Vector2 = r.call(Vector2(19, -6))
 	var big := 5.2 * HEAD
 	var open := 0.85 if cower < 0.5 else 0.35                # (afraid: he squeezes it shut)
-	b.ellipse(eye, big * 1.2, big * open, Color("ffb02e"), ang, 10)
+	b.ellipse(eye, big * 1.2, big * open, (Color("ff3a26") if phase == 4 else Color("ffb02e")), ang, 10)
 	b.ellipse(eye, big * 0.3, big * minf(open, 0.8), Color("1a0f08"), ang, 8)
 	b.circle(eye + Vector2(-1.5, -1.5).rotated(ang), 1.4, Color.WHITE, 6)
 	_eye_at = eye
@@ -1360,18 +1483,25 @@ func draw_glow(g) -> void:   # g: the glow layer's Batch
 	if not visible or state == "wait":
 		return
 	var e := global_position + Vector2(float(dir) * _eye_at.x, _eye_at.y) * SIZE
-	var flare := 1.0 if state in ["crouch", "scrape", "lurk_in", "perch", "siege"] else 0.0
-	var dim := 0.35 if state in ["cower", "dazed"] or (state == "beaten" and _down and _beat_t < 2.4) else 1.0
-	g.draw_circle(e, 12.0 + flare * 10.0, Color(Pal.WOLF_EYE, (0.2 + flare * 0.3) * dim))
-	g.draw_circle(e, 4.0 + flare * 1.5, Color(Pal.WOLF_EYE, 0.95 * dim))
+	var flare := 1.0 if state in ["crouch", "scrape", "lurk_in", "perch", "siege", "rage_roar"] else 0.0
+	var dim := 0.35 if state in ["cower", "dazed", "staggered"] or (state == "beaten" and _down and _beat_t < 2.4) else 1.0
+	var eye_c := Color("ff3a26") if phase == 4 and state != "beaten" else Pal.WOLF_EYE      # (his rage: red)
+	g.draw_circle(e, 12.0 + flare * 10.0, Color(eye_c, (0.2 + flare * 0.3) * dim))
+	g.draw_circle(e, 4.0 + flare * 1.5, Color(eye_c, 0.95 * dim))
 	# the far eye, just showing
-	g.draw_circle(e + Vector2(-float(dir) * 10.0, 1.0), 3.0 + flare, Color(Pal.WOLF_EYE, 0.6 * dim))
+	g.draw_circle(e + Vector2(-float(dir) * 10.0, 1.0), 3.0 + flare, Color(eye_c, 0.6 * dim))
+	var at0 := func(v: Vector2) -> Vector2: return global_position + Vector2(float(dir) * v.x, v.y) * SIZE
+	# his rage: the stripes glow like embers, pulsing
+	if phase == 4 and state != "beaten" and modulate.a > 0.5:
+		var pulse := 0.45 + 0.25 * sin(t * 7.0)
+		for s in _stripe_pts:
+			g.draw_colored_polygon(PackedVector2Array([at0.call(s[0]), at0.call(s[1]), at0.call(s[2])]), Color(Pal.EMBER_GLOW, pulse))
 	# his moonlit outline and the gleam of his sabre, over the dark (not when he
 	# melts into it for the eye trick, nor in the dark of his lair)
 	if state in ["vanish", "eyes", "lurk_in"] or modulate.a < 0.5:
 		return
 	var at := func(v: Vector2) -> Vector2: return global_position + Vector2(float(dir) * v.x, v.y) * SIZE
-	var moon_a := 0.42 * (0.6 if dim < 1.0 else 1.0)
+	var moon_a: float = 0.42 * (0.6 if dim < 1.0 else 1.0) * (1.0 - 0.85 * (arena.dark if arena != null else 0.0))      # (clouds over the moon: his outline goes)
 	for i in range(_moon_pts.size() - 1):
 		g.draw_line(at.call(_moon_pts[i]), at.call(_moon_pts[i + 1]), Color(0.8, 0.9, 1.0, moon_a), 3.0)
 	if _sab_pts.size() >= 3:

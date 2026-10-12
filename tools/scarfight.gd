@@ -46,6 +46,36 @@ func _run() -> void:
 		if got.size() >= want.size():
 			break
 	print("scarfight: ", got.keys())
+	# the new fight: the log, the clouds, the rage
+	var ar: Node = level.scar_arena
+	ar.fell_tree()
+	for f in 100:
+		await get_tree().physics_frame
+	await _shot("log")
+	ar.clouds_on()
+	ar._cloud_t = 7.9
+	for f in 30:
+		await get_tree().physics_frame
+	await _shot("clouds")
+	ar._clouds_on = false
+	sc.position = Vector2(p.global_position.x + 330.0, sc.floor_y)
+	sc.state = "prowl"
+	sc.phase = 3
+	sc._siege = 4
+	sc.hp = 14
+	sc.take_hit(1, -1)
+	for f in 30:
+		await get_tree().physics_frame
+	await _shot("rage_roar")
+	for f in 70:
+		await get_tree().physics_frame
+		p.hp = p.max_hp
+	await _shot("rage_fire")
+	sc.state = "prowl"
+	for f in 40:
+		await get_tree().physics_frame
+		p.hp = p.max_hp
+	await _shot("rage_prowl")
 	get_tree().quit()
 
 

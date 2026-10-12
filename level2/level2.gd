@@ -52,6 +52,7 @@ var _mouths: Array = []
 
 ## The end of the level.
 var scar: OldScar
+var scar_arena: Node2D           ## his clearing, changing as the fight goes on (level2/scar_arena.gd)
 var toolmaker: NightBeasts.Toolmaker
 var arena_bongo: NightBeasts.Elder
 var _gate: StaticBody2D
@@ -62,6 +63,7 @@ var moss: Friends.Moss
 const AMBUSH := preload("res://level2/ambush.gd")
 const WINDBREAK := preload("res://level2/windbreak.gd")
 const ERRANDS := preload("res://level2/errands.gd")
+const SCAR_ARENA := preload("res://level2/scar_arena.gd")
 var nutmeg: Friends.Nutmeg
 var shivers: WINDBREAK.Camp   ## the side mission at the foot of the mountain (level2/windbreak.gd)
 var errands: Array = []         ## Pip, Taka, Ooma: more side missions (level2/errands.gd)
@@ -1310,7 +1312,12 @@ func _build_the_end() -> void:
 	scar.phase_changed.connect(_on_scar_phase)
 	scar.beaten.connect(_on_scar_beaten)
 	scar.fang_out.connect(_on_fang_out)
+	scar.countered.connect(_on_scar_countered)
 	add_child(scar)
+	scar_arena = SCAR_ARENA.new()
+	add_child(scar_arena)
+	scar_arena.setup(self, ARENA, GROUND_Y)
+	scar.arena = scar_arena
 	arena_bongo = NightBeasts.Elder.new()
 	arena_bongo.position = BONGO_PERCH
 	arena_bongo.show_box = false
@@ -1860,6 +1867,22 @@ func _on_scar_phase(ph: int) -> void:
 		hud.say("OLD BONGO:  \"He's calling the others! Beat them, and he'll have to come down to you!\"", 4.0)
 	elif ph == 3:
 		hud.say("OLD BONGO:  \"He's charging blind! Step aside — let him hit the rocks!\"", 4.0)
+	if ph >= 2 and scar_arena != null:
+		scar_arena.clouds_on()
+
+
+## He found a weak spot: the first time, Old Bongo says what it was.
+var _counter_told := {}
+
+func _on_scar_countered(kind: String) -> void:
+	if _counter_told.has(kind):
+		return
+	_counter_told[kind] = true
+	var lines := {"parry": "OLD BONGO:  \"HA! Hit his PAW when it's up — he'll stagger!\"",
+		"fang": "OLD BONGO:  \"Right on the broken fang! Rocks in his FACE hurt him most!\"",
+		"dodge": "OLD BONGO:  \"Slipped him! Dodge at the LAST moment and he lands all wrong!\"",
+		"log": "OLD BONGO:  \"WHAM! Right into the log! Hit him while he's seeing stars!\""}
+	hud.say(lines.get(kind, ""), 3.5)
 
 
 func _on_died_in_fight() -> void:
@@ -1872,6 +1895,8 @@ func _on_died_in_fight() -> void:
 	var siege_beaten := scar._siege >= 4
 	_clear_siege()
 	scar.reset_fight()
+	if scar_arena != null:
+		scar_arena.reset()
 	if siege_beaten:
 		scar.hp = OldScar.MAX_HP / 2
 		scar.phase = 2
@@ -1884,6 +1909,8 @@ func _on_died_in_fight() -> void:
 
 func _on_scar_beaten() -> void:
 	_fight = false
+	if scar_arena != null:
+		scar_arena.calm()
 	_scar_beaten = true
 	hud.set_boss(-1.0)
 	shake(12.0, 0.9)

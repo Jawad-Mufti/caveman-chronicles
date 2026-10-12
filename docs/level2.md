@@ -117,3 +117,18 @@ ceiling drop shakes some down too; CRACK! pops and sparks on hits; it bursts all
 Near anything not yet solved, a small card left of the bag (a gold "?", small letters) says what to do next:
 meet the stranger, the recipe, where the ingredient is, climb the ladder, the clay needs a shovel, SUNFIRE the
 thorns. Old One-Eye gets none until it has been met (a surprise).
+
+## Old Scar's fight, advanced (2026-10-12)
+`level2/old_scar.gd` + `level2/scar_arena.gd` (the clearing, changing as the fight goes on).
+- Look: rims in darker tones, a spiky ruff, three-tone fur with stripes, a 1.25x head with a slit-pupil
+  amber eye, curved sabres, a moonlit outline (also on the glow layer). Sheet: `tools/scarsheet`.
+- COUNTERS: PARRY (hit his raised paw from in front: staggered, open), THE BROKEN FANG (a rock from afar,
+  square in his face: triple damage, every 5 s), CLOSE ONE (slip a pounce at the last moment: time slows,
+  he stumbles, open), WHAM (his blind charge into the fallen log: dazed). Old Bongo explains each, once.
+- THE ARENA: from phase 2 clouds drift over the moon every 15 s (darker; his outline fades; the eye trick
+  comes more often); phase 3's roar brings the DEAD TREE down: a log to stand on and to stop his charge.
+- PHASE 4, RAGE (below 12%): a rearing last-stand roar (red flash, shake), red eyes, ember-glowing stripes,
+  faster tells, swipe-swipe-POUNCE combos, double pounces, meteors more often, BURNING BRANCHES torn down
+  every 5.5 s (a shadow first; they burn 5 s: they hurt, but they are fire, so his pounce won't go through).
+- Tests: `scarnew` (each piece, 17 checks), `boss` (the whole fight: beaten in 49 s smart, 134 s plain),
+  `scarfight` (pictures).
