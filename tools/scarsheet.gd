@@ -21,6 +21,13 @@ func _ready() -> void:
 	bg.color = Color("16203a") if OS.get_cmdline_user_args().has("night") else Color("2b2f3a")
 	bg.size = Vector2(1280, 720)
 	add_child(bg)
+	if OS.get_cmdline_user_args().has("checker"):
+		for i in 40:
+			var s := ColorRect.new()
+			s.color = Color(0.9, 0.2, 0.6) if i % 2 == 0 else Color(0.2, 0.9, 0.4)
+			s.position = Vector2(i * 32, 0)
+			s.size = Vector2(16, 720)
+			add_child(s)
 	var floor_line := ColorRect.new()
 	floor_line.color = Color(1, 1, 1, 0.08)
 	floor_line.position = Vector2(0, 300)
@@ -31,7 +38,15 @@ func _ready() -> void:
 	for i in range(4, POSES.size()):
 		_scar(Vector2(170 + (i - 4) * 315, 640), 0.95, POSES[i])
 	# the head, big
-	_scar(Vector2(860, 900), 2.0, ["head", "roar", 0.6, 0.0, Vector2.ZERO])
+	if OS.get_cmdline_user_args().has("head"):
+		for c in get_children():
+			if c is Node2D or c is Label:
+				c.queue_free()
+		_scars.clear()
+		_scar(Vector2(260, 820), 2.8, ["open", "swipe", 0.3, 0.0, Vector2.ZERO])
+		_scar(Vector2(-90, 640), 1.0, ["", "prowl", 0.0, 0.0, Vector2.ZERO])
+	else:
+		_scar(Vector2(760, 1060), 2.6, ["head", "roar", 0.6, 0.0, Vector2.ZERO])
 	var l := Label.new()
 	l.text = "OLD SCAR  (%s)" % tag
 	l.position = Vector2(14, 8)
