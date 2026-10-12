@@ -943,21 +943,82 @@ func _pose() -> Dictionary:
 	return p
 
 
+## ------------------------------------------------------------------ his look
+## Designed for the read (2026-10-12): a front-heavy, forward-leaning wedge
+## of a predator, the danger in triangles (a spiky ruff round his neck and
+## shoulders, tufts at the elbows, chin and tail, swept-back ears, the great
+## curved sabres), his face the focal point (a big wedge of a head, an angry
+## brow, a burning amber eye with a slit pupil, the scar). Three tones of fur
+## (a dark saddle down his back, a warm orange flank, a pale belly) with bold
+## tapering stripes; every part rimmed in a darker tone of its own fill (no
+## black outlines: the game's rule) so he never melts into one blob; and a
+## cool moonlit edge along his back that lifts him out of the Long Dark.
+const FUR := Color("c98a4a")
+const FUR_FAR := Color("9a6436")
+const SADDLE := Color("6b4426")
+const STRIPE := Color("4a2a16")
+const BELLY := Color("f0dcb0")
+const RUFF := Color("e8c890")
+const MOON := Color(0.78, 0.88, 1.0, 0.6)
+const RIM := 3.2                   ## the rim's width (design px)
+const HEAD := 1.25                 ## his head, bigger than life: the focal point
+
+var _rim_pass := false             ## drawing the rims (every part a little bigger, darker), then the fills
+var _moon_pts := PackedVector2Array()   ## his moonlit outline (design units): drawn on the glow layer too
+var _sab_pts := PackedVector2Array()    ## the sabre (design units): its gleam in the dark
+
+
+## A part's colour: itself, or (the rim pass) a darker tone of it.
+func _col(c: Color) -> Color:
+	return c.darkened(0.55) if _rim_pass else c
+
+
+func _circ(b: Batch, at: Vector2, r: float, c: Color, segs := 12) -> void:
+	b.circle(at, r + (RIM if _rim_pass else 0.0), _col(c), segs)
+
+
+## A shape; in the rim pass pushed out from its middle by the rim's width.
+func _part(b: Batch, pts: PackedVector2Array, c: Color) -> void:
+	if _rim_pass:
+		var mid := Vector2.ZERO
+		for p in pts:
+			mid += p
+		mid /= pts.size()
+		var big := PackedVector2Array()
+		for p in pts:
+			big.append(p + (p - mid).normalized() * RIM)
+		pts = big
+	b.poly(pts, _col(c))
+
+
+func _tri3(b: Batch, a: Vector2, c: Vector2, d: Vector2, col: Color) -> void:
+	if _rim_pass:
+		var mid := (a + c + d) / 3.0
+		a += (a - mid).normalized() * RIM
+		c += (c - mid).normalized() * RIM
+		d += (d - mid).normalized() * RIM
+	b.tri(a, c, d, _col(col))
+
+
 func _draw() -> void:
 	if not visible:
 		return
-	var f := float(dir)
-	var p := _pose()
 	var b := Batch.new()
-	var fur := Color("b58d58")
-	var recoil: float = p["recoil"]
-	if recoil > 0.0:
-		fur = fur.lerp(Color("e8b88a"), 0.35 * recoil)       # a brief warm tint
-	var fur_dark := Color("7a5a36")
-	var fur_deep := Color("5b4127")
-	var belly := Color("e2d0a6")
-	var shade := fur.darkened(0.18)
+	var p := _pose()
+	for pass_ in 2:
+		_rim_pass = pass_ == 0
+		_paint_body(b, p)
+	_rim_pass = false
+	if flash > 0.2:
+		b.circle(Vector2(-6, -60), 72.0, Color(1, 1, 1, 0.18 * clampf(flash / 0.3, 0.0, 1.0)), 20)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(float(dir) * SIZE, SIZE))
+	b.draw(self)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
+
+func _paint_body(b: Batch, p: Dictionary) -> void:
+	var recoil: float = p["recoil"]
+	var fur := FUR.lerp(Color("f0c090"), 0.35 * recoil)        # a brief warm flash when hit
 	var crouch: float = p["crouch"]
 	var rump: float = p["rump"]
 	var stretch: float = p["stretch"]
@@ -969,83 +1030,110 @@ func _draw() -> void:
 		bob = sin(_phase_walk / 30.0) * 8.0
 	elif float(p["gait"]) > 0.0:
 		bob = sin(_phase_walk / SIZE / 110.0 * TAU * 2.0) * 2.0 * float(p["gait"])
-
-	# the skeleton, built like a real Smilodon: bear-heavy and front-heavy —
-	# a short back, the shoulders held high over short hind legs so the back
-	# slopes down to the hips, a great hump of muscle at the shoulder blades
+	# the skeleton, built like a real Smilodon: bear-heavy and front-heavy, the
+	# shoulders held high over short hind legs, the back sloping down to the hips
 	var hip := Vector2(-40.0 - stretch * 16.0 + float(p["wiggle"]) * 5.0, -54.0 + crouch * 12.0 - rump * 18.0 + cower * 16.0 + bob * 0.6 + down * 26.0)
-	var shoulder := Vector2(40.0 + stretch * 16.0, -88.0 + crouch * 32.0 + cower * 24.0 - bob * 0.4 + down * 46.0 + breath * 0.3)
+	var shoulder := Vector2(40.0 + stretch * 16.0, -90.0 + crouch * 32.0 + cower * 24.0 - bob * 0.4 + down * 46.0 + breath * 0.3)
 	if float(p["gallop"]) > 0.0:
-		# the spine bunching and stretching in the gallop
 		var g := sin(_phase_walk / 30.0)
 		hip.x += g * 12.0
 		shoulder.x -= g * 10.0
-	# the jolt of a blow: the front of him knocked back
 	shoulder.x -= 10.0 * recoil
 	hip.x -= 4.0 * recoil
 	var mid := (hip + shoulder) * 0.5 + Vector2(0, -8.0 + crouch * 6.0 - cower * 4.0)
 
-	# far legs first, in shadow
-	_legs(b, hip, shoulder, p, -1.0, fur_dark)
-	# the tail: a short, thick bobtail that lags and swings
+	# far legs first, darker
+	_legs(b, hip, shoulder, p, -1.0, FUR_FAR)
+	# the tail: a short thick bobtail that lags and swings, a dark tuft at its tip
 	var ta := -2.6 + _tail - stretch * 0.4 + cower * 0.9
 	var t1 := hip + Vector2(-10, -4)
-	var t2 := t1 + Vector2.from_angle(ta) * 13.0
-	var t3 := t2 + Vector2.from_angle(ta + _tail * 0.6) * 9.0
-	_tapered(b, t1, t2, 14.0, 11.0, fur_dark)
-	_tapered(b, t2, t3, 11.0, 8.0, fur_deep)
-	# the body: a thick shape along the bent spine, with a deep chest
+	var t2 := t1 + Vector2.from_angle(ta) * 14.0
+	var t3 := t2 + Vector2.from_angle(ta + _tail * 0.6) * 10.0
+	_tapered(b, t1, t2, 15.0, 11.0, fur)
+	_tapered(b, t2, t3, 11.0, 7.0, SADDLE)
+	_tri3(b, t3 + Vector2.from_angle(ta + 1.4) * 5.0, t3 + Vector2.from_angle(ta) * 11.0, t3 + Vector2.from_angle(ta - 1.4) * 5.0, STRIPE)
+	# the body along the bent spine: lean at the waist, a deep chest
 	var top := PackedVector2Array()
 	var bottom := PackedVector2Array()
 	for i in 13:
 		var k := i / 12.0
 		var c := hip.lerp(mid, k).lerp(mid.lerp(shoulder, k), k)
-		var thick := lerpf(46.0, 38.0, sin(k * PI * 0.9)) if k < 0.7 else lerpf(42.0, 60.0, (k - 0.7) / 0.3)
+		var thick := lerpf(44.0, 32.0, sin(k * PI * 0.9)) if k < 0.7 else lerpf(36.0, 62.0, (k - 0.7) / 0.3)
 		thick += breath * k
 		top.append(c + Vector2(0, -thick * 0.55))
 		bottom.append(c + Vector2(0, thick * 0.45))
 	var body := PackedVector2Array(top)
 	for i in range(bottom.size() - 1, -1, -1):
 		body.append(bottom[i])
-	b.circle(hip + Vector2(-6, -4), 28.0, fur, 18)
-	b.poly(body, fur)
-	b.circle(shoulder + Vector2(2, 2), 34.0, fur, 20)
-	b.circle(shoulder + Vector2(-10, -22), 25.0, fur, 16)    # the great hump over the shoulder blades
-	# the belly, pale underneath
-	var under := PackedVector2Array()
-	for i in range(3, 12):
-		under.append(bottom[i] + Vector2(0, -4))
-	for i in range(11, 2, -1):
-		under.append(bottom[i] + Vector2(0, -12))
-	b.poly(under, belly)
-	# his coat: faint spots down the flank, a dark line along the spine,
-	# and the pale marks of old fights across the shoulder
-	for i in 9:
-		var k := 0.12 + (i % 5) * 0.16
-		var row := 0.3 + (i / 5) * 0.28
-		var at: Vector2 = top[int(k * 12.0)].lerp(bottom[int(k * 12.0)], row)
-		b.circle(at + Vector2(sin(i * 2.3) * 3.0, 0), 3.4, fur.darkened(0.22), 8)
-		b.circle(at + Vector2(sin(i * 2.3) * 3.0 + 1.0, -1.0), 1.6, fur, 6)
-	b.polyline(PackedVector2Array([top[1], top[4], top[7], top[10], top[12]]), fur_deep, 4.0)
-	for k in 3:
-		var sa := shoulder + Vector2(-26 + k * 7.0, -16 + k * 3.0)
-		b.line(sa, sa + Vector2(16, 12), belly.lightened(0.2), 2.2)
+	_circ(b, hip + Vector2(-6, -4), 27.0, fur, 18)
+	_part(b, body, fur)
+	_circ(b, shoulder + Vector2(2, 2), 35.0, fur, 20)
+	_circ(b, shoulder + Vector2(-10, -24), 27.0, fur, 16)           # the great hump over the shoulder blades
+	if not _rim_pass:
+		# the dark saddle down his back
+		var saddle := PackedVector2Array()
+		for i in 13:
+			saddle.append(top[i] + Vector2(0, 2))
+		for i in range(12, -1, -1):
+			saddle.append(top[i].lerp(bottom[i], 0.4 if i < 9 else 0.3))
+		b.poly(saddle, SADDLE)
+		b.circle(shoulder + Vector2(-10, -30), 21.0, SADDLE, 14)
+		# the pale belly underneath
+		var under := PackedVector2Array()
+		for i in range(4, 13):
+			under.append(bottom[i] + Vector2(0, -2))
+		for i in range(12, 3, -1):
+			under.append(top[i].lerp(bottom[i], lerpf(0.9, 0.62, (i - 4) / 8.0)))     # (deeper at the chest)
+		b.poly(under, BELLY)
+		# bold stripes: tapering down from the saddle, longer over the shoulder
+		for i in 7:
+			var k := 1 + i * 1.5
+			var a: Vector2 = top[int(k)].lerp(bottom[int(k)], 0.24)
+			var len := 22.0 + (i % 3) * 6.0 + (8.0 if i >= 5 else 0.0)
+			var lean := Vector2(-6.0, len)
+			b.tri(a + Vector2(-4.5, 0), a + Vector2(4.5, 0), a + lean, STRIPE)
+		# the haunch: the saddle over it, curved stripes round it
+		var hc2 := hip + Vector2(-6, -4)
+		b.circle(hc2 + Vector2(2, -12), 17.0, SADDLE, 12)
+		for k7 in 3:
+			var ha := -2.2 + k7 * 0.5
+			var hs := hc2 + Vector2.from_angle(ha) * 22.0
+			b.tri(hs + Vector2.from_angle(ha + PI * 0.5) * 4.0, hs - Vector2.from_angle(ha + PI * 0.5) * 4.0, hc2 + Vector2.from_angle(ha + 0.35) * 4.0, STRIPE)
+		for k2 in 3:
+			var sa := shoulder + Vector2(-34 + k2 * 10.0, -36 + k2 * 4.0)
+			b.tri(sa + Vector2(-4, 0), sa + Vector2(4, 0), sa + Vector2(-8, 26), STRIPE)
+		# the pale marks of old fights across the shoulder
+		for k3 in 3:
+			var sc := shoulder + Vector2(-20 + k3 * 7.0, -6 + k3 * 3.0)
+			b.line(sc, sc + Vector2(16, 12), Color("f2d8c8"), 2.4)
+		# the moon on his back: a cool edge along the top of him
+		# (along his outline: the round of the haunch, the back, the round of the hump)
+		var moon := PackedVector2Array()
+		var hc := hip + Vector2(-6, -4)
+		for k5 in 6:
+			moon.append(hc + Vector2.from_angle(lerpf(-2.5, -1.35, k5 / 5.0)) * 25.5)
+		for i in range(3, 8):
+			moon.append(top[i] + Vector2(0, 1.5))
+		var hump := shoulder + Vector2(-10, -24)
+		for k6 in 7:
+			moon.append(hump + Vector2.from_angle(lerpf(-2.6, -1.0, k6 / 6.0)) * 25.5)
+		b.polyline(moon, MOON, 2.6)
+		_moon_pts = moon                                 # (the glow layer draws it again, over the dark)
 	# near legs
 	_legs(b, hip, shoulder, p, 1.0, fur)
-	# the head: level and steady while the body moves (a hunter's head)
+	# the neck, and the RUFF: a spiky collar of long fur round his neck
 	var neck := shoulder + Vector2(14, -6 + cower * 10.0)
 	var head_ang := -float(p["head_up"]) * 0.75 + cower * 0.5 + crouch * 0.12 + down * 0.35 - 0.45 * recoil
-	var head := neck + Vector2(22, -4).rotated(head_ang) + Vector2(stretch * 10.0, 0)
-	_tapered(b, shoulder + Vector2(0, -8), head + Vector2(-8, 6), 50.0, 38.0, fur)
-	# a ruff of heavier fur at the throat
-	b.poly(PackedVector2Array([shoulder + Vector2(10, 10), head + Vector2(-6, 18), head + Vector2(0, 26), shoulder + Vector2(20, 24)]), fur.lightened(0.08))
-	_head(b, head, head_ang, float(p["jaw"]), cower, fur, fur_dark, belly)
-
-	if flash > 0.2:
-		b.circle(Vector2(-6, -60), 72.0, Color(1, 1, 1, 0.18 * clampf(flash / 0.3, 0.0, 1.0)), 20)
-	draw_set_transform(Vector2.ZERO, rotation * 0.0, Vector2(f * SIZE, SIZE))
-	b.draw(self)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var head := neck + Vector2(24, -4).rotated(head_ang) + Vector2(stretch * 10.0, 0)
+	_tapered(b, shoulder + Vector2(0, -8), head + Vector2(-8, 6), 52.0, 40.0, fur)
+	var ruff_c := shoulder + Vector2(18, 4).rotated(head_ang * 0.5)
+	for k4 in 7:
+		var a4 := -1.9 + k4 * 0.42 + head_ang * 0.5
+		var base := ruff_c + Vector2.from_angle(a4) * 22.0
+		var tip := ruff_c + Vector2.from_angle(a4 + 0.15) * (44.0 + (k4 % 2) * 8.0)
+		var side := Vector2.from_angle(a4 + PI * 0.5) * 8.0
+		_tri3(b, base + side, tip, base - side, RUFF if k4 % 2 == 0 else fur)
+	_head(b, head, head_ang, float(p["jaw"]), cower, fur)
 
 
 ## A limb or neck: a quad tapering from one width to another.
@@ -1053,9 +1141,10 @@ func _tapered(b: Batch, a: Vector2, c: Vector2, w0: float, w1: float, col: Color
 	var d := c - a
 	if d.length() < 0.5:
 		return
+	var grow := RIM * 2.0 if _rim_pass else 0.0
 	var n := Vector2(-d.y, d.x).normalized()
-	b.quad(a + n * w0 * 0.5, c + n * w1 * 0.5, c - n * w1 * 0.5, a - n * w0 * 0.5, col)
-	b.circle(c, w1 * 0.5, col, 10)
+	b.quad(a + n * (w0 + grow) * 0.5, c + n * (w1 + grow) * 0.5, c - n * (w1 + grow) * 0.5, a - n * (w0 + grow) * 0.5, _col(col))
+	b.circle(c, (w1 + grow) * 0.5, _col(col), 10)
 
 
 ## Solves a two-bone limb from `a` to `c` with bone lengths l1, l2, and
@@ -1084,33 +1173,41 @@ func _step(anchor_x: float, u: float, stride: float, stance: float, lift: float)
 	return Vector2(anchor_x - stride * 0.5 + k * stride, -sin(k * PI) * lift)
 
 
-func _paw(b: Batch, at: Vector2, tilt: float, col: Color, big: float = 1.0) -> void:
+
+
+## A paw: a broad pad, four toes, and (claws out) four hooked claws.
+func _paw(b: Batch, at: Vector2, tilt: float, col: Color, big: float = 1.0, claws := false) -> void:
 	var r := func(v: Vector2) -> Vector2: return at + (v * big).rotated(tilt)
-	b.poly(PackedVector2Array([r.call(Vector2(-8, -6)), r.call(Vector2(9, -7)), r.call(Vector2(17, 0)), r.call(Vector2(-9, 1))]), col.darkened(0.12))
+	_part(b, PackedVector2Array([r.call(Vector2(-8, -7)), r.call(Vector2(9, -8)), r.call(Vector2(18, 0)), r.call(Vector2(-9, 1))]), col.darkened(0.08))
+	if _rim_pass:
+		return
 	for k in 4:
 		b.circle(r.call(Vector2(4 + k * 3.8, 0)), 2.6 * big, col.darkened(0.3), 6)
+		if claws:
+			var c: Vector2 = r.call(Vector2(5 + k * 3.8, 1))
+			b.tri(c + Vector2(-1.6, 0), c + Vector2(1.6, 0), c + Vector2(3.0, 7.0).rotated(tilt), Color("f3ead6"))
 
 
-## One front leg: shoulder -> elbow (bent back) -> wrist -> paw.
+## One front leg: shoulder -> elbow (bent back) -> wrist -> paw; a spiky tuft
+## of fur at the elbow.
 func _front_leg(b: Batch, sh: Vector2, paw: Vector2, swinging: bool, col: Color) -> void:
 	var wrist := paw + (Vector2(-9, -10) if swinging else Vector2(-2, -13))
-	# the huge upper arm, a short thick forearm: the forelimbs that held prey down
 	var elbow := _joint(sh, wrist, 34.0, 27.0, false)
-	_tapered(b, sh, elbow, 40.0, 30.0, col)
+	_tapered(b, sh, elbow, 42.0, 30.0, col)
 	_tapered(b, elbow, wrist, 30.0, 21.0, col)
 	_tapered(b, wrist, paw + Vector2(2, -4), 21.0, 17.0, col)
-	_paw(b, paw, -0.7 if swinging else 0.0, col, 1.45)
+	var away := (elbow - (sh + wrist) * 0.5).normalized()
+	_tri3(b, elbow + away.rotated(1.4) * 9.0, elbow + away * 22.0, elbow + away.rotated(-1.4) * 9.0, col)
+	_paw(b, paw, -0.7 if swinging else 0.0, col, 1.5, swinging)
 
 
-## One hind leg: hip -> knee (forward) -> hock (high, behind) -> paw: the long
-## zig-zag of a big cat's back leg.
+## One hind leg: hip -> knee (forward) -> hock (high, behind) -> paw.
 func _hind_leg(b: Batch, hip: Vector2, paw: Vector2, swinging: bool, col: Color) -> void:
 	var hock := paw + (Vector2(-17, -20) if swinging else Vector2(-13, -25))
-	# short, stocky hind legs
 	var knee := _joint(hip, hock, 30.0, 27.0, true)
-	_tapered(b, hip, knee, 40.0, 26.0, col)
-	_tapered(b, knee, hock, 24.0, 16.0, col)
-	_tapered(b, hock, paw + Vector2(2, -4), 16.0, 13.0, col)
+	_tapered(b, hip, knee, 40.0, 25.0, col)
+	_tapered(b, knee, hock, 23.0, 15.0, col)
+	_tapered(b, hock, paw + Vector2(2, -4), 15.0, 12.0, col)
 	_paw(b, paw, -0.6 if swinging else 0.0, col, 1.15)
 
 
@@ -1171,69 +1268,91 @@ func _legs(b: Batch, hip: Vector2, shoulder: Vector2, p: Dictionary, side: float
 	_front_leg(b, sh, fpaw, fswing, col)
 
 
-## The head, after the real Smilodon's skull: broad and heavy with a crest on
-## top, a short broad muzzle, small rounded ears (one torn), a deep lower jaw
-## with the bony flange that guarded the sabres — and a gape that opened to
-## about 110 degrees, far wider than any cat alive. The sabres are long and
-## finely serrated; one is snapped off short. An old scar crosses his eye and
-## his muzzle has gone grey.
-func _head(b: Batch, at: Vector2, ang: float, jaw: float, cower: float, fur: Color, fur_dark: Color, belly: Color) -> void:
-	var r := func(v: Vector2) -> Vector2: return at + v.rotated(ang)
-	# small rounded ears, pinned back when he's afraid; the near one torn
+
+
+## The head: a big wedge (HEAD times life size), after the real Smilodon skull
+## but pushed for the read: a heavy brow in an angry wedge over a burning amber
+## eye with a slit pupil, swept-back pointed ears (the near one torn), a short
+## broad muzzle gone grey, a dark nose; the deep lower jaw that drops to ~110
+## degrees in a roar; and the SABRES, long curved crescents with a gleam, one
+## snapped off short. The old scar runs across the eye.
+func _head(b: Batch, at: Vector2, ang: float, jaw: float, cower: float, fur: Color) -> void:
+	var r := func(v: Vector2) -> Vector2: return at + (v * HEAD).rotated(ang)
+	# ears: pointed, swept back (pinned flat when he's afraid); the near one notched
 	var ear := -cower * 8.0
-	b.poly(PackedVector2Array([r.call(Vector2(-12, -18)), r.call(Vector2(-10 + ear, -28)), r.call(Vector2(-3 + ear, -30)), r.call(Vector2(2, -21))]), fur_dark)
-	b.poly(PackedVector2Array([r.call(Vector2(-7 + ear, -27)), r.call(Vector2(-5 + ear, -23)), r.call(Vector2(-3 + ear, -28))]), Color(0.08, 0.05, 0.03))
-	# the lower jaw first, so the skull sits over its hinge. It drops far:
-	# up to ~110 degrees in a full roar
+	_tri3(b, r.call(Vector2(-16, -14)), r.call(Vector2(-22 + ear, -34)), r.call(Vector2(-2, -20)), SADDLE)
+	if not _rim_pass:
+		b.tri(r.call(Vector2(-14, -18)), r.call(Vector2(-19 + ear, -30)), r.call(Vector2(-6, -21)), Color("3a2418"))
+		b.tri(r.call(Vector2(-12 + ear * 0.5, -27)), r.call(Vector2(-8 + ear * 0.5, -30)), r.call(Vector2(-9 + ear * 0.5, -24)), Color("16203a"))   # the tear
+	# the lower jaw first, so the skull sits over its hinge
 	var hinge := Vector2(-2, 10)
 	var jang := jaw * 1.9
-	var jw := func(v: Vector2) -> Vector2: return at + (hinge + (v - hinge).rotated(jang)).rotated(ang)
-	# the jaw, with the flange at its front that sheathed the sabres
-	b.poly(PackedVector2Array([jw.call(Vector2(-4, 8)), jw.call(Vector2(32, 10)), jw.call(Vector2(34, 16)), jw.call(Vector2(30, 30)),
-		jw.call(Vector2(22, 32)), jw.call(Vector2(18, 22)), jw.call(Vector2(2, 22))]), belly.darkened(0.12))
-	if jaw > 0.1:
-		b.poly(PackedVector2Array([r.call(Vector2(0, 8)), r.call(Vector2(38, 8)), jw.call(Vector2(34, 10)), jw.call(Vector2(0, 10))]), Pal.MAW)
-		b.poly(PackedVector2Array([jw.call(Vector2(4, 11)), jw.call(Vector2(28, 11)), jw.call(Vector2(24, 15)), jw.call(Vector2(8, 15))]), Color("c96a74"))
-		for k in 4:
-			var lt: Vector2 = jw.call(Vector2(10 + k * 6, 11))
-			b.tri(lt, lt + Vector2(3, 0).rotated(ang + jang), lt + Vector2(1.5, -5).rotated(ang + jang), Pal.TOOTH)
-	# the skull: broad, with a crest along the top
-	var skull := PackedVector2Array()
-	for i in 18:
-		var a := TAU * i / 18.0
-		skull.append(r.call(Vector2(2, -4) + Vector2(cos(a) * 25.0, sin(a) * 18.0)))
-	b.poly(skull, fur)
-	b.poly(PackedVector2Array([r.call(Vector2(-18, -14)), r.call(Vector2(-6, -24)), r.call(Vector2(12, -22)), r.call(Vector2(20, -16))]), fur)
-	b.polyline(PackedVector2Array([r.call(Vector2(-16, -16)), r.call(Vector2(-4, -24)), r.call(Vector2(12, -22))]), fur_dark, 3.0)
-	# a short, broad muzzle, gone grey
-	var muzzle := PackedVector2Array([r.call(Vector2(12, -12)), r.call(Vector2(32, -9)), r.call(Vector2(40, -1)), r.call(Vector2(38, 9)),
-		r.call(Vector2(14, 10))])
-	b.poly(muzzle, fur)
-	b.poly(PackedVector2Array([r.call(Vector2(18, 1)), r.call(Vector2(38, 1)), r.call(Vector2(38, 9)), r.call(Vector2(16, 10))]), belly)
-	for k in 6:
-		b.circle(r.call(Vector2(20 + (k % 3) * 6, -4 + (k / 3) * 5)), 1.6, Color("cfc6b8"), 6)
-	b.circle(r.call(Vector2(39, -3)), 4.2, Pal.OUTLINE, 8)
-	# the sabres: long, slender, finely serrated — one snapped off short (and
-	# gone altogether once it has flown)
+	var jw := func(v: Vector2) -> Vector2: return at + ((hinge + (v - hinge).rotated(jang)) * HEAD).rotated(ang)
+	_part(b, PackedVector2Array([jw.call(Vector2(-4, 8)), jw.call(Vector2(32, 10)), jw.call(Vector2(34, 16)), jw.call(Vector2(30, 30)),
+		jw.call(Vector2(22, 33)), jw.call(Vector2(18, 23)), jw.call(Vector2(2, 22))]), BELLY.darkened(0.15))
+	if not _rim_pass:
+		_tri3(b, jw.call(Vector2(14, 24)), jw.call(Vector2(10, 34)), jw.call(Vector2(22, 26)), BELLY.darkened(0.1))   # the chin tuft
+		if jaw > 0.1:
+			b.poly(PackedVector2Array([r.call(Vector2(0, 8)), r.call(Vector2(38, 8)), jw.call(Vector2(34, 10)), jw.call(Vector2(0, 10))]), Pal.MAW)
+			b.poly(PackedVector2Array([jw.call(Vector2(4, 11)), jw.call(Vector2(28, 11)), jw.call(Vector2(24, 15)), jw.call(Vector2(8, 15))]), Color("c96a74"))
+			for k in 4:
+				var lt: Vector2 = jw.call(Vector2(10 + k * 6, 11))
+				b.tri(lt, lt + Vector2(3.5, 0).rotated(ang + jang), lt + Vector2(1.7, -6).rotated(ang + jang), Pal.TOOTH)
+	# the skull: a broad wedge, a crest along the top
+	_part(b, PackedVector2Array([r.call(Vector2(-22, -2)), r.call(Vector2(-16, -18)), r.call(Vector2(-2, -24)), r.call(Vector2(16, -20)),
+		r.call(Vector2(30, -12)), r.call(Vector2(30, 8)), r.call(Vector2(4, 14)), r.call(Vector2(-16, 12))]), fur)
+	# the muzzle, short and broad, gone grey; the dark nose
+	_part(b, PackedVector2Array([r.call(Vector2(12, -12)), r.call(Vector2(32, -10)), r.call(Vector2(42, -2)), r.call(Vector2(40, 9)),
+		r.call(Vector2(14, 10))]), fur)
+	# the sabres: long curved crescents (one snapped off short, gone once it flew)
 	var fang_gone := state == "beaten" and _down
-	if not fang_gone:
-		var sab := PackedVector2Array([r.call(Vector2(22, 7)), r.call(Vector2(30, 7)), r.call(Vector2(30, 28)), r.call(Vector2(27, 44)), r.call(Vector2(24, 50))])
-		b.poly(sab, Pal.TOOTH)
-		for k in 5:
-			var q: Vector2 = r.call(Vector2(29.5 - k * 0.6, 14 + k * 7))
-			b.line(q, q + Vector2(2.2, 0.6).rotated(ang), Color("c9bfa6"), 1.0)
+	if fang_gone:
+		_sab_pts = PackedVector2Array()
+	var sab_len := 1.0 if not fang_gone else 0.0
+	if sab_len > 0.0:
+		var sab := PackedVector2Array([r.call(Vector2(21, 7)), r.call(Vector2(31, 7)), r.call(Vector2(32, 26)), r.call(Vector2(29, 44)),
+			r.call(Vector2(24, 58)), r.call(Vector2(25, 42)), r.call(Vector2(24, 24))])
+		_part(b, sab, Pal.TOOTH)
+		if not _rim_pass:
+			_sab_pts = sab
+			b.polyline(PackedVector2Array([r.call(Vector2(29, 10)), r.call(Vector2(29.5, 28)), r.call(Vector2(27, 44))]), Color(1, 1, 1, 0.8), 1.6)   # the gleam
+			for k in 5:
+				var q: Vector2 = r.call(Vector2(24.5, 16 + k * 7))
+				b.line(q, q + Vector2(-1.8, 0.4).rotated(ang), Color("c9bfa6"), 1.0)
 	else:
-		b.poly(PackedVector2Array([r.call(Vector2(22, 7)), r.call(Vector2(30, 7)), r.call(Vector2(29, 13)), r.call(Vector2(23, 13))]), Pal.TOOTH)
-	b.poly(PackedVector2Array([r.call(Vector2(12, 8)), r.call(Vector2(18, 8)), r.call(Vector2(17, 18)), r.call(Vector2(13, 17))]), Pal.TOOTH)
-	# heavy brow, the eye, and the old scar across it
-	b.poly(PackedVector2Array([r.call(Vector2(6, -16)), r.call(Vector2(26, -14)), r.call(Vector2(24, -8)), r.call(Vector2(6, -10))]), fur_dark)
-	var eye: Vector2 = r.call(Vector2(17, -7))
-	b.circle(eye, 3.8, Pal.OUTLINE, 10)
-	_eye_at = eye
-	b.line(r.call(Vector2(8, -20)), r.call(Vector2(28, 2)), belly.lightened(0.25), 3.0)
-	# whisker pads
+		_part(b, PackedVector2Array([r.call(Vector2(21, 7)), r.call(Vector2(31, 7)), r.call(Vector2(30, 14)), r.call(Vector2(22, 14))]), Pal.TOOTH)
+	_part(b, PackedVector2Array([r.call(Vector2(11, 8)), r.call(Vector2(18, 8)), r.call(Vector2(17, 20)), r.call(Vector2(12, 18))]), Pal.TOOTH)   # the broken one
+	if _rim_pass:
+		return
+	b.poly(PackedVector2Array([r.call(Vector2(17, 3)), r.call(Vector2(26, -1)), r.call(Vector2(36, -1)), r.call(Vector2(42, 3)),
+		r.call(Vector2(40, 9)), r.call(Vector2(28, 11)), r.call(Vector2(17, 9))]), BELLY)                 # the grey muzzle, rounded
+	for k in 6:
+		b.circle(r.call(Vector2(22 + (k % 3) * 6, -3 + (k / 3) * 5)), 1.4, Color("8a7a66"), 6)
+	b.tri(r.call(Vector2(36, -8)), r.call(Vector2(44, -6)), r.call(Vector2(41, 1)), Color("2a1810"))      # the nose
+	# the stripes on his brow, and the dark saddle over the crest
+	b.poly(PackedVector2Array([r.call(Vector2(-16, -17)), r.call(Vector2(-2, -23)), r.call(Vector2(14, -19)), r.call(Vector2(4, -14)), r.call(Vector2(-12, -11))]), SADDLE)
 	for k in 3:
-		b.circle(r.call(Vector2(32 + k * 3, 4 + (k % 2) * 2)), 1.2, fur_dark, 6)
+		var sp: Vector2 = r.call(Vector2(-10 + k * 6, -14))
+		b.tri(sp, sp + Vector2(4, 0).rotated(ang), sp + Vector2(-2, 10).rotated(ang), STRIPE)
+	# the eye: a burning amber eye with a slit pupil, under an angry brow wedge
+	var eye: Vector2 = r.call(Vector2(19, -6))
+	var big := 5.2 * HEAD
+	var open := 0.85 if cower < 0.5 else 0.35                # (afraid: he squeezes it shut)
+	b.ellipse(eye, big * 1.2, big * open, Color("ffb02e"), ang, 10)
+	b.ellipse(eye, big * 0.3, big * minf(open, 0.8), Color("1a0f08"), ang, 8)
+	b.circle(eye + Vector2(-1.5, -1.5).rotated(ang), 1.4, Color.WHITE, 6)
+	_eye_at = eye
+	var brow := 4.0 * cower
+	b.poly(PackedVector2Array([r.call(Vector2(4, -17 - brow)), r.call(Vector2(30, -9 + brow * 0.3)), r.call(Vector2(28, -4)), r.call(Vector2(8, -9 - brow))]), STRIPE)
+	# the old scar across the eye: pink, ragged
+	b.polyline(PackedVector2Array([r.call(Vector2(8, -22)), r.call(Vector2(16, -12)), r.call(Vector2(22, -4)), r.call(Vector2(30, 6))]), Color("f2b8a8"), 3.4)
+	for k in 3:
+		var st: Vector2 = r.call(Vector2(12 + k * 7, -17 + k * 8))
+		b.line(st + Vector2(-3, -2).rotated(ang), st + Vector2(3, 2).rotated(ang), Color("d88a7a"), 1.4)
+	# whiskers
+	for k in 3:
+		var w: Vector2 = r.call(Vector2(34, 2 + k * 3))
+		b.line(w, w + Vector2(16, -4 + k * 4).rotated(ang), Color(1, 1, 1, 0.55), 1.0)
 
 
 ## Big amber eyes that burn through the dark, flaring in the tell.
@@ -1247,6 +1366,19 @@ func draw_glow(g) -> void:   # g: the glow layer's Batch
 	g.draw_circle(e, 4.0 + flare * 1.5, Color(Pal.WOLF_EYE, 0.95 * dim))
 	# the far eye, just showing
 	g.draw_circle(e + Vector2(-float(dir) * 10.0, 1.0), 3.0 + flare, Color(Pal.WOLF_EYE, 0.6 * dim))
+	# his moonlit outline and the gleam of his sabre, over the dark (not when he
+	# melts into it for the eye trick, nor in the dark of his lair)
+	if state in ["vanish", "eyes", "lurk_in"] or modulate.a < 0.5:
+		return
+	var at := func(v: Vector2) -> Vector2: return global_position + Vector2(float(dir) * v.x, v.y) * SIZE
+	var moon_a := 0.42 * (0.6 if dim < 1.0 else 1.0)
+	for i in range(_moon_pts.size() - 1):
+		g.draw_line(at.call(_moon_pts[i]), at.call(_moon_pts[i + 1]), Color(0.8, 0.9, 1.0, moon_a), 3.0)
+	if _sab_pts.size() >= 3:
+		var sab := PackedVector2Array()
+		for v in _sab_pts:
+			sab.append(at.call(v))
+		g.draw_colored_polygon(sab, Color(1.0, 0.97, 0.88, 0.5))
 
 
 ## The roar made visible: a ring of air rolling out from his jaws.
