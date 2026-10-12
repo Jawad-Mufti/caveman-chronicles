@@ -120,7 +120,9 @@ thorns. Old One-Eye gets none until it has been met (a surprise).
 
 ## Old Scar's fight, advanced (2026-10-12)
 `level2/old_scar.gd` + `level2/scar_arena.gd` (the clearing, changing as the fight goes on).
-- Look: rims in darker tones, a spiky ruff, three-tone fur with stripes, a 1.25x head with a slit-pupil
+- Look (redone 2026-10-12, realistic): painted after Smilodon paleoart: a plain tawny coat, darker back, pale
+  belly, soft moonlit form shading, muscle masses, fur strokes, a lion-like head with a tear-line and slender
+  sabres below the chin. (Was:) rims in darker tones, a spiky ruff, three-tone fur with stripes, a 1.25x head with a slit-pupil
   amber eye, curved sabres, a moonlit outline (also on the glow layer). Sheet: `tools/scarsheet`.
 - COUNTERS: PARRY (hit his raised paw from in front: staggered, open), THE BROKEN FANG (a rock from afar,
   square in his face: triple damage, every 5 s), CLOSE ONE (slip a pounce at the last moment: time slows,
