@@ -23,6 +23,28 @@ func run() -> void:
 	await frames(30)
 	check("DOWN crouches him", p.crouching and p.crouch_k > 0.95, "crouching %s, k %.2f" % [p.crouching, p.crouch_k])
 	check("crouched, he doesn't walk", absf(p.global_position.x - x0) < 12.0, "moved %.0f px" % (p.global_position.x - x0))
+	# low: what flies at head height passes over him
+	var cap := p._body_cap.shape as CapsuleShape2D
+	var head := Area2D.new()
+	head.collision_layer = 0
+	head.collision_mask = 2
+	var hs := CollisionShape2D.new()
+	var hr := RectangleShape2D.new()
+	hr.size = Vector2(60, 14)
+	hs.shape = hr
+	head.add_child(hs)
+	head.position = p.global_position + Vector2(0, -54)
+	level.add_child(head)
+	await frames(3)
+	var over_low := head.overlaps_body(p)
+	check("crouched, his body is low (things fly over)", cap.height < 45.0 and not over_low, "capsule %.0f, head-high thing touches %s" % [cap.height, over_low])
+	p.touch["down"] = false
+	await frames(10)
+	var over_up := head.overlaps_body(p)
+	check("standing, the same thing hits him", cap.height > 60.0 and over_up, "capsule %.0f, touches %s" % [cap.height, over_up])
+	head.free()
+	p.touch["down"] = true
+	await frames(20)
 	if shots:
 		level.cam.zoom = Vector2(2.0, 2.0)
 		level.cam.offset = Vector2(0, -90)

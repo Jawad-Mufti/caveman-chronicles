@@ -192,6 +192,8 @@ var _stomp_prev := false
 var digging_down := false
 var crouching := false             ## DOWN held on the ground: he crouches low (stays put; HIT sweeps low)
 var crouch_k := 0.0                ## 0 .. 1, eased (the drawing)
+var _body_cap: CollisionShape2D       ## his body: shorter while he crouches (low things pass over)
+const CROUCH_H := 38.0               ## the body capsule crouched (standing: 64)
 ## His costume. The fire-discovery set: wolf_hood, ember_paint, bear_cloak,
 ## firekeeper (and the older wolf_pelt, war_paint, bone_necklace, plain).
 var skin := "plain"
@@ -312,6 +314,7 @@ func _ready() -> void:
 	add_child(_embers)
 
 	var body := CollisionShape2D.new()
+	_body_cap = body
 	var cap := CapsuleShape2D.new()
 	cap.radius = 13.0
 	cap.height = 64.0
@@ -679,6 +682,9 @@ func _physics_process(delta: float) -> void:
 	# DOWN on the ground: he CROUCHES (he can still turn, not walk); low, he can HIT a low sweep
 	crouching = held_down() and is_on_floor() and vine == null and not wall_cling and carrying == null and knock <= 0.0 \
 		and not dead and scorch_t <= 0.0 and tool != "shovel"
+	if not crouching and _crouched_body() and is_on_floor() and not dead and _no_headroom():
+		crouching = true                  # no room to stand under here: he stays down
+	_set_crouch_body(crouching)
 	crouch_k = move_toward(crouch_k, 1.0 if crouching else 0.0, delta * 9.0)
 	if crouching:
 		dir = 0.0
@@ -1250,6 +1256,25 @@ func _start_swing(kind: String) -> void:
 	_struck = false
 	if kind.begins_with("axe") or kind.begins_with("club") or kind.begins_with("kick"):
 		_combo_t = 0.0
+
+
+## Crouched, his body is a shorter capsule, feet still on the ground: what
+## flies at head height passes over him.
+func _set_crouch_body(low: bool) -> void:
+	if _body_cap == null or _crouched_body() == low:
+		return
+	var cap := _body_cap.shape as CapsuleShape2D
+	cap.height = CROUCH_H if low else 64.0
+	_body_cap.position = Vector2(0, -cap.height * 0.5)
+
+
+func _crouched_body() -> bool:
+	return _body_cap != null and (_body_cap.shape as CapsuleShape2D).height < 60.0
+
+
+## Would standing up push his head into rock?
+func _no_headroom() -> bool:
+	return test_move(global_transform, Vector2(0, -(64.0 - CROUCH_H) - 2.0))
 
 
 ## A beast low in front of him, within the low sweep's reach.

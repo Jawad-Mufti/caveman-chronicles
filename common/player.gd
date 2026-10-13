@@ -351,8 +351,8 @@ func _paint() -> void:
 		lean += -0.14 * sin(clampf(fp / 0.45, 0.0, 1.0) * PI * 0.5) if fp < 0.45 else 0.3 * sin(clampf((fp - 0.45) / 0.55, 0.0, 1.0) * PI)
 	if crouch_k > 0.0 and not air:
 		# CROUCHED (DOWN held): hips dropped low, leaning in over the knees
-		bob += 24.0 * crouch_k
-		lean += 0.16 * crouch_k
+		bob += 42.0 * crouch_k
+		lean += 0.22 * crouch_k
 	lean = lerpf(lean, -0.08 + sin(anim_t * 11.0) * 0.17, tumble)   # rocking as he flails
 	if fury >= 0.0 and not roaring:
 		bob += 7.0 * rage
@@ -420,8 +420,8 @@ func _paint() -> void:
 	if crouch_k > 0.0 and not air and not dead:
 		# crouched: knees bent wide, the feet planted apart
 		bend = maxf(bend, crouch_k)
-		foot_f = foot_f.lerp(Vector2(40, -6), crouch_k)
-		foot_b = foot_b.lerp(Vector2(-30, -6), crouch_k)
+		foot_f = foot_f.lerp(Vector2(46, -6), crouch_k)
+		foot_b = foot_b.lerp(Vector2(-38, -6), crouch_k)
 	if kick_k >= 0.0:
 		bend = 1.0
 		if _swing_kind == "kick1":
