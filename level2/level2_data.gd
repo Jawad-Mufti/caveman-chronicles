@@ -248,14 +248,17 @@ const WOLVES := [
 ## AMBUSHES (level2/ambush.gd): walk into the stretch and beasts burst out at
 ## him, one after another; beat them all for a burst of Spirit Orbs. Every visit.
 ## ESCALATION: the further along, the harder (tier 1-5 from x: more beasts, waves, elites).
-## [x0, x1, floor y, [kinds: wolf skeleton rat bat], the line on the HUD]
+## [x0, x1, floor y, [kinds: wolf skeleton rat bat; in the mountain skel_drop spider_drop], the line on the HUD]
 const AMBUSHES := [
 	[3420.0, 3950.0, 600.0, ["wolf", "bat", "wolf"], "Eyes in the bushes... AMBUSH!"],
-	[8350.0, 8750.0, 830.0, ["skeleton", "skeleton"], "The bones of the Great Cavern stir..."],
+	[8350.0, 8750.0, 830.0, ["skeleton", "spider_drop", "skeleton", "skel_drop"], "The bones of the Great Cavern stir... and the ROOF!"],
 	[15250.0, 15900.0, 600.0, ["skeleton", "skeleton", "skeleton"], "The graveyard... the bones are MOVING!"],
 	[12260.0, 12440.0, 600.0, ["wolf", "wolf", "bat"], "Out on the open Steppe... nowhere to hide!"],   # (starts past Shivers' camp)
 	[25400.0, 26300.0, 600.0, ["wolf", "wolf", "bat", "wolf"], "The pack was lying in wait!"],
 	[28420.0, 28880.0, 600.0, ["skeleton", "bat", "rat", "skeleton"], "In the last of the light... the dead walk!"],
+	# inside the mountain, from ABOVE too (skel_drop, spider_drop: out of the cave roof, after a tell)
+	[6330.0, 6680.0, 800.0, ["skel_drop", "spider_drop", "skeleton"], "The crystals shiver... something is UP THERE!"],
+	[6860.0, 7200.0, 640.0, ["skel_drop", "skeleton", "skel_drop", "spider_drop"], "The Bone Hall... bones RAIN from the roof!"],
 ]
 const BAT_HOVER := 70.0
 ## [x, the surface this bat belongs to]

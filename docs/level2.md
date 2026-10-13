@@ -43,7 +43,7 @@ east up to THE SLEEPING HALL (chest ch1, GOLDEN HORN r12) → THE EAGLE SHAFT (`
 Peak; a long gallery to THE GLOW HOLLOW, out onto the east slope. Rooms: `MT_ROOMS` (title card once each).
 SIDE MISSION at the foot of the east slope (x 11850-12200, `level2/windbreak.gd`): SHIVERS by his lean-to wants a
 windbreak; the MIXING SLAB (`Bag.Mixer`): 2 wood + 3 rocks + 1 clay (mud bank by the hut). Reward: 2 obsidian, a fig.
-Cave worms (`MT_CAVEWORMS`) and risen skeletons (`MT_SKELETONS`; they guard both chests). Buried finds
+Cave worms (`MT_CAVEWORMS`) and risen skeletons (`MT_SKELETONS`; they guard both chests). AMBUSHES inside: the Crystal Grotto, the Bone Hall, the Great Cavern; beasts also come from ABOVE (`skel_drop`, `spider_drop`: `ambush.gd` RoofDrop: a 0.8 s tell (the roof cracks, dust and pebbles, eyes in the crack, a ring on the floor), then the roof bursts; a skeleton falls as a bone heap, CRASH, rattles up; a spider drops on its silk). Buried finds
 `MT_BURIED`, rare relics r8–r10 deep in the strata (`MT_BURIED_RARE`).
 
 ## The underground (in place, no regions)

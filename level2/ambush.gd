@@ -22,6 +22,7 @@ var _waves: Array = []
 var _wave := 0
 var _next := 0.0
 var _done := false
+var _pending := 0                  ## beasts still on their way down from the roof
 
 
 static func tier_at(x: float, level_w: float) -> int:
@@ -70,6 +71,8 @@ func _process(delta: float) -> void:
 		if _next <= 0.0:
 			_next = maxf(0.3, 0.6 - tier * 0.06)
 			_spawn(_queue.pop_front(), p)
+		return
+	if _pending > 0:
 		return
 	for c in _spawned:
 		if is_instance_valid(c) and (c as Critter).dying <= 0.0:
@@ -168,9 +171,37 @@ func _spawn(kind: String, p: CaveMan) -> void:
 			bat.ground_y = _floor_at(xb)
 			bat.position = Vector2(xb, bat.ground_y - 260.0)
 			c = bat
+		"skel_drop", "spider_drop":
+			# from the ROOF: a crack, a tell... and down it comes, close to him
+			var xd := clampf(p.global_position.x + side * randf_range(60.0, 190.0), x0, x1)
+			var g := _floor_at(xd)
+			var rf := terrain.roof_y(xd, g - 40.0) if terrain != null else -INF
+			if rf == -INF or g - rf > 520.0 or g - rf < 110.0:
+				rf = g - 320.0
+			var d := RoofDrop.new()
+			d.kind = kind
+			d.position = Vector2(xd, rf)
+			d.roof = rf
+			d.ground = g
+			d.terrain = terrain
+			d.left_x = x0 - 100.0
+			d.right_x = x1 + 100.0
+			d.on_land = _dropped
+			_pending += 1
+			get_parent().add_child(d)
+			return
 	if c == null:
 		return
 	get_parent().add_child(c)
+	_spawned.append(c)
+	if randf() < _elite_chance():
+		c.make_elite()
+		c.tell("ELITE!", Color("ff5a3a"))
+
+
+## A beast from the roof is down: counted like the rest.
+func _dropped(c: Critter) -> void:
+	_pending = maxi(_pending - 1, 0)
 	_spawned.append(c)
 	if randf() < _elite_chance():
 		c.make_elite()
@@ -196,3 +227,173 @@ func _cleared(p: CaveMan) -> void:
 	orbs.target = p
 	orbs.origin = p.global_position + Vector2(0, -140)
 	get_parent().add_child(orbs)
+
+
+## FROM THE ROOF (inside the mountain): a beast comes down on him from above.
+## First the TELL (TELL s): the roof cracks, dust trickles and pebbles patter
+## down, eyes glint in the crack, a ring marks the floor where it will land.
+## Then the roof BURSTS (stone chips, a shake) and it falls: a skeleton as a
+## tumbling heap of bones that lands with a CRASH and rattles up; a spider
+## dropping on its silk.
+class RoofDrop extends Node2D:
+	const TELL := 0.8
+	const GRAVITY := 1500.0
+	var kind := "skel_drop"
+	var roof := 0.0                ## world y of the roof here
+	var ground := 0.0              ## world y of the floor here
+	var terrain: Terrain = null
+	var left_x := 0.0
+	var right_x := 0.0
+	var on_land: Callable          ## (beast: Critter) -> void: the ambush counts it
+	var t := 0.0
+	var _y := 0.0                  ## the falling heap (skeleton), world y
+	var _vy := 0.0
+	var _spin := 0.0
+	var _burst := false
+	var _pebbles: Array = []       ## [x offset, y, vy]
+
+	func _ready() -> void:
+		add_to_group("glow")
+		z_index = 2
+		global_position = Vector2(global_position.x, roof)
+		_y = roof
+
+	func _process(delta: float) -> void:
+		t += delta
+		# pebbles pattering down from the crack through the tell
+		if not _burst and randf() < delta * 14.0:
+			_pebbles.append([randf_range(-14.0, 14.0), 0.0, randf_range(0.0, 80.0)])
+		for pb in _pebbles:
+			pb[2] += GRAVITY * 0.7 * delta
+			pb[1] += float(pb[2]) * delta
+		_pebbles = _pebbles.filter(func(pb): return float(pb[1]) < ground - roof)
+		if not _burst and t >= TELL:
+			_open()
+		if _burst and kind == "skel_drop":
+			_vy += GRAVITY * delta
+			_y += _vy * delta
+			_spin += delta * 9.0
+			if _y >= ground:
+				_land()
+				return
+		if _burst and kind != "skel_drop" and _pebbles.is_empty() and t > TELL + 1.2:
+			queue_free()
+		queue_redraw()
+
+	## The roof bursts open.
+	func _open() -> void:
+		_burst = true
+		var lvl := get_parent()
+		FX.shards(lvl, Vector2(global_position.x, roof + 6.0), Vector2.DOWN, true)
+		FX.burst(lvl, Vector2(global_position.x, roof + 10.0), "dust")
+		if lvl.has_method("shake"):
+			lvl.shake(4.0, 0.2)
+		if kind == "spider_drop":
+			var sp := Caves.Spider.new()
+			sp.position = Vector2(global_position.x, ground)
+			sp.roof_y = roof - 60.0                 # it starts just under the roof, its silk up into the crack
+			sp.left_x = left_x
+			sp.right_x = right_x
+			sp.state = "drop"
+			lvl.add_child(sp)
+			sp.tell("!", Color("ff9a3a"))
+			on_land.call(sp)
+
+	## The heap of bones hits the floor: CRASH, and it rattles up.
+	func _land() -> void:
+		var lvl := get_parent()
+		var x := global_position.x
+		FX.burst(lvl, Vector2(x, ground), "dust", -1.0)
+		FX.burst(lvl, Vector2(x, ground), "dust", 1.0)
+		FX.shards(lvl, Vector2(x, ground - 4.0), Vector2.UP, false)
+		if lvl.has_method("shake"):
+			lvl.shake(7.0, 0.25)
+		var w := CaveMan.WordPop.new()
+		w.text = "CRASH!"
+		w.size = 30
+		w.color = Color("e8dcc0")
+		w.star = Color("2a0a0a", 0.85)
+		w.centered = true
+		w.life = 0.9
+		w.position = Vector2(x, ground - 110.0)
+		lvl.add_child(w)
+		var sk := Mountain.RisenSkeleton.new()
+		sk.terrain = terrain
+		sk.left_x = left_x
+		sk.right_x = right_x
+		sk.position = Vector2(x, ground)
+		sk.state = "rise"                       # straight up out of the heap it landed in
+		lvl.add_child(sk)
+		on_land.call(sk)
+		queue_free()
+
+	func _draw() -> void:
+		var k := clampf(t / TELL, 0.0, 1.0)
+		var rock := Color("3a2c22")
+		# the crack spreading across the roof
+		if not _burst:
+			var reach := 12.0 + 46.0 * k
+			for a in [-1.0, 1.0]:
+				var pts := PackedVector2Array([Vector2.ZERO])
+				for s in 4:
+					var q := float(s + 1) / 4.0
+					pts.append(Vector2(a * reach * q, 3.0 + sin(q * 9.0 + a) * 4.0 * q))
+				draw_polyline(pts, Color("b9a58a", 0.7), 5.5)      # the broken edge catching the light
+				draw_polyline(pts, rock.darkened(0.5), 3.0)
+			# the hole opening in the middle, dark
+			draw_circle(Vector2(0, 3), 7.0 + 9.0 * k, Color("b9a58a", 0.6))
+			draw_circle(Vector2(0, 3), 5.0 + 8.0 * k, Color("120c0a"))
+		else:
+			draw_circle(Vector2(0, 4), 14.0, Color("120c0a"))
+		# a trickle of dust out of the crack
+		if not _burst:
+			for i in 6:
+				var q := fmod(t * 1.8 + i * 0.17, 1.0)
+				draw_circle(Vector2(sin(i * 2.1) * 6.0, 8.0 + q * 120.0), 2.2 - q * 1.2, Color(0.8, 0.72, 0.6, 0.55 * (1.0 - q)))
+		for pb in _pebbles:
+			draw_circle(Vector2(float(pb[0]), float(pb[1])), 2.6, Color("8a7a68"))
+		# the falling heap of bones, tumbling
+		if _burst and kind == "skel_drop":
+			draw_set_transform(Vector2(0, _y - roof), _spin, Vector2.ONE)
+			var bone := Color("e3d8bc")
+			# two long bones crossed behind the skull, knobbed at both ends
+			for b in [[Vector2(-24, -18), Vector2(24, 18)], [Vector2(-24, 18), Vector2(24, -18)]]:
+				var a: Vector2 = b[0]
+				var e: Vector2 = b[1]
+				draw_line(a, e, bone.darkened(0.35), 8.0)
+				draw_line(a, e, bone, 5.0)
+				var n := (e - a).normalized().orthogonal() * 3.5
+				for q in [a, e]:
+					draw_circle(q + n, 4.5, bone.darkened(0.3))
+					draw_circle(q - n, 4.5, bone.darkened(0.3))
+					draw_circle(q + n, 3.4, bone)
+					draw_circle(q - n, 3.4, bone)
+			# the skull: a dome, a jaw, dark sockets
+			draw_circle(Vector2(0, -3), 13.0, bone.darkened(0.3))
+			draw_circle(Vector2(0, -3), 11.5, bone)
+			draw_rect(Rect2(-6.5, 6, 13, 7), bone.darkened(0.1))
+			draw_circle(Vector2(-4.5, -3), 3.6, Color("1a1410"))
+			draw_circle(Vector2(4.5, -3), 3.6, Color("1a1410"))
+			draw_circle(Vector2(0, 4), 1.6, Color("1a1410"))
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+	## Eyes glinting in the crack; the warning ring on the floor below.
+	func draw_glow(g) -> void:
+		var c := global_position
+		if not _burst:
+			var k := clampf(t / TELL, 0.0, 1.0)
+			var eye := Color("7dffcf") if kind == "skel_drop" else Pal.EMBER_GLOW
+			if k > 0.3:
+				for s in [-1.0, 1.0]:
+					g.draw_circle(c + Vector2(s * 4.0, 4.0), 2.2, Color(eye, minf(1.0, (k - 0.3) * 3.0)))
+			var pulse := 0.5 + 0.5 * sin(t * 18.0)
+			var r := 34.0 - 14.0 * k
+			var pts := PackedVector2Array()
+			for i in 17:
+				var a := TAU * i / 16.0
+				pts.append(Vector2(c.x + cos(a) * r, ground - 2.0 + sin(a) * r * 0.25))
+			for i in 16:
+				g.draw_line(pts[i], pts[i + 1], Color(1.0, 0.45, 0.2, (0.35 + 0.4 * pulse) * k), 2.0)
+		elif kind == "skel_drop":
+			for s in [-4.5, 4.5]:
+				g.draw_circle(Vector2(c.x, _y) + Vector2(s, -3.0).rotated(_spin), 2.0, Color("7dffcf"))      # its eyes, lit in the sockets
