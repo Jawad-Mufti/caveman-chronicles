@@ -190,6 +190,8 @@ var _stomp_t := 0.0
 var _stomp_prev := false
 ## Digging (see Dig): this swing goes straight down into the ground under him.
 var digging_down := false
+var crouching := false             ## DOWN held on the ground: he crouches low (stays put; HIT sweeps low)
+var crouch_k := 0.0                ## 0 .. 1, eased (the drawing)
 ## His costume. The fire-discovery set: wolf_hood, ember_paint, bear_cloak,
 ## firekeeper (and the older wolf_pelt, war_paint, bone_necklace, plain).
 var skin := "plain"
@@ -218,6 +220,7 @@ const SWINGS := {
 	"hammer": [0.44, 0.52, 0.58, 0.88, 50.0, -18.0, 6],
 	"dig": [0.30, 0.34, 0.50, 0.95, 4.0, 14.0, 1],          # DOWN + HIT: the hammer's slam, quick, into the ground
 	"spike": [0.24, 0.20, 0.15, 1.00, 4.0, 22.0, 3],         # DOWN + HIT in the air: the POGO, straight down
+	"sweep": [0.24, 0.26, 0.25, 0.95, 46.0, -14.0, 3],      # DOWN (crouched) + HIT: a low sweep along the ground in front
 	"homerun": [0.38, 0.60, 0.30, 0.82, 64.0, -42.0, 7],
 	# the club's combo: tap, tap, TAP — BONK, the uppercut back up, then the finisher
 	"club1": [0.18, 0.20, 0.15, 1.00, 40.0, -40.0, 3],
@@ -673,6 +676,12 @@ func _physics_process(delta: float) -> void:
 		dir = _panic_dir
 	if dir != 0.0:
 		facing = int(signf(dir))
+	# DOWN on the ground: he CROUCHES (he can still turn, not walk); low, he can HIT a low sweep
+	crouching = held_down() and is_on_floor() and vine == null and not wall_cling and carrying == null and knock <= 0.0 \
+		and not dead and scorch_t <= 0.0 and tool != "shovel"
+	crouch_k = move_toward(crouch_k, 1.0 if crouching else 0.0, delta * 9.0)
+	if crouching:
+		dir = 0.0
 	_vine_cd = maxf(_vine_cd - delta, 0.0)
 	if vine != null:
 		_swing(delta, dir)
@@ -945,9 +954,14 @@ func _input_hit(delta: float, dir: float, up_held: bool) -> void:
 		var down_held := held_down()
 		# UP + HIT in the air with no side held: the AIR KICKS (a side held: the club, aimed, as ever)
 		var kick := up_held and not down_held and dir == 0.0 and not is_on_floor() and vine == null and not wall_cling and not climbing
-		# DOWN + HIT on the ground: an overhead blow straight down — digging
+		# DOWN + HIT on the ground: an overhead blow straight down — digging; but
+		# crouched with a beast in front of him: the LOW SWEEP
 		digging_down = is_on_floor() and down_held
-		if kick:
+		if digging_down and crouching and has_stick and not axe_out and (_beast_low_ahead() or not _on_diggable()):
+			digging_down = false
+			_swing_aim = Vector2(float(facing), 0.0)
+			_start_swing("sweep")
+		elif kick:
 			_air_kick()
 		elif digging_down and has_stick and not axe_out:
 			_start_swing("dig")
@@ -1236,6 +1250,39 @@ func _start_swing(kind: String) -> void:
 	_struck = false
 	if kind.begins_with("axe") or kind.begins_with("club") or kind.begins_with("kick"):
 		_combo_t = 0.0
+
+
+## A beast low in front of him, within the low sweep's reach.
+func _beast_low_ahead() -> bool:
+	for n in get_tree().get_nodes_in_group("critters"):
+		var c := n as Node2D
+		if c == null or not c.visible:
+			continue
+		var d := c.global_position - global_position
+		if d.x * float(facing) > -10.0 and absf(d.x) < 140.0 and absf(d.y) < 90.0:
+			return true
+	return false
+
+
+## Is he standing on ground a club can dig (soft earth, the Dig's blocks)?
+func _on_diggable() -> bool:
+	# what he is standing on: a diggable Terrain, or the Dig's blocks
+	for i in get_slide_collision_count():
+		var c := get_slide_collision(i)
+		if c.get_normal().y > -0.7:
+			continue
+		var n := c.get_collider() as Node
+		for k in 4:
+			if n == null:
+				break
+			if n.is_in_group("diggable") or n.has_method("cell_at"):
+				return true
+			n = n.get_parent()
+	var under := global_position + Vector2(0, 24)
+	for t in get_tree().get_nodes_in_group("diggable"):
+		if t.has_method("is_inside") and t.is_inside(under):
+			return true
+	return false
 
 
 func _kicking() -> bool:

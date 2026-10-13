@@ -349,6 +349,10 @@ func _paint() -> void:
 		# the finisher: rearing back, then thrown forward into the blow
 		var fp := 1.0 - attacking / _swing_time
 		lean += -0.14 * sin(clampf(fp / 0.45, 0.0, 1.0) * PI * 0.5) if fp < 0.45 else 0.3 * sin(clampf((fp - 0.45) / 0.55, 0.0, 1.0) * PI)
+	if crouch_k > 0.0 and not air:
+		# CROUCHED (DOWN held): hips dropped low, leaning in over the knees
+		bob += 24.0 * crouch_k
+		lean += 0.16 * crouch_k
 	lean = lerpf(lean, -0.08 + sin(anim_t * 11.0) * 0.17, tumble)   # rocking as he flails
 	if fury >= 0.0 and not roaring:
 		bob += 7.0 * rage
@@ -413,6 +417,11 @@ func _paint() -> void:
 			bend = maxf(bend, 0.7 * rage)
 			foot_f.x += 8.0 * rage
 			foot_b.x -= 8.0 * rage
+	if crouch_k > 0.0 and not air and not dead:
+		# crouched: knees bent wide, the feet planted apart
+		bend = maxf(bend, crouch_k)
+		foot_f = foot_f.lerp(Vector2(40, -6), crouch_k)
+		foot_b = foot_b.lerp(Vector2(-30, -6), crouch_k)
 	if kick_k >= 0.0:
 		bend = 1.0
 		if _swing_kind == "kick1":
@@ -883,6 +892,13 @@ func _paint() -> void:
 				trail = 0.9
 				reach = 54.0
 				smear_col = Color("bfe6ff", 0.55)
+			"sweep":
+				# crouched: the club swept low and flat along the ground, from behind to in front
+				var q := 1.0 - pow(1.0 - sp, 2.2)
+				ang = lerpf(2.2, 0.62, q)
+				trail = -(1.0 - q) * 0.9
+				reach = 54.0
+				smear_col = Color(0.85, 0.7, 0.5, 0.45)
 			"ram":
 				# the charge: the club driven straight out in front like a battering ram
 				ang = lerpf(-0.35, 0.12, minf(sp / 0.3, 1.0))

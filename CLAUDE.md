@@ -41,6 +41,7 @@ Level 1 done; Level 2 "Discovery of Fire" (night) nearly done; its map: `docs/le
 - Terraria-fast combat: hold HIT keeps swinging; combos unlocked from the start; specials on L.
   A Terraria HOTBAR (1-9/wheel/tap; HIT uses the slot: weapon, shovel digs where aimed, rocks, figs): no row
   of its own (Jawad: remove "these squares"); it is the top of the BAG's strip, numbered.
+- CROUCH: DOWN on the ground = crouch (turns, never walks); crouched + HIT = the low SWEEP when a beast is near or the ground is hard, else DOWN + HIT still digs.
 - AIR KICKS: in the air UP + HIT with no side = snap kick, then FLASH KICK (backflip, launches); UP + a side
   + HIT stays the aimed club. Only the first two kicks of a jump lift him.
 - Painted earth under the grass, not the banded soil cut-away ("pixelated").
@@ -164,7 +165,7 @@ Screenshots: `<godot> --rendering-driver opengl3 --fixed-fps 60 --path . res://t
 [nodark] [notorch] [freeze]` (PNGs to `C:/tmp/shots`; name it `topic/shot` for a folder).
 Regression set: smoke, jumps, vines, story, boss, finale, econ, bones, loot, landing, caves, sky, airjump,
 wolves, talk, tarpits, hoards, sunfire, boulder, stomp, explore, dig, mountain, dash, getup, canyon, falls,
-steppe, leak, grab, gorgechest, orbs, mtbeasts, combat, aim, swarm, combos, hotbar, weapons, slowmo, soak, bag, windbreak, errands, one_eye, airkick, loadflow (+ `-- second`), homeflow, homeuse, ugu3dface, mirror (`-- pics` with rendering), shelter (pictures: `homesights -- all nocard`), fishing (`-- pics`), sea (`-- pics nocard`).
+steppe, leak, grab, gorgechest, orbs, mtbeasts, combat, aim, swarm, combos, hotbar, weapons, slowmo, soak, bag, windbreak, errands, one_eye, airkick, crouch, loadflow (+ `-- second`), homeflow, homeuse, ugu3dface, mirror (`-- pics` with rendering), shelter (pictures: `homesights -- all nocard`), fishing (`-- pics`), sea (`-- pics nocard`).
 Tests save to `user://caveman_save_test.json` (`GameState.save_path()`): never the player's save.
 EXPECTED failures (not bugs): `vines` "three swings, let go late" MISS; `landing` prints 12 "no ground
 under" lines; `canyon rocks`/`stones` fail ~1 in 4 (bats); `combos` slam dunk and `grab` (knocked out of reach) fail ~1 in 3.
